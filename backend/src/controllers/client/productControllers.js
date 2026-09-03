@@ -328,13 +328,30 @@ export const getRelatedProducts = async (req, res) => {
       }
     }
 
-    const related = await Product.find({
+    // 1. Primary: Products in the same Equipment Type group
+    let related = await Product.find({
       category: { $in: categoryIds },
       _id: { $ne: product._id },
       isActive: true,
     })
       .populate(categoryPopulateConfig)
-      .limit(6);
+      .limit(4);
+
+    // 2. If this category has fewer than 3 items, backfill with complementary featured equipment
+    if (related.length < 3) {
+      const existingIds = [product._id, ...related.map((p) => p._id)];
+      const additionalNeeded = 3 - related.length;
+
+      const backfill = await Product.find({
+        _id: { $nin: existingIds },
+        isActive: true,
+      })
+        .populate(categoryPopulateConfig)
+        .sort({ isFeatured: -1, createdAt: -1 })
+        .limit(additionalNeeded);
+
+      related = [...related, ...backfill];
+    }
 
     const resolvedRelated = related.map(resolveProductInheritance);
 
