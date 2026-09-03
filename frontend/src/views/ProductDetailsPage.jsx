@@ -869,7 +869,7 @@ const ProductDetailsPage = ({ initialSlug }) => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-extrabold text-[#021C57]">
-                Related {equipmentTypeName || formatTitleCase(product.category?.name)} Equipment
+                Related {equipmentTypeName ? equipmentTypeName.replace(/\bEquipments?\b/gi, "").trim() + " Equipments" : formatTitleCase(product.category?.name) + " Equipments"}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Explore complementary testing instruments for your laboratory setup.
@@ -877,14 +877,14 @@ const ProductDetailsPage = ({ initialSlug }) => {
             </div>
 
             <Link
-              to={`/categories/${product.category?.slug}`}
+              to={product.category?.slug ? `/categories/${product.category.slug}` : "/products"}
               className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition cursor-pointer"
             >
               View Category <ChevronRight size={14} />
             </Link>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={`grid gap-6 ${relatedProducts.length === 1 ? "sm:grid-cols-2 lg:grid-cols-3" : relatedProducts.length === 2 ? "sm:grid-cols-2 max-w-4xl" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
             {relatedProducts.map((rel) => (
               <div
                 key={rel._id}
