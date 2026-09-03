@@ -49,9 +49,11 @@ const AmazonSearchBar = ({ isMobile = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const recognitionRef = useRef(null);
 
   useEffect(() => {
+    setMounted(true);
     if (!categories.length) fetchCategories();
     if (!products.length) fetchProducts();
     if (!equipmentTypes.length) fetchEquipmentTypes();
@@ -250,6 +252,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
       {/* AMAZON SEARCH BAR CONTAINER */}
       <form
         onSubmit={handleSubmit}
+        suppressHydrationWarning={true}
         className={`flex items-center w-full h-10 md:h-11 bg-white rounded-xl border ${
           isListening
             ? "border-red-500 ring-3 ring-red-400/30"
@@ -264,6 +267,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
               setSelectedCategory(e.target.value);
               inputRef.current?.focus();
             }}
+            suppressHydrationWarning={true}
             className="h-full pl-3 pr-7 bg-transparent text-xs font-semibold text-gray-700 appearance-none cursor-pointer focus:outline-hidden max-w-[110px] sm:max-w-[140px] truncate"
             title="Search Category Scope"
           >
@@ -293,6 +297,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             }}
             onFocus={() => setIsOpen(true)}
             onKeyDown={handleKeyDown}
+            suppressHydrationWarning={true}
             placeholder={
               isListening
                 ? "🎙️ Listening... Speak equipment name now"
@@ -314,6 +319,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                 setIsOpen(false);
                 inputRef.current?.focus();
               }}
+              suppressHydrationWarning={true}
               className="p-1.5 text-gray-400 hover:text-gray-600 transition mr-1 cursor-pointer"
               title="Clear search"
             >
@@ -325,6 +331,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           <button
             type="button"
             onClick={toggleVoiceSearch}
+            suppressHydrationWarning={true}
             className={`p-2 rounded-lg transition mr-1.5 cursor-pointer flex items-center justify-center ${
               isListening
                 ? "bg-red-500 text-white animate-pulse shadow-md"
@@ -343,6 +350,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
         {/* RIGHT: SEARCH SUBMIT BUTTON */}
         <button
           type="submit"
+          suppressHydrationWarning={true}
           className="h-full px-4 sm:px-5 bg-[#021C57] hover:bg-blue-900 text-white transition flex items-center justify-center shrink-0 cursor-pointer"
           title="Search Instruments"
         >
