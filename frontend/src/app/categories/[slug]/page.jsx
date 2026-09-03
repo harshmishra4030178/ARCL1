@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import CategoryProductClient from "../../../views/CategoryProductPage.jsx";
 
 const getBackendUrl = () => {
@@ -10,24 +11,26 @@ const getBackendUrl = () => {
   return "http://localhost:3000/api/v1";
 };
 
-async function getCategory(slug) {
+async function getCategoryData(slug) {
   try {
     const BACKEND_URL = getBackendUrl();
-    const res = await fetch(`${BACKEND_URL}/client/categories/${slug}`, {
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.data || null;
+    const [catRes, prodRes] = await Promise.all([
+      fetch(`${BACKEND_URL}/client/categories/${slug}`, { next: { revalidate: 60 } }),
+      fetch(`${BACKEND_URL}/client/products/category/${slug}`, { next: { revalidate: 60 } }),
+    ]);
+
+    const category = catRes.ok ? (await catRes.json())?.data : null;
+    const products = prodRes.ok ? (await prodRes.json())?.data : [];
+    return { category, products };
   } catch (error) {
-    return null;
+    return { category: null, products: [] };
   }
 }
 
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const slug = resolvedParams?.slug;
-  const category = await getCategory(slug);
+  const { category } = await getCategoryData(slug);
 
   const name = category?.name || slug;
   const title = `${name} Testing Equipment & Instruments | ARCL Instruments`;
@@ -59,7 +62,12 @@ export async function generateMetadata({ params }) {
 export default async function CategoryDetailPage({ params }) {
   const resolvedParams = await params;
   const slug = resolvedParams?.slug;
-  const category = await getCategory(slug);
+  const { category, products } = await getCategoryData(slug);
+
+  // If this category represents 1 single product, instantly redirect on the server with ZERO delay/flicker
+  if (products && products.length === 1 && products[0]?.slug) {
+    redirect(`/products/${products[0].slug}`);
+  }
 
   const categoryJsonLd = {
     "@context": "https://schema.org",
