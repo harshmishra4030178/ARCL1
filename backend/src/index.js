@@ -17,35 +17,47 @@ try {
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB and start HTTP server
-connectDB()
-  .then(() => {
-    const server = app.listen(PORT, () => {
-      console.log(`=========================================`);
-      console.log(`🚀 ARCL Server running on port ${PORT}`);
-      console.log(`📡 Health Check: http://localhost:${PORT}/api/v1/health`);
-      console.log(`=========================================`);
-    });
+// Standalone Server mode (Local development / Traditional VPS)
+if (process.env.VERCEL !== "1" && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  connectDB()
+    .then(() => {
+      const server = app.listen(PORT, () => {
+        console.log(`=========================================`);
+        console.log(`🚀 ARCL Server running on port ${PORT}`);
+        console.log(`📡 Health Check: http://localhost:${PORT}/api/v1/health`);
+        console.log(`=========================================`);
+      });
 
-    // Handle Unhandled Promise Rejections
-    process.on("unhandledRejection", (err) => {
-      console.error("UNHANDLED REJECTION! Shutting down gracefully...");
-      console.error(err.name, err.message);
-      server.close(() => {
+      process.on("unhandledRejection", (err) => {
+        console.error("UNHANDLED REJECTION! Shutting down gracefully...", err);
+        server.close(() => process.exit(1));
+      });
+
+      process.on("uncaughtException", (err) => {
+        console.error("UNCAUGHT EXCEPTION! Shutting down...", err);
         process.exit(1);
       });
+    })
+    .catch((error) => {
+      console.error("MongoDB Connection Failed! ", error.message);
     });
+}
 
-    // Handle Uncaught Exceptions
-    process.on("uncaughtException", (err) => {
-      console.error("UNCAUGHT EXCEPTION! Shutting down...");
-      console.error(err.name, err.message);
-      process.exit(1);
+// Vercel Serverless Function Handler
+export default async function handler(req, res) {
+  try {
+    await connectDB();
+    return app(req, res);
+  } catch (error) {
+    console.error("Serverless Handler Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+      error: error.message,
     });
-  })
-  .catch((error) => {
-    console.error("MongoDB Connection Failed! ", error.message);
-    process.exit(1);
-  });
+  }
+}
+
+export { app };
