@@ -5,7 +5,21 @@ import { useParams, Link } from "../utils/navigation.jsx";
 import { useProductStore } from "../store/useProductStore.js";
 import ProductCard from "../components/products/ProductCard.jsx";
 import ProductToolbar from "../components/products/ProductToolbar.jsx";
-import { Filter, X, RotateCcw, ChevronRight, Layers, SlidersHorizontal, Cog, CheckCircle2 } from "lucide-react";
+import {
+  Filter,
+  X,
+  RotateCcw,
+  ChevronRight,
+  Layers,
+  SlidersHorizontal,
+  Cog,
+  CheckCircle2,
+  Sparkles,
+  Building2,
+  FileCheck2,
+  ShieldCheck,
+  Award,
+} from "lucide-react";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
 /**
@@ -16,8 +30,13 @@ const normalizeKey = (k) => String(k || "").toLowerCase().replace(/[\s_-]+/g, ""
 const CategoryProductPage = ({ initialSlug }) => {
   const routeParams = useParams();
   const slug = initialSlug || routeParams.slug;
-  const { categoryProducts, categoryData, fetchProductsByCategory, categoryProductsLoading, loading: globalLoading } =
-    useProductStore();
+  const {
+    categoryProducts,
+    categoryData,
+    fetchProductsByCategory,
+    categoryProductsLoading,
+    loading: globalLoading,
+  } = useProductStore();
 
   const loading = categoryProductsLoading || globalLoading;
 
@@ -25,6 +44,7 @@ const CategoryProductPage = ({ initialSlug }) => {
   const [sort, setSort] = useState("latest");
   const [selectedFilters, setSelectedFilters] = useState({});
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("features"); // 'features' | 'applications' | 'howItWorks' | 'specs'
 
   useEffect(() => {
     if (slug) {
@@ -78,7 +98,8 @@ const CategoryProductPage = ({ initialSlug }) => {
         (p) =>
           p.name?.toLowerCase().includes(q) ||
           p.description?.toLowerCase().includes(q) ||
-          p.slug?.toLowerCase().includes(q)
+          p.slug?.toLowerCase().includes(q) ||
+          p.productCode?.toLowerCase().includes(q)
       );
     }
 
@@ -87,7 +108,7 @@ const CategoryProductPage = ({ initialSlug }) => {
     if (filterKeys.length > 0) {
       result = result.filter((product) => {
         const rawSpecs = product.specifications;
-        
+
         let specsObj = {};
         if (rawSpecs instanceof Map) {
           specsObj = Object.fromEntries(rawSpecs);
@@ -95,27 +116,22 @@ const CategoryProductPage = ({ initialSlug }) => {
           specsObj = rawSpecs;
         }
 
-        // Each filter category must match
         return filterKeys.every((filterKey) => {
           const selectedValues = selectedFilters[filterKey];
           if (!selectedValues || selectedValues.length === 0) return true;
 
-          const targetNormalizedKey = normalizeKey(filterKey);
-
-          // Find matching key in product specifications
-          const matchedSpecKey = Object.keys(specsObj).find(
-            (k) => normalizeKey(k) === targetNormalizedKey
+          const normFilterKey = normalizeKey(filterKey);
+          const matchedEntry = Object.entries(specsObj).find(
+            ([k]) => normalizeKey(k) === normFilterKey
           );
 
-          if (!matchedSpecKey) return false;
+          if (!matchedEntry) return false;
 
-          const productSpecVal = String(specsObj[matchedSpecKey]).toLowerCase().trim();
+          const productSpecVal = String(matchedEntry[1] || "").trim().toLowerCase();
 
-          // Check if any of selected values match the product's spec
-          return selectedValues.some((val) => {
-            const v = String(val).toLowerCase().trim();
+          return selectedValues.some((selectedVal) => {
+            const v = String(selectedVal).trim().toLowerCase();
             return (
-              productSpecVal === v ||
               productSpecVal.includes(v) ||
               v.includes(productSpecVal)
             );
@@ -138,155 +154,71 @@ const CategoryProductPage = ({ initialSlug }) => {
     return result;
   }, [categoryProducts, search, selectedFilters, sort]);
 
+  const hasDetails = Boolean(
+    (categoryData?.features && categoryData.features.length > 0) ||
+    (categoryData?.applications && categoryData.applications.length > 0) ||
+    categoryData?.howItWorks ||
+    (categoryData?.howItWorksSteps && categoryData.howItWorksSteps.length > 0) ||
+    (categoryData?.generalSpecifications && categoryData.generalSpecifications.length > 0)
+  );
+
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-slate-50/60 min-h-screen pb-16">
       
-      {/* BREADCRUMB & HEADER */}
-      {/* ================= CATEGORY HERO BANNER ================= */}
-      <section className="max-w-[1600px] mx-auto px-4 md:px-10 pt-6 pb-2">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#021C57] via-[#072d80] to-slate-900 text-white p-6 sm:p-8 md:p-12 shadow-2xl border border-blue-900/40">
+      {/* ================= COMPACT & ELEGANT HEADER ================= */}
+      <section className="bg-gradient-to-r from-[#021C57] via-[#052b7a] to-[#021C57] text-white py-6 md:py-8 px-4 md:px-10 border-b border-blue-900 shadow-md">
+        <div className="max-w-[1600px] mx-auto space-y-3">
           
-          {/* Subtle Ambient Background Highlights */}
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-2 text-xs text-blue-200/80 font-medium flex-wrap">
+            <Link to="/" className="hover:text-white transition">Home</Link>
+            <ChevronRight size={12} className="text-blue-300/60" />
+            <Link to="/products" className="hover:text-white transition">Catalogue</Link>
+            <ChevronRight size={12} className="text-blue-300/60" />
+            <span className="text-amber-300 font-semibold truncate max-w-xs sm:max-w-md">
+              {formatTitleCase(categoryData?.name || slug)}
+            </span>
+          </nav>
 
-          <div className="relative z-10 space-y-6">
-            
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 text-xs text-blue-200/80 font-medium flex-wrap">
-              <Link to="/" className="hover:text-white transition">Home</Link>
-              <ChevronRight size={12} className="text-blue-300/60" />
-              <Link to="/products" className="hover:text-white transition">Catalogue</Link>
-              <ChevronRight size={12} className="text-blue-300/60" />
-              <span className="text-amber-300 font-semibold">
-                {formatTitleCase(categoryData?.name || slug)}
-              </span>
-            </nav>
-
-            {/* Title & Description Header */}
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/20 text-blue-200 border border-blue-400/30 backdrop-blur-sm">
-                <Layers className="w-3.5 h-3.5 text-blue-300" />
-                {formatTitleCase(categoryData?.equipmentType?.name || "Laboratory Category")}
+          {/* Title & Badge */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                <Layers className="w-3 h-3 text-blue-300" />
+                {formatTitleCase(categoryData?.equipmentType?.name || "Equipment Category")}
               </div>
 
-              <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white tracking-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
                 {formatTitleCase(categoryData?.name || "Category Products")}
               </h1>
 
               {categoryData?.description && (
-                <p className="text-blue-100/90 text-sm sm:text-base max-w-4xl leading-relaxed font-normal">
+                <p className="text-blue-100/90 text-xs sm:text-sm max-w-3xl leading-relaxed">
                   {categoryData.description}
                 </p>
               )}
             </div>
 
-            {/* How It Works & Operating Mechanism Section (If Available) */}
-            {(categoryData?.howItWorks || (categoryData?.howItWorksSteps && categoryData.howItWorksSteps.length > 0)) && (
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 md:p-6 rounded-2xl max-w-5xl space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2">
-                  <Cog size={15} className="text-amber-400" /> Working Principle & Operating Steps
-                </h4>
-
-                {categoryData.howItWorks && (
-                  <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
-                    {categoryData.howItWorks}
-                  </p>
-                )}
-
-                {categoryData.howItWorksSteps && categoryData.howItWorksSteps.length > 0 && (
-                  <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                    {categoryData.howItWorksSteps.map((step, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-slate-900/60 p-4 rounded-xl border border-white/10 space-y-1.5"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 text-[11px] font-black flex items-center justify-center shrink-0">
-                            {step.stepNumber || idx + 1}
-                          </span>
-                          <span className="font-bold text-xs text-white truncate">
-                            {step.title || `Step ${idx + 1}`}
-                          </span>
-                        </div>
-                        {step.description && (
-                          <p className="text-[11px] text-blue-200/80 leading-relaxed pl-7">
-                            {step.description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Quality Badges */}
+            <div className="flex items-center gap-3 shrink-0 self-start md:self-auto flex-wrap">
+              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-100">
+                <Award size={15} className="text-amber-400" />
+                <span>ISO 9001:2015</span>
               </div>
-            )}
-
-            {/* General Technical Specifications (Category Master Specs) */}
-            {categoryData?.generalSpecifications && categoryData.generalSpecifications.length > 0 && (
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 md:p-6 rounded-2xl max-w-5xl space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-200 flex items-center gap-2">
-                  <SlidersHorizontal size={14} className="text-blue-300" /> General Technical Specifications
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
-                  {categoryData.generalSpecifications.map((spec, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-slate-900/60 p-3.5 rounded-xl border border-white/10 flex flex-col justify-between text-xs"
-                    >
-                      <span className="font-medium text-blue-300 text-[11px]">{spec.key}</span>
-                      <span className="font-bold text-white mt-1 text-sm">{spec.value}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-100">
+                <ShieldCheck size={15} className="text-emerald-400" />
+                <span>NABL Standard Compliant</span>
               </div>
-            )}
-
-            {/* Key Features & Applications Cards */}
-            {((categoryData?.features && categoryData.features.length > 0) ||
-              (categoryData?.applications && categoryData.applications.length > 0)) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl pt-1">
-                {categoryData.features && categoryData.features.length > 0 && (
-                  <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-extrabold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-blue-400" /> Key Features
-                    </h4>
-                    <ul className="space-y-2 text-xs text-blue-100">
-                      {categoryData.features.map((feat, i) => (
-                        <li key={i} className="flex items-start gap-2.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
-                          <span className="leading-snug">{feat}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {categoryData.applications && categoryData.applications.length > 0 && (
-                  <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-extrabold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-emerald-400" /> Industrial & Lab Applications
-                    </h4>
-                    <ul className="space-y-2 text-xs text-emerald-100">
-                      {categoryData.applications.map((app, i) => (
-                        <li key={i} className="flex items-start gap-2.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
-                          <span className="leading-snug">{app}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
+            </div>
           </div>
+
         </div>
       </section>
 
-      {/* MAIN CONTAINER */}
-      <section className="max-w-[1600px] mx-auto px-4 md:px-10 py-8">
+      {/* ================= MAIN PRODUCTS SHOWCASE (PROMINENT TOP) ================= */}
+      <section className="max-w-[1600px] mx-auto px-4 md:px-10 pt-8">
         
-        {/* MOBILE FILTER TOGGLE */}
+        {/* MOBILE FILTER BUTTON */}
         {categoryData?.filters?.length > 0 && (
           <div className="lg:hidden mb-4 flex items-center justify-between gap-3">
             <button
@@ -310,10 +242,10 @@ const CategoryProductPage = ({ initialSlug }) => {
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
-          {/* SIDEBAR: DYNAMIC SPECIFICATION FILTERS */}
+          {/* SIDEBAR: TECHNICAL SPECIFICATION FILTERS */}
           {categoryData?.filters?.length > 0 && (
             <aside
-              className={`w-full lg:w-72 shrink-0 bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-6 lg:sticky lg:top-36 ${
+              className={`w-full lg:w-72 shrink-0 bg-white border border-gray-200/80 rounded-3xl p-6 shadow-xs space-y-6 lg:sticky lg:top-28 ${
                 mobileDrawerOpen ? "block" : "hidden lg:block"
               }`}
             >
@@ -364,9 +296,7 @@ const CategoryProductPage = ({ initialSlug }) => {
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() =>
-                                handleFilterToggle(fKey, val)
-                              }
+                              onChange={() => handleFilterToggle(fKey, val)}
                               className="w-4 h-4 rounded-md accent-[#021C57] cursor-pointer"
                             />
                             <span className="truncate">{val}</span>
@@ -380,7 +310,7 @@ const CategoryProductPage = ({ initialSlug }) => {
             </aside>
           )}
 
-          {/* MAIN PRODUCTS COLUMN */}
+          {/* MAIN PRODUCTS GRID COLUMN */}
           <div className="flex-1 w-full space-y-6">
             
             {/* TOOLBAR */}
@@ -426,9 +356,9 @@ const CategoryProductPage = ({ initialSlug }) => {
               </div>
             )}
 
-            {/* LOADING */}
+            {/* LOADING STATE */}
             {loading && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
@@ -442,39 +372,215 @@ const CategoryProductPage = ({ initialSlug }) => {
               </div>
             )}
 
-            {/* EMPTY */}
+            {/* EMPTY STATE */}
             {!loading && filteredProducts.length === 0 && (
-              <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center space-y-3 shadow-xs">
-                <h3 className="text-xl font-bold text-gray-700">
-                  No Instruments Found
-                </h3>
-                <p className="text-gray-500 text-sm max-w-md mx-auto">
-                  No products matched the selected technical attributes or search keywords.
-                </p>
-                {activeFilterCount > 0 && (
+              <div className="bg-white rounded-3xl border border-gray-200 p-12 md:p-16 text-center space-y-4 shadow-xs">
+                <div className="w-16 h-16 bg-blue-50 text-[#021C57] rounded-3xl mx-auto flex items-center justify-center">
+                  <Layers size={28} />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    No Instruments Match Your Selection
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Try clearing technical filters or search query to view all instruments in this category.
+                  </p>
+                </div>
+                {(search || activeFilterCount > 0) && (
                   <button
                     onClick={handleResetFilters}
-                    className="inline-flex items-center gap-2 bg-[#021C57] text-white px-5 py-2.5 rounded-xl text-xs font-semibold hover:bg-[#03308f] transition cursor-pointer mt-2"
+                    className="px-5 py-2.5 bg-[#021C57] text-white rounded-xl text-xs font-semibold hover:bg-blue-900 transition shadow-sm cursor-pointer"
                   >
-                    <RotateCcw size={12} /> Clear Applied Filters
+                    Reset All Filters
                   </button>
                 )}
               </div>
             )}
 
-            {/* PRODUCT GRID */}
+            {/* PRODUCT CARDS GRID */}
             {!loading && filteredProducts.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 items-stretch">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product._id} product={product} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+                {filteredProducts.map((prod) => (
+                  <div key={prod._id} className="h-full">
+                    <ProductCard product={prod} />
+                  </div>
                 ))}
               </div>
             )}
 
           </div>
-
         </div>
       </section>
+
+      {/* ================= TECHNICAL DOCUMENTATION & DETAILS SECTION (BELOW PRODUCTS) ================= */}
+      {hasDetails && (
+        <section className="max-w-[1600px] mx-auto px-4 md:px-10 pt-12">
+          <div className="bg-white rounded-3xl border border-gray-200/90 shadow-sm overflow-hidden">
+            
+            {/* Header / Tabs Navigation */}
+            <div className="bg-slate-50 border-b border-gray-200 px-6 pt-5 pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[#021C57] flex items-center gap-2">
+                  <FileCheck2 className="text-blue-600" size={18} /> Category Technical Specifications & Overview
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Engineering guidelines, key features, and operational applications
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-3 sm:pb-0 scrollbar-none">
+                {categoryData?.features && categoryData.features.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("features")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      activeTab === "features"
+                        ? "bg-[#021C57] text-white shadow-xs"
+                        : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                  >
+                    Key Features ({categoryData.features.length})
+                  </button>
+                )}
+
+                {categoryData?.applications && categoryData.applications.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("applications")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      activeTab === "applications"
+                        ? "bg-[#021C57] text-white shadow-xs"
+                        : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                  >
+                    Applications ({categoryData.applications.length})
+                  </button>
+                )}
+
+                {(categoryData?.howItWorks || (categoryData?.howItWorksSteps && categoryData.howItWorksSteps.length > 0)) && (
+                  <button
+                    onClick={() => setActiveTab("howItWorks")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      activeTab === "howItWorks"
+                        ? "bg-[#021C57] text-white shadow-xs"
+                        : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                  >
+                    Working Principle
+                  </button>
+                )}
+
+                {categoryData?.generalSpecifications && categoryData.generalSpecifications.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("specs")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      activeTab === "specs"
+                        ? "bg-[#021C57] text-white shadow-xs"
+                        : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                  >
+                    Master Specs ({categoryData.generalSpecifications.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tab Contents */}
+            <div className="p-6 md:p-8">
+              
+              {/* 1. KEY FEATURES */}
+              {activeTab === "features" && categoryData?.features && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {categoryData.features.map((feat, i) => (
+                    <div
+                      key={i}
+                      className="bg-blue-50/60 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 hover:bg-blue-50 transition"
+                    >
+                      <CheckCircle2 size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                      <span className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
+                        {feat}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 2. APPLICATIONS */}
+              {activeTab === "applications" && categoryData?.applications && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {categoryData.applications.map((app, i) => (
+                    <div
+                      key={i}
+                      className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3 hover:bg-emerald-50 transition"
+                    >
+                      <Building2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
+                        {app}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 3. WORKING PRINCIPLE */}
+              {activeTab === "howItWorks" && (
+                <div className="space-y-5">
+                  {categoryData?.howItWorks && (
+                    <p className="text-xs sm:text-sm text-gray-700 bg-amber-50/60 border border-amber-200/80 p-4.5 rounded-2xl leading-relaxed">
+                      {categoryData.howItWorks}
+                    </p>
+                  )}
+
+                  {categoryData?.howItWorksSteps && categoryData.howItWorksSteps.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {categoryData.howItWorksSteps.map((step, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-slate-50 border border-slate-200 p-4.5 rounded-2xl space-y-2"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-full bg-[#021C57] text-white text-xs font-bold flex items-center justify-center shrink-0">
+                              {step.stepNumber || idx + 1}
+                            </span>
+                            <span className="font-bold text-xs sm:text-sm text-[#021C57]">
+                              {step.title || `Step ${idx + 1}`}
+                            </span>
+                          </div>
+                          {step.description && (
+                            <p className="text-xs text-gray-600 leading-relaxed pl-8.5">
+                              {step.description}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 4. MASTER SPECIFICATIONS */}
+              {activeTab === "specs" && categoryData?.generalSpecifications && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {categoryData.generalSpecifications.map((spec, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between text-xs"
+                    >
+                      <span className="font-semibold text-gray-500 text-[11px] uppercase tracking-wider">
+                        {spec.key}
+                      </span>
+                      <span className="font-bold text-[#021C57] text-sm mt-1">
+                        {spec.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </section>
+      )}
+
     </div>
   );
 };
