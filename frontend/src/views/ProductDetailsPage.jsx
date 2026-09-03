@@ -207,9 +207,40 @@ const ProductDetailsPage = ({ initialSlug }) => {
 
   const currentImage = imagesList[selectedImageIndex] || imagesList[0];
 
+  const equipmentTypeName = product?.category?.equipmentType?.name
+    ? formatTitleCase(product.category.equipmentType.name)
+    : product?.equipmentTypeName
+    ? formatTitleCase(product.equipmentTypeName)
+    : "";
+
+  const cleanCategoryName = (product?.category?.name || "").trim().toLowerCase();
+  const cleanEqName = (equipmentTypeName || "").trim().toLowerCase();
+
+  // Strict Frontend Safeguard: ONLY allow products whose category or equipmentType matches this product's equipmentType!
   const relatedProducts = (relatedEquipment || [])
-    .filter((p) => p._id !== product._id)
-    .slice(0, 4);
+    .filter((rel) => {
+      if (!rel || rel._id === product._id || rel.slug === product.slug) return false;
+
+      const relEqName = (
+        rel.category?.equipmentType?.name ||
+        rel.equipmentTypeName ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+      const relCatName = (rel.category?.name || "").trim().toLowerCase();
+
+      // If equipmentTypeName exists, must match equipmentTypeName!
+      if (cleanEqName && relEqName) {
+        return relEqName === cleanEqName;
+      }
+      // Otherwise must match category name
+      if (cleanCategoryName && relCatName) {
+        return relCatName === cleanCategoryName;
+      }
+      return false;
+    })
+    .slice(0, 3);
 
   const categoryHowItWorks = product.category?.howItWorks || product.howItWorks;
   const categoryHowItWorksSteps = product.category?.howItWorksSteps || product.howItWorksSteps;
@@ -232,12 +263,6 @@ const ProductDetailsPage = ({ initialSlug }) => {
     ...(hasHowItWorks ? [{ id: "howItWorks", label: "How It Works / Principle" }] : []),
     { id: "compliance", label: "Testing Standards & Compliance" },
   ];
-
-  const equipmentTypeName = product?.category?.equipmentType?.name
-    ? formatTitleCase(product.category.equipmentType.name)
-    : product?.equipmentTypeName
-    ? formatTitleCase(product.equipmentTypeName)
-    : "";
 
   return (
     <div className="bg-slate-50 min-h-screen pb-20 selection:bg-blue-100 selection:text-blue-900">
