@@ -1,6 +1,7 @@
 import Product from "../../models/product.js";
 import Category from "../../models/category.js";
 import EquipmentType from "../../models/equipmentType.js";
+import { fuzzyMatch } from "../../utils/fuzzySearch.js";
 
 /**
  * Standard Client Category Population Config with nested EquipmentType
@@ -210,9 +211,21 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    const products = await Product.find(filter)
+    let products = await Product.find(filter)
       .populate(categoryPopulateConfig)
       .sort(sortOption);
+
+    // Typo-Tolerant & Fuzzy Match Fallback if search returns 0 direct matches
+    if (products.length === 0 && search && search.trim()) {
+      const allActive = await Product.find({ isActive: true }).populate(categoryPopulateConfig);
+      const fuzzyMatches = allActive.filter((p) => {
+        const searchableText = `${p.name} ${p.productCode || ""} ${p.modelNumber || ""} ${p.category?.name || ""} ${p.category?.equipmentType?.name || ""} ${p.description || ""}`;
+        return fuzzyMatch(search, searchableText);
+      });
+      if (fuzzyMatches.length > 0) {
+        products = fuzzyMatches;
+      }
+    }
 
     const resolvedProducts = products.map(resolveProductInheritance);
 
