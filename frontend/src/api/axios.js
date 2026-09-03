@@ -4,7 +4,7 @@ const API = axios.create({
   baseURL:
     (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
-    "http://localhost:3000/api/v1",
+    "http://localhost:5000/api/v1",
 });
 
 // Request interceptor to attach Bearer token
