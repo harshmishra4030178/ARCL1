@@ -244,7 +244,7 @@ const ProductDetailsPage = ({ initialSlug }) => {
             </Link>
             <ChevronRight size={13} className="text-gray-400 shrink-0" />
             <Link to="/products" className="hover:text-[#021C57] transition">
-              Catalogue
+              Laboratory Equipments
             </Link>
             
             {/* Equipment Type */}

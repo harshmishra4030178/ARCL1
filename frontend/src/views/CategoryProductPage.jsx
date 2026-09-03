@@ -184,7 +184,7 @@ const CategoryProductPage = ({ initialSlug }) => {
           <nav className="flex items-center gap-2 text-xs text-blue-200/80 font-medium flex-wrap">
             <Link to="/" className="hover:text-white transition">Home</Link>
             <ChevronRight size={12} className="text-blue-300/60" />
-            <Link to="/products" className="hover:text-white transition">Catalogue</Link>
+            <Link to="/products" className="hover:text-white transition">Laboratory Equipments</Link>
             <ChevronRight size={12} className="text-blue-300/60" />
             <span className="text-amber-300 font-semibold truncate max-w-xs sm:max-w-md">
               {formatTitleCase(categoryData?.name || slug)}
