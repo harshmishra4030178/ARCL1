@@ -205,6 +205,8 @@ const ProductDetailsPage = ({ initialSlug }) => {
       ? product.images
       : ["https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800"];
 
+  const currentImage = imagesList[selectedImageIndex] || imagesList[0];
+
   const relatedProducts = (relatedEquipment || [])
     .filter((p) => p._id !== product._id)
     .slice(0, 4);
