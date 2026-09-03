@@ -11,8 +11,14 @@ import {
   Layers,
   Mic,
   MicOff,
-  Volume2,
   TrendingUp,
+  ShieldCheck,
+  Award,
+  Ruler,
+  Gauge,
+  Scale,
+  Thermometer,
+  Zap,
 } from "lucide-react";
 import { Link, useNavigate } from "../../utils/navigation.jsx";
 import { useCategoryStore } from "../../store/useCategoryStore.js";
@@ -25,14 +31,120 @@ import { toast } from "react-toastify";
 const POPULAR_SEARCHES = [
   "Compression Testing Machine",
   "Soil Testing",
+  "Calibration Services",
   "Concrete Testing",
   "Aggregate Testing",
+  "Vernier Caliper Calibration",
+  "UTM Calibration",
+  "Pressure Gauge Calibration",
   "Vicat Apparatus",
   "Direct Shear Apparatus",
-  "Core Cutting Machine",
-  "Marshall Stability",
-  "Liquid Limit Device",
-  "Hot Air Oven",
+];
+
+const CALIBRATION_DOMAINS = [
+  {
+    id: "dimensional",
+    title: "Dimensional Calibration",
+    icon: Ruler,
+    instruments: [
+      "Vernier Caliper",
+      "Digital Caliper",
+      "Outside Micrometer",
+      "Dial Indicator",
+      "Height Gage",
+      "Feeler Gage",
+      "Bore Gage",
+      "Radius Gage",
+      "Protractor",
+      "Test Sieves",
+      "Steel Scale",
+      "Cube Mould",
+      "Beam Mould",
+      "Cylindrical Mould",
+    ],
+  },
+  {
+    id: "force",
+    title: "Force & Testing Machine Calibration",
+    icon: Zap,
+    instruments: [
+      "Universal Testing Machine (UTM)",
+      "Compression Testing Machine (CTM)",
+      "CBR Testing Machine",
+      "Marshall Testing Machine",
+      "Point Load Machine",
+      "Direct Shear Machine",
+      "Tensile Testing Machine",
+      "Load Cell",
+      "Force Gauge",
+      "Proving Ring",
+      "Pull-out Tester",
+    ],
+  },
+  {
+    id: "temperature",
+    title: "Temperature & Environmental Calibration",
+    icon: Thermometer,
+    instruments: [
+      "Thermometer Calibration",
+      "Thermocouple Calibration",
+      "RTD Calibration",
+      "Temperature Data Logger",
+      "Humidity Meter",
+      "Environmental Chamber",
+      "Oven & Furnace Calibration",
+    ],
+  },
+  {
+    id: "pressure",
+    title: "Pressure & Vacuum Calibration",
+    icon: Gauge,
+    instruments: [
+      "Pressure Gauge Calibration",
+      "Digital Pressure Gauge",
+      "Pressure Transmitter",
+      "Vacuum Gauge Calibration",
+      "Pressure Sensor",
+      "Manometer Calibration",
+    ],
+  },
+  {
+    id: "mass",
+    title: "Mass, Weight & Balance Calibration",
+    icon: Scale,
+    instruments: [
+      "Weighing Balance Calibration",
+      "Analytical Balance",
+      "Precision Balance",
+      "Platform Scale Calibration",
+      "Standard Weights",
+      "Mass Verification",
+    ],
+  },
+  {
+    id: "laboratory",
+    title: "Laboratory Analytical Instruments",
+    icon: ShieldCheck,
+    instruments: [
+      "pH Meter Calibration",
+      "Conductivity Meter",
+      "TDS Meter",
+      "Dissolved Oxygen Meter",
+      "Laboratory Meters",
+    ],
+  },
+  {
+    id: "rpm",
+    title: "RPM & Speed Calibration",
+    icon: Award,
+    instruments: [
+      "Digital Tachometer Calibration",
+      "Contact Tachometer",
+      "Laser Tachometer",
+      "RPM Meter",
+      "Speed Indicator",
+    ],
+  },
 ];
 
 const AmazonSearchBar = ({ isMobile = false }) => {
@@ -126,14 +238,19 @@ const AmazonSearchBar = ({ isMobile = false }) => {
     }
   };
 
-  // Typo-tolerant Filtered Data (Equipment Types, Categories, Products)
+  // Typo-tolerant Filtered Data (Equipment Types, Categories, Products, Calibration)
   const filteredData = useMemo(() => {
     const cleanQ = query.trim().toLowerCase();
     if (!cleanQ) {
-      return { matchingEquipmentTypes: [], matchingCategories: [], matchingProducts: [] };
+      return {
+        matchingEquipmentTypes: [],
+        matchingCategories: [],
+        matchingProducts: [],
+        matchingCalibration: [],
+      };
     }
 
-    // 1. Matching equipment types (supports typos e.g. "soyl testing" -> "Soil Testing Equipments")
+    // 1. Matching equipment types
     const matchingEquipmentTypes = equipmentTypes
       .filter((eq) => {
         const name = eq.name || "";
@@ -143,7 +260,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
     const matchedEqIds = new Set(matchingEquipmentTypes.map((e) => String(e._id)));
 
-    // 2. Matching categories (supports typos & parent equipment types)
+    // 2. Matching categories
     const matchingCategories = categories
       .filter((c) => {
         const catEqId = String(c.equipmentType?._id || c.equipmentType || "");
@@ -161,7 +278,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
     const matchedCatIds = new Set(matchingCategories.map((c) => String(c._id)));
 
-    // 3. Matching products (supports typos e.g. "compresion" -> "Compression", "sokkiya" -> "Sokkia")
+    // 3. Matching products
     let prodList = products;
     if (selectedCategory !== "all") {
       prodList = prodList.filter(
@@ -191,13 +308,68 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           fuzzyMatch(cleanQ, searchableText)
         );
       })
-      .slice(0, 6);
+      .slice(0, 5);
 
-    return { matchingEquipmentTypes, matchingCategories, matchingProducts };
+    // 4. Matching Calibration Services & Instruments
+    const isGeneralCalibration =
+      cleanQ.includes("calib") ||
+      cleanQ.includes("kalib") ||
+      cleanQ.includes("service") ||
+      fuzzyMatch(cleanQ, "calibration services");
+
+    const matchingCalibration = [];
+
+    // If typing "calibration", include main hub
+    if (isGeneralCalibration) {
+      matchingCalibration.push({
+        id: "main-hub",
+        title: "ARCL Calibration Services (NABL Traceable All 7 Domains)",
+        url: "/calibration-services",
+        badge: "Specialist Calibration",
+        sampleList: ["Force & UTM", "Dimensional", "Pressure", "Mass & Balance", "Temperature"],
+      });
+    }
+
+    // Match individual calibration domains & instruments
+    CALIBRATION_DOMAINS.forEach((domain) => {
+      const isDomainMatch =
+        domain.title.toLowerCase().includes(cleanQ) ||
+        fuzzyMatch(cleanQ, domain.title);
+
+      const matchedInstruments = domain.instruments.filter((inst) => {
+        const instLower = inst.toLowerCase();
+        return (
+          instLower.includes(cleanQ) ||
+          fuzzyMatch(cleanQ, instLower) ||
+          (isGeneralCalibration && true)
+        );
+      });
+
+      if (isDomainMatch || matchedInstruments.length > 0) {
+        matchingCalibration.push({
+          id: domain.id,
+          title: domain.title,
+          url: `/calibration-services#${domain.id}`,
+          badge: "Calibration Service",
+          icon: domain.icon,
+          sampleList: matchedInstruments.slice(0, 4),
+        });
+      }
+    });
+
+    return {
+      matchingEquipmentTypes,
+      matchingCategories,
+      matchingProducts,
+      matchingCalibration: matchingCalibration.slice(0, 3),
+    };
   }, [query, selectedCategory, equipmentTypes, categories, products]);
 
   const allSuggestions = useMemo(() => {
     const list = [];
+    filteredData.matchingCalibration.forEach((cal) => {
+      list.push({ type: "calibration", data: cal, url: cal.url });
+    });
     filteredData.matchingEquipmentTypes.forEach((eq) => {
       list.push({ type: "equipmentType", data: eq, url: `/products?search=${encodeURIComponent(eq.name)}` });
     });
@@ -221,6 +393,13 @@ const AmazonSearchBar = ({ isMobile = false }) => {
     const trimmed = query.trim();
     setIsOpen(false);
     if (trimmed) {
+      const lower = trimmed.toLowerCase();
+      // If user typed calibration or kalibration, navigate directly to calibration services page
+      if (lower.includes("calib") || lower.includes("kalib") || fuzzyMatch(lower, "calibration")) {
+        navigate("/calibration-services");
+        return;
+      }
+
       const catParam = selectedCategory !== "all" ? `&category=${selectedCategory}` : "";
       navigate(`/products?search=${encodeURIComponent(trimmed)}${catParam}`);
     } else if (selectedCategory !== "all") {
@@ -300,10 +479,10 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             suppressHydrationWarning={true}
             placeholder={
               isListening
-                ? "🎙️ Listening... Speak equipment name now"
+                ? "🎙️ Listening... Speak equipment or calibration name..."
                 : isMobile
-                ? "Search machines (e.g. soil, compression)..."
-                : "Search ARCL machines, lab instruments, cement, soil, concrete..."
+                ? "Search machines or calibration services..."
+                : "Search machines, calibration services, soil, cement, concrete..."
             }
             className="w-full h-full px-3 text-xs sm:text-sm text-gray-800 placeholder-gray-400 bg-transparent focus:outline-hidden"
             autoComplete="off"
@@ -352,7 +531,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           type="submit"
           suppressHydrationWarning={true}
           className="h-full px-4 sm:px-5 bg-[#021C57] hover:bg-blue-900 text-white transition flex items-center justify-center shrink-0 cursor-pointer"
-          title="Search Instruments"
+          title="Search Instruments & Calibration"
         >
           <Search size={16} className="text-white" />
         </button>
@@ -366,7 +545,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
             </span>
-            <span>Listening to your voice... Speak equipment name (e.g. &ldquo;Compression Machine&rdquo; or &ldquo;Soil Testing&rdquo;)</span>
+            <span>Listening... Speak instrument or calibration (e.g. &ldquo;Calibration Services&rdquo;, &ldquo;UTM Calibration&rdquo;, &ldquo;Caliper&rdquo;)</span>
           </div>
           <button
             type="button"
@@ -380,14 +559,14 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
       {/* AUTOCOMPLETE SUGGESTION DROPDOWN */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150 max-h-[480px] overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150 max-h-[520px] overflow-y-auto">
           {/* 1. DEFAULT POPULAR SUGGESTIONS (WHEN QUERY IS EMPTY) */}
           {!query.trim() && (
             <div className="p-3 sm:p-4 space-y-3">
               <div>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                   <TrendingUp size={14} className="text-blue-600" />
-                  <span>Popular Equipment Searches</span>
+                  <span>Popular Searches & Services</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {POPULAR_SEARCHES.map((item) => (
@@ -396,7 +575,11 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                       type="button"
                       onClick={() => {
                         setQuery(item);
-                        navigate(`/products?search=${encodeURIComponent(item)}`);
+                        if (item.toLowerCase().includes("calib")) {
+                          navigate("/calibration-services");
+                        } else {
+                          navigate(`/products?search=${encodeURIComponent(item)}`);
+                        }
                         setIsOpen(false);
                       }}
                       className="inline-flex items-center gap-1 text-xs bg-gray-50 hover:bg-blue-50 hover:text-[#021C57] text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 transition font-medium cursor-pointer"
@@ -406,6 +589,32 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* CALIBRATION SERVICES SHORTCUT */}
+              <div className="pt-3 border-t border-gray-100">
+                <Link
+                  to="/calibration-services"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200/60 hover:border-cyan-300 transition group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white flex items-center justify-center font-black text-xs">
+                      <ShieldCheck size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-cyan-800">
+                        ARCL Specialist Calibration Services
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Force, UTM, Calipers, Gauges, Mass, Temperature, RPM
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-cyan-700 flex items-center gap-1">
+                    Explore <ArrowRight size={13} />
+                  </span>
+                </Link>
               </div>
 
               {/* TOP CATEGORIES SHORTCUTS */}
@@ -436,9 +645,61 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             </div>
           )}
 
-          {/* 2. MATCHED RESULTS (EQUIPMENT TYPES + PRODUCTS + CATEGORIES) */}
+          {/* 2. MATCHED RESULTS (CALIBRATION + EQUIPMENT TYPES + PRODUCTS + CATEGORIES) */}
           {query.trim() && (
             <div className="py-2">
+              {/* MATCHING CALIBRATION SERVICES */}
+              {filteredData.matchingCalibration?.length > 0 && (
+                <div className="px-3 py-2 border-b border-gray-100 bg-cyan-50/50">
+                  <p className="text-[11px] font-bold text-cyan-900 uppercase tracking-wider mb-1.5 px-2 flex items-center gap-1.5">
+                    <ShieldCheck size={13} className="text-cyan-700" /> Calibration Services & Instruments
+                  </p>
+                  {filteredData.matchingCalibration.map((cal, calIdx) => {
+                    const isSelected = selectedIndex === calIdx;
+                    return (
+                      <Link
+                        key={cal.id || calIdx}
+                        to={cal.url}
+                        onClick={() => {
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className={`block px-3 py-2.5 rounded-xl transition mb-1 last:mb-0 ${
+                          isSelected
+                            ? "bg-cyan-100 text-cyan-950 font-semibold"
+                            : "text-slate-900 hover:bg-cyan-100/70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Award size={15} className="text-cyan-700 shrink-0" />
+                            <span className="text-xs sm:text-sm font-bold text-cyan-950">
+                              {cal.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-cyan-700 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
+                            {cal.badge}
+                          </span>
+                        </div>
+
+                        {cal.sampleList && cal.sampleList.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5 pl-6">
+                            {cal.sampleList.map((item) => (
+                              <span
+                                key={item}
+                                className="text-[10px] bg-white border border-cyan-200 text-cyan-800 px-1.5 py-0.5 rounded-md font-medium"
+                              >
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* MATCHING EQUIPMENT TYPES */}
               {filteredData.matchingEquipmentTypes?.length > 0 && (
                 <div className="px-3 py-2 border-b border-gray-100 bg-blue-50/40">
@@ -446,7 +707,8 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                     <Sparkles size={12} className="text-blue-600" /> Equipment Classifications
                   </p>
                   {filteredData.matchingEquipmentTypes.map((eq, eqIdx) => {
-                    const isSelected = selectedIndex === eqIdx;
+                    const globalIdx = (filteredData.matchingCalibration?.length || 0) + eqIdx;
+                    const isSelected = selectedIndex === globalIdx;
                     return (
                       <Link
                         key={eq._id}
@@ -481,7 +743,10 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                     Categories
                   </p>
                   {filteredData.matchingCategories.map((cat, idx) => {
-                    const globalIdx = (filteredData.matchingEquipmentTypes?.length || 0) + idx;
+                    const globalIdx =
+                      (filteredData.matchingCalibration?.length || 0) +
+                      (filteredData.matchingEquipmentTypes?.length || 0) +
+                      idx;
                     const isSelected = selectedIndex === globalIdx;
                     return (
                       <Link
@@ -518,6 +783,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                   </p>
                   {filteredData.matchingProducts.map((prod, pIdx) => {
                     const globalIdx =
+                      (filteredData.matchingCalibration?.length || 0) +
                       (filteredData.matchingEquipmentTypes?.length || 0) +
                       (filteredData.matchingCategories?.length || 0) +
                       pIdx;
@@ -571,16 +837,17 @@ const AmazonSearchBar = ({ isMobile = false }) => {
               )}
 
               {/* NO RESULTS FOUND STATE */}
-              {filteredData.matchingEquipmentTypes.length === 0 &&
+              {filteredData.matchingCalibration.length === 0 &&
+                filteredData.matchingEquipmentTypes.length === 0 &&
                 filteredData.matchingCategories.length === 0 &&
                 filteredData.matchingProducts.length === 0 && (
                   <div className="py-8 px-4 text-center">
                     <Package className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm font-semibold text-gray-700">
-                      No matching equipment found for &ldquo;{query}&rdquo;
+                      No matching equipment or calibration service found for &ldquo;{query}&rdquo;
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Try searching with keywords like &ldquo;Compression&rdquo;, &ldquo;Soil&rdquo;, or &ldquo;Concrete&rdquo;.
+                      Try searching &ldquo;Calibration Services&rdquo;, &ldquo;UTM Calibration&rdquo;, &ldquo;Soil&rdquo;, or &ldquo;Compression&rdquo;.
                     </p>
                   </div>
                 )}
@@ -591,7 +858,11 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                 onClick={handleSubmit}
                 className="w-full mt-2 py-3 px-4 bg-gray-50 hover:bg-[#021C57] hover:text-white text-gray-800 text-xs sm:text-sm font-bold transition flex items-center justify-between border-t border-gray-200 cursor-pointer"
               >
-                <span>See all results for &ldquo;{query}&rdquo;</span>
+                <span>
+                  {query.toLowerCase().includes("calib")
+                    ? `Open Calibration Services for "${query}"`
+                    : `See all product results for "${query}"`}
+                </span>
                 <ArrowRight size={14} />
               </button>
             </div>
