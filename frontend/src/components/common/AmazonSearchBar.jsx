@@ -85,11 +85,11 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
   const allSuggestions = useMemo(() => {
     const list = [];
-    filteredData.matchingCategories.forEach((cat) => {
-      list.push({ type: "category", data: cat, url: `/categories/${cat.slug}` });
-    });
     filteredData.matchingProducts.forEach((prod) => {
       list.push({ type: "product", data: prod, url: `/products/${prod.slug}` });
+    });
+    filteredData.matchingCategories.forEach((cat) => {
+      list.push({ type: "category", data: cat, url: `/categories/${cat.slug}` });
     });
     return list;
   }, [filteredData]);

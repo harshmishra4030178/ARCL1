@@ -142,65 +142,75 @@ const CategoryProductPage = ({ initialSlug }) => {
     <div className="bg-gray-50 min-h-screen">
       
       {/* BREADCRUMB & HEADER */}
-      <section className="bg-white border-b border-gray-100 py-8 px-4 md:px-10">
-        <div className="max-w-[1600px] mx-auto space-y-3">
+      {/* ================= CATEGORY HERO BANNER ================= */}
+      <section className="max-w-[1600px] mx-auto px-4 md:px-10 pt-6 pb-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#021C57] via-[#072d80] to-slate-900 text-white p-6 sm:p-8 md:p-12 shadow-2xl border border-blue-900/40">
           
-          {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-xs text-gray-500 font-medium flex-wrap">
-            <Link to="/" className="hover:text-blue-600">Home</Link>
-            <ChevronRight size={12} />
-            <Link to="/products" className="hover:text-blue-600">Catalogue</Link>
-            <ChevronRight size={12} />
-            <span className="text-[#021C57] font-semibold">
-              {formatTitleCase(categoryData?.name || slug)}
-            </span>
-          </nav>
+          {/* Subtle Ambient Background Highlights */}
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
-          {/* Title & Description */}
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
-              <Layers className="w-3.5 h-3.5" />
-              {formatTitleCase(categoryData?.equipmentType?.name || "Equipment Category")}
+          <div className="relative z-10 space-y-6">
+            
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-xs text-blue-200/80 font-medium flex-wrap">
+              <Link to="/" className="hover:text-white transition">Home</Link>
+              <ChevronRight size={12} className="text-blue-300/60" />
+              <Link to="/products" className="hover:text-white transition">Catalogue</Link>
+              <ChevronRight size={12} className="text-blue-300/60" />
+              <span className="text-amber-300 font-semibold">
+                {formatTitleCase(categoryData?.name || slug)}
+              </span>
+            </nav>
+
+            {/* Title & Description Header */}
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/20 text-blue-200 border border-blue-400/30 backdrop-blur-sm">
+                <Layers className="w-3.5 h-3.5 text-blue-300" />
+                {formatTitleCase(categoryData?.equipmentType?.name || "Laboratory Category")}
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white tracking-tight">
+                {formatTitleCase(categoryData?.name || "Category Products")}
+              </h1>
+
+              {categoryData?.description && (
+                <p className="text-blue-100/90 text-sm sm:text-base max-w-4xl leading-relaxed font-normal">
+                  {categoryData.description}
+                </p>
+              )}
             </div>
-            <h1 className="text-2xl md:text-4xl font-bold text-[#021C57]">
-              {formatTitleCase(categoryData?.name || "Category Products")}
-            </h1>
-            {categoryData?.description && (
-              <p className="text-gray-600 text-sm md:text-base max-w-3xl mt-1.5 leading-relaxed">
-                {categoryData.description}
-              </p>
-            )}
 
             {/* How It Works & Operating Mechanism Section (If Available) */}
             {(categoryData?.howItWorks || (categoryData?.howItWorksSteps && categoryData.howItWorksSteps.length > 0)) && (
-              <div className="mt-5 bg-amber-50/60 border border-amber-200/80 p-5 rounded-2xl max-w-4xl space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                  <Cog size={14} className="text-amber-700" /> Working Principle & Operating Steps
+              <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 md:p-6 rounded-2xl max-w-5xl space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                  <Cog size={15} className="text-amber-400" /> Working Principle & Operating Steps
                 </h4>
 
                 {categoryData.howItWorks && (
-                  <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-medium">
+                  <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
                     {categoryData.howItWorks}
                   </p>
                 )}
 
                 {categoryData.howItWorksSteps && categoryData.howItWorksSteps.length > 0 && (
-                  <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                  <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
                     {categoryData.howItWorksSteps.map((step, idx) => (
                       <div
                         key={idx}
-                        className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs space-y-1"
+                        className="bg-slate-900/60 p-4 rounded-xl border border-white/10 space-y-1.5"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                          <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 text-[11px] font-black flex items-center justify-center shrink-0">
                             {step.stepNumber || idx + 1}
                           </span>
-                          <span className="font-bold text-xs text-[#021C57] truncate">
+                          <span className="font-bold text-xs text-white truncate">
                             {step.title || `Step ${idx + 1}`}
                           </span>
                         </div>
                         {step.description && (
-                          <p className="text-[11px] text-gray-600 leading-relaxed pl-7">
+                          <p className="text-[11px] text-blue-200/80 leading-relaxed pl-7">
                             {step.description}
                           </p>
                         )}
@@ -213,38 +223,38 @@ const CategoryProductPage = ({ initialSlug }) => {
 
             {/* General Technical Specifications (Category Master Specs) */}
             {categoryData?.generalSpecifications && categoryData.generalSpecifications.length > 0 && (
-              <div className="mt-5 bg-indigo-50/50 border border-indigo-200/80 p-5 rounded-2xl max-w-4xl space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
-                  <SlidersHorizontal size={14} className="text-indigo-600" /> General Technical Specifications
+              <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 md:p-6 rounded-2xl max-w-5xl space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-200 flex items-center gap-2">
+                  <SlidersHorizontal size={14} className="text-blue-300" /> General Technical Specifications
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
                   {categoryData.generalSpecifications.map((spec, idx) => (
                     <div
                       key={idx}
-                      className="bg-white p-3 rounded-xl border border-indigo-100 flex flex-col justify-between shadow-2xs text-xs"
+                      className="bg-slate-900/60 p-3.5 rounded-xl border border-white/10 flex flex-col justify-between text-xs"
                     >
-                      <span className="font-semibold text-gray-500 text-[11px]">{spec.key}</span>
-                      <span className="font-bold text-[#021C57] mt-0.5">{spec.value}</span>
+                      <span className="font-medium text-blue-300 text-[11px]">{spec.key}</span>
+                      <span className="font-bold text-white mt-1 text-sm">{spec.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Key Features & Applications */}
+            {/* Key Features & Applications Cards */}
             {((categoryData?.features && categoryData.features.length > 0) ||
               (categoryData?.applications && categoryData.applications.length > 0)) && (
-              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl pt-1">
                 {categoryData.features && categoryData.features.length > 0 && (
-                  <div className="bg-blue-50/50 border border-blue-200/80 p-4.5 rounded-2xl space-y-2.5">
-                    <h4 className="text-xs font-bold text-[#021C57] uppercase tracking-wider">
-                      Key Features
+                  <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 rounded-2xl space-y-3">
+                    <h4 className="text-xs font-extrabold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 size={14} className="text-blue-400" /> Key Features
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-gray-700">
+                    <ul className="space-y-2 text-xs text-blue-100">
                       {categoryData.features.map((feat, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <CheckCircle2 size={13} className="text-blue-600 shrink-0 mt-0.5" />
-                          <span>{feat}</span>
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
+                          <span className="leading-snug">{feat}</span>
                         </li>
                       ))}
                     </ul>
@@ -252,15 +262,15 @@ const CategoryProductPage = ({ initialSlug }) => {
                 )}
 
                 {categoryData.applications && categoryData.applications.length > 0 && (
-                  <div className="bg-emerald-50/50 border border-emerald-200/80 p-4.5 rounded-2xl space-y-2.5">
-                    <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                      Industrial & Lab Applications
+                  <div className="bg-white/10 backdrop-blur-md border border-white/15 p-5 rounded-2xl space-y-3">
+                    <h4 className="text-xs font-extrabold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 size={14} className="text-emerald-400" /> Industrial & Lab Applications
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-gray-700">
+                    <ul className="space-y-2 text-xs text-emerald-100">
                       {categoryData.applications.map((app, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{app}</span>
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
+                          <span className="leading-snug">{app}</span>
                         </li>
                       ))}
                     </ul>
@@ -268,8 +278,8 @@ const CategoryProductPage = ({ initialSlug }) => {
                 )}
               </div>
             )}
-          </div>
 
+          </div>
         </div>
       </section>
 
