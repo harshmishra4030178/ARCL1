@@ -12,6 +12,7 @@ import {
   Mic,
   MicOff,
   Volume2,
+  TrendingUp,
 } from "lucide-react";
 import { Link, useNavigate } from "../../utils/navigation.jsx";
 import { useCategoryStore } from "../../store/useCategoryStore.js";
