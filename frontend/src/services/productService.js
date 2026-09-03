@@ -11,6 +11,7 @@ import {
   getProductsByCategory,
   getFeaturedShowcase,
   getHomeShowcase,
+  getRelatedProducts,
 } from "../api/productApi.js";
 
 export const productService = {
@@ -61,6 +62,16 @@ export const productService = {
   getHomeShowcase: async () => {
     const res = await getHomeShowcase();
     return res.data?.data || res.data;
+  },
+
+  // CLIENT GET RELATED PRODUCTS IN SAME EQUIPMENT TYPE
+  getRelated: async (id) => {
+    try {
+      const res = await getRelatedProducts(id);
+      return res.data?.data || res.data || [];
+    } catch {
+      return [];
+    }
   },
 
   // CREATE PRODUCT

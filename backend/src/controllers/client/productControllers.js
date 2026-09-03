@@ -307,7 +307,7 @@ export const getProduct = async (req, res) => {
  */
 export const getRelatedProducts = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).populate("category");
 
     if (!product) {
       return res.status(404).json({
@@ -316,13 +316,25 @@ export const getRelatedProducts = async (req, res) => {
       });
     }
 
+    let categoryIds = [product.category?._id || product.category];
+
+    // Find all categories in the exact same EquipmentType group
+    if (product.category?.equipmentType) {
+      const sameEqCategories = await Category.find({
+        equipmentType: product.category.equipmentType,
+      }).select("_id");
+      if (sameEqCategories.length > 0) {
+        categoryIds = sameEqCategories.map((c) => c._id);
+      }
+    }
+
     const related = await Product.find({
-      category: product.category,
+      category: { $in: categoryIds },
       _id: { $ne: product._id },
       isActive: true,
     })
       .populate(categoryPopulateConfig)
-      .limit(4);
+      .limit(6);
 
     const resolvedRelated = related.map(resolveProductInheritance);
 

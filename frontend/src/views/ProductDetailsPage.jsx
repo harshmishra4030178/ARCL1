@@ -33,6 +33,7 @@ import {
 import { useProductStore } from "../store/useProductStore.js";
 import { useInquiryStore } from "../store/useInquiryStore.js";
 import { useQuoteCartStore } from "../store/useQuoteCartStore.js";
+import { productService } from "../services/productService.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
@@ -58,6 +59,7 @@ const ProductDetailsPage = ({ initialSlug }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [openQuoteModal, setOpenQuoteModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [relatedEquipment, setRelatedEquipment] = useState([]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -77,12 +79,19 @@ const ProductDetailsPage = ({ initialSlug }) => {
     setActiveTab("specs");
   }, [slug]);
 
-  // Fetch related products in the same category (does not trigger full page loading skeleton)
+  // Fetch true related products in the same Equipment Type group
   useEffect(() => {
-    if (product?.category?.slug) {
-      fetchProductsByCategory(product.category.slug);
+    if (product?._id) {
+      productService
+        .getRelated(product._id)
+        .then((items) => {
+          setRelatedEquipment(Array.isArray(items) ? items : []);
+        })
+        .catch(() => {
+          setRelatedEquipment([]);
+        });
     }
-  }, [product?.category?.slug]);
+  }, [product?._id]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -196,11 +205,9 @@ const ProductDetailsPage = ({ initialSlug }) => {
       ? product.images
       : ["https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800"];
 
-  const currentImage = imagesList[selectedImageIndex] || imagesList[0];
-
-  const relatedProducts = (categoryProducts || [])
+  const relatedProducts = (relatedEquipment || [])
     .filter((p) => p._id !== product._id)
-    .slice(0, 3);
+    .slice(0, 4);
 
   const categoryHowItWorks = product.category?.howItWorks || product.howItWorks;
   const categoryHowItWorksSteps = product.category?.howItWorksSteps || product.howItWorksSteps;
@@ -860,7 +867,7 @@ const ProductDetailsPage = ({ initialSlug }) => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-extrabold text-[#021C57]">
-                Related {formatTitleCase(product.category?.name)} Equipment
+                Related {equipmentTypeName || formatTitleCase(product.category?.name)} Equipment
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Explore complementary testing instruments for your laboratory setup.

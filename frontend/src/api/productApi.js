@@ -38,3 +38,6 @@ export const getFeaturedShowcase = () =>
 
 export const getHomeShowcase = () =>
   API.get("/client/products/home-showcase");
+
+export const getRelatedProducts = (id) =>
+  API.get(`/client/products/related/${id}`);
