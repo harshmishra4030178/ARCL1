@@ -1,11 +1,18 @@
 import CategoryProductClient from "../../../views/CategoryProductPage.jsx";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://arcl-backend-04-1.onrender.com/api/v1";
+const getBackendUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.startsWith("http")) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/api/v1`;
+  }
+  return "http://localhost:3000/api/v1";
+};
 
 async function getCategory(slug) {
   try {
+    const BACKEND_URL = getBackendUrl();
     const res = await fetch(`${BACKEND_URL}/client/categories/${slug}`, {
       next: { revalidate: 60 },
     });
