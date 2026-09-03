@@ -224,8 +224,14 @@ const ProductDetailsPage = ({ initialSlug }) => {
     { id: "compliance", label: "Testing Standards & Compliance" },
   ];
 
+  const equipmentTypeName = product?.category?.equipmentType?.name
+    ? formatTitleCase(product.category.equipmentType.name)
+    : product?.equipmentTypeName
+    ? formatTitleCase(product.equipmentTypeName)
+    : "";
+
   return (
-    <div className="bg-slate-50/60 min-h-screen text-[#021C57] selection:bg-blue-900 selection:text-white pb-20">
+    <div className="bg-slate-50 min-h-screen pb-20 selection:bg-blue-100 selection:text-blue-900">
       
       {/* =====================================================
           1. BREADCRUMBS BAR
@@ -240,19 +246,37 @@ const ProductDetailsPage = ({ initialSlug }) => {
             <Link to="/products" className="hover:text-[#021C57] transition">
               Catalogue
             </Link>
-            {product.category && (
+            
+            {/* Equipment Type */}
+            {equipmentTypeName && (
               <>
                 <ChevronRight size={13} className="text-gray-400 shrink-0" />
                 <Link
-                  to={`/categories/${product.category.slug}`}
-                  className="hover:text-[#021C57] text-blue-700 font-semibold truncate transition"
+                  to={`/products?search=${encodeURIComponent(equipmentTypeName)}`}
+                  className="hover:text-[#021C57] text-slate-600 font-medium truncate transition"
                 >
-                  {formatTitleCase(product.category.name)}
+                  {equipmentTypeName}
                 </Link>
               </>
             )}
+
+            {/* Category (Only if distinct from Equipment Type & Product Name) */}
+            {product.category?.name &&
+              product.category.name.trim().toLowerCase() !== (equipmentTypeName || "").trim().toLowerCase() &&
+              product.category.name.trim().toLowerCase() !== (product.name || "").trim().toLowerCase() && (
+                <>
+                  <ChevronRight size={13} className="text-gray-400 shrink-0" />
+                  <Link
+                    to={`/categories/${product.category.slug}`}
+                    className="hover:text-[#021C57] text-blue-700 font-semibold truncate transition"
+                  >
+                    {formatTitleCase(product.category.name)}
+                  </Link>
+                </>
+              )}
+
             <ChevronRight size={13} className="text-gray-400 shrink-0" />
-            <span className="text-gray-800 font-bold truncate max-w-[200px] sm:max-w-xs">
+            <span className="text-gray-900 font-bold truncate max-w-[200px] sm:max-w-xs">
               {formatTitleCase(product.name)}
             </span>
           </div>
