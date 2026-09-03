@@ -13,14 +13,24 @@ import {
 export const categoryService = {
   // CLIENT GET ALL (100% PUBLIC - No Auth Required)
   getAll: async (params = {}) => {
-    const res = await getCategories(params);
-    return res.data?.data || res.data;
+    try {
+      const res = await getCategories(params);
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.warn("Categories getAll fallback:", err?.message);
+      return [];
+    }
   },
 
   // ADMIN GET ALL (Protected)
   getAdminAll: async (params = {}) => {
-    const res = await getAdminCategories(params);
-    return res.data?.data || res.data;
+    try {
+      const res = await getAdminCategories(params);
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.warn("Categories getAdminAll fallback:", err?.message);
+      return [];
+    }
   },
 
   // GET SINGLE BY SLUG (Public)

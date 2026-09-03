@@ -12,14 +12,24 @@ import {
 export const equipmentTypeService = {
   // CLIENT GET ALL (100% PUBLIC - No Auth Required)
   getAll: async () => {
-    const res = await getEquipmentTypes();
-    return res.data?.data || res.data;
+    try {
+      const res = await getEquipmentTypes();
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.warn("Equipment types getAll fallback:", err?.message);
+      return [];
+    }
   },
 
   // ADMIN GET ALL (Protected)
   getAdminAll: async () => {
-    const res = await getAdminEquipmentTypes();
-    return res.data?.data || res.data;
+    try {
+      const res = await getAdminEquipmentTypes();
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.warn("Equipment types getAdminAll fallback:", err?.message);
+      return [];
+    }
   },
 
   // CREATE (Admin)
