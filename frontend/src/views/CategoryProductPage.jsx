@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams, Link } from "../utils/navigation.jsx";
+import { useParams, Link, useNavigate } from "../utils/navigation.jsx";
 import { useProductStore } from "../store/useProductStore.js";
 import ProductCard from "../components/products/ProductCard.jsx";
 import ProductToolbar from "../components/products/ProductToolbar.jsx";
@@ -30,6 +30,7 @@ const normalizeKey = (k) => String(k || "").toLowerCase().replace(/[\s_-]+/g, ""
 const CategoryProductPage = ({ initialSlug }) => {
   const routeParams = useParams();
   const slug = initialSlug || routeParams.slug;
+  const navigate = useNavigate();
   const {
     categoryProducts,
     categoryData,
@@ -45,6 +46,16 @@ const CategoryProductPage = ({ initialSlug }) => {
   const [selectedFilters, setSelectedFilters] = useState({});
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("features"); // 'features' | 'applications' | 'howItWorks' | 'specs'
+
+  // If a category contains 1 single product, immediately redirect to that product's full details page
+  useEffect(() => {
+    if (!loading && categoryProducts && categoryProducts.length === 1) {
+      const singleProd = categoryProducts[0];
+      if (singleProd?.slug) {
+        navigate(`/products/${singleProd.slug}`, { replace: true });
+      }
+    }
+  }, [loading, categoryProducts, navigate]);
 
   useEffect(() => {
     if (slug) {
