@@ -9,13 +9,9 @@ export const connectDB = async () => {
   }
 
   try {
-    const mongoUri = process.env.MONGO_URI;
-
-    if (!mongoUri) {
-      throw new Error(
-        "MONGO_URI is missing in environment variables. Please add your connection string."
-      );
-    }
+    const mongoUri =
+      process.env.MONGO_URI ||
+      "mongodb://abhishek27501_db_user:Abhi12345@ac-zbzi2lq-shard-00-00.inlbkbb.mongodb.net:27017,ac-zbzi2lq-shard-00-01.inlbkbb.mongodb.net:27017,ac-zbzi2lq-shard-00-02.inlbkbb.mongodb.net:27017/?ssl=true&replicaSet=atlas-13m0xq-shard-0&authSource=admin&appName=ARCL";
 
     const connectionInstance = await mongoose.connect(mongoUri, {
       dbName: DB_NAME,
