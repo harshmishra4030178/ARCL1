@@ -95,9 +95,31 @@ export const getProducts = async (req, res) => {
 
     const filter = { isActive: true };
 
-    // Search by product name
+    // Search by product name, code, model, description, category, or equipment type!
     if (search && search.trim()) {
-      filter.name = { $regex: search.trim(), $options: "i" };
+      const q = search.trim();
+      const regex = { $regex: q, $options: "i" };
+
+      // Find all equipment types matching q
+      const matchingEqs = await EquipmentType.find({ name: regex }).select("_id");
+      const eqIds = matchingEqs.map((e) => e._id);
+
+      // Find all categories matching q or whose equipmentType matches
+      const matchingCats = await Category.find({
+        $or: [
+          { name: regex },
+          { equipmentType: { $in: eqIds } },
+        ],
+      }).select("_id");
+      const catIds = matchingCats.map((c) => c._id);
+
+      filter.$or = [
+        { name: regex },
+        { productCode: regex },
+        { modelNumber: regex },
+        { description: regex },
+        { category: { $in: catIds } },
+      ];
     }
 
     // Filter by Featured
@@ -123,7 +145,12 @@ export const getProducts = async (req, res) => {
     if (equipmentType && equipmentType.trim()) {
       let eqId = equipmentType;
       if (!equipmentType.match(/^[0-9a-fA-F]{24}$/)) {
-        const eq = await EquipmentType.findOne({ slug: equipmentType });
+        const eq = await EquipmentType.findOne({
+          $or: [
+            { slug: equipmentType },
+            { name: { $regex: `^${equipmentType.trim()}$`, $options: "i" } },
+          ],
+        });
         if (eq) {
           eqId = eq._id;
         }
@@ -138,9 +165,11 @@ export const getProducts = async (req, res) => {
         const catIds = categoriesInType.map((c) => c._id);
 
         if (filter.category) {
-          // If both category and equipmentType are filtered, ensure category is in equipmentType
-          if (!catIds.some((id) => id.toString() === filter.category.toString())) {
-            return res.status(200).json({ success: true, count: 0, data: [] });
+          // If category already specified, ensure it belongs to catIds
+          if (Array.isArray(filter.category.$in)) {
+            filter.category.$in = filter.category.$in.filter((id) =>
+              catIds.some((cid) => String(cid) === String(id))
+            );
           }
         } else {
           filter.category = { $in: catIds };

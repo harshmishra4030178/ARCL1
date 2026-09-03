@@ -5,14 +5,17 @@ import { Search, X, ChevronDown, Sparkles, ArrowRight, Package, Layers, Trending
 import { Link, useNavigate } from "../../utils/navigation.jsx";
 import { useCategoryStore } from "../../store/useCategoryStore.js";
 import { useProductStore } from "../../store/useProductStore.js";
+import { useEquipmentTypeStore } from "../../store/useEquipmentTypeStore.js";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 
 const POPULAR_SEARCHES = [
   "Compression Testing Machine",
+  "Soil Testing",
+  "Concrete Testing",
+  "Aggregate Testing",
   "Vicat Apparatus",
   "Direct Shear Apparatus",
   "Core Cutting Machine",
-  "Universal Testing Machine",
   "Marshall Stability",
   "Liquid Limit Device",
   "Hot Air Oven",
@@ -25,6 +28,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
   const { categories = [], fetchCategories } = useCategoryStore();
   const { products = [], fetchProducts } = useProductStore();
+  const { equipmentTypes = [], fetchEquipmentTypes } = useEquipmentTypeStore();
 
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -34,6 +38,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
   useEffect(() => {
     if (!categories.length) fetchCategories();
     if (!products.length) fetchProducts();
+    if (!equipmentTypes.length) fetchEquipmentTypes();
   }, []);
 
   // Handle outside clicks to close suggestion box
@@ -51,15 +56,31 @@ const AmazonSearchBar = ({ isMobile = false }) => {
   const filteredData = useMemo(() => {
     const cleanQ = query.trim().toLowerCase();
     if (!cleanQ) {
-      return { matchingCategories: [], matchingProducts: [] };
+      return { matchingEquipmentTypes: [], matchingCategories: [], matchingProducts: [] };
     }
 
-    // 1. Matching categories
-    const matchingCategories = categories
-      .filter((c) => c.name?.toLowerCase().includes(cleanQ))
+    // 1. Matching equipment types (e.g. Soil Testing, Concrete, Aggregate)
+    const matchingEquipmentTypes = equipmentTypes
+      .filter((eq) => eq.name?.toLowerCase().includes(cleanQ))
       .slice(0, 3);
 
-    // 2. Matching products
+    const matchedEqIds = new Set(matchingEquipmentTypes.map((e) => String(e._id)));
+
+    // 2. Matching categories (by name or by matching parent equipment type)
+    const matchingCategories = categories
+      .filter((c) => {
+        const catEqId = String(c.equipmentType?._id || c.equipmentType || "");
+        return (
+          c.name?.toLowerCase().includes(cleanQ) ||
+          matchedEqIds.has(catEqId) ||
+          c.equipmentType?.name?.toLowerCase().includes(cleanQ)
+        );
+      })
+      .slice(0, 3);
+
+    const matchedCatIds = new Set(matchingCategories.map((c) => String(c._id)));
+
+    // 3. Matching products
     let prodList = products;
     if (selectedCategory !== "all") {
       prodList = prodList.filter(
@@ -71,20 +92,30 @@ const AmazonSearchBar = ({ isMobile = false }) => {
     }
 
     const matchingProducts = prodList
-      .filter(
-        (p) =>
+      .filter((p) => {
+        const pCatId = String(p.category?._id || p.category || "");
+        const pEqName = (p.category?.equipmentType?.name || p.equipmentTypeName || "").toLowerCase();
+
+        return (
           p.name?.toLowerCase().includes(cleanQ) ||
           p.productCode?.toLowerCase().includes(cleanQ) ||
           p.modelNumber?.toLowerCase().includes(cleanQ) ||
-          p.category?.name?.toLowerCase().includes(cleanQ)
-      )
+          p.category?.name?.toLowerCase().includes(cleanQ) ||
+          pEqName.includes(cleanQ) ||
+          matchedCatIds.has(pCatId) ||
+          (p.category?.equipmentType?._id && matchedEqIds.has(String(p.category.equipmentType._id)))
+        );
+      })
       .slice(0, 6);
 
-    return { matchingCategories, matchingProducts };
-  }, [query, selectedCategory, categories, products]);
+    return { matchingEquipmentTypes, matchingCategories, matchingProducts };
+  }, [query, selectedCategory, equipmentTypes, categories, products]);
 
   const allSuggestions = useMemo(() => {
     const list = [];
+    filteredData.matchingEquipmentTypes.forEach((eq) => {
+      list.push({ type: "equipmentType", data: eq, url: `/products?search=${encodeURIComponent(eq.name)}` });
+    });
     filteredData.matchingProducts.forEach((prod) => {
       list.push({ type: "product", data: prod, url: `/products/${prod.slug}` });
     });
@@ -272,9 +303,44 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             </div>
           )}
 
-          {/* 2. MATCHED RESULTS (CATEGORIES + PRODUCTS) */}
+          {/* 2. MATCHED RESULTS (EQUIPMENT TYPES + PRODUCTS + CATEGORIES) */}
           {query.trim() && (
             <div className="py-2">
+              {/* MATCHING EQUIPMENT TYPES */}
+              {filteredData.matchingEquipmentTypes?.length > 0 && (
+                <div className="px-3 py-2 border-b border-gray-100 bg-blue-50/40">
+                  <p className="text-[11px] font-bold text-[#021C57] uppercase tracking-wider mb-1.5 px-2 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-blue-600" /> Equipment Classifications
+                  </p>
+                  {filteredData.matchingEquipmentTypes.map((eq, eqIdx) => {
+                    const isSelected = selectedIndex === eqIdx;
+                    return (
+                      <Link
+                        key={eq._id}
+                        to={`/products?search=${encodeURIComponent(eq.name)}`}
+                        onClick={() => {
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
+                          isSelected
+                            ? "bg-blue-100 text-[#021C57] font-semibold"
+                            : "text-gray-900 hover:bg-blue-100/60 font-medium"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Layers size={15} className="text-[#021C57] shrink-0" />
+                          <span>{eq.name}</span>
+                        </div>
+                        <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                          Equipment Type
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* MATCHING CATEGORIES */}
               {filteredData.matchingCategories.length > 0 && (
                 <div className="px-3 py-2 border-b border-gray-100">
