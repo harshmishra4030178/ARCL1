@@ -16,6 +16,12 @@ export default function AdminLayout({ children }) {
     checkAuth();
   }, [checkAuth]);
 
+  useEffect(() => {
+    if (!isLoginPage && !checkingAuth && !isAuthenticated) {
+      router.push("/admin/login");
+    }
+  }, [isLoginPage, checkingAuth, isAuthenticated, router]);
+
   if (isLoginPage) {
     return <>{children}</>;
   }
@@ -30,10 +36,12 @@ export default function AdminLayout({ children }) {
   }
 
   if (!isAuthenticated) {
-    if (typeof window !== "undefined") {
-      router.push("/admin/login");
-    }
-    return null;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-[#021C57] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-600 font-medium">Redirecting to login...</p>
+      </div>
+    );
   }
 
   return (
