@@ -104,7 +104,7 @@ const Carousel = () => {
               muted
               playsInline
               poster={item.image}
-              className="w-full h-full object-cover scale-105 transform animate-subtle-zoom"
+              className="absolute inset-0 w-full h-full object-cover z-0"
             >
               <source src={item.video} type="video/mp4" />
             </video>
@@ -113,69 +113,71 @@ const Carousel = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-[#021C57]/80 to-slate-950/70 z-10 pointer-events-none" />
             <div className="absolute inset-0 bg-radial-at-t from-transparent via-black/40 to-slate-950/90 z-10 pointer-events-none" />
 
-            {/* Slide Foreground Content */}
-            <div className="relative z-30 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center py-16 pointer-events-auto">
-              <div className="max-w-2xl lg:max-w-3xl space-y-5">
-                
-                {/* Badge Tag */}
-                <div
-                  className={`inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg transform transition-all duration-700 ease-out ${
-                    isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                  <span>{item.badge}</span>
-                </div>
-
-                {/* Subtitle / Category Label */}
-                <p
-                  className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 transform transition-all duration-700 delay-100 ease-out ${
-                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                  }`}
-                >
-                  {item.tagline}
-                </p>
-
-                {/* Main Heading */}
-                <h1
-                  className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md transform transition-all duration-700 delay-200 ease-out ${
-                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                  }`}
-                >
-                  {item.heading}
-                </h1>
-
-                {/* Body Paragraph */}
-                <p
-                  className={`text-sm sm:text-base md:text-lg text-slate-100 leading-relaxed max-w-2xl font-normal drop-shadow-sm transform transition-all duration-700 delay-300 ease-out ${
-                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                  }`}
-                >
-                  {item.text}
-                </p>
-
-                {/* Action Buttons */}
-                <div
-                  className={`pt-3 flex flex-wrap items-center gap-3.5 transform transition-all duration-700 delay-400 ease-out ${
-                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                  }`}
-                >
-                  <Link
-                    to={item.primaryCta.to}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-7 py-3.5 rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
+            {/* Slide Foreground Content Layer */}
+            <div className="absolute inset-0 z-20 flex flex-col justify-center pointer-events-auto">
+              <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 w-full">
+                <div className="max-w-2xl lg:max-w-3xl space-y-4 sm:space-y-5">
+                  
+                  {/* Badge Tag */}
+                  <div
+                    className={`inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg transform transition-all duration-700 ease-out ${
+                      isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
+                    }`}
                   >
-                    <span>{item.primaryCta.label}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span>{item.badge}</span>
+                  </div>
 
-                  <Link
-                    to={item.secondaryCta.to}
-                    className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
+                  {/* Subtitle / Category Label */}
+                  <p
+                    className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 transform transition-all duration-700 delay-100 ease-out ${
+                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                    }`}
                   >
-                    <span>{item.secondaryCta.label}</span>
-                  </Link>
-                </div>
+                    {item.tagline}
+                  </p>
 
+                  {/* Main Heading */}
+                  <h1
+                    className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md transform transition-all duration-700 delay-200 ease-out ${
+                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                    }`}
+                  >
+                    {item.heading}
+                  </h1>
+
+                  {/* Body Paragraph */}
+                  <p
+                    className={`text-sm sm:text-base md:text-lg text-slate-100 leading-relaxed max-w-2xl font-normal drop-shadow-sm transform transition-all duration-700 delay-300 ease-out ${
+                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                    }`}
+                  >
+                    {item.text}
+                  </p>
+
+                  {/* Action Buttons */}
+                  <div
+                    className={`pt-3 flex flex-wrap items-center gap-3.5 transform transition-all duration-700 delay-400 ease-out ${
+                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                    }`}
+                  >
+                    <Link
+                      to={item.primaryCta.to}
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-7 py-3.5 rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
+                    >
+                      <span>{item.primaryCta.label}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+
+                    <Link
+                      to={item.secondaryCta.to}
+                      className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
+                    >
+                      <span>{item.secondaryCta.label}</span>
+                    </Link>
+                  </div>
+
+                </div>
               </div>
             </div>
           </div>
