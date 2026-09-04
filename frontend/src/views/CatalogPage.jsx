@@ -5,7 +5,6 @@ import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useProductStore } from "../store/useProductStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import CategoryProductsCatalogModal from "../components/catalog/CategoryProductsCatalogModal.jsx";
-import NewsletterSubscription from "../components/common/NewsletterSubscription.jsx";
 import {
   FileText,
   Search,
@@ -248,10 +247,7 @@ const CatalogPage = () => {
 
       </section>
 
-      {/* 3. NEWSLETTER SUBSCRIPTION */}
-      <NewsletterSubscription />
-
-      {/* 4. CATEGORY PRODUCTS CATALOG MODAL POPUP */}
+      {/* 3. CATEGORY PRODUCTS CATALOG MODAL POPUP */}
       <CategoryProductsCatalogModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
