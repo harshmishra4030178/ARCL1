@@ -35,15 +35,10 @@ export const subscribe = asyncHandler(async (req, res) => {
         );
     }
 
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          subscriber,
-          "You are already subscribed to new equipment alerts."
-        )
-      );
+    throw new ApiError(
+      400,
+      "This email is already subscribed to equipment alerts. Duplicate registration is not allowed."
+    );
   }
 
   // Create new subscriber

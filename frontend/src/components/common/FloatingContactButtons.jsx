@@ -9,6 +9,8 @@ const FloatingContactButtons = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [existingEmail, setExistingEmail] = useState("");
+  const [isSubscribingNew, setIsSubscribingNew] = useState(false);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -25,14 +27,26 @@ const FloatingContactButtons = () => {
   );
   const emailUrl = `mailto:${emailAddress}?subject=${emailSubject}&body=${emailBody}`;
 
+  // Read saved subscription on open
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("arcl_subscribed_email");
+        if (saved) {
+          setExistingEmail(saved);
+        }
+      } catch (e) {}
+    }
+  }, [isSubscribeOpen]);
+
   // Focus input on modal open
   useEffect(() => {
-    if (isSubscribeOpen && inputRef.current) {
+    if (isSubscribeOpen && inputRef.current && (!existingEmail || isSubscribingNew)) {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
     }
-  }, [isSubscribeOpen]);
+  }, [isSubscribeOpen, existingEmail, isSubscribingNew]);
 
   // Handle outside click & escape key
   useEffect(() => {
@@ -59,21 +73,49 @@ const FloatingContactButtons = () => {
       return;
     }
 
+    const normalized = email.trim().toLowerCase();
+
+    // Check if user is trying to submit the same email again
+    if (existingEmail && existingEmail === normalized) {
+      toast.info("This email is already registered for equipment alerts.");
+      setIsSubscribingNew(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const res = await subscribeApi({
-        email: email.trim(),
+        email: normalized,
         source: "floating_subscribe_modal",
       });
       const msg = res.data?.message || "Subscribed successfully!";
       toast.success(msg);
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("arcl_subscribed_email", normalized);
+          setExistingEmail(normalized);
+        } catch (e) {}
+      }
+
       setSubscribed(true);
       setEmail("");
+      setIsSubscribingNew(false);
     } catch (err) {
       console.error(err);
-      toast.error(
-        err.response?.data?.message || "Subscription failed. Please try again."
-      );
+      const errorMsg =
+        err.response?.data?.message || "Subscription failed. Please try again.";
+      toast.error(errorMsg);
+
+      if (errorMsg.toLowerCase().includes("already subscribed")) {
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("arcl_subscribed_email", normalized);
+            setExistingEmail(normalized);
+            setIsSubscribingNew(false);
+          } catch (e) {}
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -81,9 +123,9 @@ const FloatingContactButtons = () => {
 
   const closeSubscribeModal = () => {
     setIsSubscribeOpen(false);
-    // Reset subscribed status after transition completes
     setTimeout(() => {
       setSubscribed(false);
+      setIsSubscribingNew(false);
     }, 400);
   };
 
@@ -115,7 +157,44 @@ const FloatingContactButtons = () => {
               <X className="w-5 h-5" />
             </button>
 
-            {!subscribed ? (
+            {/* 1. If Already Subscribed & Not Subscribing New */}
+            {existingEmail && !isSubscribingNew && !subscribed ? (
+              <div className="relative z-10 text-center py-4 space-y-4">
+                <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    Already Subscribed!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-blue-100/90 mt-1 max-w-xs mx-auto">
+                    You are already subscribed to receive new equipment launch notifications.
+                  </p>
+                  <div className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-mono text-cyan-300">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>{existingEmail}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsSubscribingNew(true)}
+                    className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition cursor-pointer"
+                  >
+                    Subscribe Another Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeSubscribeModal}
+                    className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-5 py-2.5 rounded-xl border border-white/20 transition cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : !subscribed ? (
+              /* 2. New Subscription Form */
               <div className="relative z-10 space-y-4">
                 {/* Header Badge */}
                 <div className="inline-flex items-center gap-2 bg-amber-400/15 border border-amber-400/30 px-3 py-1 rounded-full text-[11px] font-bold text-amber-300 uppercase tracking-wider">
@@ -172,7 +251,7 @@ const FloatingContactButtons = () => {
                 </div>
               </div>
             ) : (
-              /* Success Confirmation View */
+              /* 3. Fresh Success Confirmation View */
               <div className="relative z-10 text-center py-6 space-y-4">
                 <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 rounded-full flex items-center justify-center mx-auto animate-bounce">
                   <CheckCircle2 className="w-8 h-8" />
