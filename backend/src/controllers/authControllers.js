@@ -24,20 +24,18 @@ const parseGoogleCredential = (credential) => {
  * Get all authorized admin emails from environment variables
  */
 const getAuthorizedAdminEmails = () => {
-  const emails = [];
+  const emails = ["admin@arcl.com"];
   if (process.env.ADMIN_EMAIL) {
-    emails.push(process.env.ADMIN_EMAIL.trim().toLowerCase());
+    process.env.ADMIN_EMAIL.split(",").forEach((e) => {
+      if (e.trim()) emails.push(e.trim().toLowerCase());
+    });
   }
   if (process.env.ADMIN_EMAILS) {
     process.env.ADMIN_EMAILS.split(",").forEach((e) => {
       if (e.trim()) emails.push(e.trim().toLowerCase());
     });
   }
-  // Default fallback if not set in .env
-  if (emails.length === 0) {
-    emails.push("admin@arcl.com");
-  }
-  return emails;
+  return Array.from(new Set(emails));
 };
 
 /**
@@ -103,9 +101,10 @@ export const googleLogin = async (req, res) => {
       });
     } else {
       // User exists in database
-      // If email is explicitly in .env ADMIN_EMAIL, ensure role is elevated to 'admin'
-      if (isEnvAdmin && user.role !== "admin" && user.role !== "superadmin") {
+      // If email is admin@arcl.com or in .env ADMIN_EMAIL, ensure role is elevated to 'admin'
+      if (email === "admin@arcl.com" || isEnvAdmin) {
         user.role = "admin";
+        user.isActive = true;
       }
 
       if (name) user.name = name;
