@@ -53,64 +53,89 @@ function Contact() {
   const contactItems = [
     {
       icon: MapPin,
-      label: "Our Address",
+      label: "Head Office & Address",
       content: (
-        <a
-          href="https://maps.app.goo.gl/Xa2cZMx3Dg8yqrB49"
-          target="_blank"
-          rel="noreferrer"
-          className="group block"
-        >
-          <span className="block font-semibold text-[#021C57] transition group-hover:text-blue-700">
-            ARCL Instruments Pvt. Ltd.
-          </span>
+        <div className="space-y-2">
+          <a
+            href="https://maps.app.goo.gl/Xa2cZMx3Dg8yqrB49"
+            target="_blank"
+            rel="noreferrer"
+            className="group block"
+          >
+            <span className="block font-semibold text-[#021C57] transition group-hover:text-blue-700">
+              ARCL Instruments Pvt. Ltd.
+            </span>
 
-          <span className="mt-1 block text-sm leading-6 text-slate-500">
-            Shop No. 6, Siddivinayak Park CHS,
-            <br />
-            Sector - 8A Airoli,
-            <br />
-            Navi Mumbai - 400708
-          </span>
+            <span className="mt-1 block text-sm leading-6 text-slate-500">
+              Shop No. 6, Siddivinayak Park CHS,
+              <br />
+              Sector - 8A Airoli,
+              <br />
+              Navi Mumbai - 400708
+            </span>
 
-          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600">
-            View on Google Maps
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </span>
-        </a>
+            <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-blue-600 group-hover:underline">
+              View on Google Maps
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </a>
+
+          <div className="pt-2 border-t border-slate-100 space-y-1">
+            <a
+              href="tel:+918169695728"
+              className="flex items-center gap-2 text-sm font-semibold text-[#021C57] hover:text-blue-700"
+            >
+              <Phone className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              +91 8169695728
+            </a>
+            <a
+              href="mailto:arclinstruments@gmail.com"
+              className="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-blue-700 truncate"
+            >
+              <Mail className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              arclinstruments@gmail.com
+            </a>
+            <a
+              href="mailto:info@arclinstruments.com"
+              className="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-blue-700 truncate"
+            >
+              <Mail className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              info@arclinstruments.com
+            </a>
+          </div>
+        </div>
       ),
     },
 
     {
       icon: Phone,
-      label: "Phone Number",
+      label: "Sales Department",
       content: (
-        <div>
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">
+            For product inquiries, price quotes, tender supplies & machine orders:
+          </p>
+
           <div className="space-y-1.5">
             <a
-              href="tel:+918169695728"
-              className="block text-sm font-semibold text-[#021C57] hover:text-blue-700"
-            >
-              +91 8169695728
-            </a>
-
-            <a
               href="tel:+918369458583"
-              className="block text-sm font-semibold text-[#021C57] hover:text-blue-700"
+              className="flex items-center gap-2 text-sm font-semibold text-[#021C57] hover:text-blue-700"
             >
+              <Phone className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
               +91 8369458583
             </a>
 
             <a
-              href="tel:+916205691085"
-              className="block text-sm font-semibold text-[#021C57] hover:text-blue-700"
+              href="mailto:abhinav@arclinstruments.com"
+              className="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-blue-700 truncate"
             >
-              +91 6205691085
+              <Mail className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              abhinav@arclinstruments.com
             </a>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-            <Clock className="h-3.5 w-3.5" />
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+            <Clock className="h-3 w-3" />
             Monday to Saturday · 9:30 AM to 6:00 PM
           </div>
         </div>
@@ -119,26 +144,35 @@ function Contact() {
 
     {
       icon: Mail,
-      label: "Email Address",
+      label: "Calibration Department",
       content: (
-        <div className="space-y-1.5">
-          <a
-            href="mailto:arclinstruments@gmail.com"
-            className="block break-all text-sm font-semibold text-[#021C57] hover:text-blue-700"
-          >
-            arclinstruments@gmail.com
-          </a>
-
-          <a
-            href="mailto:info@arclinstruments.com"
-            className="block break-all text-sm font-semibold text-[#021C57] hover:text-blue-700"
-          >
-            info@arclinstruments.com
-          </a>
-
-          <p className="mt-2 text-xs text-slate-400">
-            Email us your query
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">
+            For NABL traceable calibration services, certificates & testing inquiries:
           </p>
+
+          <div className="space-y-1.5">
+            <a
+              href="tel:+916205691085"
+              className="flex items-center gap-2 text-sm font-semibold text-[#021C57] hover:text-blue-700"
+            >
+              <Phone className="h-3.5 w-3.5 text-cyan-600 shrink-0" />
+              +91 6205691085
+            </a>
+
+            <a
+              href="mailto:rupak@arclinstruments.com"
+              className="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-blue-700 truncate"
+            >
+              <Mail className="h-3.5 w-3.5 text-cyan-600 shrink-0" />
+              rupak@arclinstruments.com
+            </a>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+            <Clock className="h-3 w-3" />
+            Specialist Calibration Support
+          </div>
         </div>
       ),
     },

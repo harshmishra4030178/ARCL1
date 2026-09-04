@@ -991,6 +991,44 @@ function Calibration() {
               calibration services for your measuring and testing instruments.
             </p>
 
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 max-w-xl mx-auto text-left">
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                  Calibration Department Desk
+                </p>
+                <a
+                  href="tel:+916205691085"
+                  className="mt-1.5 block text-sm font-bold text-white hover:text-cyan-300 transition"
+                >
+                  📞 +91 6205691085
+                </a>
+                <a
+                  href="mailto:rupak@arclinstruments.com"
+                  className="block text-xs text-slate-400 hover:text-white transition truncate"
+                >
+                  ✉️ rupak@arclinstruments.com
+                </a>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                  Head Office & Support
+                </p>
+                <a
+                  href="tel:+918169695728"
+                  className="mt-1.5 block text-sm font-bold text-white hover:text-cyan-300 transition"
+                >
+                  📞 +91 8169695728
+                </a>
+                <a
+                  href="mailto:arclinstruments@gmail.com"
+                  className="block text-xs text-slate-400 hover:text-white transition truncate"
+                >
+                  ✉️ arclinstruments@gmail.com
+                </a>
+              </div>
+            </div>
+
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
                 to="/contact"

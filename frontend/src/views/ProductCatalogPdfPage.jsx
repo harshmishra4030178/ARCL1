@@ -392,14 +392,18 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
 
             <div className="flex items-center gap-2">
               <Phone size={16} className="text-[#021C57] shrink-0" />
-              <span>+91 8169695728 / +91 8369458583</span>
+              <span>+91 8169695728 (Head) / +91 8369458583 (Sales) / +91 6205691085 (Calib)</span>
             </div>
 
             <div className="flex items-center gap-2">
               <Mail size={16} className="text-[#021C57] shrink-0" />
               <span>
-                <a href="mailto:arclinstruments@gmail.com">
+                <a href="mailto:arclinstruments@gmail.com" className="hover:underline">
                   arclinstruments@gmail.com
+                </a>
+                {" / "}
+                <a href="mailto:info@arclinstruments.com" className="hover:underline">
+                  info@arclinstruments.com
                 </a>
               </span>
             </div>

@@ -671,21 +671,22 @@ export default function About() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-white/10 text-xs text-gray-300">
-                <div className="flex items-center gap-2">
-                  <Mail size={15} className="text-cyan-400" />
-                    <span> 
-                      <a
-                          href="mailto:arclinstruments@gmail.com"
-                          className="hover:underline transition-all"
-                        >
-                          arclinstruments@gmail.com
-                      </a>
-                    </span>
+              <div className="grid sm:grid-cols-3 gap-3 pt-2 border-t border-white/10 text-xs text-gray-300">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">Head Office</p>
+                  <a href="tel:+918169695728" className="block text-white hover:underline">+91 8169695728</a>
+                  <a href="mailto:arclinstruments@gmail.com" className="block text-gray-400 hover:text-white truncate">arclinstruments@gmail.com</a>
+                  <a href="mailto:info@arclinstruments.com" className="block text-gray-400 hover:text-white truncate">info@arclinstruments.com</a>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock size={15} className="text-cyan-400" />
-                  <span>Mon - Sat: 9:30 AM - 6:00 PM</span>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">Sales Dept</p>
+                  <a href="tel:+918369458583" className="block text-white hover:underline">+91 8369458583</a>
+                  <a href="mailto:abhinav@arclinstruments.com" className="block text-gray-400 hover:text-white truncate">abhinav@arclinstruments.com</a>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">Calibration Dept</p>
+                  <a href="tel:+916205691085" className="block text-white hover:underline">+91 6205691085</a>
+                  <a href="mailto:rupak@arclinstruments.com" className="block text-gray-400 hover:text-white truncate">rupak@arclinstruments.com</a>
                 </div>
               </div>
             </div>

@@ -174,41 +174,88 @@ const Footer = () => {
             </a>
           </div>
 
-          {/* 4. CONTACT & CTA (2.5 cols) */}
+          {/* 4. CONTACT & DEPARTMENTS (3 cols) */}
           <div className="lg:col-span-3 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
               <span className="h-1 w-3 rounded-full bg-blue-500" />
-              Direct Contacts
+              Department Contacts
             </h3>
 
-            <div className="space-y-2 text-xs">
-              <a
-                href="https://wa.me/918169695728?text=Hello%20I%20would%20like%20to%20inquire%20about%20your%20products"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-gray-300 hover:text-emerald-400 transition-colors"
-              >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <TbPhone size={14} />
+            <div className="space-y-3 text-xs">
+              {/* Head Office */}
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                  Head Office:
+                </p>
+                <div className="flex flex-col gap-1 pl-1">
+                  <a
+                    href="tel:+918169695728"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                  >
+                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <span>+91 8169695728</span>
+                  </a>
+                  <a
+                    href="mailto:arclinstruments@gmail.com"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                  >
+                    <TbMail size={13} className="text-blue-400 shrink-0" />
+                    <span className="truncate">arclinstruments@gmail.com / info@arclinstruments.com</span>
+                  </a>
                 </div>
-                <span>+91 8169695728</span>
-              </a>
+              </div>
 
-              <a
-                href="mailto:arclinstruments@gmail.com"
-                className="flex items-center gap-2 text-gray-300 hover:text-blue-400 transition-colors truncate"
-              >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  <TbMail size={14} />
+              {/* Sales Department */}
+              <div className="space-y-1 pt-1 border-t border-gray-800/80">
+                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                  Sales Department:
+                </p>
+                <div className="flex flex-col gap-1 pl-1">
+                  <a
+                    href="tel:+918369458583"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                  >
+                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <span>+91 8369458583</span>
+                  </a>
+                  <a
+                    href="mailto:abhinav@arclinstruments.com"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                  >
+                    <TbMail size={13} className="text-blue-400 shrink-0" />
+                    <span className="truncate">abhinav@arclinstruments.com</span>
+                  </a>
                 </div>
-                <span className="truncate">arclinstruments@gmail.com</span>
-              </a>
+              </div>
+
+              {/* Calibration Department */}
+              <div className="space-y-1 pt-1 border-t border-gray-800/80">
+                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                  Calibration Department:
+                </p>
+                <div className="flex flex-col gap-1 pl-1">
+                  <a
+                    href="tel:+916205691085"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                  >
+                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <span>+91 6205691085</span>
+                  </a>
+                  <a
+                    href="mailto:rupak@arclinstruments.com"
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                  >
+                    <TbMail size={13} className="text-blue-400 shrink-0" />
+                    <span className="truncate">rupak@arclinstruments.com</span>
+                  </a>
+                </div>
+              </div>
             </div>
 
-            <div className="pt-1">
+            <div className="pt-2">
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3.5 py-1.5 text-xs font-semibold shadow hover:from-blue-500 hover:to-cyan-500 transition-all duration-200"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3.5 py-1.5 text-xs font-semibold shadow hover:from-blue-500 hover:to-cyan-500 transition-all duration-200 text-white"
               >
                 Request Quote / Inquire
                 <HiArrowUpRight size={12} />
