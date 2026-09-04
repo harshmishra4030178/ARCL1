@@ -266,53 +266,51 @@ const Footer = () => {
         </div>
 
         {/* Bottom Compact Divider & Copyright */}
-              <div className="mt-10 py-2 px-4">
-  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="mt-10 pt-6 border-t border-slate-800/80">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs sm:text-sm">
 
-    {/* Copyright */}
-    <p className="text-sm text-gray-500">
-      © {new Date().getFullYear()}{" "}
-      <span className="font-bold text-gray-800">ARCL</span>
-      <span className="mx-1">•</span>
-      All rights reserved.
-    </p>
+            {/* Copyright */}
+            <p className="text-slate-300">
+              © {new Date().getFullYear()}{" "}
+              <span className="font-bold text-white tracking-wide">ARCL INSTRUMENTS PVT. LTD.</span>
+              <span className="mx-2 text-slate-500">•</span>
+              <span className="text-slate-300">All rights reserved.</span>
+            </p>
 
-    {/* Developer Section */}
-    <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
+            {/* Developer Section */}
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm">
+              <span className="text-slate-300 font-medium">
+                Designed &amp; Developed by
+              </span>
 
-      <span className="text-gray-500">
-        Designed & Developed by
-      </span>
+              <a
+                href="https://www.linkedin.com/in/abhi1224/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400"
+              >
+                <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded bg-[#0077b5] text-[10px] sm:text-xs font-bold text-white shadow-xs group-hover:scale-110 transition-transform">
+                  in
+                </span>
+                <span className="group-hover:underline underline-offset-2">Abhishek Verma</span>
+              </a>
 
-      <a
-        href="https://www.linkedin.com/in/abhi1224/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group flex items-center gap-1.5 font-semibold text-gray-700 transition-all duration-300 hover:text-blue-600"
-      >
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-xs font-bold transition-all duration-300 group-hover:bg-blue-600 group-hover:text-white">
-          in
-        </span>
-        Abhishek Verma
-      </a>
+              <span className="text-slate-500">|</span>
 
-      <span className="text-gray-300">|</span>
-
-      <a
-        href="https://www.linkedin.com/in/harsh-mishra-4829a82aa/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group flex items-center gap-1.5 font-semibold text-gray-700 transition-all duration-300 hover:text-blue-600"
-      >
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-xs font-bold transition-all duration-300 group-hover:bg-blue-600 group-hover:text-white">
-          in
-        </span>
-        Harsh Mishra
-      </a>
-
-    </div>
-  </div>
-</div>
+              <a
+                href="https://www.linkedin.com/in/harsh-mishra-4829a82aa/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400"
+              >
+                <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded bg-[#0077b5] text-[10px] sm:text-xs font-bold text-white shadow-xs group-hover:scale-110 transition-transform">
+                  in
+                </span>
+                <span className="group-hover:underline underline-offset-2">Harsh Mishra</span>
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </footer>
   );
