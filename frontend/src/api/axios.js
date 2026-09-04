@@ -1,10 +1,20 @@
 import axios from "axios";
 
-const API = axios.create({
-  baseURL:
+const getBaseURL = () => {
+  let url =
     (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
-    "http://localhost:5000/api/v1",
+    "http://localhost:5000/api/v1";
+
+  url = String(url).trim().replace(/\/+$/, "");
+  if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
+    url += "/api/v1";
+  }
+  return url;
+};
+
+const API = axios.create({
+  baseURL: getBaseURL(),
 });
 
 // Request interceptor to attach Bearer token
