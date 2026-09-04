@@ -2,6 +2,7 @@ import Subscriber from "../models/subscriberModel.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { sendSubscriberWelcomeEmail } from "../utils/emailService.js";
 
 /**
  * @desc    Subscribe to new equipment email alerts (Client)
@@ -24,6 +25,12 @@ export const subscribe = asyncHandler(async (req, res) => {
     if (!subscriber.isActive) {
       subscriber.isActive = true;
       await subscriber.save();
+
+      // Trigger welcome / reactivation email asynchronously
+      sendSubscriberWelcomeEmail(normalizedEmail).catch((err) => {
+        console.error("Welcome email error:", err);
+      });
+
       return res
         .status(200)
         .json(
@@ -46,6 +53,11 @@ export const subscribe = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     source: source || "website_home_subscription",
     isActive: true,
+  });
+
+  // Trigger welcome email asynchronously
+  sendSubscriberWelcomeEmail(normalizedEmail).catch((err) => {
+    console.error("Welcome email error:", err);
   });
 
   return res

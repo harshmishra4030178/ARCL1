@@ -2,6 +2,7 @@ import Product from "../../models/product.js";
 import Category from "../../models/category.js";
 import slugify from "slugify";
 import cloudinary from "../../config/cloudinary.js";
+import { notifySubscribersNewProduct } from "../../utils/emailService.js";
 
 /**
  * Standard Category Population Config including nested EquipmentType
@@ -257,6 +258,11 @@ export const createProduct = async (req, res) => {
     });
 
     await product.populate(categoryPopulateConfig);
+
+    // Asynchronously broadcast email to all subscribers without blocking the HTTP response
+    notifySubscribersNewProduct(product, categoryDoc?.name || "").catch((err) => {
+      console.error("Async subscriber notification error:", err);
+    });
 
     return res.status(201).json({
       success: true,

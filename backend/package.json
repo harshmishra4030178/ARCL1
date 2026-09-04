@@ -9,7 +9,6 @@
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -23,6 +22,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.2",
     "multer": "^2.0.2",
+    "nodemailer": "^10.0.0",
     "slugify": "^1.6.8"
   },
   "devDependencies": {
