@@ -4,8 +4,8 @@
   "description": "ARCL Instruments Web Platform",
   "private": true,
   "scripts": {
-    "postinstall": "npm --prefix backend install",
-    "build": "node -e \"console.log('Root build success')\"",
+    "postinstall": "npm --prefix backend install && npm --prefix frontend install",
+    "build": "npm --prefix frontend run build",
     "start": "npm --prefix backend start",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
