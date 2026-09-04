@@ -118,31 +118,51 @@ const Carousel = () => {
               <div className="max-w-2xl lg:max-w-3xl space-y-5">
                 
                 {/* Badge Tag */}
-                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg">
+                <div
+                  className={`inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg ${
+                    isActive ? "animate-hero-badge" : "opacity-0"
+                  }`}
+                >
                   <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
                   <span>{item.badge}</span>
                 </div>
 
                 {/* Subtitle / Category Label */}
-                <p className="text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400">
+                <p
+                  className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 ${
+                    isActive ? "animate-hero-badge" : "opacity-0"
+                  }`}
+                >
                   {item.tagline}
                 </p>
 
                 {/* Main Heading */}
-                <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md">
+                <h1
+                  className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md ${
+                    isActive ? "animate-hero-heading" : "opacity-0"
+                  }`}
+                >
                   {item.heading}
                 </h1>
 
                 {/* Body Paragraph */}
-                <p className="text-sm sm:text-base md:text-lg text-slate-200/90 leading-relaxed max-w-2xl font-normal drop-shadow-sm">
+                <p
+                  className={`text-sm sm:text-base md:text-lg text-slate-200/90 leading-relaxed max-w-2xl font-normal drop-shadow-sm ${
+                    isActive ? "animate-hero-text" : "opacity-0"
+                  }`}
+                >
                   {item.text}
                 </p>
 
                 {/* Action Buttons */}
-                <div className="pt-3 flex flex-wrap items-center gap-3.5">
+                <div
+                  className={`pt-3 flex flex-wrap items-center gap-3.5 ${
+                    isActive ? "animate-hero-cta" : "opacity-0"
+                  }`}
+                >
                   <Link
                     to={item.primaryCta.to}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-7 py-3.5 rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-7 py-3.5 rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
                   >
                     <span>{item.primaryCta.label}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -150,7 +170,7 @@ const Carousel = () => {
 
                   <Link
                     to={item.secondaryCta.to}
-                    className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base"
+                    className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
                   >
                     <span>{item.secondaryCta.label}</span>
                   </Link>
