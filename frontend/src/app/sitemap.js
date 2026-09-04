@@ -4,10 +4,10 @@ const getBackendUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.startsWith("http")) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}/api/v1`;
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    return "https://arcl.onrender.com/api/v1";
   }
-  return "http://localhost:3000/api/v1";
+  return "http://localhost:5000/api/v1";
 };
 
 export default async function sitemap() {
