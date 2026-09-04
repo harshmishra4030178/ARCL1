@@ -9,7 +9,6 @@ import { Link, NavLink } from "../utils/navigation.jsx";
 import { useProductStore } from "../store/useProductStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import EquipmentTypeProductRow from "../components/products/EquipmentTypeProductRow.jsx";
-import NewsletterSubscription from "../components/common/NewsletterSubscription.jsx";
 import FaqSection from "../components/home/FaqSection.jsx";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { toast } from "react-toastify";
@@ -426,10 +425,7 @@ const Home = () => {
         )}
       </section>
 
-      {/* 3. NEWSLETTER / EQUIPMENT ALERT SUBSCRIPTION */}
-      <NewsletterSubscription />
-
-      {/* 4. WHY CHOOSE ARCL */}
+      {/* 3. WHY CHOOSE ARCL */}
       <section className="py-16 px-6 md:px-16 bg-white text-[#021C57] border-t border-gray-100">
         <div className="max-w-6xl mx-auto text-center space-y-4 mb-12">
           <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
