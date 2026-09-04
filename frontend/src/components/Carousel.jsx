@@ -110,17 +110,17 @@ const Carousel = () => {
             </video>
 
             {/* High-End Dark Gradient Mesh Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-[#021C57]/80 to-slate-950/70" />
-            <div className="absolute inset-0 bg-radial-at-t from-transparent via-black/40 to-slate-950/90" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-[#021C57]/80 to-slate-950/70 z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-radial-at-t from-transparent via-black/40 to-slate-950/90 z-10 pointer-events-none" />
 
             {/* Slide Foreground Content */}
-            <div className="relative z-20 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center py-16">
+            <div className="relative z-30 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center py-16 pointer-events-auto">
               <div className="max-w-2xl lg:max-w-3xl space-y-5">
                 
                 {/* Badge Tag */}
                 <div
-                  className={`inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg ${
-                    isActive ? "animate-hero-badge" : "opacity-0"
+                  className={`inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg transform transition-all duration-700 ease-out ${
+                    isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
                   }`}
                 >
                   <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
@@ -129,8 +129,8 @@ const Carousel = () => {
 
                 {/* Subtitle / Category Label */}
                 <p
-                  className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 ${
-                    isActive ? "animate-hero-badge" : "opacity-0"
+                  className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 transform transition-all duration-700 delay-100 ease-out ${
+                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                   }`}
                 >
                   {item.tagline}
@@ -138,8 +138,8 @@ const Carousel = () => {
 
                 {/* Main Heading */}
                 <h1
-                  className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md ${
-                    isActive ? "animate-hero-heading" : "opacity-0"
+                  className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md transform transition-all duration-700 delay-200 ease-out ${
+                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                   }`}
                 >
                   {item.heading}
@@ -147,8 +147,8 @@ const Carousel = () => {
 
                 {/* Body Paragraph */}
                 <p
-                  className={`text-sm sm:text-base md:text-lg text-slate-200/90 leading-relaxed max-w-2xl font-normal drop-shadow-sm ${
-                    isActive ? "animate-hero-text" : "opacity-0"
+                  className={`text-sm sm:text-base md:text-lg text-slate-100 leading-relaxed max-w-2xl font-normal drop-shadow-sm transform transition-all duration-700 delay-300 ease-out ${
+                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                   }`}
                 >
                   {item.text}
@@ -156,8 +156,8 @@ const Carousel = () => {
 
                 {/* Action Buttons */}
                 <div
-                  className={`pt-3 flex flex-wrap items-center gap-3.5 ${
-                    isActive ? "animate-hero-cta" : "opacity-0"
+                  className={`pt-3 flex flex-wrap items-center gap-3.5 transform transition-all duration-700 delay-400 ease-out ${
+                    isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                   }`}
                 >
                   <Link
@@ -170,7 +170,7 @@ const Carousel = () => {
 
                   <Link
                     to={item.secondaryCta.to}
-                    className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
+                    className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
                   >
                     <span>{item.secondaryCta.label}</span>
                   </Link>
