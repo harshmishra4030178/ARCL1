@@ -61,7 +61,10 @@ const FloatingContactButtons = () => {
 
     try {
       setLoading(true);
-      const res = await subscribeApi(email.trim());
+      const res = await subscribeApi({
+        email: email.trim(),
+        source: "floating_subscribe_modal",
+      });
       const msg = res.data?.message || "Subscribed successfully!";
       toast.success(msg);
       setSubscribed(true);
