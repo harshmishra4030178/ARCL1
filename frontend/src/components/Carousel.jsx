@@ -6,11 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
-  ShieldCheck,
-  Award,
   Sparkles,
-  PhoneCall,
-  FileText,
 } from "lucide-react";
 
 const image1 = "/assets/Slider/CalibrationMaintenanceService.jpg";
@@ -21,30 +17,27 @@ const slides = [
   {
     video: "https://videos.pexels.com/video-files/3195394/3195394-hd_1920_1080_25fps.mp4",
     image: image2,
-    badge: "Civil & Mechanical Engineering",
-    tagline: "Quality Testing & Research Equipment",
-    heading: "Civil & Mechanical Lab Equipment",
-    text: "ARCL specializes in delivering advanced material, concrete, soil, bitumen, and mechanical laboratory testing machinery with certified durability and micron-level accuracy.",
+    subheading: "We offers",
+    heading: "Civil and Mechanical Equipments",
+    text: "ARCL specializes in providing advanced civil and mechanical laboratory equipment, offering durable and high-accuracy tools used in engineering research, quality testing, and educational institutions.",
     primaryCta: { label: "Explore Products", to: "/products" },
     secondaryCta: { label: "View Catalogs", to: "/catalog" },
   },
   {
     video: "https://videos.pexels.com/video-files/3129957/3129957-hd_1920_1080_25fps.mp4",
     image: image1,
-    badge: "NABL Traceable Calibration",
-    tagline: "Certified Compliance & Testing Services",
-    heading: "Calibration & Maintenance Services",
-    text: "ARCL provides professional laboratory calibration, repair, and periodic maintenance services ensuring your instruments maintain peak precision and strict ISO compliance.",
+    subheading: "We offers",
+    heading: "Calibration and Maintenance Service",
+    text: "ARCL delivers professional calibration and maintenance services, ensuring your laboratory instruments remain accurate, compliant, and reliable in accordance with regulatory and ISO standards.",
     primaryCta: { label: "Calibration Services", to: "/calibration-services" },
     secondaryCta: { label: "Contact Engineers", to: "/contact" },
   },
   {
     video: "https://videos.pexels.com/video-files/3191572/3191572-hd_1920_1080_25fps.mp4",
     image: image3,
-    badge: "Scientific & Analytical Systems",
-    tagline: "Next-Gen Research Lab Solutions",
-    heading: "Scientific & Laboratory Instruments",
-    text: "Engineered for high-throughput institutional labs, universities, and industrial R&D centers with strict adherence to IS, ASTM, BS, and ISO quality standards.",
+    subheading: "We offers",
+    heading: "Medical and Scientific Instruments",
+    text: "ARCL provides a comprehensive range of precision medical and scientific instruments designed to meet the demands of modern laboratories and research institutions, conforming to national and international standards.",
     primaryCta: { label: "Browse Catalog", to: "/catalog" },
     secondaryCta: { label: "Request Custom Quote", to: "/contact" },
   },
@@ -52,21 +45,19 @@ const slides = [
 
 const Carousel = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
   const length = slides.length;
   const timerRef = useRef(null);
 
-  // Auto slide every 6.5 seconds
+  // Continuous Auto Slide every 5 seconds
   useEffect(() => {
-    if (!isPlaying) return;
     timerRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev === length - 1 ? 0 : prev + 1));
-    }, 6500);
+    }, 5000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [currentIndex, isPlaying, length]);
+  }, [currentIndex, length]);
 
   const prevSlide = () => {
     setCurrentIndex((prev) => (prev === 0 ? length - 1 : prev - 1));
@@ -81,11 +72,7 @@ const Carousel = () => {
   };
 
   return (
-    <div
-      onMouseEnter={() => setIsPlaying(false)}
-      onMouseLeave={() => setIsPlaying(true)}
-      className="relative w-full min-h-[580px] sm:min-h-[640px] lg:h-[calc(100vh-8.5rem)] max-h-[820px] bg-slate-950 overflow-hidden select-none"
-    >
+    <div className="relative w-full xl:h-[calc(100vh-10rem)] min-h-[520px] md:min-h-[600px] bg-slate-950 overflow-hidden select-none">
       {/* Background Slides */}
       {slides.map((item, index) => {
         const isActive = index === currentIndex;
@@ -109,88 +96,59 @@ const Carousel = () => {
               <source src={item.video} type="video/mp4" />
             </video>
 
-            {/* High-End Dark Gradient Mesh Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-[#021C57]/80 to-slate-950/70 z-10 pointer-events-none" />
-            <div className="absolute inset-0 bg-radial-at-t from-transparent via-black/40 to-slate-950/90 z-10 pointer-events-none" />
+            {/* Dark Transparent Overlay for Contrast */}
+            <div className="absolute inset-0 bg-black/65 z-10 pointer-events-none" />
 
-            {/* Slide Foreground Content Layer */}
+            {/* Slide Foreground Content */}
             <div className="absolute inset-0 z-20 flex flex-col justify-center pointer-events-auto">
-              <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 w-full">
-                <div className="max-w-2xl lg:max-w-3xl space-y-4 sm:space-y-5">
-                  
-                  {/* Badge Tag */}
-                  <div
-                    className={`inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-xs sm:text-sm font-semibold text-cyan-300 shadow-lg transform transition-all duration-700 ease-out ${
-                      isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-                    }`}
+              <div className="left-6 md:left-24 relative flex flex-col justify-center h-full w-[92%] max-w-4xl px-4 md:px-0 text-white font-semibold">
+                
+                {/* We offers */}
+                <p className="md:text-3xl text-2xl font-bold text-white tracking-wide drop-shadow-md">
+                  {item.subheading}
+                </p>
+
+                {/* Stroked Outlined Heading */}
+                <h1 className="lg:text-7xl md:text-5xl text-3xl font-black stroke-text leading-tight my-2 drop-shadow-md">
+                  {item.heading}
+                </h1>
+
+                {/* Description Text */}
+                <p className="my-4 font-normal text-sm md:text-2xl text-slate-100 leading-relaxed max-w-3xl drop-shadow-sm">
+                  {item.text}
+                </p>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-wrap items-center gap-3.5">
+                  <Link
+                    to={item.primaryCta.to}
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/25 transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                    <span>{item.badge}</span>
-                  </div>
+                    <span>{item.primaryCta.label}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
 
-                  {/* Subtitle / Category Label */}
-                  <p
-                    className={`text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-amber-400 transform transition-all duration-700 delay-100 ease-out ${
-                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                    }`}
+                  <Link
+                    to={item.secondaryCta.to}
+                    className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-5 py-3 rounded-2xl border border-white/30 backdrop-blur-md shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer"
                   >
-                    {item.tagline}
-                  </p>
-
-                  {/* Main Heading */}
-                  <h1
-                    className={`text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight drop-shadow-md transform transition-all duration-700 delay-200 ease-out ${
-                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                    }`}
-                  >
-                    {item.heading}
-                  </h1>
-
-                  {/* Body Paragraph */}
-                  <p
-                    className={`text-sm sm:text-base md:text-lg text-slate-100 leading-relaxed max-w-2xl font-normal drop-shadow-sm transform transition-all duration-700 delay-300 ease-out ${
-                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                    }`}
-                  >
-                    {item.text}
-                  </p>
-
-                  {/* Action Buttons */}
-                  <div
-                    className={`pt-3 flex flex-wrap items-center gap-3.5 transform transition-all duration-700 delay-400 ease-out ${
-                      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-                    }`}
-                  >
-                    <Link
-                      to={item.primaryCta.to}
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-7 py-3.5 rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
-                    >
-                      <span>{item.primaryCta.label}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
-
-                    <Link
-                      to={item.secondaryCta.to}
-                      className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold px-6 py-3.5 rounded-2xl border border-white/25 backdrop-blur-md shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-sm md:text-base cursor-pointer"
-                    >
-                      <span>{item.secondaryCta.label}</span>
-                    </Link>
-                  </div>
-
+                    <span>{item.secondaryCta.label}</span>
+                  </Link>
                 </div>
+
               </div>
             </div>
           </div>
         );
       })}
 
-      {/* Navigation Arrow Controls (Glassmorphism) */}
+      {/* Navigation Arrow Controls */}
       <button
         suppressHydrationWarning
         type="button"
         onClick={prevSlide}
         aria-label="Previous Slide"
-        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-2xl bg-white/10 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all duration-200 transform hover:scale-110 active:scale-95 cursor-pointer hidden sm:flex items-center justify-center"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20"
       >
         <ChevronLeft className="w-6 h-6" />
       </button>
@@ -200,30 +158,27 @@ const Carousel = () => {
         type="button"
         onClick={nextSlide}
         aria-label="Next Slide"
-        className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-2xl bg-white/10 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all duration-200 transform hover:scale-110 active:scale-95 cursor-pointer hidden sm:flex items-center justify-center"
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20"
       >
         <ChevronRight className="w-6 h-6" />
       </button>
 
-      {/* Modern Slide Progress Indicators */}
-      <div className="absolute bottom-6 left-0 right-0 z-30 flex items-center justify-center gap-2.5 px-4">
-        {slides.map((item, index) => {
-          const isActive = index === currentIndex;
-          return (
-            <button
-              key={index}
-              suppressHydrationWarning
-              type="button"
-              onClick={() => goToSlide(index)}
-              aria-label={`Go to slide ${index + 1}: ${item.heading}`}
-              className={`h-2.5 rounded-full transition-all duration-500 cursor-pointer ${
-                isActive
-                  ? "w-10 sm:w-12 bg-gradient-to-r from-amber-400 to-amber-500 shadow-md shadow-amber-500/50"
-                  : "w-2.5 sm:w-3 bg-white/30 hover:bg-white/50"
-              }`}
-            />
-          );
-        })}
+      {/* Slide Indicators / Dots */}
+      <div className="absolute bottom-5 w-full flex justify-center space-x-2 z-30">
+        {slides.map((_, index) => (
+          <button
+            key={index}
+            suppressHydrationWarning
+            type="button"
+            onClick={() => goToSlide(index)}
+            aria-label={`Go to slide ${index + 1}`}
+            className={`h-3 rounded-full transition-all duration-300 cursor-pointer ${
+              index === currentIndex
+                ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
+                : "w-3 bg-white/50 hover:bg-white/80"
+            }`}
+          />
+        ))}
       </div>
     </div>
   );

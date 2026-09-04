@@ -78,8 +78,10 @@ button{
 
 .stroke-text {
   color: transparent;                /* no fill */
-  -webkit-text-stroke: 1px #ffffffa9;  /* white border */
-  font-weight: bold;
+  -webkit-text-stroke: 1.5px #ffffff;  /* crisp white border */
+  text-stroke: 1.5px #ffffff;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 .floating-button{
   background: linear-gradient(to right, #FFA500, #FFD700, #32CD32);
