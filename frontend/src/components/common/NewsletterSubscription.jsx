@@ -40,7 +40,10 @@ const NewsletterSubscription = () => {
   };
 
   return (
-    <section className="w-full py-16 px-4 md:px-10 lg:px-16 max-w-[1600px] mx-auto">
+    <section
+      id="newsletter-subscription"
+      className="w-full py-16 px-4 md:px-10 lg:px-16 max-w-[1600px] mx-auto scroll-mt-24"
+    >
       <div className="bg-gradient-to-br from-[#021C57] via-[#052b7a] to-[#043399] rounded-3xl p-8 md:p-14 text-white shadow-2xl relative overflow-hidden border border-blue-800">
         
         {/* Subtle Decorative Elements */}
