@@ -15,7 +15,7 @@ const image3 = "/assets/Slider/MedicalAndScientificInstruments.jpg";
 
 const slides = [
   {
-    video: "https://videos.pexels.com/video-files/3195394/3195394-hd_1920_1080_25fps.mp4",
+    video: "/videos/slide1.mp4",
     image: image2,
     subheading: "We offers",
     heading: "Civil and Mechanical Equipments",
@@ -24,7 +24,7 @@ const slides = [
     secondaryCta: { label: "View Catalogs", to: "/catalog" },
   },
   {
-    video: "https://videos.pexels.com/video-files/3129957/3129957-hd_1920_1080_25fps.mp4",
+    video: "/videos/slide2.mp4",
     image: image1,
     subheading: "We offers",
     heading: "Calibration and Maintenance Service",
@@ -33,7 +33,7 @@ const slides = [
     secondaryCta: { label: "Contact Engineers", to: "/contact" },
   },
   {
-    video: "https://videos.pexels.com/video-files/3191572/3191572-hd_1920_1080_25fps.mp4",
+    video: "/videos/slide3.mp4",
     image: image3,
     subheading: "We offers",
     heading: "Medical and Scientific Instruments",
