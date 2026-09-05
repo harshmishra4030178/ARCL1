@@ -224,7 +224,7 @@ export default function About() {
 
               {/* ACCREDITATION BADGES */}
               <div className="flex flex-wrap gap-2.5 pt-2">
-                {["ISO 9001:2015 Certified", "ISO/IEC 17025 Compliant", "NABL Traceable", "Make in India 🇮🇳"].map((tag) => (
+                {["ISO 9001:2015 Certified", "ISO/IEC 17025 Compliant", "NABL Certification", "Make in India 🇮🇳"].map((tag) => (
                   <span
                     key={tag}
                     className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-blue-200 backdrop-blur-sm shadow-xs"
