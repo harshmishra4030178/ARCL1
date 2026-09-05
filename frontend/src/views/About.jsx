@@ -313,8 +313,8 @@ export default function About() {
           <div className="lg:col-span-6 relative">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-gray-200 group">
               <img
-                src="https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg?auto=compress&cs=tinysrgb&w=1200"
-                alt="Laboratory testing scientist"
+                src="/assets/about/rd-facility.jpg"
+                alt="ARCL Instruments R&D and Manufacturing Facility"
                 className="w-full h-[450px] object-cover transition duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#021C57]/90 via-transparent to-transparent"></div>
