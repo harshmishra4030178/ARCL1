@@ -148,7 +148,7 @@ function Contact() {
       content: (
         <div className="space-y-2">
           <p className="text-xs text-slate-500">
-            For NABL traceable calibration services, certificates & testing inquiries:
+            For NABL Calibration Services, Certificates & Validation inquiries:
           </p>
 
           <div className="space-y-1.5">
