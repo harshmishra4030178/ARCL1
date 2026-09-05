@@ -9,8 +9,10 @@ import {
   FaFileCsv,
   FaCheck,
   FaUserCheck,
+  FaCommentDots,
 } from "react-icons/fa";
 import { getAdminSubscribers, deleteSubscriber } from "../../api/subscriberApi.js";
+import BulkSmsModal from "../../components/admin/subscriber/BulkSmsModal.jsx";
 import { toast } from "react-toastify";
 
 const SubscriberListPage = () => {
@@ -19,6 +21,7 @@ const SubscriberListPage = () => {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
 
   useEffect(() => {
     fetchSubscribers();
@@ -117,6 +120,15 @@ const SubscriberListPage = () => {
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
+            onClick={() => setShowSmsModal(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#021C57] to-[#0D3692] hover:from-[#032675] hover:to-[#0f3ea3] text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition cursor-pointer"
+            title="Create & send bulk SMS & Email campaigns with greeting banners to subscribers and customers"
+          >
+            <FaCommentDots className="text-amber-400" />
+            <span>Send Broadcast (SMS & Email)</span>
+          </button>
+
+          <button
             onClick={handleCopyAllEmails}
             disabled={subscribers.length === 0}
             className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
@@ -129,7 +141,7 @@ const SubscriberListPage = () => {
           <button
             onClick={handleExportCSV}
             disabled={subscribers.length === 0}
-            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#03308f] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
           >
             <FaFileCsv size={14} /> Export CSV
           </button>
@@ -254,6 +266,11 @@ const SubscriberListPage = () => {
         </div>
       )}
 
+      {/* BULK SMS CAMPAIGN MODAL */}
+      <BulkSmsModal
+        isOpen={showSmsModal}
+        onClose={() => setShowSmsModal(false)}
+      />
     </div>
   );
 };

@@ -7,10 +7,12 @@ import Footer from "../components/Footer";
 import QuoteCartDrawer from "../components/quoteCart/QuoteCartDrawer";
 import FloatingQuoteCartButton from "../components/quoteCart/FloatingQuoteCartButton";
 import FloatingContactButtons from "../components/common/FloatingContactButtons";
+import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 export default function ClientLayout({ children }) {
+  useVisitorTracker();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith("/admin");
   const isPdfPage = pathname?.includes("/catalog") && pathname?.startsWith("/products/");

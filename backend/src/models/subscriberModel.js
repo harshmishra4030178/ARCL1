@@ -13,6 +13,16 @@ const subscriberSchema = new mongoose.Schema(
         "Please provide a valid email address",
       ],
     },
+    name: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     isActive: {
       type: Boolean,
       default: true,

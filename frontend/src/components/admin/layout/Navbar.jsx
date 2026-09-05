@@ -4,6 +4,7 @@ const logo = "/assets/LOGO.png";
 import { Link, useNavigate } from "../../../utils/navigation.jsx";
 import { useAuthStore } from "../../../store/useAuthStore.js";
 import { FaSignOutAlt, FaUserCircle } from "react-icons/fa";
+import NotificationDropdown from "./NotificationDropdown.jsx";
 import { toast } from "react-toastify";
 
 const Navbar = () => {
@@ -31,8 +32,11 @@ const Navbar = () => {
         </Link>
       </div>
 
-      {/* Admin Profile & Logout */}
-      <div className="flex items-center gap-4">
+      {/* Admin Profile, Notifications & Logout */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        {/* Notification Center */}
+        <NotificationDropdown />
+
         <div className="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
           {user?.picture ? (
             <img

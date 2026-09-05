@@ -17,6 +17,7 @@ import adminInquiryRoutes from "./routes/admin/inquiryRoutes.js";
 import adminContactRoutes from "./routes/admin/contactRoutes.js";
 import adminSubscriberRoutes from "./routes/admin/subscriberRoutes.js";
 import adminUserRoutes from "./routes/admin/userRoutes.js";
+import adminAnalyticsRoutes from "./routes/admin/analyticsRoutes.js";
 
 // ================= CLIENT ROUTES =================
 import clientCategoryRoutes from "./routes/client/categoryRoutes.js";
@@ -25,6 +26,7 @@ import clientProductRoutes from "./routes/client/productRoutes.js";
 import clientInquiryRoutes from "./routes/client/inquiryRoutes.js";
 import clientContactRoutes from "./routes/client/contactRoutes.js";
 import clientSubscriberRoutes from "./routes/client/subscriberRoutes.js";
+import clientAnalyticsRoutes from "./routes/client/analyticsRoutes.js";
 
 const app = express();
 
@@ -105,6 +107,7 @@ app.use(`${ADMIN_API}/inquiries`, verifyAdmin, adminInquiryRoutes);
 app.use(`${ADMIN_API}/contacts`, verifyAdmin, adminContactRoutes);
 app.use(`${ADMIN_API}/subscribers`, verifyAdmin, adminSubscriberRoutes);
 app.use(`${ADMIN_API}/users`, verifyAdmin, adminUserRoutes);
+app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
@@ -113,6 +116,7 @@ app.use(`${CLIENT_API}/products`, clientProductRoutes);
 app.use(`${CLIENT_API}/inquiries`, clientInquiryRoutes);
 app.use(`${CLIENT_API}/contacts`, clientContactRoutes);
 app.use(`${CLIENT_API}/subscribers`, clientSubscriberRoutes);
+app.use(`${CLIENT_API}/analytics`, clientAnalyticsRoutes);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {

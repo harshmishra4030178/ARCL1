@@ -25,6 +25,8 @@ import { getAdminProducts } from "../../api/productApi.js";
 import { getAllInquiries } from "../../api/inquiryApi.js";
 import { getAllContacts } from "../../api/contactApi.js";
 import { getAdminSubscribersApi } from "../../api/subscriberApi.js";
+import { getAdminVisitorAnalytics } from "../../api/analyticsApi.js";
+import VisitorAnalyticsCard from "../../components/admin/dashboard/VisitorAnalyticsCard.jsx";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -36,6 +38,7 @@ const Dashboard = () => {
     subscribers: [],
   });
 
+  const [visitorData, setVisitorData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -48,7 +51,7 @@ const Dashboard = () => {
       setLoading(true);
       setError("");
 
-      const [eqRes, catRes, prodRes, inqRes, conRes, subRes] =
+      const [eqRes, catRes, prodRes, inqRes, conRes, subRes, visitorRes] =
         await Promise.all([
           getAdminEquipmentTypes().catch(() => ({ data: [] })),
           getAdminCategories().catch(() => ({ data: [] })),
@@ -56,6 +59,7 @@ const Dashboard = () => {
           getAllInquiries().catch(() => ({ inquiries: [] })),
           getAllContacts().catch(() => ({ contacts: [] })),
           getAdminSubscribersApi().catch(() => ({ data: { subscribers: [] } })),
+          getAdminVisitorAnalytics().catch(() => ({ data: null })),
         ]);
 
       const equipmentTypes = eqRes.data?.data || eqRes.data || [];
@@ -65,6 +69,7 @@ const Dashboard = () => {
       const contacts = conRes.contacts || conRes.data || [];
       const subscribers =
         subRes.data?.data?.subscribers || subRes.data?.subscribers || [];
+      const visitorAnalytics = visitorRes?.data || null;
 
       setStats({
         equipmentTypes,
@@ -74,6 +79,7 @@ const Dashboard = () => {
         contacts,
         subscribers,
       });
+      setVisitorData(visitorAnalytics);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
       setError("Failed to load dashboard metrics");
@@ -257,7 +263,10 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* 2. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
+      {/* 2. VISITOR TRAFFIC & DEVICE ANALYTICS */}
+      <VisitorAnalyticsCard visitorData={visitorData} loading={loading} />
+
+      {/* 3. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* GRAPH 1: DYNAMIC MONTHLY INQUIRIES & DEMAND TREND */}
