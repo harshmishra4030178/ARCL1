@@ -12,14 +12,14 @@ const getBaseURL = () => {
       window.location.hostname === "127.0.0.1";
 
     if (!isLocalhost && (!envUrl || envUrl.includes("localhost"))) {
-      return "https://arcl.onrender.com/api/v1";
+      return "https://arcl1-1.onrender.com/api/v1";
     }
   }
 
   // In Node/SSR environment
   if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
     if (!envUrl || envUrl.includes("localhost")) {
-      return "https://arcl.onrender.com/api/v1";
+      return "https://arcl1-1.onrender.com/api/v1";
     }
   }
 
