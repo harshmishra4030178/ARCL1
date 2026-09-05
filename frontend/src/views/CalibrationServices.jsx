@@ -32,8 +32,31 @@ import { fuzzyMatch } from "../utils/fuzzySearch.js";
 
 const calibrationCategories = [
   {
-    id: "dimensional",
+    id: "force",
     number: "01",
+    title: "Force Calibration Services",
+    description:
+      "Comprehensive force calibration services for testing machines, load cells, force gauges and other force measurement systems.",
+    icon: MoveRight,
+    items: [
+      "Universal Testing Machine (UTM) Calibration",
+      "Compression Testing Machine Calibration",
+      "CBR Testing Machine Calibration",
+      "Marshall Testing Machine Calibration",
+      "Point Load Testing Machine Calibration",
+      "Direct Shear Testing Machine Calibration",
+      "Tensile Testing Machine Calibration",
+      "Load Testing Machine Calibration",
+      "Load Cell Calibration",
+      "Force Gauge Calibration",
+      "Digital Force Gauge Calibration",
+      "Pull-out Tester Calibration",
+      "Proving Ring Calibration",
+    ],
+  },
+  {
+    id: "dimensional",
+    number: "02",
     title: "Dimensional Calibration",
     description:
       "Accurate calibration and verification of dimensional measuring instruments used for precision measurement and quality control.",
@@ -59,7 +82,7 @@ const calibrationCategories = [
   },
   {
     id: "temperature",
-    number: "02",
+    number: "03",
     title: "Temperature & Environmental Calibration",
     description:
       "Calibration and verification services for temperature, humidity and environmental monitoring instruments and equipment.",
@@ -77,7 +100,7 @@ const calibrationCategories = [
   },
   {
     id: "pressure",
-    number: "03",
+    number: "04",
     title: "Pressure & Vacuum Calibration",
     description:
       "Reliable pressure and vacuum calibration solutions for gauges, transmitters, sensors and pressure measurement systems.",
@@ -94,7 +117,7 @@ const calibrationCategories = [
   },
   {
     id: "mass",
-    number: "04",
+    number: "05",
     title: "Mass, Weight & Balance Calibration",
     description:
       "Precision calibration and verification of weighing instruments, balances and standard weights.",
@@ -110,7 +133,7 @@ const calibrationCategories = [
   },
   {
     id: "laboratory",
-    number: "05",
+    number: "06",
     title: "Laboratory Instrument Calibration",
     description:
       "Calibration services for laboratory meters and analytical instruments to support accurate and dependable measurements.",
@@ -122,29 +145,6 @@ const calibrationCategories = [
       "Dissolved Oxygen Meter Calibration",
       "Analytical Instrument Calibration",
       "Laboratory Meter Calibration",
-    ],
-  },
-  {
-    id: "force",
-    number: "06",
-    title: "Force Calibration Services",
-    description:
-      "Comprehensive force calibration services for testing machines, load cells, force gauges and other force measurement systems.",
-    icon: MoveRight,
-    items: [
-      "Universal Testing Machine (UTM) Calibration",
-      "Compression Testing Machine Calibration",
-      "CBR Testing Machine Calibration",
-      "Marshall Testing Machine Calibration",
-      "Point Load Testing Machine Calibration",
-      "Direct Shear Testing Machine Calibration",
-      "Tensile Testing Machine Calibration",
-      "Load Testing Machine Calibration",
-      "Load Cell Calibration",
-      "Force Gauge Calibration",
-      "Digital Force Gauge Calibration",
-      "Pull-out Tester Calibration",
-      "Proving Ring Calibration",
     ],
   },
   {
