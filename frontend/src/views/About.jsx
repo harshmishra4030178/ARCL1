@@ -28,29 +28,26 @@ const commitmentData = [
   {
     title: "Precision & Accuracy",
     text: "Engineered to deliver high-resolution measurements and consistent analytical results meeting international standards.",
-    image:
-      "https://images.pexels.com/photos/256381/pexels-photo-256381.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image: "/assets/about/precision-accuracy.jpg",
     icon: <Gauge className="w-5 h-5 text-blue-400" />,
   },
   {
     title: "Scientific Innovation",
     text: "Integrating digital LCD controllers, smart microprocessors, and IoT-ready telemetry into everyday laboratory workflows.",
-    image:
-      "https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image: "/assets/about/scientific-innovation.jpg",
     icon: <Sparkles className="w-5 h-5 text-amber-400" />,
   },
   {
     title: "ISO & NABL Quality",
     text: "Rigorous multi-stage calibration and quality control under ISO 9001:2015 and ISO/IEC 17025 compliance frameworks.",
     image:
-      "https://images.pexels.com/photos/832571/pexels-photo-832571.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=800",
     icon: <Award className="w-5 h-5 text-emerald-400" />,
   },
   {
     title: "Ergonomic Operation",
     text: "User-centric design with intuitive controls, emergency safety cutoffs, and durable stainless steel construction.",
-    image:
-      "https://images.pexels.com/photos/2280551/pexels-photo-2280551.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image: "/assets/about/ergonomic-operation.jpg",
     icon: <Cpu className="w-5 h-5 text-purple-400" />,
   },
   {
