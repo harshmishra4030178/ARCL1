@@ -19,15 +19,31 @@ const ProductSidebar = ({
     );
   }, [equipmentTypes]);
 
-  // Filter categories based on selected equipment type if chosen
-  const filteredCategories = selectedEquipmentType
-    ? categories.filter(
-        (c) =>
-          c.equipmentType?._id === selectedEquipmentType ||
-          c.equipmentType?.slug === selectedEquipmentType ||
-          c.equipmentType === selectedEquipmentType
-      )
-    : categories;
+  // Filter and sort categories based on the equipment type order
+  const filteredCategories = useMemo(() => {
+    const list = selectedEquipmentType
+      ? categories.filter(
+          (c) =>
+            c.equipmentType?._id === selectedEquipmentType ||
+            c.equipmentType?.slug === selectedEquipmentType ||
+            c.equipmentType === selectedEquipmentType
+        )
+      : categories;
+
+    const typeOrderMap = new Map();
+    equipmentTypes.forEach((eq, idx) => {
+      typeOrderMap.set(String(eq._id), idx);
+    });
+
+    return [...list].sort((a, b) => {
+      const aEqId = String(a.equipmentType?._id || a.equipmentType || "");
+      const bEqId = String(b.equipmentType?._id || b.equipmentType || "");
+      const aOrder = typeOrderMap.has(aEqId) ? typeOrderMap.get(aEqId) : 999;
+      const bOrder = typeOrderMap.has(bEqId) ? typeOrderMap.get(bEqId) : 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [categories, selectedEquipmentType, equipmentTypes]);
 
   return (
     <aside className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm space-y-6">

@@ -16,7 +16,7 @@ import { Link, useLocation } from "../utils/navigation.jsx";
 
 const ProductListingPage = () => {
   const location = useLocation();
-  const { products, fetchProducts, loading: productsLoading } = useProductStore();
+  const { products, fetchProducts, loading: productsLoading, homeShowcase, fetchHomeShowcase } = useProductStore();
   const { categories, fetchCategories, loading: categoriesLoading } = useCategoryStore();
   const { equipmentTypes, fetchEquipmentTypes, loading: eqTypesLoading } = useEquipmentTypeStore();
 
@@ -41,11 +41,12 @@ const ProductListingPage = () => {
   const bottomSentinelRef = useRef(null);
 
   useEffect(() => {
-    // Fetch all catalog data in parallel
+    // Fetch all catalog data in parallel including Home Showcase for exact order alignment
     Promise.all([
       fetchProducts(),
       fetchCategories(),
       fetchEquipmentTypes(),
+      fetchHomeShowcase(),
     ]).catch((err) => console.error("Catalogue fetch error:", err));
   }, []);
 
@@ -73,15 +74,37 @@ const ProductListingPage = () => {
 
   const loading = productsLoading || categoriesLoading || eqTypesLoading;
 
-  // Build Section-Wise Structure: For each Equipment Type -> 1 Product per Category
-  const equipmentTypeSections = useMemo(() => {
+  // Align Equipment Types with the exact sequence displayed on Home Page
+  const orderedEquipmentTypes = useMemo(() => {
     if (!equipmentTypes || equipmentTypes.length === 0) return [];
 
-    const sortedTypes = [...equipmentTypes].sort(
-      (a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
-    );
+    const homeOrderMap = new Map();
+    if (Array.isArray(homeShowcase) && homeShowcase.length > 0) {
+      homeShowcase.forEach((item, idx) => {
+        const id = item.equipmentType?._id || item.equipmentType;
+        if (id) homeOrderMap.set(String(id), idx);
+      });
+    }
 
-    return sortedTypes
+    return [...equipmentTypes].sort((a, b) => {
+      const aId = String(a._id);
+      const bId = String(b._id);
+      const aHomeIdx = homeOrderMap.has(aId) ? homeOrderMap.get(aId) : null;
+      const bHomeIdx = homeOrderMap.has(bId) ? homeOrderMap.get(bId) : null;
+
+      if (aHomeIdx !== null && bHomeIdx !== null) return aHomeIdx - bHomeIdx;
+      if (aHomeIdx !== null) return -1;
+      if (bHomeIdx !== null) return 1;
+
+      return (a.displayOrder ?? 999) - (b.displayOrder ?? 999);
+    });
+  }, [equipmentTypes, homeShowcase]);
+
+  // Build Section-Wise Structure: For each Equipment Type -> 1 Product per Category
+  const equipmentTypeSections = useMemo(() => {
+    if (!orderedEquipmentTypes || orderedEquipmentTypes.length === 0) return [];
+
+    return orderedEquipmentTypes
       .map((eqType) => {
         // Find categories belonging to this Equipment Type
         const eqCategories = categories.filter((cat) => {
@@ -115,7 +138,7 @@ const ProductListingPage = () => {
         };
       })
       .filter((sec) => sec.products.length > 0);
-  }, [equipmentTypes, categories, products]);
+  }, [orderedEquipmentTypes, categories, products]);
 
   // Infinite/Progressive on-scroll observer for section-wise view
   useEffect(() => {
@@ -184,7 +207,7 @@ const ProductListingPage = () => {
           <div className="lg:hidden mb-6 bg-white p-5 rounded-3xl border border-gray-200 shadow-md">
             <ProductSidebar
               categories={categories}
-              equipmentTypes={equipmentTypes}
+              equipmentTypes={orderedEquipmentTypes}
               selectedEquipmentType={selectedEquipmentType}
               setSelectedEquipmentType={(typeId) => {
                 setSelectedEquipmentType(typeId);
@@ -202,7 +225,7 @@ const ProductListingPage = () => {
           <div className="hidden lg:block w-[300px] shrink-0 sticky top-36">
             <ProductSidebar
               categories={categories}
-              equipmentTypes={equipmentTypes}
+              equipmentTypes={orderedEquipmentTypes}
               selectedEquipmentType={selectedEquipmentType}
               setSelectedEquipmentType={setSelectedEquipmentType}
               onReset={handleResetFilters}
