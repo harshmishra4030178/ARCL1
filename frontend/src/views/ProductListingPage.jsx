@@ -77,7 +77,11 @@ const ProductListingPage = () => {
   const equipmentTypeSections = useMemo(() => {
     if (!equipmentTypes || equipmentTypes.length === 0) return [];
 
-    return equipmentTypes
+    const sortedTypes = [...equipmentTypes].sort(
+      (a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
+    );
+
+    return sortedTypes
       .map((eqType) => {
         // Find categories belonging to this Equipment Type
         const eqCategories = categories.filter((cat) => {

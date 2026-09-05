@@ -52,9 +52,15 @@ const CatalogPage = () => {
     fetchEquipmentTypes();
   }, []);
 
+  const sortedEquipmentTypes = useMemo(() => {
+    return [...equipmentTypes].sort(
+      (a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
+    );
+  }, [equipmentTypes]);
+
   // Filter categories
   const filteredCategories = useMemo(() => {
-    return categories.filter((cat) => {
+    const list = categories.filter((cat) => {
       const term = search.toLowerCase().trim();
       const matchesSearch =
         !term ||
@@ -69,7 +75,21 @@ const CatalogPage = () => {
 
       return matchesSearch && matchesType;
     });
-  }, [categories, search, selectedEquipmentType]);
+
+    // Sort categories according to equipmentType displayOrder
+    const typeOrderMap = new Map();
+    sortedEquipmentTypes.forEach((eq, idx) => {
+      typeOrderMap.set(String(eq._id), idx);
+    });
+
+    return list.sort((a, b) => {
+      const aEqId = String(a.equipmentType?._id || a.equipmentType || "");
+      const bEqId = String(b.equipmentType?._id || b.equipmentType || "");
+      const aOrder = typeOrderMap.has(aEqId) ? typeOrderMap.get(aEqId) : 999;
+      const bOrder = typeOrderMap.has(bEqId) ? typeOrderMap.get(bEqId) : 999;
+      return aOrder - bOrder;
+    });
+  }, [categories, search, selectedEquipmentType, sortedEquipmentTypes]);
 
   const handleCategoryClick = (category) => {
     setSelectedCategoryForModal(category);
@@ -125,7 +145,7 @@ const CatalogPage = () => {
               All Categories ({categories.length})
             </button>
 
-            {equipmentTypes.map((eq) => {
+            {sortedEquipmentTypes.map((eq) => {
               const count = categories.filter(
                 (c) => (c.equipmentType?._id || c.equipmentType) === eq._id
               ).length;

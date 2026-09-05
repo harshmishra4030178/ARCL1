@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Link } from "../../utils/navigation.jsx";
 import { Layers, ChevronRight, X, Sparkles } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
@@ -12,6 +13,12 @@ const ProductSidebar = ({
   onReset,
   hasActiveFilters,
 }) => {
+  const sortedEquipmentTypes = useMemo(() => {
+    return [...equipmentTypes].sort(
+      (a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
+    );
+  }, [equipmentTypes]);
+
   // Filter categories based on selected equipment type if chosen
   const filteredCategories = selectedEquipmentType
     ? categories.filter(
@@ -60,7 +67,7 @@ const ProductSidebar = ({
             {!selectedEquipmentType && <span className="text-[10px]">●</span>}
           </button>
 
-          {equipmentTypes.map((type) => (
+          {sortedEquipmentTypes.map((type) => (
             <button
               key={type._id}
               onClick={() =>
