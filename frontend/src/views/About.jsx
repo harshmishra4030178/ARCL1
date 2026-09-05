@@ -40,8 +40,7 @@ const commitmentData = [
   {
     title: "ISO & NABL Quality",
     text: "Rigorous multi-stage calibration and quality control under ISO 9001:2015 and ISO/IEC 17025 compliance frameworks.",
-    image:
-      "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=800",
+    image: "/assets/about/iso-nabl-quality.jpg",
     icon: <Award className="w-5 h-5 text-emerald-400" />,
   },
   {
@@ -53,15 +52,13 @@ const commitmentData = [
   {
     title: "Continuous Development",
     text: "Guided by feedback from civil engineering labs, pharmaceutical researchers, and institutional testing centers.",
-    image:
-      "https://images.pexels.com/photos/3825527/pexels-photo-3825527.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image: "/assets/about/continuous-development.jpg",
     icon: <Compass className="w-5 h-5 text-cyan-400" />,
   },
   {
     title: "Safety & Reliability",
     text: "Built-in thermal protection, overload trip mechanisms, and heavy-duty industrial chassis for 24/7 durability.",
-    image:
-      "https://images.pexels.com/photos/4031522/pexels-photo-4031522.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image: "/assets/about/safety-reliability.jpg",
     icon: <ShieldCheck className="w-5 h-5 text-rose-400" />,
   },
 ];
