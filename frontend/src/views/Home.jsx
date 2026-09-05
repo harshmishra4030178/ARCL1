@@ -290,30 +290,7 @@ const Home = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 self-start md:self-auto flex-wrap">
-            {featuredEquipmentSections.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setCanReorder(!canReorder)}
-                className={`inline-flex items-center gap-2 px-5 py-3.5 rounded-2xl text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer border ${
-                  canReorder
-                    ? "bg-amber-400 text-gray-950 border-amber-500 shadow-md ring-2 ring-amber-300"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border-gray-300"
-                }`}
-                title="Adjust the order of showcase sections"
-              >
-                {canReorder ? (
-                  <>
-                    <Check size={16} />
-                    <span>Done Reordering</span>
-                  </>
-                ) : (
-                  <>
-                    <SlidersHorizontal size={16} />
-                    <span>Adjust Section Order</span>
-                  </>
-                )}
-              </button>
-            )}
+            
 
             <Link
               to="/products"

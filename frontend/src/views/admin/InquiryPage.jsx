@@ -16,9 +16,13 @@ import {
   ChevronRight,
   Package,
   Copy,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useInquiryStore } from "../../store/useInquiryStore.js";
 import InquiryDetailsModal from "../../components/admin/inquiry/InquiryDetailsModal.jsx";
+import InquiryAnalytics from "../../components/admin/inquiry/InquiryAnalytics.jsx";
 import Tooltip from "../../components/admin/common/Tooltip.jsx";
 import SkeletonLoader from "../../components/admin/common/SkeletonLoader.jsx";
 import { toast } from "react-toastify";
@@ -36,6 +40,7 @@ const InquiryPage = () => {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showAnalytics, setShowAnalytics] = useState(true);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -145,6 +150,20 @@ const InquiryPage = () => {
 
         <div className="flex items-center gap-2.5">
           <button
+            onClick={() => setShowAnalytics((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 font-semibold px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition cursor-pointer ${
+              showAnalytics
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-white hover:bg-gray-50 text-gray-700 border-gray-200 shadow-2xs"
+            }`}
+            title="Toggle Analytics & Graphs"
+          >
+            <BarChart3 size={15} />
+            <span>{showAnalytics ? "Hide Analytics" : "Show Analytics & Graphs"}</span>
+            {showAnalytics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          <button
             onClick={handleCopyEmails}
             className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 font-semibold px-4 py-2.5 rounded-xl border border-gray-200 shadow-2xs text-xs sm:text-sm transition cursor-pointer"
             title="Copy all customer emails"
@@ -154,48 +173,14 @@ const InquiryPage = () => {
         </div>
       </div>
 
-      {/* 2. STAT CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Total Requests</span>
-            <span className="p-2 rounded-xl bg-blue-50 text-[#021C57]">
-              <FileQuestion size={16} />
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-[#021C57]">{stats.total}</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-700">Pending Quotes</span>
-            <span className="p-2 rounded-xl bg-amber-50 text-amber-600">
-              <AlertCircle size={16} />
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-blue-700">Contacted / Quoted</span>
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <Clock size={16} />
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-blue-600">{stats.contacted}</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-700">Completed Deals</span>
-            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <CheckCircle2 size={16} />
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-emerald-600">{stats.completed}</p>
-        </div>
-      </div>
+      {/* 2. ANALYTICS & OVERALL GRAPH SECTION */}
+      {showAnalytics && (
+        <InquiryAnalytics
+          inquiries={inquiries}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+        />
+      )}
 
       {/* 3. FILTER & SEARCH TOOLBAR */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-gray-100 flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">

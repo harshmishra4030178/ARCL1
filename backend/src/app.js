@@ -75,7 +75,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 
 // Health Check API
 app.get(`${API_VERSION}/health`, (req, res) => {
