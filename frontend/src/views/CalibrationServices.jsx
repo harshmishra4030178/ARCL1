@@ -162,6 +162,11 @@ const calibrationCategories = [
       "Speed Indicator Calibration",
       "Motor RPM Measurement System Calibration",
       "Machine Speed Monitoring System Calibration",
+      "Vibrating Table",
+      "Mortar Vibrating Machine",
+      "Sieve Shaker",
+      "Pan Mixer",
+      "Concrete Mixer",
     ],
   },
 ];
