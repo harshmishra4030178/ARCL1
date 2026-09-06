@@ -55,7 +55,7 @@ const getFromAddress = () => {
 };
 
 const getFrontendUrl = () => {
-  return process.env.FRONTEND_URL || "https://arcl-i34s.vercel.app";
+  return process.env.FRONTEND_URL || "https://arcl-1.vercel.app";
 };
 
 const getLogoAttachment = () => {
