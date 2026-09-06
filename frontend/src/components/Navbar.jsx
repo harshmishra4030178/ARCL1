@@ -40,6 +40,10 @@ const Navbar = () => {
       to: "/catalog",
     },
     {
+      name: "Standards",
+      to: "/standards",
+    },
+    {
       name: "Calibration Services",
       to: "/calibration-services",
     },
@@ -180,7 +184,11 @@ const Navbar = () => {
               hidden
               lg:flex
               items-center
-              gap-6
+              gap-3
+              xl:gap-5
+              text-[13px]
+              xl:text-sm
+              whitespace-nowrap
             "
               >
                 {navLinks.map((link) =>

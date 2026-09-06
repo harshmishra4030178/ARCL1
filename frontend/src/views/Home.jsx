@@ -451,12 +451,19 @@ const Home = () => {
             Our engineering specialists are ready to help you configure testing
             instruments according to national & international standards.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3.5">
             <NavLink
               to="/contact"
-              className="inline-block bg-white hover:bg-gray-100 text-[#021C57] font-bold px-8 py-3.5 rounded-2xl shadow-lg transition duration-300 text-sm md:text-base"
+              className="inline-block bg-white hover:bg-gray-100 text-[#021C57] font-bold px-7 py-3.5 rounded-2xl shadow-lg transition duration-300 text-sm md:text-base cursor-pointer"
             >
               Contact Our Engineers
+            </NavLink>
+
+            <NavLink
+              to="/standards"
+              className="inline-block bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold px-7 py-3.5 rounded-2xl shadow-lg transition duration-300 text-sm md:text-base cursor-pointer"
+            >
+              Explore Testing Standards (IS Codes) →
             </NavLink>
           </div>
         </div>

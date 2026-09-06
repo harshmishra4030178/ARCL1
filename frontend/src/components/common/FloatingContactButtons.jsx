@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaWhatsapp } from "react-icons/fa";
-import { Mail, Bell, X, CheckCircle2, ArrowRight, Sparkles, ShieldCheck } from "lucide-react";
+import { Mail, Bell, X, CheckCircle2, ArrowRight, Sparkles, ShieldCheck, Bot } from "lucide-react";
 import { subscribeApi } from "../../api/subscriberApi.js";
+import { useAiAssistantStore } from "../../store/useAiAssistantStore.js";
 import { toast } from "react-toastify";
 
 const FloatingContactButtons = () => {
@@ -341,7 +342,7 @@ const FloatingContactButtons = () => {
           </a>
         </div>
 
-        {/* 3. EMAIL BUTTON (BOTTOM) */}
+        {/* 3. EMAIL BUTTON */}
         <div className="relative flex items-center group">
           {/* CTA Tooltip Pill */}
           <div
@@ -366,6 +367,38 @@ const FloatingContactButtons = () => {
           >
             <Mail className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 text-cyan-300 drop-shadow-sm" />
           </a>
+        </div>
+
+        {/* 4. AI BOT BUTTON (DIRECTLY BELOW EMAIL BUTTON) */}
+        <div className="relative flex items-center group">
+          {/* CTA Tooltip Pill */}
+          <div
+            className="absolute right-full mr-3 hidden sm:flex items-center bg-slate-900/95 text-white px-3.5 py-1.5 rounded-2xl shadow-xl border border-slate-700/60 backdrop-blur-md opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap"
+          >
+            <div className="flex flex-col text-right">
+              <span className="text-xs font-bold text-amber-400 leading-none flex items-center justify-end gap-1">
+                ARCL AI Assistant
+                <Sparkles size={11} className="text-amber-300" />
+              </span>
+              <span className="text-[10px] text-slate-300 font-medium leading-tight mt-0.5">
+                Civil Lab & Standards Expert
+              </span>
+            </div>
+            <div className="w-2 h-2 bg-slate-900/95 rotate-45 border-t border-r border-slate-700/60 absolute -right-1"></div>
+          </div>
+
+          {/* AI Bot Trigger Button */}
+          <button
+            type="button"
+            onClick={() => useAiAssistantStore.getState().toggleAssistant()}
+            aria-label="Ask ARCL AI Assistant"
+            className="relative flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-[#021C57] via-blue-800 to-indigo-600 hover:from-blue-900 hover:to-indigo-500 text-white shadow-lg shadow-indigo-900/40 hover:shadow-xl hover:shadow-indigo-600/50 transform hover:scale-110 active:scale-95 transition-all duration-300 border-2 border-amber-300/80 cursor-pointer"
+          >
+            {/* Pulsing Online Green Dot */}
+            <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#021C57] rounded-full animate-pulse z-20 pointer-events-none" />
+
+            <Bot className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 text-amber-300 drop-shadow-sm" />
+          </button>
         </div>
       </aside>
     </>

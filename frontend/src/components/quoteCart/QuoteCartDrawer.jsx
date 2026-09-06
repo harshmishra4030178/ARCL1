@@ -18,10 +18,12 @@ import {
   CheckCircle2,
   ArrowRight,
   Layers,
+  Download,
 } from "lucide-react";
 import { Link } from "../../utils/navigation.jsx";
 import { useQuoteCartStore } from "../../store/useQuoteCartStore.js";
 import { useInquiryStore } from "../../store/useInquiryStore.js";
+import { generateQuotationPdf } from "../../utils/quotationPdfGenerator.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 
@@ -476,6 +478,26 @@ const QuoteCartDrawer = () => {
                     >
                       <MessageCircle size={15} />
                       <span>Send Complete Basket via WhatsApp</span>
+                    </button>
+
+                    {/* 3. INSTANT PROFORMA PDF BUTTON */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        generateQuotationPdf({
+                          items,
+                          customer: {
+                            name: formData.customerName,
+                            company: formData.company,
+                            phone: formData.phone,
+                            email: formData.email,
+                          },
+                        })
+                      }
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      <Download size={15} />
+                      <span>Download Instant Proforma PDF Estimate</span>
                     </button>
                   </div>
                 </form>

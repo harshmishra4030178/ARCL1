@@ -4,10 +4,15 @@ import { Link } from "../../utils/navigation.jsx";
 import { ArrowRight, MessageCircle, FileText, Sparkles, ArrowUpRight, Layers, ShoppingBag } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 import { useQuoteCartStore } from "../../store/useQuoteCartStore.js";
+import { useCompareStore } from "../../store/useCompareStore.js";
+import { Scale, Check } from "lucide-react";
 
 const ProductCard = ({ product }) => {
   const { addItem, isInCart } = useQuoteCartStore();
+  const { toggleCompare, isInCompare } = useCompareStore();
   if (!product) return null;
+
+  const inCompare = isInCompare(product._id);
 
   const imageUrl =
     Array.isArray(product.images) && product.images[0]
@@ -54,6 +59,25 @@ const ProductCard = ({ product }) => {
             }}
           />
           
+          {/* Top Left Compare Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleCompare(product);
+            }}
+            title={inCompare ? "Remove from comparison" : "Add to comparison"}
+            className={`absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition shadow-xs cursor-pointer ${
+              inCompare
+                ? "bg-[#021C57] text-white border border-blue-400"
+                : "bg-white/90 hover:bg-white text-slate-700 hover:text-[#021C57] border border-slate-200"
+            }`}
+          >
+            {inCompare ? <Check size={10} className="text-emerald-400" /> : <Scale size={10} />}
+            <span>{inCompare ? "Comparing" : "Compare"}</span>
+          </button>
+
           {/* Top Floating Featured Badge */}
           {product.isFeatured && (
             <div className="absolute top-2.5 right-2.5 z-10">

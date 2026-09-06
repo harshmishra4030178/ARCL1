@@ -34,12 +34,17 @@ import {
 import { useProductStore } from "../store/useProductStore.js";
 import { useInquiryStore } from "../store/useInquiryStore.js";
 import { useQuoteCartStore } from "../store/useQuoteCartStore.js";
+import { useCompareStore } from "../store/useCompareStore.js";
 import { productService } from "../services/productService.js";
+import { generateQuotationPdf } from "../utils/quotationPdfGenerator.js";
+import { sendProductToWhatsApp } from "../utils/whatsappQuote.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
+import { Scale } from "lucide-react";
 
 const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
   const { addItem, openCart, isInCart } = useQuoteCartStore();
+  const { toggleCompare, isInCompare } = useCompareStore();
   const routeParams = useParams();
   const slug = initialSlug || routeParams?.slug;
   const navigate = useNavigate();
@@ -329,14 +334,29 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
             </span>
           </div>
 
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium transition cursor-pointer text-xs shrink-0"
-            title="Copy link"
-          >
-            <Share2 size={13} />
-            <span className="hidden sm:inline">{copiedLink ? "Link Copied!" : "Share"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => toggleCompare(product)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold transition cursor-pointer text-xs shrink-0 ${
+                isInCompare(product._id)
+                  ? "bg-[#021C57] text-white border-blue-400"
+                  : "border-gray-200 hover:bg-gray-50 text-gray-700"
+              }`}
+              title="Compare with other equipment"
+            >
+              <Scale size={13} />
+              <span>{isInCompare(product._id) ? "In Comparison List" : "Compare"}</span>
+            </button>
+
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium transition cursor-pointer text-xs shrink-0"
+              title="Copy link"
+            >
+              <Share2 size={13} />
+              <span className="hidden sm:inline">{copiedLink ? "Link Copied!" : "Share"}</span>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -613,7 +633,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                   <span>{isInCart(product._id) ? "In Basket (View)" : "Add to Basket"}</span>
                 </button>
 
-                {/* 3. DOWNLOAD PDF CATALOG */}
+                {/* 3. DOWNLOAD PDF CATALOG SPEC SHEET (ORIGINAL - UNTOUCHED) */}
                 <Link
                   to={`/products/${product.slug}/catalog`}
                   className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg text-xs sm:text-sm cursor-pointer active:scale-95"
@@ -622,26 +642,37 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 </Link>
               </div>
 
-              {/* 3. WHATSAPP & PHONE CONTACT */}
-              <div className="flex items-center gap-3 pt-2">
-                <a
-                  href={`https://wa.me/918169695728?text=Hello%20ARCL%20Team,%20I%20am%20interested%20in%20obtaining%20a%20technical%20quote%20for%20${encodeURIComponent(
-                    formatTitleCase(product.name)
-                  )}%20(SKU:%20${product.slug})`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition cursor-pointer"
+              {/* ZERO-COST INSTANT QUOTATION & WHATSAPP ROW */}
+              <div className="grid sm:grid-cols-3 gap-3 pt-1">
+                {/* 4. INSTANT PDF QUOTATION (WITH LETTERHEAD & GST PROFORMA) */}
+                <button
+                  onClick={() =>
+                    generateQuotationPdf({
+                      items: [{ product, quantity: 1 }],
+                    })
+                  }
+                  className="w-full bg-slate-900 hover:bg-black text-white py-3 px-3 rounded-2xl font-bold transition shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
                 >
-                  <MessageCircle size={15} className="text-emerald-600" />
-                  Chat on WhatsApp
-                </a>
+                  <FileText size={14} className="text-amber-400" />
+                  <span>Instant PDF Quote</span>
+                </button>
 
+                {/* 5. INSTANT WHATSAPP QUOTE */}
+                <button
+                  onClick={() => sendProductToWhatsApp(product)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-3 rounded-2xl font-bold transition shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
+                >
+                  <MessageCircle size={14} />
+                  <span>WhatsApp Quote</span>
+                </button>
+
+                {/* 6. CALL ENGINEERING DESK */}
                 <a
                   href="tel:+918169695728"
-                  className="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition cursor-pointer"
+                  className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 py-3 px-3 rounded-2xl font-bold transition flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
                 >
-                  <PhoneCall size={15} className="text-[#021C57]" />
-                  Call Engineering Desk
+                  <PhoneCall size={14} className="text-[#021C57]" />
+                  <span>Call +91 81696 95728</span>
                 </a>
               </div>
             </div>

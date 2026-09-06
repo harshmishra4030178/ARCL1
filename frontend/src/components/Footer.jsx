@@ -20,6 +20,7 @@ const Footer = () => {
     { name: "Home", to: "/" },
     { name: "Laboratory Equipments", to: "/products" },
     { name: "Catalog", to: "/catalog" },
+    { name: "Testing Standards", to: "/standards" },
     { name: "Calibration Services", to: "/calibration-services" },
     { name: "About Us", to: "/about" },
     { name: "Company Profile", to: "/arclcompany.pdf", isExternal: true },
