@@ -6,7 +6,7 @@ const getBackendUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-    return "https://arcl.onrender.com/api/v1";
+    return "https://arcl1-1.onrender.com/api/v1";
   }
   return "http://localhost:5000/api/v1";
 };

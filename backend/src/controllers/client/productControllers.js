@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Product from "../../models/product.js";
 import Category from "../../models/category.js";
 import EquipmentType from "../../models/equipmentType.js";
@@ -318,12 +319,56 @@ export const getProductsByCategory = async (req, res) => {
  */
 export const getProduct = async (req, res) => {
   try {
-    const product = await Product.findOne({
-      slug: req.params.slug,
+    const rawParam = req.params.slug ? decodeURIComponent(req.params.slug).trim() : "";
+    if (!rawParam) {
+      return res.status(404).json({
+        success: false,
+        message: "Product identifier is required",
+      });
+    }
+
+    const lowerSlug = rawParam.toLowerCase();
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawParam);
+
+    const conditions = [
+      { slug: lowerSlug },
+      { slug: rawParam },
+    ];
+
+    if (isObjectId) {
+      conditions.push({ _id: rawParam });
+    }
+
+    // Also check by SKU / productCode
+    conditions.push({ productCode: rawParam.toUpperCase() });
+
+    let product = await Product.findOne({
+      $or: conditions,
       isActive: true,
     }).populate(categoryPopulateConfig);
 
+    // Fallback: If not found, try case-insensitive regex on slug or name
     if (!product) {
+      const escaped = lowerSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      product = await Product.findOne({
+        $or: [
+          { slug: { $regex: `^${escaped}$`, $options: "i" } },
+          { productCode: { $regex: `^${escaped}$`, $options: "i" } },
+        ],
+        isActive: true,
+      }).populate(categoryPopulateConfig);
+    }
+
+    // Fallback: If inactive product is being inspected (e.g. from preview)
+    if (!product) {
+      const inactive = await Product.findOne({ $or: conditions }).populate(categoryPopulateConfig);
+      if (inactive) {
+        return res.status(200).json({
+          success: true,
+          data: resolveProductInheritance(inactive),
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: "Product not found",
@@ -335,6 +380,7 @@ export const getProduct = async (req, res) => {
       data: resolveProductInheritance(product),
     });
   } catch (error) {
+    console.error("Get Product Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch product",
