@@ -157,12 +157,28 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
             </div>
           </div>
 
-          <div className="text-left md:text-right text-[11px] text-gray-500 space-y-1">
-            <div className="font-mono bg-blue-50 text-[#021C57] px-2.5 py-1 rounded-md font-bold inline-block">
-              CATALOG DOC #{product._id?.slice(-6).toUpperCase()}
-            </div>
-            <div className="flex items-center md:justify-end gap-1 text-gray-400">
-              <Calendar size={12} /> Issued: {currentDate}
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            {product.qrCode && (
+              <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 flex items-center gap-2">
+                <img
+                  src={product.qrCode}
+                  alt="Product QR"
+                  className="w-14 h-14 object-contain bg-white rounded-lg p-0.5 border border-blue-100"
+                />
+                <div className="text-[9px] font-bold text-[#021C57] leading-tight text-left">
+                  <span>SCAN FOR LIVE</span><br />
+                  <span className="text-gray-500 font-normal">SPECS & CERT</span>
+                </div>
+              </div>
+            )}
+
+            <div className="text-left md:text-right text-[11px] text-gray-500 space-y-1">
+              <div className="font-mono bg-blue-50 text-[#021C57] px-2.5 py-1 rounded-md font-bold inline-block">
+                CATALOG DOC #{product._id?.slice(-6).toUpperCase()}
+              </div>
+              <div className="flex items-center md:justify-end gap-1 text-gray-400">
+                <Calendar size={12} /> Issued: {currentDate}
+              </div>
             </div>
           </div>
         </div>

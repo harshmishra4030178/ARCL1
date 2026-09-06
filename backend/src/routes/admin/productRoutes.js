@@ -10,11 +10,15 @@ import {
   toggleProductActive,
   toggleProductFeatured,
   getProductsByCategory,
+  generateSingleProductQrCode,
+  generateAllMissingQrCodes,
 } from "../../controllers/admin/productControllers.js";
 
 const router = express.Router();
 
 router.post("/", upload.single("image"), createProduct);
+router.post("/generate-all-qr", generateAllMissingQrCodes);
+router.post("/:id/generate-qr", generateSingleProductQrCode);
 router.get("/", getProducts);
 router.get("/id/:id", getProductById);
 router.get("/category/:slug", getProductsByCategory);

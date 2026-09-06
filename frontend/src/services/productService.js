@@ -103,4 +103,19 @@ export const productService = {
     const res = await toggleProductFeatured(id);
     return res.data?.data || res.data;
   },
+
+  // GENERATE QR CODE FOR SINGLE PRODUCT
+  generateQr: async (id) => {
+    const { generateProductQrCodeApi } = await import("../api/productApi.js");
+    const res = await generateProductQrCodeApi(id);
+    return res.data;
+  },
+
+  // BULK GENERATE QR CODES FOR ALL PRODUCTS
+  generateBulkQr: async (force = false) => {
+    const { generateBulkQrCodesApi } = await import("../api/productApi.js");
+    const res = await generateBulkQrCodesApi(force);
+    return res.data;
+  },
 };
+

@@ -29,6 +29,7 @@ import {
   BadgeCheck,
   Cog,
   ShoppingBag,
+  QrCode,
 } from "lucide-react";
 import { useProductStore } from "../store/useProductStore.js";
 import { useInquiryStore } from "../store/useInquiryStore.js";
@@ -439,6 +440,55 @@ const ProductDetailsPage = ({ initialSlug }) => {
                 <div className="text-[10px] text-gray-400">On-site engineer setup</div>
               </div>
             </div>
+
+            {/* PRODUCT QR CODE SCAN PASS (FOR CUSTOMERS) */}
+            {product.qrCode && (
+              <div className="bg-gradient-to-r from-blue-50/60 via-white to-sky-50/50 border border-blue-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row items-center gap-4">
+                <div className="bg-white p-2 rounded-xl border border-blue-200 shadow-2xs shrink-0 flex items-center justify-center">
+                  <img
+                    src={product.qrCode}
+                    alt={`${product.name} QR Pass`}
+                    className="w-24 h-24 sm:w-28 sm:h-28 object-contain"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-center sm:text-left flex-1 min-w-0">
+                  <div className="inline-flex items-center gap-1 bg-[#021C57] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    <QrCode size={11} /> Verified Equipment QR Pass
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug">
+                    Scan on Mobile for Instant Specs & Verification
+                  </h4>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Point your mobile camera to view full specifications, share this model with colleagues, or save for lab inspection.
+                  </p>
+
+                  <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = product.qrCode;
+                        link.download = `ARCL-QR-${product.slug || "product"}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        toast.success("QR Code downloaded! 📥");
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#021C57] bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                    >
+                      <Download size={11} /> Download QR
+                    </button>
+
+                    <button
+                      onClick={handleShare}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                    >
+                      <Share2 size={11} /> {copiedLink ? "Copied!" : "Copy Link"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
 

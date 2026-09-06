@@ -21,6 +21,12 @@ export const toggleProductFeatured = (id) =>
 
 export const deleteProduct = (id) => API.delete(`/admin/products/${id}`);
 
+export const generateProductQrCodeApi = (id) =>
+  API.post(`/admin/products/${id}/generate-qr`);
+
+export const generateBulkQrCodesApi = (force = false) =>
+  API.post("/admin/products/generate-all-qr", { force });
+
 // =========================
 // CLIENT PRODUCT APIS
 // =========================

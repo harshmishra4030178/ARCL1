@@ -23,6 +23,7 @@
     "mongoose": "^9.2.2",
     "multer": "^2.0.2",
     "nodemailer": "^10.0.0",
+    "qrcode": "^1.5.4",
     "slugify": "^1.6.8"
   },
   "devDependencies": {

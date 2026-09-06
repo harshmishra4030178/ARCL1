@@ -304,6 +304,46 @@ export const useProductStore = create((set, get) => ({
   },
 
   // =========================
+  // GENERATE PRODUCT QR CODE
+  // =========================
+  generateProductQr: async (id) => {
+    try {
+      const res = await productService.generateQr(id);
+      const updatedProduct = res.data;
+
+      set((state) => ({
+        adminProducts: state.adminProducts.map((p) =>
+          p._id === id ? { ...p, qrCode: res.qrCode || updatedProduct?.qrCode } : p
+        ),
+        product:
+          state.product?._id === id
+            ? { ...state.product, qrCode: res.qrCode || updatedProduct?.qrCode }
+            : state.product,
+      }));
+
+      return res;
+    } catch (err) {
+      console.error("Generate QR code error:", err);
+      throw err;
+    }
+  },
+
+  // =========================
+  // BULK GENERATE QR CODES
+  // =========================
+  generateBulkQr: async (force = false) => {
+    try {
+      const res = await productService.generateBulkQr(force);
+      // Refresh admin products to load newly generated QR codes
+      await get().fetchAdminProducts();
+      return res;
+    } catch (err) {
+      console.error("Bulk generate QR error:", err);
+      throw err;
+    }
+  },
+
+  // =========================
   // CLEAR STATES
   // =========================
   clearProduct: () => set({ product: null }),

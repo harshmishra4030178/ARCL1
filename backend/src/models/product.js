@@ -73,6 +73,12 @@ const productSchema = new mongoose.Schema(
 
     images: [String],
 
+    // Unique Base64 QR Code Data URL for direct product link
+    qrCode: {
+      type: String,
+      default: "",
+    },
+
     isFeatured: {
       type: Boolean,
       default: false,

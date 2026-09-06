@@ -22,8 +22,9 @@ import { useEquipmentTypeStore } from "../../store/useEquipmentTypeStore.js";
 import SkeletonLoader from "../../components/admin/common/SkeletonLoader.jsx";
 import Tooltip from "../../components/admin/common/Tooltip.jsx";
 import ProductDetailsModal from "../../components/admin/product/ProductDetailsModal.jsx";
+import ProductQrModal from "../../components/admin/product/ProductQrModal.jsx";
 import { toast } from "react-toastify";
-import { Eye, Layers } from "lucide-react";
+import { Eye, Layers, QrCode, Sparkles, RefreshCw } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 
 const ProductList = () => {
@@ -33,6 +34,7 @@ const ProductList = () => {
     toggleActive,
     toggleFeatured,
     removeProduct,
+    generateBulkQr,
     loading,
     error,
   } = useProductStore();
@@ -50,6 +52,9 @@ const ProductList = () => {
   // Modals & Action states
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedQrProduct, setSelectedQrProduct] = useState(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [generatingBulk, setGeneratingBulk] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -58,6 +63,27 @@ const ProductList = () => {
     fetchCategories();
     fetchEquipmentTypes();
   }, []);
+
+  // Compute products without QR code
+  const missingQrCount = useMemo(() => {
+    return adminProducts.filter((p) => !p.qrCode || !p.qrCode.trim()).length;
+  }, [adminProducts]);
+
+  // BULK GENERATE QR CODES FOR ALL EXISTING PRODUCTS
+  const handleBulkGenerateQr = async () => {
+    try {
+      setGeneratingBulk(true);
+      const res = await generateBulkQr(false);
+      toast.success(
+        res.message ||
+          `Generated QR codes for ${res.updatedCount || 0} products successfully! 🎉`
+      );
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to generate bulk QR codes");
+    } finally {
+      setGeneratingBulk(false);
+    }
+  };
 
   // Map of equipmentType ID -> Name for instant fallback lookup
   const equipmentTypeMap = useMemo(() => {
@@ -196,12 +222,35 @@ const ProductList = () => {
           </p>
         </div>
 
-        <Link
-          to="/admin/products/create"
-          className="inline-flex items-center justify-center gap-2 bg-[#021C57] hover:bg-[#03308f] text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition cursor-pointer self-start sm:self-auto"
-        >
-          <FaPlus size={13} /> Add New Product
-        </Link>
+        <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
+          {/* BULK QR GENERATE BUTTON */}
+          <button
+            onClick={handleBulkGenerateQr}
+            disabled={generatingBulk}
+            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer shadow-xs border ${
+              missingQrCount > 0
+                ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse-slow"
+                : "bg-white hover:bg-gray-50 text-gray-700 border-gray-200"
+            } disabled:opacity-50`}
+            title="Generate QR Codes for all products missing one"
+          >
+            <QrCode size={15} className={generatingBulk ? "animate-spin" : ""} />
+            <span>
+              {generatingBulk
+                ? "Generating..."
+                : missingQrCount > 0
+                ? `Sync ${missingQrCount} QR Codes`
+                : "Sync All QR Codes"}
+            </span>
+          </button>
+
+          <Link
+            to="/admin/products/create"
+            className="inline-flex items-center justify-center gap-2 bg-[#021C57] hover:bg-[#03308f] text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
+          >
+            <FaPlus size={13} /> Add New Product
+          </Link>
+        </div>
       </div>
 
       {/* FILTER & SEARCH TOOLBAR */}
@@ -461,6 +510,26 @@ const ProductList = () => {
                             </button>
                           </Tooltip>
 
+                          {/* QR CODE BUTTON */}
+                          <Tooltip text={product.qrCode ? "View & Print QR Code" : "Generate QR Code"}>
+                            <button
+                              onClick={() => {
+                                setSelectedQrProduct(product);
+                                setIsQrModalOpen(true);
+                              }}
+                              className={`p-2 rounded-xl transition cursor-pointer relative ${
+                                product.qrCode
+                                  ? "text-emerald-700 hover:bg-emerald-50 bg-emerald-50/40"
+                                  : "text-amber-600 hover:bg-amber-50 bg-amber-50/40"
+                              }`}
+                            >
+                              <QrCode size={15} />
+                              {!product.qrCode && (
+                                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                              )}
+                            </button>
+                          </Tooltip>
+
                           {/* EDIT BUTTON */}
                           <Tooltip text="Edit Product">
                             <Link
@@ -544,6 +613,17 @@ const ProductList = () => {
         isOpen={isDetailsOpen}
         onClose={() => setIsDetailsOpen(false)}
         product={selectedProduct}
+        onOpenQr={(prod) => {
+          setSelectedQrProduct(prod);
+          setIsQrModalOpen(true);
+        }}
+      />
+
+      {/* PRODUCT QR CODE MODAL */}
+      <ProductQrModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        product={selectedQrProduct}
       />
     </div>
   );

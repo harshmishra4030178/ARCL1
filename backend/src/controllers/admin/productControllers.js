@@ -3,6 +3,7 @@ import Category from "../../models/category.js";
 import slugify from "slugify";
 import cloudinary from "../../config/cloudinary.js";
 import { notifySubscribersNewProduct } from "../../utils/emailService.js";
+import { generateProductQrCode } from "../../utils/qrCodeGenerator.js";
 
 /**
  * Standard Category Population Config including nested EquipmentType
@@ -241,6 +242,15 @@ export const createProduct = async (req, res) => {
         "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600";
     }
 
+    // Auto-generate unique QR code for the product URL
+    let qrCode = "";
+    try {
+      const qrData = await generateProductQrCode(slug);
+      qrCode = qrData.qrCode;
+    } catch (qrErr) {
+      console.warn("QR code generation warning on create:", qrErr.message);
+    }
+
     const product = await Product.create({
       name: name.trim(),
       slug,
@@ -253,6 +263,7 @@ export const createProduct = async (req, res) => {
       completeSetIncludes: cleanCompleteSetIncludes,
       category,
       images: imageUrl ? [imageUrl] : [],
+      qrCode: qrCode || "",
       isFeatured,
       isActive,
     });
@@ -509,6 +520,16 @@ export const updateProduct = async (req, res) => {
     if (typeof isFeatured !== "undefined") product.isFeatured = isFeatured;
     if (typeof isActive !== "undefined") product.isActive = isActive;
 
+    // Ensure product has a valid QR code (generates if missing or if slug changed)
+    if (!product.qrCode || (name && name.trim() && name !== product.name)) {
+      try {
+        const qrData = await generateProductQrCode(product.slug);
+        product.qrCode = qrData.qrCode;
+      } catch (qrErr) {
+        console.warn("QR code update warning:", qrErr.message);
+      }
+    }
+
     await product.save();
     await product.populate(categoryPopulateConfig);
 
@@ -648,3 +669,87 @@ export const getProductsByCategory = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Generate / Regenerate QR Code for a Specific Product (Admin)
+ * @route   POST /api/v1/admin/products/:id/generate-qr
+ * @access  Admin
+ */
+export const generateSingleProductQrCode = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const qrData = await generateProductQrCode(product.slug);
+    product.qrCode = qrData.qrCode;
+    await product.save();
+    await product.populate(categoryPopulateConfig);
+
+    return res.status(200).json({
+      success: true,
+      message: "QR Code generated successfully! 📱",
+      data: resolveProductInheritance(product),
+      qrCode: qrData.qrCode,
+      productUrl: qrData.productUrl,
+    });
+  } catch (error) {
+    console.error("Generate Product QR Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to generate QR Code",
+    });
+  }
+};
+
+/**
+ * @desc    Generate QR Codes for All Existing Products (Admin Bulk Backfill)
+ * @route   POST /api/v1/admin/products/generate-all-qr
+ * @access  Admin
+ */
+export const generateAllMissingQrCodes = async (req, res) => {
+  try {
+    const { force = false } = req.body;
+    const query = force
+      ? {}
+      : {
+          $or: [
+            { qrCode: { $exists: false } },
+            { qrCode: "" },
+            { qrCode: null },
+          ],
+        };
+
+    const products = await Product.find(query);
+    let updatedCount = 0;
+
+    for (const prod of products) {
+      try {
+        const qrData = await generateProductQrCode(prod.slug);
+        prod.qrCode = qrData.qrCode;
+        await prod.save();
+        updatedCount++;
+      } catch (err) {
+        console.error(`Failed to generate QR code for ${prod.name}:`, err.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `QR codes generated successfully for ${updatedCount} products! 🎉`,
+      updatedCount,
+      totalExamined: products.length,
+    });
+  } catch (error) {
+    console.error("Bulk QR Code Generation Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to bulk generate QR codes",
+    });
+  }
+};
+
