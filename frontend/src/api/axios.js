@@ -1,29 +1,26 @@
 import axios from "axios";
 
 const getBaseURL = () => {
-  let envUrl =
-    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL);
-
-  // In browser, check if running on production domain (e.g. Vercel)
   if (typeof window !== "undefined") {
     const isLocalhost =
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
 
-    if (!isLocalhost && (!envUrl || envUrl.includes("localhost"))) {
-      return "https://arcl1-1.onrender.com/api/v1";
+    if (isLocalhost) {
+      return "http://localhost:5000/api/v1";
     }
+    return "https://arcl1-1.onrender.com/api/v1";
   }
 
-  // In Node/SSR environment
-  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
-    if (!envUrl || envUrl.includes("localhost")) {
-      return "https://arcl1-1.onrender.com/api/v1";
-    }
+  let envUrl =
+    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL);
+
+  if (!envUrl || envUrl.includes("localhost") || envUrl.includes("arcl.onrender.com")) {
+    return "https://arcl1-1.onrender.com/api/v1";
   }
 
-  let url = envUrl || "http://localhost:5000/api/v1";
+  let url = envUrl;
   url = String(url).trim().replace(/\/+$/, "");
   if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
     url += "/api/v1";

@@ -38,22 +38,31 @@ import { productService } from "../services/productService.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
-const ProductDetailsPage = ({ initialSlug }) => {
+const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
   const { addItem, openCart, isInCart } = useQuoteCartStore();
   const routeParams = useParams();
-  const slug = initialSlug || routeParams.slug;
+  const slug = initialSlug || routeParams?.slug;
   const navigate = useNavigate();
 
   // Stores
   const {
-    product,
-    loading,
-    error,
+    product: storeProduct,
+    loading: storeLoading,
+    error: storeError,
     fetchSingleProduct,
     categoryProducts,
     fetchProductsByCategory,
   } = useProductStore();
   const { createInquiry, loading: inquiryLoading } = useInquiryStore();
+
+  // Immediate SSR product resolution to guarantee instant load without 404/loading flicker
+  const product =
+    storeProduct && (storeProduct.slug === slug || storeProduct._id === slug)
+      ? storeProduct
+      : initialProduct || storeProduct;
+
+  const loading = !product && storeLoading;
+  const error = !product ? storeError : null;
 
   // State
   const [activeTab, setActiveTab] = useState("specs"); // 'specs' | 'features' | 'applications' | 'howItWorks' | 'compliance'
@@ -74,8 +83,12 @@ const ProductDetailsPage = ({ initialSlug }) => {
 
   // Fetch product on slug change
   useEffect(() => {
+    if (!slug) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
-    fetchSingleProduct(slug);
+    if (initialProduct && (initialProduct.slug === slug || initialProduct._id === slug)) {
+      useProductStore.setState({ product: initialProduct, loading: false, error: null });
+    }
+    fetchSingleProduct(slug).catch(() => {});
     setSelectedImageIndex(0);
     setActiveTab("specs");
   }, [slug]);
