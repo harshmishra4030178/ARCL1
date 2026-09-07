@@ -198,20 +198,20 @@ const Dashboard = () => {
   }, [stats]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       
       {/* TITLE & LIVE STATUS */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-800 tracking-tight">
             Analytics & Executive Dashboard
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
             Real-time operations, customer inquiries, and equipment catalogue metrics
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 sm:gap-3 self-start sm:self-auto">
           <button
             onClick={() => fetchDashboardData(false)}
             disabled={loading}
@@ -222,7 +222,7 @@ const Dashboard = () => {
             <span>{loading ? "Updating..." : "Refresh Live"}</span>
           </button>
 
-          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-full text-xs font-bold">
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             Real-Time Live
           </div>
@@ -231,13 +231,13 @@ const Dashboard = () => {
 
       {/* ERROR */}
       {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-200 text-sm">
+        <div className="bg-red-50 text-red-600 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-red-200 text-xs sm:text-sm">
           {error}
         </div>
       )}
 
       {/* 1. TOP METRICS STATS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-4">
         <StatCard
           title="Total Products"
           value={stats.products.length}
@@ -285,50 +285,58 @@ const Dashboard = () => {
       <VisitorAnalyticsCard visitorData={visitorData} loading={loading} />
 
       {/* 3. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         
         {/* GRAPH 1: DYNAMIC MONTHLY INQUIRIES & DEMAND TREND */}
-        <div className="lg:col-span-7 bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+        <div className="lg:col-span-7 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+            <div className="space-y-0.5">
+              <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
                 <FaChartLine className="text-blue-600" /> Customer Demand & Inquiries Trend
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-[11px] sm:text-xs text-gray-400">
                 Monthly volume of Quotation Requests vs General Contact Messages
               </p>
             </div>
 
-            <div className="flex items-center gap-4 text-xs font-semibold">
+            <div className="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs font-semibold">
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#021C57]"></span>
+                <span className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-[#021C57]"></span>
                 <span className="text-gray-600">Quotations</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                <span className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-amber-500"></span>
                 <span className="text-gray-600">Messages</span>
               </div>
             </div>
           </div>
 
           {/* SVG Visual Bar / Area Chart */}
-          <div className="pt-4 pb-2">
-            <div className="h-64 flex items-end justify-between gap-3 sm:gap-6 border-b border-gray-100 px-2">
+          <div className="pt-2 sm:pt-4 pb-2 overflow-x-auto">
+            <div className="h-48 sm:h-64 flex items-end justify-between gap-1.5 sm:gap-4 md:gap-6 border-b border-gray-100 px-1 sm:px-2 min-w-[280px]">
               {monthlyAnalysis.months.map((item, i) => {
-                const inqHeight = `${Math.min(100, (item.inquiries / monthlyAnalysis.maxVal) * 100)}%`;
-                const conHeight = `${Math.min(100, (item.contacts / monthlyAnalysis.maxVal) * 100)}%`;
+                const inqHeight = item.inquiries > 0
+                  ? `${Math.min(100, Math.max(12, (item.inquiries / monthlyAnalysis.maxVal) * 100))}%`
+                  : "4px";
+                const conHeight = item.contacts > 0
+                  ? `${Math.min(100, Math.max(10, (item.contacts / monthlyAnalysis.maxVal) * 100))}%`
+                  : "4px";
 
                 return (
                   <div
                     key={i}
-                    className="flex-1 flex flex-col items-center gap-2 h-full justify-end group"
+                    className="flex-1 flex flex-col items-center gap-1.5 sm:gap-2 h-full justify-end group cursor-pointer"
                   >
                     {/* Bars Container */}
-                    <div className="w-full flex items-end justify-center gap-1.5 h-full">
+                    <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
                       {/* Quotations Bar */}
                       <div
                         style={{ height: inqHeight }}
-                        className="w-4 sm:w-6 bg-gradient-to-t from-[#021C57] to-blue-600 rounded-t-lg transition-all duration-500 group-hover:brightness-110 relative"
+                        className={`w-3 sm:w-5 md:w-6 rounded-t-lg transition-all duration-500 group-hover:brightness-110 relative ${
+                          item.inquiries > 0
+                            ? "bg-gradient-to-t from-[#021C57] to-blue-600"
+                            : "bg-gray-200"
+                        }`}
                       >
                         <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10 font-mono">
                           {item.inquiries} quotes
@@ -338,7 +346,11 @@ const Dashboard = () => {
                       {/* Contacts Bar */}
                       <div
                         style={{ height: conHeight }}
-                        className="w-4 sm:w-6 bg-gradient-to-t from-amber-500 to-amber-400 rounded-t-lg transition-all duration-500 group-hover:brightness-110 relative"
+                        className={`w-3 sm:w-5 md:w-6 rounded-t-lg transition-all duration-500 group-hover:brightness-110 relative ${
+                          item.contacts > 0
+                            ? "bg-gradient-to-t from-amber-500 to-amber-400"
+                            : "bg-gray-200"
+                        }`}
                       >
                         <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10 font-mono">
                           {item.contacts} msgs
@@ -347,7 +359,7 @@ const Dashboard = () => {
                     </div>
 
                     {/* Month Label */}
-                    <span className="text-xs font-semibold text-gray-500 mt-2">
+                    <span className="text-[11px] sm:text-xs font-semibold text-gray-500 mt-1 sm:mt-2">
                       {item.month}
                     </span>
                   </div>
@@ -357,8 +369,8 @@ const Dashboard = () => {
           </div>
 
           {/* INSIGHTS FOOTER */}
-          <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-blue-900">
-            <div className="flex items-center gap-4 flex-wrap">
+          <div className="bg-blue-50/70 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-blue-900">
+            <div className="flex items-center gap-2 sm:gap-4 flex-wrap text-[11px] sm:text-xs">
               <span className="font-bold flex items-center gap-1.5 text-emerald-700">
                 <FaArrowUp /> {monthlyAnalysis.growthPercent} Demand Growth
               </span>
@@ -370,7 +382,7 @@ const Dashboard = () => {
 
             <Link
               to="/admin/inquiry"
-              className="font-bold underline hover:text-blue-700 self-start sm:self-auto"
+              className="font-bold underline hover:text-blue-700 text-xs self-start sm:self-auto"
             >
               Review all inquiries ({stats.inquiries.length}) →
             </Link>
@@ -378,18 +390,18 @@ const Dashboard = () => {
         </div>
 
         {/* GRAPH 2: INVENTORY BREAKDOWN & HEALTH (5 COLS) */}
-        <div className="lg:col-span-5 bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-6 flex flex-col justify-between">
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+        <div className="lg:col-span-5 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-5 sm:space-y-6 flex flex-col justify-between">
+          <div className="space-y-0.5">
+            <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
               <FaChartPie className="text-emerald-600" /> Product Inventory Distribution
             </h2>
-            <p className="text-xs text-gray-400">
+            <p className="text-[11px] sm:text-xs text-gray-400">
               Breakdown of active vs inactive products and classifications
             </p>
           </div>
 
           {/* Progress Bars */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <div className="flex justify-between text-xs font-semibold text-gray-700 mb-1.5">
                 <span>Active Live Products</span>
@@ -397,7 +409,7 @@ const Dashboard = () => {
                   {activeProductsCount} / {stats.products.length} ({stats.products.length ? Math.round((activeProductsCount / stats.products.length) * 100) : 0}%)
                 </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-100 rounded-full h-2.5 sm:h-3 overflow-hidden">
                 <div
                   style={{
                     width: `${stats.products.length ? (activeProductsCount / stats.products.length) * 100 : 0}%`,
@@ -414,7 +426,7 @@ const Dashboard = () => {
                   {featuredProductsCount} / {stats.products.length} ({stats.products.length ? Math.round((featuredProductsCount / stats.products.length) * 100) : 0}%)
                 </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-100 rounded-full h-2.5 sm:h-3 overflow-hidden">
                 <div
                   style={{
                     width: `${stats.products.length ? (featuredProductsCount / stats.products.length) * 100 : 0}%`,
@@ -431,7 +443,7 @@ const Dashboard = () => {
                   {inactiveProductsCount} / {stats.products.length}
                 </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-100 rounded-full h-2.5 sm:h-3 overflow-hidden">
                 <div
                   style={{
                     width: `${stats.products.length ? (inactiveProductsCount / stats.products.length) * 100 : 0}%`,
@@ -444,18 +456,18 @@ const Dashboard = () => {
 
           {/* Equipment Types Distribution List */}
           {equipmentDistribution.length > 0 && (
-            <div className="border-t border-gray-100 pt-4 space-y-2.5">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            <div className="border-t border-gray-100 pt-3 sm:pt-4 space-y-2 sm:space-y-2.5">
+              <h3 className="text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Volume by Equipment Type
               </h3>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5 sm:space-y-2">
                 {equipmentDistribution.slice(0, 3).map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-700 font-medium truncate max-w-[200px]">
+                  <div key={idx} className="flex items-center justify-between text-xs gap-2">
+                    <span className="text-gray-700 font-medium truncate max-w-[160px] sm:max-w-[200px]">
                       {item.name}
                     </span>
-                    <span className="bg-gray-100 font-bold text-gray-800 px-2 py-0.5 rounded-md">
+                    <span className="bg-gray-100 font-bold text-gray-800 px-2 py-0.5 rounded-md text-[11px] sm:text-xs shrink-0">
                       {item.count} items ({item.percentage}%)
                     </span>
                   </div>
@@ -475,16 +487,16 @@ const Dashboard = () => {
       </div>
 
       {/* 3. RECENT INQUIRIES & QUICK ACTIONS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         
         {/* RECENT INQUIRIES FEED (8 COLS) */}
-        <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+        <div className="lg:col-span-8 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
             <div>
-              <h2 className="text-lg font-bold text-gray-800">
+              <h2 className="text-base sm:text-lg font-bold text-gray-800">
                 Recent Quotation Inquiries
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-[11px] sm:text-xs text-gray-400">
                 Latest customer quote submissions
               </p>
             </div>
@@ -502,20 +514,20 @@ const Dashboard = () => {
               {stats.inquiries.slice(0, 5).map((inq) => (
                 <div
                   key={inq._id}
-                  className="py-3 flex items-center justify-between gap-4 hover:bg-gray-50/60 p-2 rounded-xl transition"
+                  className="py-2.5 sm:py-3 flex flex-col xs:flex-row xs:items-center justify-between gap-2 sm:gap-4 hover:bg-gray-50/60 p-2 rounded-xl transition"
                 >
                   <div className="space-y-0.5 max-w-md">
-                    <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">
+                    <h3 className="font-semibold text-gray-800 text-xs sm:text-sm line-clamp-1">
                       {inq.productName || "Product Inquiry"}
                     </h3>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-[11px] sm:text-xs text-gray-500">
                       By <span className="font-medium text-gray-700">{inq.customerName}</span> ({inq.email}) • Qty: {inq.quantity || 1}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 self-start xs:self-auto">
                     <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider text-[10px] ${
+                      className={`font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider text-[10px] ${
                         inq.status === "completed"
                           ? "bg-green-100 text-green-700"
                           : inq.status === "contacted"
@@ -526,7 +538,7 @@ const Dashboard = () => {
                       {inq.status}
                     </span>
 
-                    <span className="text-xs text-gray-400 hidden sm:inline">
+                    <span className="text-[11px] sm:text-xs text-gray-400">
                       {new Date(inq.createdAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -541,38 +553,38 @@ const Dashboard = () => {
         </div>
 
         {/* QUICK SHORTCUTS (4 COLS) */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-[#021C57] to-[#043399] p-6 md:p-8 rounded-3xl text-white shadow-md space-y-6 flex flex-col justify-between">
-          <div className="space-y-2">
-            <h2 className="text-lg font-bold">Quick Admin Actions</h2>
+        <div className="lg:col-span-4 bg-gradient-to-br from-[#021C57] to-[#043399] p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl text-white shadow-md space-y-5 sm:space-y-6 flex flex-col justify-between">
+          <div className="space-y-1.5 sm:space-y-2">
+            <h2 className="text-base sm:text-lg font-bold">Quick Admin Actions</h2>
             <p className="text-xs text-blue-200">
               Rapid workflows for managing laboratory equipment and customers.
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
             <Link
               to="/admin/products/create"
-              className="block w-full bg-white hover:bg-gray-100 text-[#021C57] font-bold text-center py-3 rounded-2xl transition text-xs shadow-sm"
+              className="block w-full bg-white hover:bg-gray-100 text-[#021C57] font-bold text-center py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition text-xs shadow-sm"
             >
               + Add New Equipment
             </Link>
 
             <Link
               to="/admin/categories/create"
-              className="block w-full bg-blue-700/80 hover:bg-blue-700 text-white font-semibold text-center py-3 rounded-2xl transition text-xs border border-white/10"
+              className="block w-full bg-blue-700/80 hover:bg-blue-700 text-white font-semibold text-center py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition text-xs border border-white/10"
             >
               + Create Category Filter
             </Link>
 
             <Link
               to="/admin/inquiry"
-              className="block w-full bg-blue-700/80 hover:bg-blue-700 text-white font-semibold text-center py-3 rounded-2xl transition text-xs border border-white/10"
+              className="block w-full bg-blue-700/80 hover:bg-blue-700 text-white font-semibold text-center py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition text-xs border border-white/10"
             >
               Review Pending Quotes ({pendingInquiriesCount})
             </Link>
           </div>
 
-          <div className="pt-2 border-t border-blue-400/20 text-[11px] text-blue-200/70 flex items-center justify-between">
+          <div className="pt-2 border-t border-blue-400/20 text-[10px] sm:text-[11px] text-blue-200/70 flex items-center justify-between">
             <span>ARCL Portal v1.2</span>
             <span>ISO 9001:2025</span>
           </div>

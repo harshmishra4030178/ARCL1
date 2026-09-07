@@ -402,32 +402,32 @@ const UserManagementPage = () => {
       </div>
 
       {/* 1. DIRECT EMAIL ACCESS GRANT BOX WITH PERMISSION CONTROLS */}
-      <div className="bg-gradient-to-br from-slate-900 via-[#021C57] to-slate-950 p-6 sm:p-7 rounded-3xl text-white shadow-lg border border-blue-900/50 space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-blue-800/40">
+      <div className="bg-gradient-to-br from-slate-900 via-[#021C57] to-slate-950 p-4 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl text-white shadow-lg border border-blue-900/50 space-y-4 sm:space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-blue-800/40">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-2 border border-amber-400/30">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-amber-400/20 text-amber-300 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1.5 sm:mb-2 border border-amber-400/30">
               <FaUserPlus className="text-amber-400" /> Direct Email Access &amp; Permission Grant
             </div>
-            <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-lg md:text-xl font-black text-white flex items-center gap-2">
               <span>Pre-Authorize or Promote User by Email</span>
             </h2>
-            <p className="text-xs text-blue-200 mt-1">
+            <p className="text-[11px] sm:text-xs text-blue-200 mt-0.5 sm:mt-1">
               Grant specific permissions (e.g. Product addition, blog editing, delete access, inquiry viewing) directly to any email.
             </p>
           </div>
 
-          <span className="text-[11px] text-blue-300 bg-blue-950/80 px-3 py-1.5 rounded-xl border border-blue-800/60 font-medium self-start md:self-auto">
+          <span className="text-[10px] sm:text-[11px] text-blue-300 bg-blue-950/80 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border border-blue-800/60 font-medium self-start md:self-auto">
             ⚡ Pre-authorized emails receive designated permissions on first Google login
           </span>
         </div>
 
         {/* Access Presets Bar */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-[11px] sm:text-xs font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
             <FaSlidersH className="text-amber-400" />
             <span>Select Permission Preset:</span>
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {Object.entries(PRESETS).map(([key, preset]) => {
               const isSelected = grantPreset === key && !showGrantCustom;
               return (
@@ -438,7 +438,7 @@ const UserManagementPage = () => {
                     setShowGrantCustom(false);
                     handlePresetSelect(key);
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
                     isSelected
                       ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/40"
                       : "bg-slate-800/80 text-blue-200 border-blue-700/50 hover:bg-slate-700 hover:text-white"
@@ -453,7 +453,7 @@ const UserManagementPage = () => {
             <button
               type="button"
               onClick={() => setShowGrantCustom(!showGrantCustom)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
                 showGrantCustom
                   ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/40"
                   : "bg-slate-800/80 text-amber-300 border-amber-500/40 hover:bg-slate-700"
@@ -467,10 +467,10 @@ const UserManagementPage = () => {
 
         {/* Expandable Custom Permissions Checkbox Grid */}
         {showGrantCustom && (
-          <div className="p-4 bg-slate-950/70 rounded-2xl border border-blue-800/60 space-y-3">
+          <div className="p-3 sm:p-4 bg-slate-950/70 rounded-xl sm:rounded-2xl border border-blue-800/60 space-y-2.5 sm:space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-amber-300 pb-2 border-b border-blue-900/60">
               <span>Granular Action-Level Permissions:</span>
-              <span className="text-[11px] text-blue-300 font-normal">Check specific permissions to enable for this user</span>
+              <span className="text-[10px] sm:text-[11px] text-blue-300 font-normal">Check specific permissions to enable for this user</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
