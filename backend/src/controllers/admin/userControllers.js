@@ -72,16 +72,17 @@ export const updateUserRole = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent demoting primary .env ADMIN_EMAIL
+  // Safety: Prevent changing Super Admin role
   const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  if (
-    user.email.toLowerCase() === envAdminEmail &&
-    role !== "admin" &&
-    role !== "superadmin"
-  ) {
+  const isSuper =
+    user.role === "superadmin" ||
+    user.email.toLowerCase() === "admin@arcl.com" ||
+    user.email.toLowerCase() === envAdminEmail;
+
+  if (isSuper) {
     throw new ApiError(
       400,
-      `Cannot demote primary system administrator (${user.email}) defined in .env`
+      `Super Administrator (${user.email}) role is permanently locked and cannot be changed.`
     );
   }
 
@@ -117,12 +118,17 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent deactivating primary .env ADMIN_EMAIL
+  // Safety: Prevent deactivating Super Admin
   const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  if (user.email.toLowerCase() === envAdminEmail && user.isActive) {
+  const isSuper =
+    user.role === "superadmin" ||
+    user.email.toLowerCase() === "admin@arcl.com" ||
+    user.email.toLowerCase() === envAdminEmail;
+
+  if (isSuper) {
     throw new ApiError(
       400,
-      "Cannot deactivate primary system administrator defined in .env"
+      "Super Administrator account cannot be deactivated or suspended."
     );
   }
 
@@ -152,12 +158,17 @@ export const deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent deleting primary .env ADMIN_EMAIL
+  // Safety: Prevent deleting Super Admin
   const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  if (user.email.toLowerCase() === envAdminEmail) {
+  const isSuper =
+    user.role === "superadmin" ||
+    user.email.toLowerCase() === "admin@arcl.com" ||
+    user.email.toLowerCase() === envAdminEmail;
+
+  if (isSuper) {
     throw new ApiError(
       400,
-      "Cannot delete primary system administrator defined in .env"
+      "Super Administrator account is protected and cannot be deleted."
     );
   }
 
@@ -180,6 +191,20 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
   const user = await User.findById(id);
   if (!user) {
     throw new ApiError(404, "User not found.");
+  }
+
+  // Safety: Prevent modifying Super Admin permissions
+  const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const isSuper =
+    user.role === "superadmin" ||
+    user.email.toLowerCase() === "admin@arcl.com" ||
+    user.email.toLowerCase() === envAdminEmail;
+
+  if (isSuper) {
+    throw new ApiError(
+      400,
+      "Super Administrator permissions are fully enabled and cannot be altered."
+    );
   }
 
   if (role) {

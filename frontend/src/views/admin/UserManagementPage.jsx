@@ -885,34 +885,44 @@ const UserManagementPage = () => {
 
                       {/* ROLE SELECTOR (INSTANT UPDATE) */}
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={user.role}
-                            disabled={updatingId === user._id}
-                            onChange={(e) =>
-                              handleRoleChange(user._id, e.target.value)
-                            }
-                            className={`border rounded-xl px-3 py-1.5 text-xs font-bold cursor-pointer outline-none transition shadow-2xs ${
-                              isAdmin
-                                ? "bg-purple-50 text-purple-800 border-purple-300 focus:ring-2 focus:ring-purple-200"
-                                : "bg-gray-50 text-gray-700 border-gray-300 focus:ring-2 focus:ring-gray-200"
-                            }`}
-                          >
-                            <option value="admin">Admin (Privileged)</option>
-                            <option value="user">User (No Admin Access)</option>
-                          </select>
+                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-800 border border-amber-400/50 text-xs font-black tracking-wide shadow-2xs">
+                            <FaCrown className="text-amber-600 text-xs" /> SUPER ADMIN
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={user.role}
+                              disabled={updatingId === user._id}
+                              onChange={(e) =>
+                                handleRoleChange(user._id, e.target.value)
+                              }
+                              className={`border rounded-xl px-3 py-1.5 text-xs font-bold cursor-pointer outline-none transition shadow-2xs ${
+                                isAdmin
+                                  ? "bg-purple-50 text-purple-800 border-purple-300 focus:ring-2 focus:ring-purple-200"
+                                  : "bg-gray-50 text-gray-700 border-gray-300 focus:ring-2 focus:ring-gray-200"
+                              }`}
+                            >
+                              <option value="admin">Admin (Privileged)</option>
+                              <option value="user">User (No Admin Access)</option>
+                            </select>
 
-                          {isAdmin && (
-                            <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-1.5 py-0.5 rounded">
-                              ★
-                            </span>
-                          )}
-                        </div>
+                            {isAdmin && (
+                              <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-1.5 py-0.5 rounded">
+                                ★
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}
                       <td className="p-4">
-                        {isAdmin ? (
+                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-xs border border-slate-800">
+                            <FaShieldAlt className="text-amber-400" /> Full Access (19/19)
+                          </span>
+                        ) : isAdmin ? (
                           <button
                             type="button"
                             onClick={() => handleOpenPermissionsModal(user)}
@@ -936,7 +946,7 @@ const UserManagementPage = () => {
                           <Toggle
                             checked={user.isActive}
                             onChange={() => handleToggleStatus(user._id)}
-                            disabled={updatingId === user._id}
+                            disabled={updatingId === user._id || user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com"}
                           />
                           <span
                             className={`text-xs font-medium ${
@@ -966,18 +976,22 @@ const UserManagementPage = () => {
 
                       {/* ACTIONS */}
                       <td className="p-4 text-center">
-                        <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          disabled={deletingId === user._id}
-                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer disabled:opacity-50"
-                          title="Delete User"
-                        >
-                          {deletingId === user._id ? (
-                            <span className="w-3.5 h-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block"></span>
-                          ) : (
-                            <FaTrash size={13} />
-                          )}
-                        </button>
+                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                          <span className="text-[10px] text-slate-400 font-semibold italic">Protected</span>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteUser(user._id)}
+                            disabled={deletingId === user._id}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer disabled:opacity-50"
+                            title="Delete User"
+                          >
+                            {deletingId === user._id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block"></span>
+                            ) : (
+                              <FaTrash size={13} />
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
