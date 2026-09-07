@@ -25,6 +25,7 @@ const Footer = () => {
     { name: "Calibration Services", to: "/calibration-services" },
     { name: "About Us", to: "/about" },
     { name: "Company Profile", to: "/arclcompany.pdf", isExternal: true },
+    { name: "Privacy Policy", to: "/privacy-policy" },
     { name: "Contact Us", to: "/contact" },
   ];
 
@@ -272,12 +273,18 @@ const Footer = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs sm:text-sm">
 
             {/* Copyright */}
-            <p className="text-slate-300">
-              © {new Date().getFullYear()}{" "}
-              <span className="font-bold text-white tracking-wide">ARCL INSTRUMENTS PVT. LTD.</span>
-              <span className="mx-2 text-slate-500">•</span>
-              <span className="text-slate-300">All rights reserved.</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-slate-300">
+              <span>
+                © {new Date().getFullYear()}{" "}
+                <strong className="font-bold text-white tracking-wide">ARCL INSTRUMENTS PVT. LTD.</strong>
+                <span className="mx-2 text-slate-500">•</span>
+                All rights reserved.
+              </span>
+              <span className="hidden sm:inline text-slate-600">|</span>
+              <Link to="/privacy-policy" className="text-slate-400 hover:text-white transition-colors underline-offset-2 hover:underline font-medium">
+                Privacy Policy
+              </Link>
+            </div>
 
             {/* Developer Section */}
             <div className="flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm">

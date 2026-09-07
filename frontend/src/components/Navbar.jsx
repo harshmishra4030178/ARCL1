@@ -64,6 +64,11 @@ const Navbar = () => {
       name: "Contact",
       to: "/contact",
     },
+    {
+      name: "Privacy Policy",
+      to: "/privacy-policy",
+      mobileOnly: true,
+    },
   ];
 
   return (
@@ -196,8 +201,10 @@ const Navbar = () => {
               whitespace-nowrap
             "
               >
-                {navLinks.map((link) =>
-                  link.isExternal ? (
+                {navLinks
+                  .filter((link) => !link.mobileOnly)
+                  .map((link) =>
+                    link.isExternal ? (
                     <a
                       key={link.name}
                       href={link.to}
