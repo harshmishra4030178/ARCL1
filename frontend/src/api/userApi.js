@@ -12,9 +12,13 @@ export const updateUserRoleApi = (id, role) =>
 export const toggleUserStatusApi = (id) =>
   API.patch(`/admin/users/${id}/toggle-status`);
 
-// Grant or pre-authorize role access by email
+// Grant or pre-authorize role access by email with custom permissions
 export const grantUserAccessApi = (data) =>
   API.post("/admin/users/grant-access", data);
+
+// Update user permissions & role
+export const updateUserPermissionsApi = (id, data) =>
+  API.patch(`/admin/users/${id}/permissions`, data);
 
 // Delete user
 export const deleteUserApi = (id) => API.delete(`/admin/users/${id}`);

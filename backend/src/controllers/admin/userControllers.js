@@ -169,12 +169,49 @@ export const deleteUser = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Grant User Access / Pre-authorize Admin by Email
+ * @desc    Update User Permissions & Role
+ * @route   PATCH /api/v1/admin/users/:id/permissions
+ * @access  Admin
+ */
+export const updateUserPermissions = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { permissions, role } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  if (role) {
+    user.role = role;
+  }
+
+  if (permissions) {
+    user.permissions = {
+      ...user.permissions,
+      ...permissions,
+    };
+    user.markModified("permissions");
+  }
+
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      user,
+      `Permissions for '${user.email}' updated successfully.`
+    )
+  );
+});
+
+/**
+ * @desc    Grant User Access / Pre-authorize Admin by Email with Custom Permissions
  * @route   POST /api/v1/admin/users/grant-access
  * @access  Admin
  */
 export const grantUserAccess = asyncHandler(async (req, res) => {
-  const { email, role = "admin", name } = req.body;
+  const { email, role = "admin", name, permissions } = req.body;
 
   if (!email || !email.trim()) {
     throw new ApiError(400, "Valid email address is required.");
@@ -188,9 +225,18 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Please provide a valid email format.");
   }
 
-  if (!["admin", "user", "superadmin"].includes(role)) {
-    throw new ApiError(400, "Invalid role. Role must be 'admin' or 'user'.");
-  }
+  const defaultPermissions = {
+    products: { create: true, edit: true, delete: true },
+    categories: { create: true, edit: true, delete: true },
+    equipmentTypes: { create: true, edit: true, delete: true },
+    blogs: { create: true, edit: true, delete: true },
+    inquiries: { view: true, delete: true },
+    contacts: { view: true, delete: true },
+    subscribers: { view: true, delete: true },
+    users: { manage: role === "admin" || role === "superadmin" },
+  };
+
+  const finalPermissions = permissions ? { ...defaultPermissions, ...permissions } : defaultPermissions;
 
   let user = await User.findOne({ email: cleanEmail });
 
@@ -198,6 +244,10 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
     user.role = role;
     user.isActive = true;
     if (name && name.trim()) user.name = name.trim();
+    if (permissions) {
+      user.permissions = finalPermissions;
+      user.markModified("permissions");
+    }
     await user.save();
 
     return res.status(200).json(
@@ -218,6 +268,7 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
       name: displayName,
       email: cleanEmail,
       role,
+      permissions: finalPermissions,
       isActive: true,
       lastLogin: null,
     });
