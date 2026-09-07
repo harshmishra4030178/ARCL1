@@ -75,6 +75,10 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="geo.region" content="IN-MH" />
+        <meta name="geo.placename" content="Navi Mumbai, Mumbai, Maharashtra" />
+        <meta name="geo.position" content="19.1551;72.9984" />
+        <meta name="ICBM" content="19.1551, 72.9984" />
       </head>
       <body
         suppressHydrationWarning
