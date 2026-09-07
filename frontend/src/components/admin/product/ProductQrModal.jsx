@@ -81,69 +81,68 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
       return;
     }
 
-    const printWindow = window.open("", "_blank", "width=600,height=700");
-    if (!printWindow) {
-      toast.error("Please allow popups to print equipment label.");
-      return;
-    }
-
     const categoryName = product.category?.name || "Laboratory Equipment";
     const skuCode = product.productCode || product.slug?.toUpperCase() || "N/A";
     const hsnCode = product.hsnCode || "";
 
-    printWindow.document.write(`
+    const labelHtml = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Equipment QR Label - ${product.name}</title>
+        <title>Equipment QR Label - ${product.name || "Equipment"}</title>
         <style>
           @page {
             size: auto;
-            margin: 10mm;
+            margin: 5mm;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #ffffff;
             color: #0f172a;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
           }
           .label-card {
-            width: 380px;
+            width: 360px;
             border: 2px solid #021C57;
             border-radius: 12px;
-            padding: 18px;
+            padding: 16px;
             text-align: center;
-            box-sizing: border-box;
             background: #ffffff;
+            box-shadow: none;
           }
           .header {
             border-bottom: 2px solid #021C57;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
           }
           .brand-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 900;
             color: #021C57;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             margin: 0;
             text-transform: uppercase;
           }
           .brand-sub {
-            font-size: 9px;
+            font-size: 8.5px;
             font-weight: 700;
             color: #64748b;
             text-transform: uppercase;
-            letter-spacing: 1.2px;
+            letter-spacing: 1px;
             margin: 2px 0 0 0;
           }
           .product-name {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 800;
             color: #0f172a;
             margin: 8px 0 4px 0;
@@ -152,8 +151,8 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
           .meta-row {
             display: flex;
             justify-content: center;
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 8px;
+            margin-bottom: 8px;
             font-size: 11px;
             font-weight: 700;
           }
@@ -170,31 +169,32 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            margin: 6px 0;
+            margin: 4px 0;
           }
           .qr-img {
-            width: 190px;
-            height: 190px;
+            width: 180px;
+            height: 180px;
             display: block;
+            margin: 0 auto;
           }
           .instructions {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 9.5px;
+            font-weight: 800;
             color: #021C57;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 8px 0 4px 0;
+            margin: 6px 0 2px 0;
           }
           .url-text {
-            font-size: 9px;
+            font-size: 8.5px;
             color: #64748b;
             word-break: break-all;
-            margin: 0 0 10px 0;
+            margin: 0 0 8px 0;
           }
           .footer {
             border-top: 1px dashed #cbd5e1;
-            padding-top: 8px;
-            font-size: 9px;
+            padding-top: 6px;
+            font-size: 8.5px;
             color: #475569;
             display: flex;
             justify-content: space-between;
@@ -216,7 +216,7 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
           </div>
 
           <div class="qr-box">
-            <img class="qr-img" src="${qrImage}" alt="Product QR" />
+            <img class="qr-img" id="qrImageElement" src="${qrImage}" alt="Product QR" />
           </div>
 
           <div class="instructions">Scan For Specifications & Calibration</div>
@@ -224,22 +224,61 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
 
           <div class="footer">
             <span>ISO 9001:2015 Certified</span>
-            <span>Support: +91 8009559900</span>
+            <span>Support: +91 8169695728</span>
           </div>
         </div>
-        <script>
-          window.onload = function() {
-            window.focus();
-            window.print();
-            window.onafterprint = function() {
-              window.close();
-            };
-          };
-        </script>
       </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+
+    // Remove old print iframe if any
+    const existingIframe = document.getElementById("arcl-print-label-frame");
+    if (existingIframe) {
+      existingIframe.remove();
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "arcl-print-label-frame";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      toast.error("Failed to initialize printer frame.");
+      return;
+    }
+
+    doc.open();
+    doc.write(labelHtml);
+    doc.close();
+
+    const triggerPrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error("Print error:", err);
+        toast.error("Failed to trigger print dialog.");
+      }
+    };
+
+    // Ensure image is loaded before printing
+    const imgEl = doc.getElementById("qrImageElement");
+    if (imgEl && !imgEl.complete) {
+      imgEl.onload = () => {
+        setTimeout(triggerPrint, 250);
+      };
+      imgEl.onerror = () => {
+        setTimeout(triggerPrint, 250);
+      };
+    } else {
+      setTimeout(triggerPrint, 350);
+    }
   };
 
   // REGENERATE QR CODE
