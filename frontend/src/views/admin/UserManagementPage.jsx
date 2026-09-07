@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "../../utils/navigation.jsx";
+import { useAuthStore } from "../../store/useAuthStore.js";
 import {
   getAdminUsersApi,
   updateUserRoleApi,
@@ -137,6 +139,17 @@ const UserManagementPage = () => {
   const [showGrantCustom, setShowGrantCustom] = useState(false);
   const [granting, setGranting] = useState(false);
 
+  // Current Admin User & Access Check
+  const { user: currentAdminUser } = useAuthStore();
+
+  const canManageUsers = useMemo(() => {
+    if (!currentAdminUser) return false;
+    if (currentAdminUser.role === "superadmin") return true;
+    if (currentAdminUser.email?.toLowerCase() === "admin@arcl.com") return true;
+    if (currentAdminUser.permissions?.users?.manage === true) return true;
+    return false;
+  }, [currentAdminUser]);
+
   // Permission Modal State for Existing Users
   const [editingPermissionsUser, setEditingPermissionsUser] = useState(null);
   const [modalPermissions, setModalPermissions] = useState(DEFAULT_FULL_PERMISSIONS);
@@ -144,8 +157,10 @@ const UserManagementPage = () => {
   const [savingPermissions, setSavingPermissions] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (canManageUsers) {
+      fetchUsers();
+    }
+  }, [canManageUsers]);
 
   const fetchUsers = async () => {
     try {
@@ -192,37 +207,40 @@ const UserManagementPage = () => {
   // Handle Preset Change in Grant Box
   const handlePresetSelect = (presetKey) => {
     setGrantPreset(presetKey);
-    if (presetKey === "custom") {
-      setShowGrantCustom(true);
-    } else {
-      const p = PRESETS[presetKey];
-      if (p) {
-        setGrantRole(p.role);
-        setGrantPermissions(p.permissions);
-      }
+    setShowGrantCustom(false);
+    const p = PRESETS[presetKey];
+    if (p) {
+      setGrantRole(p.role);
+      setGrantPermissions(JSON.parse(JSON.stringify(p.permissions)));
     }
   };
 
   // Toggle Single Permission in Grant State
   const toggleGrantPerm = (module, action) => {
-    setGrantPermissions((prev) => ({
-      ...prev,
-      [module]: {
-        ...prev[module],
-        [action]: !prev[module]?.[action],
-      },
-    }));
+    setGrantPermissions((prev) => {
+      const currentModule = prev[module] || {};
+      return {
+        ...prev,
+        [module]: {
+          ...currentModule,
+          [action]: !currentModule[action],
+        },
+      };
+    });
   };
 
   // Toggle Single Permission in Modal State
   const toggleModalPerm = (module, action) => {
-    setModalPermissions((prev) => ({
-      ...prev,
-      [module]: {
-        ...prev[module],
-        [action]: !prev[module]?.[action],
-      },
-    }));
+    setModalPermissions((prev) => {
+      const currentModule = prev[module] || {};
+      return {
+        ...prev,
+        [module]: {
+          ...currentModule,
+          [action]: !currentModule[action],
+        },
+      };
+    });
   };
 
   // Open Permissions Modal for Existing User
@@ -231,14 +249,14 @@ const UserManagementPage = () => {
     setModalRole(user.role || "admin");
     const userPerms = user.permissions || DEFAULT_FULL_PERMISSIONS;
     setModalPermissions({
-      products: { create: true, edit: true, delete: true, ...userPerms.products },
-      categories: { create: true, edit: true, delete: true, ...userPerms.categories },
-      equipmentTypes: { create: true, edit: true, delete: true, ...userPerms.equipmentTypes },
-      blogs: { create: true, edit: true, delete: true, ...userPerms.blogs },
-      inquiries: { view: true, delete: true, ...userPerms.inquiries },
-      contacts: { view: true, delete: true, ...userPerms.contacts },
-      subscribers: { view: true, delete: true, ...userPerms.subscribers },
-      users: { manage: true, ...userPerms.users },
+      products: { create: true, edit: true, delete: true, ...(userPerms.products || {}) },
+      categories: { create: true, edit: true, delete: true, ...(userPerms.categories || {}) },
+      equipmentTypes: { create: true, edit: true, delete: true, ...(userPerms.equipmentTypes || {}) },
+      blogs: { create: true, edit: true, delete: true, ...(userPerms.blogs || {}) },
+      inquiries: { view: true, delete: true, ...(userPerms.inquiries || {}) },
+      contacts: { view: true, delete: true, ...(userPerms.contacts || {}) },
+      subscribers: { view: true, delete: true, ...(userPerms.subscribers || {}) },
+      users: { manage: true, ...(userPerms.users || {}) },
     });
   };
 
@@ -383,6 +401,34 @@ const UserManagementPage = () => {
     return count;
   };
 
+  if (!canManageUsers) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 sm:p-6 text-center">
+        <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-xl border border-gray-100 max-w-lg w-full space-y-5">
+          <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner border border-amber-200">
+            <FaLock />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800 tracking-tight">
+              Access Restricted: Users &amp; Roles
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+              You do not have permission to access the User &amp; Role Management section. Only Super Administrators or accounts granted full User Management privileges can access and modify team permissions.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer"
+            >
+              <span>Return to Admin Dashboard</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -423,10 +469,16 @@ const UserManagementPage = () => {
 
         {/* Access Presets Bar */}
         <div className="space-y-2">
-          <label className="text-[11px] sm:text-xs font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
-            <FaSlidersH className="text-amber-400" />
-            <span>Select Permission Preset:</span>
-          </label>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <label className="text-[11px] sm:text-xs font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
+              <FaSlidersH className="text-amber-400" />
+              <span>Select Permission Preset:</span>
+            </label>
+            <span className="text-[10px] sm:text-[11px] text-amber-300 font-bold bg-slate-800/80 px-2.5 py-0.5 rounded-full border border-amber-400/30">
+              Active: {showGrantCustom ? "Customized Configuration" : PRESETS[grantPreset]?.name || "Custom"}
+            </span>
+          </div>
+
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {Object.entries(PRESETS).map(([key, preset]) => {
               const isSelected = grantPreset === key && !showGrantCustom;
@@ -434,14 +486,11 @@ const UserManagementPage = () => {
                 <button
                   type="button"
                   key={key}
-                  onClick={() => {
-                    setShowGrantCustom(false);
-                    handlePresetSelect(key);
-                  }}
-                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                  onClick={() => handlePresetSelect(key)}
+                  className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer select-none active:scale-95 ${
                     isSelected
-                      ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/40"
-                      : "bg-slate-800/80 text-blue-200 border-blue-700/50 hover:bg-slate-700 hover:text-white"
+                      ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/50 scale-[1.02]"
+                      : "bg-slate-800/90 text-blue-200 border-blue-700/60 hover:bg-slate-700 hover:text-white"
                   }`}
                 >
                   {preset.icon}
@@ -453,10 +502,10 @@ const UserManagementPage = () => {
             <button
               type="button"
               onClick={() => setShowGrantCustom(!showGrantCustom)}
-              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer select-none active:scale-95 ${
                 showGrantCustom
-                  ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/40"
-                  : "bg-slate-800/80 text-amber-300 border-amber-500/40 hover:bg-slate-700"
+                  ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/50 scale-[1.02]"
+                  : "bg-slate-800/90 text-amber-300 border-amber-500/50 hover:bg-slate-700"
               }`}
             >
               <FaSlidersH />
@@ -987,9 +1036,9 @@ const UserManagementPage = () => {
                     key={key}
                     onClick={() => {
                       setModalRole(preset.role);
-                      setModalPermissions(preset.permissions);
+                      setModalPermissions(JSON.parse(JSON.stringify(preset.permissions)));
                     }}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 text-left transition flex flex-col justify-between gap-1 text-xs cursor-pointer group"
+                    className="p-2.5 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 text-left transition flex flex-col justify-between gap-1 text-xs cursor-pointer group active:scale-95"
                   >
                     <span className="font-bold text-slate-900 group-hover:text-amber-700 flex items-center gap-1">
                       {preset.icon} {key.replace("_", " ")}

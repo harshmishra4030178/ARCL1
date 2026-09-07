@@ -65,3 +65,52 @@ export const verifyAdmin = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Middleware to restrict User & Role Management to Superadmin / Full Access Admin
+ */
+export const verifyUserManageAccess = async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized. Please log in.",
+      });
+    }
+
+    const envEmails = ["admin@arcl.com"];
+    if (process.env.ADMIN_EMAIL) {
+      process.env.ADMIN_EMAIL.split(",").forEach((e) => {
+        if (e.trim()) envEmails.push(e.trim().toLowerCase());
+      });
+    }
+    if (process.env.ADMIN_EMAILS) {
+      process.env.ADMIN_EMAILS.split(",").forEach((e) => {
+        if (e.trim()) envEmails.push(e.trim().toLowerCase());
+      });
+    }
+
+    const isAuthorized =
+      user.role === "superadmin" ||
+      envEmails.includes(user.email?.toLowerCase()) ||
+      user.permissions?.users?.manage === true;
+
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Forbidden: Only Super Administrators and authorized administrators with User Management privileges can access Users & Roles.",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("verifyUserManageAccess Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error verifying user management permissions.",
+    });
+  }
+};
+

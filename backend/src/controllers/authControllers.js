@@ -114,6 +114,25 @@ export const googleLogin = async (req, res) => {
       await user.save();
     }
 
+    // Default permissions setup for superadmin or admin
+    const defaultFullPermissions = {
+      products: { create: true, edit: true, delete: true },
+      categories: { create: true, edit: true, delete: true },
+      equipmentTypes: { create: true, edit: true, delete: true },
+      blogs: { create: true, edit: true, delete: true },
+      inquiries: { view: true, delete: true },
+      contacts: { view: true, delete: true },
+      subscribers: { view: true, delete: true },
+      users: { manage: true },
+    };
+
+    if (isEnvAdmin || email === "admin@arcl.com") {
+      user.role = "superadmin";
+      user.permissions = defaultFullPermissions;
+      user.markModified("permissions");
+      await user.save();
+    }
+
     // Check if account is active
     if (!user.isActive) {
       return res.status(403).json({
@@ -167,6 +186,7 @@ export const googleLogin = async (req, res) => {
         email: user.email,
         picture: user.picture,
         role: user.role,
+        permissions: user.permissions || defaultFullPermissions,
       },
     });
   } catch (error) {
@@ -188,6 +208,17 @@ export const getMe = async (req, res) => {
   try {
     const user = req.user;
 
+    const defaultFullPermissions = {
+      products: { create: true, edit: true, delete: true },
+      categories: { create: true, edit: true, delete: true },
+      equipmentTypes: { create: true, edit: true, delete: true },
+      blogs: { create: true, edit: true, delete: true },
+      inquiries: { view: true, delete: true },
+      contacts: { view: true, delete: true },
+      subscribers: { view: true, delete: true },
+      users: { manage: true },
+    };
+
     return res.status(200).json({
       success: true,
       user: {
@@ -196,6 +227,7 @@ export const getMe = async (req, res) => {
         email: user.email,
         picture: user.picture,
         role: user.role,
+        permissions: user.permissions || defaultFullPermissions,
       },
     });
   } catch (error) {

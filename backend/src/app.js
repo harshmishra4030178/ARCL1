@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { API_VERSION } from "./constants.js";
-import { verifyAdmin } from "./middlewares/authMiddleware.js";
+import { verifyAdmin, verifyUserManageAccess } from "./middlewares/authMiddleware.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import ApiError from "./utils/ApiError.js";
 import ApiResponse from "./utils/ApiResponse.js";
@@ -108,7 +108,7 @@ app.use(`${ADMIN_API}/products`, verifyAdmin, adminProductRoutes);
 app.use(`${ADMIN_API}/inquiries`, verifyAdmin, adminInquiryRoutes);
 app.use(`${ADMIN_API}/contacts`, verifyAdmin, adminContactRoutes);
 app.use(`${ADMIN_API}/subscribers`, verifyAdmin, adminSubscriberRoutes);
-app.use(`${ADMIN_API}/users`, verifyAdmin, adminUserRoutes);
+app.use(`${ADMIN_API}/users`, verifyAdmin, verifyUserManageAccess, adminUserRoutes);
 app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 app.use(`${ADMIN_API}/blogs`, verifyAdmin, adminBlogRoutes);
 
