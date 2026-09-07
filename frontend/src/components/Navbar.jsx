@@ -57,7 +57,8 @@ const Navbar = () => {
     },
     {
       name: "Company Profile",
-      to: "/company-profile",
+      to: "/arclcompany.pdf",
+      isExternal: true,
     },
     {
       name: "Contact",
