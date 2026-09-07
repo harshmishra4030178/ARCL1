@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { API_VERSION } from "./constants.js";
-import { verifyAdmin, verifyUserManageAccess } from "./middlewares/authMiddleware.js";
+import { verifyAdmin, verifyUserManageAccess, checkModulePermission } from "./middlewares/authMiddleware.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import ApiError from "./utils/ApiError.js";
 import ApiResponse from "./utils/ApiResponse.js";
@@ -101,16 +101,16 @@ const CLIENT_API = `${API_VERSION}/client`;
 // Auth APIs
 app.use(`${AUTH_API}`, authRoutes);
 
-// Admin APIs (Protected via JWT & Role Verification)
-app.use(`${ADMIN_API}/categories`, verifyAdmin, adminCategoryRoutes);
-app.use(`${ADMIN_API}/equipment-types`, verifyAdmin, adminEquipmentTypeRoutes);
-app.use(`${ADMIN_API}/products`, verifyAdmin, adminProductRoutes);
-app.use(`${ADMIN_API}/inquiries`, verifyAdmin, adminInquiryRoutes);
-app.use(`${ADMIN_API}/contacts`, verifyAdmin, adminContactRoutes);
-app.use(`${ADMIN_API}/subscribers`, verifyAdmin, adminSubscriberRoutes);
+// Admin APIs (Protected via JWT, Role Verification & Granular RBAC)
+app.use(`${ADMIN_API}/categories`, verifyAdmin, checkModulePermission("categories"), adminCategoryRoutes);
+app.use(`${ADMIN_API}/equipment-types`, verifyAdmin, checkModulePermission("equipmentTypes"), adminEquipmentTypeRoutes);
+app.use(`${ADMIN_API}/products`, verifyAdmin, checkModulePermission("products"), adminProductRoutes);
+app.use(`${ADMIN_API}/inquiries`, verifyAdmin, checkModulePermission("inquiries"), adminInquiryRoutes);
+app.use(`${ADMIN_API}/contacts`, verifyAdmin, checkModulePermission("contacts"), adminContactRoutes);
+app.use(`${ADMIN_API}/subscribers`, verifyAdmin, checkModulePermission("subscribers"), adminSubscriberRoutes);
 app.use(`${ADMIN_API}/users`, verifyAdmin, verifyUserManageAccess, adminUserRoutes);
 app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
-app.use(`${ADMIN_API}/blogs`, verifyAdmin, adminBlogRoutes);
+app.use(`${ADMIN_API}/blogs`, verifyAdmin, checkModulePermission("blogs"), adminBlogRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);

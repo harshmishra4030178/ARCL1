@@ -1,4 +1,5 @@
 import express from "express";
+import { checkModulePermission } from "../../middlewares/authMiddleware.js";
 import {
   createEquipmentType,
   deleteEquipmentType,
@@ -12,13 +13,13 @@ import {
 
 const router = express.Router();
 
-router.post("/", createEquipmentType);
+router.post("/", checkModulePermission("equipmentTypes", "create"), createEquipmentType);
 router.get("/", getAllEquipmentTypes);
-router.put("/reorder", reorderEquipmentTypes);
+router.put("/reorder", checkModulePermission("equipmentTypes", "edit"), reorderEquipmentTypes);
 router.get("/:id", getSingleEquipmentType);
-router.put("/:id", updateEquipmentType);
-router.patch("/:id/toggle", toggleEquipmentTypeStatus);
-router.patch("/:id/toggle-featured", toggleEquipmentTypeFeatured);
-router.delete("/:id", deleteEquipmentType);
+router.put("/:id", checkModulePermission("equipmentTypes", "edit"), updateEquipmentType);
+router.patch("/:id/toggle", checkModulePermission("equipmentTypes", "edit"), toggleEquipmentTypeStatus);
+router.patch("/:id/toggle-featured", checkModulePermission("equipmentTypes", "edit"), toggleEquipmentTypeFeatured);
+router.delete("/:id", checkModulePermission("equipmentTypes", "delete"), deleteEquipmentType);
 
 export default router;

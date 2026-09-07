@@ -1,4 +1,5 @@
 import express from "express";
+import { checkModulePermission } from "../../middlewares/authMiddleware.js";
 import {
   deleteInquiry,
   getAllInquiries,
@@ -8,9 +9,9 @@ import {
 
 const router = express.Router();
 
-router.get("/", getAllInquiries);
-router.get("/:id", getSingleInquiry);
-router.put("/:id", updateInquiryStatus);
-router.delete("/:id", deleteInquiry);
+router.get("/", checkModulePermission("inquiries", "view"), getAllInquiries);
+router.get("/:id", checkModulePermission("inquiries", "view"), getSingleInquiry);
+router.put("/:id", checkModulePermission("inquiries", "view"), updateInquiryStatus);
+router.delete("/:id", checkModulePermission("inquiries", "delete"), deleteInquiry);
 
 export default router;

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { NavLink } from "../../../utils/navigation.jsx";
 import { useAuthStore } from "../../../store/useAuthStore.js";
+import { hasModuleAccess } from "../../../utils/rbac.js";
 import {
   FaHome,
   FaLayerGroup,
@@ -17,33 +18,25 @@ import { RiAdminFill } from "react-icons/ri";
 
 const allMenuItems = [
   { name: "Dashboard", path: "/admin", icon: <FaHome /> },
-  { name: "Equipment Types", path: "/admin/equipment-types", icon: <FaLayerGroup /> },
-  { name: "Categories", path: "/admin/categories", icon: <FaThList /> },
-  { name: "Products", path: "/admin/products", icon: <FaBox /> },
-  { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen /> },
-  { name: "Users & Roles", path: "/admin/users", icon: <FaUsers />, reqUserManage: true },
-  { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope /> },
-  { name: "Contact Messages", path: "/admin/contact-messages", icon: <FaEnvelope /> },
-  { name: "Subscribers", path: "/admin/subscribers", icon: <FaBell /> },
+  { name: "Equipment Types", path: "/admin/equipment-types", icon: <FaLayerGroup />, module: "equipmentTypes" },
+  { name: "Categories", path: "/admin/categories", icon: <FaThList />, module: "categories" },
+  { name: "Products", path: "/admin/products", icon: <FaBox />, module: "products" },
+  { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen />, module: "blogs" },
+  { name: "Users & Roles", path: "/admin/users", icon: <FaUsers />, module: "users", action: "manage" },
+  { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope />, module: "inquiries" },
+  { name: "Contact Messages", path: "/admin/contact-messages", icon: <FaEnvelope />, module: "contacts" },
+  { name: "Subscribers", path: "/admin/subscribers", icon: <FaBell />, module: "subscribers" },
 ];
 
 const Sidebar = () => {
   const { user } = useAuthStore();
 
-  const canManageUsers = useMemo(() => {
-    if (!user) return false;
-    if (user.role === "superadmin") return true;
-    if (user.email?.toLowerCase() === "admin@arcl.com") return true;
-    if (user.permissions?.users?.manage === true) return true;
-    return false;
-  }, [user]);
-
   const visibleMenuItems = useMemo(() => {
     return allMenuItems.filter((item) => {
-      if (item.reqUserManage && !canManageUsers) return false;
-      return true;
+      if (!item.module) return true; // Dashboard is open to all authenticated admins
+      return hasModuleAccess(user, item.module, item.action);
     });
-  }, [canManageUsers]);
+  }, [user]);
 
   return (
     <div className="w-64 h-screen bg-linear-to-b from-gray-900 to-gray-800 text-white shadow-lg p-5">

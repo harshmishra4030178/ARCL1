@@ -67,6 +67,28 @@ export const verifyAdmin = async (req, res, next) => {
 };
 
 /**
+ * Helper to check if a user is a super administrator (either role='superadmin' or designated in .env)
+ */
+export const isSuperAdminUser = (user) => {
+  if (!user) return false;
+  if (user.role === "superadmin") return true;
+
+  const envEmails = ["admin@arcl.com"];
+  if (process.env.ADMIN_EMAIL) {
+    process.env.ADMIN_EMAIL.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+  if (process.env.ADMIN_EMAILS) {
+    process.env.ADMIN_EMAILS.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+
+  return envEmails.includes(user.email?.toLowerCase());
+};
+
+/**
  * Middleware to restrict User & Role Management to Superadmin / Full Access Admin
  */
 export const verifyUserManageAccess = async (req, res, next) => {
@@ -79,21 +101,8 @@ export const verifyUserManageAccess = async (req, res, next) => {
       });
     }
 
-    const envEmails = ["admin@arcl.com"];
-    if (process.env.ADMIN_EMAIL) {
-      process.env.ADMIN_EMAIL.split(",").forEach((e) => {
-        if (e.trim()) envEmails.push(e.trim().toLowerCase());
-      });
-    }
-    if (process.env.ADMIN_EMAILS) {
-      process.env.ADMIN_EMAILS.split(",").forEach((e) => {
-        if (e.trim()) envEmails.push(e.trim().toLowerCase());
-      });
-    }
-
     const isAuthorized =
-      user.role === "superadmin" ||
-      envEmails.includes(user.email?.toLowerCase()) ||
+      isSuperAdminUser(user) ||
       user.permissions?.users?.manage === true;
 
     if (!isAuthorized) {
@@ -112,5 +121,62 @@ export const verifyUserManageAccess = async (req, res, next) => {
       message: "Server error verifying user management permissions.",
     });
   }
+};
+
+/**
+ * Middleware factory to enforce granular module permissions on backend admin routes
+ */
+export const checkModulePermission = (moduleName, actionName = null) => {
+  return (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized. Please log in.",
+        });
+      }
+
+      // Superadmins bypass all granular restrictions
+      if (isSuperAdminUser(user)) {
+        return next();
+      }
+
+      const perms = user.permissions || {};
+      const modPerms = perms[moduleName];
+
+      if (!modPerms) {
+        return res.status(403).json({
+          success: false,
+          message: `Forbidden: You do not have permission for '${moduleName}'.`,
+        });
+      }
+
+      if (actionName) {
+        if (!modPerms[actionName]) {
+          return res.status(403).json({
+            success: false,
+            message: `Forbidden: You do not have '${actionName}' permission for '${moduleName}'.`,
+          });
+        }
+      } else {
+        const hasAny = Object.values(modPerms).some((v) => v === true);
+        if (!hasAny) {
+          return res.status(403).json({
+            success: false,
+            message: `Forbidden: You do not have access to '${moduleName}'.`,
+          });
+        }
+      }
+
+      next();
+    } catch (err) {
+      console.error("checkModulePermission error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Server error verifying module permissions.",
+      });
+    }
+  };
 };
 

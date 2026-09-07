@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import Sidebar from "../../components/admin/layout/Sidebar";
 import Navbar from "../../components/admin/layout/Navbar";
+import { checkPathAccess } from "../../utils/rbac.js";
+import { FaLock } from "react-icons/fa";
 
 export default function AdminLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === "/admin/login";
-  const { isAuthenticated, checkingAuth, checkAuth } = useAuthStore();
+  const { user, isAuthenticated, checkingAuth, checkAuth } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -21,6 +24,11 @@ export default function AdminLayout({ children }) {
       router.push("/admin/login");
     }
   }, [isLoginPage, checkingAuth, isAuthenticated, router]);
+
+  const hasAccess = useMemo(() => {
+    if (!user) return false;
+    return checkPathAccess(pathname, user);
+  }, [pathname, user]);
 
   if (isLoginPage) {
     return <>{children}</>;
@@ -49,7 +57,35 @@ export default function AdminLayout({ children }) {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+        <main className="flex-1 p-6 overflow-y-auto">
+          {hasAccess ? (
+            children
+          ) : (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 sm:p-6 text-center">
+              <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-xl border border-gray-100 max-w-lg w-full space-y-5">
+                <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner border border-amber-200">
+                  <FaLock />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-gray-800 tracking-tight">
+                    Access Restricted
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                    You do not have permission to access this section of the Admin panel. Please contact your Super Administrator to grant you the required module permissions.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer"
+                  >
+                    <span>Return to Admin Dashboard</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import express from "express";
+import { checkModulePermission } from "../../middlewares/authMiddleware.js";
 import {
   deleteContact,
   getAllContacts,
@@ -8,9 +9,9 @@ import {
 
 const router = express.Router();
 
-router.get("/", getAllContacts);
-router.get("/:id", getSingleContact);
-router.put("/:id", updateContactStatus);
-router.delete("/:id", deleteContact);
+router.get("/", checkModulePermission("contacts", "view"), getAllContacts);
+router.get("/:id", checkModulePermission("contacts", "view"), getSingleContact);
+router.put("/:id", checkModulePermission("contacts", "view"), updateContactStatus);
+router.delete("/:id", checkModulePermission("contacts", "delete"), deleteContact);
 
 export default router;
