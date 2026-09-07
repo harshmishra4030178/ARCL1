@@ -71,16 +71,54 @@ export default async function CategoryDetailPage({ params }) {
 
   const categoryJsonLd = {
     "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: category?.name ? `${category.name} Equipment` : `${slug} Equipment`,
-    description:
-      category?.description ||
-      `Explore high precision ${category?.name || slug} manufactured by ARCL Instruments Pvt. Ltd.`,
-    url: `https://www.arclinstruments.com/categories/${slug}`,
-    provider: {
-      "@type": "Organization",
-      name: "ARCL Instruments Pvt. Ltd.",
-    },
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://www.arclinstruments.com",
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Categories",
+            "item": "https://www.arclinstruments.com/products",
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": category?.name || slug,
+            "item": `https://www.arclinstruments.com/categories/${slug}`,
+          },
+        ],
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": `https://www.arclinstruments.com/categories/${slug}#webpage`,
+        "name": category?.name ? `${category.name} Testing Equipment` : `${slug} Equipment`,
+        "description":
+          category?.description ||
+          `Explore high precision ${category?.name || slug} manufactured by ARCL Instruments Pvt. Ltd.`,
+        "url": `https://www.arclinstruments.com/categories/${slug}`,
+        "provider": {
+          "@type": "Organization",
+          "name": "ARCL Instruments Pvt. Ltd.",
+          "url": "https://www.arclinstruments.com",
+        },
+        "mainEntity": {
+          "@type": "ItemList",
+          "itemListElement": (products || []).map((p, idx) => ({
+            "@type": "ListItem",
+            "position": idx + 1,
+            "name": p.name,
+            "url": `https://www.arclinstruments.com/products/${p.slug}`,
+          })),
+        },
+      },
+    ],
   };
 
   return (

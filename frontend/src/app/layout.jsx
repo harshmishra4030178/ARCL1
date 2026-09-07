@@ -4,23 +4,35 @@ import ClientLayout from "./ClientLayout";
 export const metadata = {
   metadataBase: new URL("https://www.arclinstruments.com"),
   title: {
-    default: "ARCL INSTRUMENTS PVT. LTD | Precision Laboratory & Testing Equipment",
+    default: "ARCL INSTRUMENTS PVT. LTD | Precision Laboratory & Civil Testing Equipment Manufacturer",
     template: "%s | ARCL Instruments",
   },
   description:
-    "Leading manufacturer and supplier of certified civil, material, mechanical, soil, concrete, cement, and medical laboratory testing equipment in India. ISO 9001:2015 certified.",
+    "Leading ISO 9001:2015 certified manufacturer and exporter of precision civil engineering, concrete, soil, bitumen, cement, aggregate, and material testing laboratory instruments in India.",
   keywords: [
     "laboratory equipment manufacturer",
-    "civil engineering lab equipment",
+    "civil engineering lab equipment manufacturer India",
     "material testing machines",
-    "concrete testing equipment",
-    "soil testing instruments",
+    "concrete compression testing machine CTM",
+    "soil testing equipment CBR direct shear",
+    "bitumen ductility testing apparatus",
+    "cement testing vicat apparatus",
+    "aggregate testing sieve shaker",
+    "NABL calibration laboratory equipment",
+    "IS 516 concrete testing",
+    "IS 2720 soil testing",
     "ARCL Instruments",
-    "Navi Mumbai",
+    "Navi Mumbai Airoli Maharashtra",
   ],
   authors: [{ name: "ARCL Instruments Pvt. Ltd." }],
   creator: "ARCL Instruments Pvt. Ltd.",
   publisher: "ARCL Instruments Pvt. Ltd.",
+  category: "Industrial Equipment & Laboratory Testing Machines",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
     type: "website",
     locale: "en_IN",
@@ -28,7 +40,7 @@ export const metadata = {
     siteName: "ARCL Instruments Pvt. Ltd.",
     title: "ARCL Instruments | Material & Civil Testing Lab Equipment Manufacturer",
     description:
-      "Leading manufacturer and supplier of civil, material, mechanical, soil, concrete, asphalt, cement, and medical laboratory testing instruments in India. ISO 9001:2015 certified.",
+      "Leading manufacturer and exporter of civil, material, geotechnical, concrete, asphalt, and cement testing instruments in India. ISO 9001:2015 certified.",
     images: [
       {
         url: "/assets/LOGO.png",
