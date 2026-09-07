@@ -18,6 +18,7 @@ import adminContactRoutes from "./routes/admin/contactRoutes.js";
 import adminSubscriberRoutes from "./routes/admin/subscriberRoutes.js";
 import adminUserRoutes from "./routes/admin/userRoutes.js";
 import adminAnalyticsRoutes from "./routes/admin/analyticsRoutes.js";
+import adminBlogRoutes from "./routes/admin/blogRoutes.js";
 
 // ================= CLIENT ROUTES =================
 import clientCategoryRoutes from "./routes/client/categoryRoutes.js";
@@ -27,12 +28,13 @@ import clientInquiryRoutes from "./routes/client/inquiryRoutes.js";
 import clientContactRoutes from "./routes/client/contactRoutes.js";
 import clientSubscriberRoutes from "./routes/client/subscriberRoutes.js";
 import clientAnalyticsRoutes from "./routes/client/analyticsRoutes.js";
+import clientBlogRoutes from "./routes/client/blogRoutes.js";
 
 const app = express();
 
 // Global Middlewares
-app.use(express.json({ limit: "16kb" }));
-app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static("public"));
 // Dynamic & Robust CORS configuration
 const corsOptions = {
@@ -108,6 +110,7 @@ app.use(`${ADMIN_API}/contacts`, verifyAdmin, adminContactRoutes);
 app.use(`${ADMIN_API}/subscribers`, verifyAdmin, adminSubscriberRoutes);
 app.use(`${ADMIN_API}/users`, verifyAdmin, adminUserRoutes);
 app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
+app.use(`${ADMIN_API}/blogs`, verifyAdmin, adminBlogRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
@@ -117,6 +120,7 @@ app.use(`${CLIENT_API}/inquiries`, clientInquiryRoutes);
 app.use(`${CLIENT_API}/contacts`, clientContactRoutes);
 app.use(`${CLIENT_API}/subscribers`, clientSubscriberRoutes);
 app.use(`${CLIENT_API}/analytics`, clientAnalyticsRoutes);
+app.use(`${CLIENT_API}/blogs`, clientBlogRoutes);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {

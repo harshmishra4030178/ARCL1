@@ -51,6 +51,12 @@ export default async function sitemap() {
       priority: 0.95,
     },
     {
+      url: `${SITE_URL}/blog`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
       url: `${SITE_URL}/products`,
       lastModified: new Date(),
       changeFrequency: "daily",
@@ -102,5 +108,20 @@ export default async function sitemap() {
     priority: 0.8,
   }));
 
-  return [...staticUrls, ...categoryUrls, ...productUrls];
+  const blogSlugs = [
+    "is-516-concrete-cube-compressive-strength-test-complete-guide",
+    "is-2720-cbr-test-california-bearing-ratio-soil-highway-subgrade",
+    "is-1208-bitumen-ductility-test-highway-construction-guide",
+    "is-4031-cement-consistency-initial-final-setting-time-vicat-apparatus",
+    "importance-of-nabl-calibration-for-civil-testing-laboratories",
+  ];
+
+  const blogUrls = blogSlugs.map((slug) => ({
+    url: `${SITE_URL}/blog/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly",
+    priority: 0.85,
+  }));
+
+  return [...staticUrls, ...categoryUrls, ...productUrls, ...blogUrls];
 }

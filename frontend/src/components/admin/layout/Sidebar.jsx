@@ -9,6 +9,7 @@ import {
   FaEnvelope,
   FaUsers,
   FaBell,
+  FaBookOpen,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -17,6 +18,7 @@ const menuItems = [
   { name: "Equipment Types", path: "/admin/equipment-types", icon: <FaLayerGroup /> },
   { name: "Categories", path: "/admin/categories", icon: <FaThList /> },
   { name: "Products", path: "/admin/products", icon: <FaBox /> },
+  { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen /> },
   { name: "Users & Roles", path: "/admin/users", icon: <FaUsers /> },
   { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope /> },
   { name: "Contact Messages", path: "/admin/contact-messages", icon: <FaEnvelope /> },

@@ -44,6 +44,10 @@ const Navbar = () => {
       to: "/standards",
     },
     {
+      name: "Blog",
+      to: "/blog",
+    },
+    {
       name: "Calibration Services",
       to: "/calibration-services",
     },
