@@ -167,3 +167,67 @@ export const deleteUser = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, null, "User deleted successfully."));
 });
+
+/**
+ * @desc    Grant User Access / Pre-authorize Admin by Email
+ * @route   POST /api/v1/admin/users/grant-access
+ * @access  Admin
+ */
+export const grantUserAccess = asyncHandler(async (req, res) => {
+  const { email, role = "admin", name } = req.body;
+
+  if (!email || !email.trim()) {
+    throw new ApiError(400, "Valid email address is required.");
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Basic email regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    throw new ApiError(400, "Please provide a valid email format.");
+  }
+
+  if (!["admin", "user", "superadmin"].includes(role)) {
+    throw new ApiError(400, "Invalid role. Role must be 'admin' or 'user'.");
+  }
+
+  let user = await User.findOne({ email: cleanEmail });
+
+  if (user) {
+    user.role = role;
+    user.isActive = true;
+    if (name && name.trim()) user.name = name.trim();
+    await user.save();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        user,
+        `Access updated: '${cleanEmail}' is now assigned role '${role.toUpperCase()}'.`
+      )
+    );
+  } else {
+    // Create new pre-authorized user record
+    const displayName =
+      name && name.trim()
+        ? name.trim()
+        : cleanEmail.split("@")[0].replace(/[._-]/g, " ");
+
+    user = await User.create({
+      name: displayName,
+      email: cleanEmail,
+      role,
+      isActive: true,
+      lastLogin: null,
+    });
+
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        user,
+        `New account created & '${role.toUpperCase()}' access granted to '${cleanEmail}'.`
+      )
+    );
+  }
+});

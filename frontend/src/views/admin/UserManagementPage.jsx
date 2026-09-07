@@ -6,6 +6,7 @@ import {
   updateUserRoleApi,
   toggleUserStatusApi,
   deleteUserApi,
+  grantUserAccessApi,
 } from "../../api/userApi.js";
 import {
   FaUsers,
@@ -18,6 +19,9 @@ import {
   FaGoogle,
   FaShieldAlt,
   FaKey,
+  FaUserPlus,
+  FaEnvelope,
+  FaPaperPlane,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -41,6 +45,12 @@ const UserManagementPage = () => {
 
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+
+  // Direct Access Grant by Email State
+  const [grantEmail, setGrantEmail] = useState("");
+  const [grantName, setGrantName] = useState("");
+  const [grantRole, setGrantRole] = useState("admin");
+  const [granting, setGranting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -149,6 +159,43 @@ const UserManagementPage = () => {
     }
   };
 
+  // Handle Grant Access by Email
+  const handleGrantAccess = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!grantEmail || !grantEmail.trim()) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      setGranting(true);
+      const res = await grantUserAccessApi({
+        email: grantEmail.trim(),
+        name: grantName.trim() || undefined,
+        role: grantRole,
+      });
+
+      toast.success(
+        res.data?.message || `Access granted to ${grantEmail.trim()}! 🎉`
+      );
+
+      // Reset form
+      setGrantEmail("");
+      setGrantName("");
+      setGrantRole("admin");
+
+      // Refresh list & metrics
+      await fetchUsers();
+    } catch (err) {
+      console.error("Grant access error:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to grant access. Please try again."
+      );
+    } finally {
+      setGranting(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -167,7 +214,82 @@ const UserManagementPage = () => {
         </div>
       </div>
 
-      {/* 1. METRICS CARDS */}
+      {/* 1. DIRECT EMAIL ACCESS GRANT BOX */}
+      <div className="bg-gradient-to-br from-slate-900 via-[#021C57] to-slate-950 p-6 sm:p-7 rounded-3xl text-white shadow-lg border border-blue-900/50">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-blue-800/40">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-2 border border-amber-400/30">
+              <FaUserPlus className="text-amber-400" /> Instant Access Grant
+            </div>
+            <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+              <span>Grant Role Access by Email</span>
+            </h2>
+            <p className="text-xs text-blue-200 mt-1">
+              Enter any Google email to immediately promote an existing account or pre-authorize a new team member with Administrator privileges.
+            </p>
+          </div>
+
+          <span className="text-[11px] text-blue-300 bg-blue-950/80 px-3 py-1.5 rounded-xl border border-blue-800/60 font-medium self-start md:self-auto">
+            ⚡ Pre-authorized emails get instant Admin login
+          </span>
+        </div>
+
+        {/* Input Form */}
+        <form onSubmit={handleGrantAccess} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            {/* Email Input */}
+            <div className="sm:col-span-5 relative">
+              <FaEnvelope className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300 text-sm" />
+              <input
+                type="email"
+                required
+                value={grantEmail}
+                onChange={(e) => setGrantEmail(e.target.value)}
+                placeholder="Enter email address (e.g. colleague@gmail.com) *"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-blue-700/60 rounded-xl text-white placeholder-blue-300/60 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
+              />
+            </div>
+
+            {/* Optional Name Input */}
+            <div className="sm:col-span-3 relative">
+              <FaUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300 text-xs" />
+              <input
+                type="text"
+                value={grantName}
+                onChange={(e) => setGrantName(e.target.value)}
+                placeholder="Name (Optional)"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/90 border border-blue-700/60 rounded-xl text-white placeholder-blue-300/60 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
+              />
+            </div>
+
+            {/* Role Dropdown */}
+            <div className="sm:col-span-2">
+              <select
+                value={grantRole}
+                onChange={(e) => setGrantRole(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-800/90 border border-blue-700/60 rounded-xl text-amber-300 font-bold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition cursor-pointer"
+              >
+                <option value="admin">Admin (Full Access)</option>
+                <option value="user">Standard User</option>
+              </select>
+            </div>
+
+            {/* Grant Button */}
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                disabled={granting}
+                className="w-full h-full min-h-[40px] px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <FaPaperPlane className="text-xs" />
+                <span>{granting ? "Granting..." : "Grant Access"}</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {/* 2. METRICS CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Registered Accounts"
@@ -178,7 +300,7 @@ const UserManagementPage = () => {
 
         <StatCard
           title="Active Administrators"
-          value={metrics.admins || users.filter((u) => u.role === "admin").length}
+          value={metrics.admins || users.filter((u) => u.role === "admin" || u.role === "superadmin").length}
           icon={<FaUserShield />}
           color="bg-purple-600"
         />
@@ -198,7 +320,7 @@ const UserManagementPage = () => {
         />
       </div>
 
-      {/* 2. SEARCH & FILTER TOOLBAR */}
+      {/* 3. SEARCH & FILTER TOOLBAR */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
         {/* Search */}
         <div className="relative w-full md:w-80">
