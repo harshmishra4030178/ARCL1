@@ -285,10 +285,10 @@ const Dashboard = () => {
       <VisitorAnalyticsCard visitorData={visitorData} loading={loading} />
 
       {/* 3. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 min-w-0">
         
         {/* GRAPH 1: DYNAMIC MONTHLY INQUIRIES & DEMAND TREND */}
-        <div className="lg:col-span-7 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-4 sm:space-y-6">
+        <div className="lg:col-span-7 min-w-0 overflow-hidden bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
             <div className="space-y-0.5">
               <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -390,7 +390,7 @@ const Dashboard = () => {
         </div>
 
         {/* GRAPH 2: INVENTORY BREAKDOWN & HEALTH (5 COLS) */}
-        <div className="lg:col-span-5 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-5 sm:space-y-6 flex flex-col justify-between">
+        <div className="lg:col-span-5 min-w-0 overflow-hidden bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-5 sm:space-y-6 flex flex-col justify-between">
           <div className="space-y-0.5">
             <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
               <FaChartPie className="text-emerald-600" /> Product Inventory Distribution
@@ -487,10 +487,10 @@ const Dashboard = () => {
       </div>
 
       {/* 3. RECENT INQUIRIES & QUICK ACTIONS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 min-w-0">
         
         {/* RECENT INQUIRIES FEED (8 COLS) */}
-        <div className="lg:col-span-8 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-3 sm:space-y-4">
+        <div className="lg:col-span-8 min-w-0 overflow-hidden bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-3 sm:space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
             <div>
               <h2 className="text-base sm:text-lg font-bold text-gray-800">
@@ -553,7 +553,7 @@ const Dashboard = () => {
         </div>
 
         {/* QUICK SHORTCUTS (4 COLS) */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-[#021C57] to-[#043399] p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl text-white shadow-md space-y-5 sm:space-y-6 flex flex-col justify-between">
+        <div className="lg:col-span-4 min-w-0 overflow-hidden bg-gradient-to-br from-[#021C57] to-[#043399] p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl text-white shadow-md space-y-5 sm:space-y-6 flex flex-col justify-between">
           <div className="space-y-1.5 sm:space-y-2">
             <h2 className="text-base sm:text-lg font-bold">Quick Admin Actions</h2>
             <p className="text-xs text-blue-200">
