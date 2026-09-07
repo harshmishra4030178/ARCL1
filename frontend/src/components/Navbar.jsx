@@ -36,8 +36,8 @@ const Navbar = () => {
       to: "/products",
     },
     {
-      name: "Catalog",
-      to: "/catalog",
+      name: "Calibration Services",
+      to: "/calibration-services",
     },
     {
       name: "Standards",
@@ -49,8 +49,8 @@ const Navbar = () => {
       to: "/blog",
     },
     {
-      name: "Calibration Services",
-      to: "/calibration-services",
+      name: "Catalog",
+      to: "/catalog",
     },
     {
       name: "About",
