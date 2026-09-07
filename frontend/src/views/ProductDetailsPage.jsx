@@ -643,8 +643,9 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
               </div>
 
               {/* ZERO-COST INSTANT QUOTATION & WHATSAPP ROW */}
-              <div className="grid sm:grid-cols-3 gap-3 pt-1">
-                {/* 4. INSTANT PDF QUOTATION (WITH LETTERHEAD & GST PROFORMA) */}
+              <div className="grid sm:grid-cols-2 gap-3 pt-1">
+                {/* 4. INSTANT PDF QUOTATION (WITH LETTERHEAD & GST PROFORMA) - HIDDEN AS REQUESTED */}
+                {/* 
                 <button
                   onClick={() =>
                     generateQuotationPdf({
@@ -656,6 +657,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                   <FileText size={14} className="text-amber-400" />
                   <span>Instant PDF Quote</span>
                 </button>
+                */}
 
                 {/* 5. INSTANT WHATSAPP QUOTE */}
                 <button
