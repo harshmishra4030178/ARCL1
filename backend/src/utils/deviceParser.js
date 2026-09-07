@@ -5,11 +5,6 @@
 export function parseUserAgent(uaString = "", clientDevice = "") {
   const ua = uaString.toLowerCase();
 
-  // If client explicitly reported device from window/screen, respect it if valid
-  if (["mobile", "tablet", "desktop"].includes(clientDevice)) {
-    // Client device confirmed
-  }
-
   // 1. DEVICE TYPE DETECTION
   let device = "desktop";
   if (
@@ -26,14 +21,14 @@ export function parseUserAgent(uaString = "", clientDevice = "") {
     device = "mobile";
   }
 
-  // If client provided explicit hint and it matches tablet/mobile characteristics
+  // If client provided explicit hint from window dimensions / touch capabilities
   if (clientDevice && ["mobile", "tablet", "desktop"].includes(clientDevice)) {
     device = clientDevice;
   }
 
   // 2. OPERATING SYSTEM DETECTION
   let os = "Other";
-  if (/windows nt 10\.0|windows nt 11\.0/i.test(ua)) os = "Windows 10/11";
+  if (/windows nt 10\.0|windows nt 11\.0|windows 10|windows 11/i.test(ua)) os = "Windows";
   else if (/windows/i.test(ua)) os = "Windows";
   else if (/android/i.test(ua)) os = "Android";
   else if (/iphone|ipad|ipod/i.test(ua)) os = "iOS";
@@ -43,13 +38,14 @@ export function parseUserAgent(uaString = "", clientDevice = "") {
 
   // 3. BROWSER DETECTION
   let browser = "Other";
-  if (/edg\//i.test(ua)) browser = "Edge";
+  if (/samsungbrowser/i.test(ua)) browser = "Samsung Internet";
+  else if (/edg\//i.test(ua)) browser = "Edge";
   else if (/opr\/|opera/i.test(ua)) browser = "Opera";
-  else if (/chrome|crios/i.test(ua) && !/edg/i.test(ua)) browser = "Chrome";
-  else if (/safari/i.test(ua) && !/chrome|crios|android/i.test(ua))
-    browser = "Safari";
+  else if (/chrome|crios/i.test(ua) && !/edg\//i.test(ua)) browser = "Chrome";
+  else if (/safari/i.test(ua) && !/chrome|crios|android/i.test(ua)) browser = "Safari";
   else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
   else if (/msie|trident/i.test(ua)) browser = "Internet Explorer";
+  else if (/ucbrowser/i.test(ua)) browser = "UC Browser";
 
   return { device, os, browser };
 }

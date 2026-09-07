@@ -12,13 +12,14 @@ import {
   Cpu,
   Compass,
   Layers,
+  Activity,
 } from "lucide-react";
 
-const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
+const VisitorAnalyticsCard = ({ visitorData = null, loading = false, onRefresh = null }) => {
   const [activeTab, setActiveTab] = useState("devices"); // "devices" | "browsers" | "pages"
   const [hoveredDate, setHoveredDate] = useState(null);
 
-  // Extract or generate realistic baseline metrics
+  // Extract 100% real-time metrics directly from MongoDB API response
   const analytics = useMemo(() => {
     const raw = visitorData || {};
     const summary = raw.summary || {};
@@ -35,26 +36,32 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
     const desktopCount = devices.desktop?.count || 0;
     const mobileCount = devices.mobile?.count || 0;
     const tabletCount = devices.tablet?.count || 0;
-    const totalDeviceCount = desktopCount + mobileCount + tabletCount;
+    const desktopPct = devices.desktop?.percentage || 0;
+    const mobilePct = devices.mobile?.percentage || 0;
+    const tabletPct = devices.tablet?.percentage || 0;
 
-    let desktopPct = devices.desktop?.percentage || 0;
-    let mobilePct = devices.mobile?.percentage || 0;
-    let tabletPct = devices.tablet?.percentage || 0;
-
-    // If clean database with zero records yet, generate initial baseline distribution
-    const isBaseline = totalDeviceCount === 0;
-    if (isBaseline) {
-      desktopPct = 58;
-      mobilePct = 38;
-      tabletPct = 4;
-    }
-
-    // Process daily trend data (last 7 days by default)
-    let trend = [...dailyTrend];
-    if (trend.length === 0) {
+    // Process daily trend data (last 7 days continuous)
+    let trend = [];
+    if (dailyTrend.length > 0) {
+      trend = dailyTrend.map((t) => {
+        const d = new Date(t.date);
+        const dayLabel = isNaN(d.getTime())
+          ? t.date
+          : d.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "numeric",
+              day: "numeric",
+            });
+        return {
+          date: dayLabel,
+          fullDate: t.date,
+          pageviews: t.pageviews || 0,
+          uniqueVisitors: t.uniqueVisitors || 0,
+        };
+      });
+    } else {
+      // Clean fallback: 7 consecutive past days with 0 counts
       const now = new Date();
-      const mockDays = [14, 22, 19, 28, 35, 31, 42];
-      const mockUniq = [10, 16, 14, 20, 26, 23, 30];
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now);
         d.setDate(d.getDate() - i);
@@ -65,63 +72,29 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
         });
         trend.push({
           date: dayLabel,
-          pageviews: isBaseline ? mockDays[6 - i] : 0,
-          uniqueVisitors: isBaseline ? mockUniq[6 - i] : 0,
+          fullDate: d.toISOString().split("T")[0],
+          pageviews: 0,
+          uniqueVisitors: 0,
         });
       }
-    } else {
-      trend = trend.map((t) => ({
-        date: new Date(t.date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        fullDate: t.date,
-        pageviews: t.pageviews,
-        uniqueVisitors: t.uniqueVisitors,
-      }));
     }
 
     const maxTrendVal = Math.max(
       ...trend.map((t) => Math.max(t.pageviews, t.uniqueVisitors)),
-      10
+      5
     );
 
     return {
-      totalViews: isBaseline ? 191 : totalViews,
-      uniqueVisitors: isBaseline ? 139 : uniqueVisitors,
-      isBaseline,
+      totalViews,
+      uniqueVisitors,
       devices: {
-        desktop: { count: isBaseline ? 111 : desktopCount, percentage: desktopPct },
-        mobile: { count: isBaseline ? 73 : mobileCount, percentage: mobilePct },
-        tablet: { count: isBaseline ? 7 : tabletCount, percentage: tabletPct },
+        desktop: { count: desktopCount, percentage: desktopPct },
+        mobile: { count: mobileCount, percentage: mobilePct },
+        tablet: { count: tabletCount, percentage: tabletPct },
       },
-      osBreakdown:
-        osBreakdown.length > 0
-          ? osBreakdown
-          : [
-              { name: "Windows", percentage: 52, count: isBaseline ? 99 : 0 },
-              { name: "Android", percentage: 26, count: isBaseline ? 50 : 0 },
-              { name: "iOS", percentage: 14, count: isBaseline ? 27 : 0 },
-              { name: "macOS", percentage: 8, count: isBaseline ? 15 : 0 },
-            ],
-      browserBreakdown:
-        browserBreakdown.length > 0
-          ? browserBreakdown
-          : [
-              { name: "Chrome", percentage: 64, count: isBaseline ? 122 : 0 },
-              { name: "Safari", percentage: 20, count: isBaseline ? 38 : 0 },
-              { name: "Edge", percentage: 11, count: isBaseline ? 21 : 0 },
-              { name: "Firefox", percentage: 5, count: isBaseline ? 10 : 0 },
-            ],
-      topPages:
-        topPages.length > 0
-          ? topPages
-          : [
-              { path: "/", pageviews: isBaseline ? 78 : 0, percentage: 41 },
-              { path: "/products", pageviews: isBaseline ? 52 : 0, percentage: 27 },
-              { path: "/categories", pageviews: isBaseline ? 36 : 0, percentage: 19 },
-              { path: "/contact-us", pageviews: isBaseline ? 25 : 0, percentage: 13 },
-            ],
+      osBreakdown,
+      browserBreakdown,
+      topPages,
       trend,
       maxTrendVal,
     };
@@ -137,6 +110,10 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
             <h2 className="text-lg md:text-xl font-bold text-gray-800 tracking-tight">
               Visitor Traffic & Device Intelligence
             </h2>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Telemetry
+            </span>
           </div>
           <p className="text-xs text-gray-400">
             Real-time breakdown of storefront visitors, device types, operating systems, and platforms
@@ -187,7 +164,7 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
           </div>
           <p className="text-2xl font-black text-gray-900">{analytics.uniqueVisitors}</p>
           <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-0.5">
-            <TrendingUp size={11} /> Verified Sessions
+            <TrendingUp size={11} /> Real Sessions
           </span>
         </div>
 
@@ -238,7 +215,7 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
                 <TrendingUp size={15} className="text-blue-600" /> Visitor Activity Timeline
               </h3>
               <p className="text-[11px] text-gray-400">
-                Daily Pageviews vs Unique Visitor traffic over time
+                Daily Pageviews vs Unique Visitor traffic (Last 7 Days)
               </p>
             </div>
 
@@ -267,8 +244,12 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
 
             <div className="h-44 flex items-end justify-between gap-2 sm:gap-4 border-b border-gray-200/80 px-2">
               {analytics.trend.map((item, idx) => {
-                const viewH = `${Math.min(100, Math.max(8, (item.pageviews / analytics.maxTrendVal) * 100))}%`;
-                const uniqH = `${Math.min(100, Math.max(6, (item.uniqueVisitors / analytics.maxTrendVal) * 100))}%`;
+                const viewH = item.pageviews > 0
+                  ? `${Math.min(100, Math.max(12, (item.pageviews / analytics.maxTrendVal) * 100))}%`
+                  : "4px";
+                const uniqH = item.uniqueVisitors > 0
+                  ? `${Math.min(100, Math.max(10, (item.uniqueVisitors / analytics.maxTrendVal) * 100))}%`
+                  : "4px";
 
                 return (
                   <div
@@ -281,12 +262,20 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
                       {/* Pageviews Bar */}
                       <div
                         style={{ height: viewH }}
-                        className="w-3 sm:w-4 bg-gradient-to-t from-[#021C57] to-blue-600 rounded-t-md transition-all duration-300 group-hover:brightness-110"
+                        className={`w-3 sm:w-4 rounded-t-md transition-all duration-300 group-hover:brightness-110 ${
+                          item.pageviews > 0
+                            ? "bg-gradient-to-t from-[#021C57] to-blue-600"
+                            : "bg-gray-200"
+                        }`}
                       />
                       {/* Unique Visitors Bar */}
                       <div
                         style={{ height: uniqH }}
-                        className="w-3 sm:w-4 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-300 group-hover:brightness-110"
+                        className={`w-3 sm:w-4 rounded-t-md transition-all duration-300 group-hover:brightness-110 ${
+                          item.uniqueVisitors > 0
+                            ? "bg-gradient-to-t from-emerald-600 to-emerald-400"
+                            : "bg-gray-200"
+                        }`}
                       />
                     </div>
 
@@ -378,17 +367,21 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">
                   Operating Systems
                 </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {analytics.osBreakdown.map((os, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 bg-white border border-gray-200 px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-700"
-                    >
-                      <Cpu size={11} className="text-gray-400" /> {os.name}:{" "}
-                      <strong className="text-gray-900">{os.percentage}%</strong>
-                    </span>
-                  ))}
-                </div>
+                {analytics.osBreakdown.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {analytics.osBreakdown.map((os, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 bg-white border border-gray-200 px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-700"
+                      >
+                        <Cpu size={11} className="text-gray-400" /> {os.name}:{" "}
+                        <strong className="text-gray-900">{os.percentage}%</strong>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">No operating systems recorded yet.</p>
+                )}
               </div>
             </div>
           )}
@@ -403,22 +396,28 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
                 <span className="text-[11px] text-gray-400">User Agents</span>
               </div>
 
-              <div className="space-y-2.5">
-                {analytics.browserBreakdown.map((b, i) => (
-                  <div key={i} className="bg-white p-3 rounded-2xl border border-gray-100 space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-gray-800">{b.name}</span>
-                      <span className="font-mono text-gray-600 font-bold">{b.percentage}%</span>
+              {analytics.browserBreakdown.length > 0 ? (
+                <div className="space-y-2.5">
+                  {analytics.browserBreakdown.map((b, i) => (
+                    <div key={i} className="bg-white p-3 rounded-2xl border border-gray-100 space-y-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-gray-800">{b.name}</span>
+                        <span className="font-mono text-gray-600 font-bold">
+                          {b.count} ({b.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          style={{ width: `${b.percentage}%` }}
+                          className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        style={{ width: `${b.percentage}%` }}
-                        className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No browser telemetry recorded yet.</p>
+              )}
             </div>
           )}
 
@@ -432,21 +431,25 @@ const VisitorAnalyticsCard = ({ visitorData = null, loading = false }) => {
                 <span className="text-[11px] text-gray-400">Page hits</span>
               </div>
 
-              <div className="space-y-2">
-                {analytics.topPages.map((p, i) => (
-                  <div
-                    key={i}
-                    className="bg-white p-2.5 rounded-xl border border-gray-100 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-mono font-medium text-gray-700 truncate max-w-[180px]">
-                      {p.path}
-                    </span>
-                    <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded-md font-bold text-[11px]">
-                      {p.pageviews} views ({p.percentage}%)
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {analytics.topPages.length > 0 ? (
+                <div className="space-y-2">
+                  {analytics.topPages.map((p, i) => (
+                    <div
+                      key={i}
+                      className="bg-white p-2.5 rounded-xl border border-gray-100 flex items-center justify-between text-xs"
+                    >
+                      <span className="font-mono font-medium text-gray-700 truncate max-w-[180px]">
+                        {p.path}
+                      </span>
+                      <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                        {p.pageviews} views ({p.percentage}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No route visits recorded yet.</p>
+              )}
             </div>
           )}
 

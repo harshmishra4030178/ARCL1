@@ -42,13 +42,22 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+
   useEffect(() => {
     fetchDashboardData();
+
+    // Live auto-refresh telemetry every 30 seconds
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       setError("");
 
       const [eqRes, catRes, prodRes, inqRes, conRes, subRes, visitorRes] =
@@ -80,11 +89,12 @@ const Dashboard = () => {
         subscribers,
       });
       setVisitorData(visitorAnalytics);
+      setLastRefreshed(new Date());
     } catch (err) {
       console.error("Dashboard fetch error:", err);
       setError("Failed to load dashboard metrics");
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -101,7 +111,7 @@ const Dashboard = () => {
     (c) => c.status === "unread"
   ).length;
 
-  // 2. DYNAMIC ANALYSIS: CUSTOMER DEMAND & INQUIRIES MONTHLY TREND
+  // 2. DYNAMIC ANALYSIS: CUSTOMER DEMAND & INQUIRIES MONTHLY TREND (100% REAL DATA)
   const monthlyAnalysis = useMemo(() => {
     // Generate array for last 6 months in order
     const months = [];
@@ -137,30 +147,26 @@ const Dashboard = () => {
       });
     }
 
-    // If database has 0 historical logs yet (clean DB), populate benchmark trend baseline
-    const hasData = months.some((m) => m.total > 0);
-    if (!hasData) {
-      const fallbackBaseline = [14, 19, 26, 22, 34, Math.max(12, stats.inquiries.length)];
-      const fallbackContacts = [8, 12, 18, 15, 20, Math.max(8, stats.contacts.length)];
-      months.forEach((m, idx) => {
-        m.inquiries = fallbackBaseline[idx];
-        m.contacts = fallbackContacts[idx];
-        m.total = m.inquiries + m.contacts;
-      });
-    }
-
-    const maxVal = Math.max(...months.map((m) => Math.max(m.inquiries, m.contacts)), 20);
+    const maxVal = Math.max(...months.map((m) => Math.max(m.inquiries, m.contacts)), 5);
 
     // Calculate growth percentage
-    const firstMonth = months[0].total || 1;
-    const lastMonth = months[months.length - 1].total || 1;
-    const growthPercent = Math.round(((lastMonth - firstMonth) / firstMonth) * 100);
+    const firstMonth = months[0].total || 0;
+    const lastMonth = months[months.length - 1].total || 0;
+    let growthPercent = "0%";
+    if (firstMonth === 0 && lastMonth > 0) {
+      growthPercent = `+${lastMonth * 100}%`;
+    } else if (firstMonth > 0) {
+      const pct = Math.round(((lastMonth - firstMonth) / firstMonth) * 100);
+      growthPercent = pct >= 0 ? `+${pct}%` : `${pct}%`;
+    }
+
+    const peakMonthObj = months.reduce((prev, cur) => (cur.total >= prev.total ? cur : prev), months[0]);
 
     return {
       months,
       maxVal,
-      growthPercent: growthPercent >= 0 ? `+${growthPercent}%` : `${growthPercent}%`,
-      peakMonth: months.reduce((prev, cur) => (cur.total > prev.total ? cur : prev), months[0]).month,
+      growthPercent,
+      peakMonth: peakMonthObj?.total > 0 ? peakMonthObj.month : "N/A",
     };
   }, [stats]);
 
@@ -205,9 +211,21 @@ const Dashboard = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-full text-xs font-bold self-start sm:self-auto">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          System Status: Optimal (API v1)
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            onClick={() => fetchDashboardData(false)}
+            disabled={loading}
+            className="flex items-center gap-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-2xs transition cursor-pointer disabled:opacity-50"
+            title="Refresh Real-Time Data"
+          >
+            <FaClock className={loading ? "animate-spin text-blue-600" : "text-gray-400"} />
+            <span>{loading ? "Updating..." : "Refresh Live"}</span>
+          </button>
+
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-full text-xs font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Real-Time Live
+          </div>
         </div>
       </div>
 

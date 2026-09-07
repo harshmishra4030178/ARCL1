@@ -3,11 +3,14 @@ import Visitor from "../../models/visitorModel.js";
 // GET /api/v1/admin/analytics/visitors
 export const getVisitorAnalytics = async (req, res) => {
   try {
-    const { days = 30 } = req.query;
-    const daysInt = parseInt(days, 10) || 30;
-    const startDate = new Date(Date.now() - daysInt * 24 * 60 * 60 * 1000);
+    const { days = 7 } = req.query;
+    const daysInt = Math.max(1, parseInt(days, 10) || 7);
+    
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (daysInt - 1));
 
-    // 1. TOTAL VISITS & UNIQUE SESSIONS
+    // 1. TOTAL VISITS & UNIQUE SESSIONS (ALL-TIME)
     const totalPageviews = await Visitor.countDocuments();
     const uniqueSessions = await Visitor.distinct("sessionId");
     const totalUniqueVisitors = uniqueSessions.length;
@@ -33,19 +36,19 @@ export const getVisitorAnalytics = async (req, res) => {
       else desktopCount += item.count;
     });
 
-    const totalTracked = desktopCount + mobileCount + tabletCount || 1;
+    const totalDeviceTracked = desktopCount + mobileCount + tabletCount;
     const devices = {
       desktop: {
         count: desktopCount,
-        percentage: Math.round((desktopCount / totalTracked) * 100),
+        percentage: totalDeviceTracked > 0 ? Math.round((desktopCount / totalDeviceTracked) * 100) : 0,
       },
       mobile: {
         count: mobileCount,
-        percentage: Math.round((mobileCount / totalTracked) * 100),
+        percentage: totalDeviceTracked > 0 ? Math.round((mobileCount / totalDeviceTracked) * 100) : 0,
       },
       tablet: {
         count: tabletCount,
-        percentage: Math.round((tabletCount / totalTracked) * 100),
+        percentage: totalDeviceTracked > 0 ? Math.round((tabletCount / totalDeviceTracked) * 100) : 0,
       },
     };
 
@@ -64,7 +67,7 @@ export const getVisitorAnalytics = async (req, res) => {
     const osBreakdown = osAgg.map((item) => ({
       name: item._id || "Other",
       count: item.count,
-      percentage: Math.round((item.count / totalTracked) * 100),
+      percentage: totalDeviceTracked > 0 ? Math.round((item.count / totalDeviceTracked) * 100) : 0,
     }));
 
     // 4. BROWSER DISTRIBUTION
@@ -82,10 +85,10 @@ export const getVisitorAnalytics = async (req, res) => {
     const browserBreakdown = browserAgg.map((item) => ({
       name: item._id || "Other",
       count: item.count,
-      percentage: Math.round((item.count / totalTracked) * 100),
+      percentage: totalDeviceTracked > 0 ? Math.round((item.count / totalDeviceTracked) * 100) : 0,
     }));
 
-    // 5. DAILY TRAFFIC TREND (LAST 7 OR 14 DAYS)
+    // 5. DAILY TRAFFIC TREND (CONTINUOUS DATES)
     const dailyTrendAgg = await Visitor.aggregate([
       {
         $match: {
@@ -112,6 +115,31 @@ export const getVisitorAnalytics = async (req, res) => {
       { $sort: { date: 1 } },
     ]);
 
+    const trendMap = new Map();
+    dailyTrendAgg.forEach((item) => {
+      trendMap.set(item.date, item);
+    });
+
+    const continuousTrend = [];
+    for (let i = daysInt - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+
+      if (trendMap.has(dateStr)) {
+        continuousTrend.push(trendMap.get(dateStr));
+      } else {
+        continuousTrend.push({
+          date: dateStr,
+          pageviews: 0,
+          uniqueVisitors: 0,
+        });
+      }
+    }
+
     // 6. TOP VISITED PAGES
     const topPagesAgg = await Visitor.aggregate([
       {
@@ -121,13 +149,13 @@ export const getVisitorAnalytics = async (req, res) => {
         },
       },
       { $sort: { pageviews: -1 } },
-      { $limit: 5 },
+      { $limit: 6 },
     ]);
 
     const topPages = topPagesAgg.map((p) => ({
       path: p._id || "/",
       pageviews: p.pageviews,
-      percentage: Math.round((p.pageviews / totalTracked) * 100),
+      percentage: totalPageviews > 0 ? Math.round((p.pageviews / totalPageviews) * 100) : 0,
     }));
 
     return res.status(200).json({
@@ -136,12 +164,12 @@ export const getVisitorAnalytics = async (req, res) => {
         summary: {
           totalPageviews,
           totalUniqueVisitors,
-          mobileShare: devices.mobile.percentage,
+          mobileShare: devices.mobile.percentage + devices.tablet.percentage,
         },
         devices,
         osBreakdown,
         browserBreakdown,
-        dailyTrend: dailyTrendAgg,
+        dailyTrend: continuousTrend,
         topPages,
       },
     });
