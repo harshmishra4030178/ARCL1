@@ -42,6 +42,7 @@ const Navbar = () => {
     {
       name: "Standards",
       to: "/standards",
+      hidden: true, // Temporarily hidden from navbar as requested; underlying page and code intact
     },
     {
       name: "Blog",
@@ -202,7 +203,7 @@ const Navbar = () => {
             "
               >
                 {navLinks
-                  .filter((link) => !link.mobileOnly)
+                  .filter((link) => !link.hidden && !link.mobileOnly)
                   .map((link) =>
                     link.isExternal ? (
                     <a
@@ -288,8 +289,10 @@ const Navbar = () => {
 
                 {/* MOBILE LINKS */}
 
-                {navLinks.map((link) =>
-                  link.isExternal ? (
+                {navLinks
+                  .filter((link) => !link.hidden)
+                  .map((link) =>
+                    link.isExternal ? (
                     <a
                       key={link.name}
                       href={link.to}
