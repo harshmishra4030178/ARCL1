@@ -14,6 +14,7 @@ const EquipmentTypeProductRow = ({
   isFirst = false,
   isLast = false,
   dragHandleProps,
+  onSelectType,
 }) => {
   const scrollRef = useRef(null);
   const [mounted, setMounted] = useState(false);
@@ -59,6 +60,8 @@ const EquipmentTypeProductRow = ({
   };
 
   const typeName = formatTitleCase(section.equipmentType?.name || "Equipment");
+  const typeParam = section.equipmentType?.name || section.equipmentType?.slug || "";
+  const targetUrl = `/products?equipmentType=${encodeURIComponent(typeParam)}`;
 
   return (
     <div className="bg-white rounded-3xl border border-gray-200/80 p-5 sm:p-7 md:p-8 space-y-6 shadow-xs relative group">
@@ -116,11 +119,16 @@ const EquipmentTypeProductRow = ({
           )}
 
           <Link
-            to="/products"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
+            to={targetUrl}
+            onClick={() => {
+              if (typeof onSelectType === "function") {
+                onSelectType(typeParam);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer group/link"
           >
-            <span>View full {typeName} range</span>
-            <ChevronRight size={15} />
+            <span className="group-hover/link:underline">View full {typeName} range</span>
+            <ChevronRight size={15} className="group-hover/link:translate-x-0.5 transition-transform" />
           </Link>
 
           {/* Mini Header Nav Buttons */}

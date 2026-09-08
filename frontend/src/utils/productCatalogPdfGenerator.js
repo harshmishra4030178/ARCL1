@@ -22,7 +22,7 @@ const loadImageBase64 = async (url) => {
 
 /**
  * Generates and directly downloads the official technical catalog PDF brochure for an ARCL product
- * 1:1 identical to the website catalog brochure design
+ * 1:1 identical to the website catalog brochure design (3-page A4 format)
  * @param {Object} product The product object
  */
 export const downloadProductCatalogPdf = async (product) => {
@@ -33,12 +33,13 @@ export const downloadProductCatalogPdf = async (product) => {
   const cleanSku = (product.productCode || product.slug || "PRODUCT")
     .toUpperCase()
     .replace(/[^A-Z0-9_-]+/g, "-");
-  const filename = `ARCL-${cleanSku}-Product-Brochure.pdf`;
+  const filename = `ARCL-${cleanSku}-Technical-Brochure.pdf`;
 
-  // 1. ATTEMPT 1:1 PIXEL-PERFECT DOM RENDER OF EXACT USER DESIGN
+  // 1. ATTEMPT 1:1 PIXEL-PERFECT DOM RENDER OF EXACT USER DESIGN (3 PAGES)
   if (typeof window !== "undefined") {
     const page1El = document.querySelector(".catalog-page-1");
     const page2El = document.querySelector(".catalog-page-2");
+    const page3El = document.querySelector(".catalog-page-3");
     const catalogDocEl = document.querySelector("#catalog-document");
 
     if (page1El || catalogDocEl) {
@@ -62,7 +63,7 @@ export const downloadProductCatalogPdf = async (product) => {
           });
 
           const imgData1 = canvas1.toDataURL("image/jpeg", 0.98);
-          pdf.addImage(imgData1, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+          pdf.addImage(imgData1, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
 
           if (page2El) {
             const canvas2 = await html2canvas(page2El, {
@@ -75,7 +76,21 @@ export const downloadProductCatalogPdf = async (product) => {
 
             const imgData2 = canvas2.toDataURL("image/jpeg", 0.98);
             pdf.addPage();
-            pdf.addImage(imgData2, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+            pdf.addImage(imgData2, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
+          }
+
+          if (page3El) {
+            const canvas3 = await html2canvas(page3El, {
+              scale: 2,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: "#ffffff",
+              logging: false,
+            });
+
+            const imgData3 = canvas3.toDataURL("image/jpeg", 0.98);
+            pdf.addPage();
+            pdf.addImage(imgData3, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
           }
 
           pdf.save(filename);
@@ -90,7 +105,7 @@ export const downloadProductCatalogPdf = async (product) => {
           });
 
           const imgData = canvas.toDataURL("image/jpeg", 0.98);
-          pdf.addImage(imgData, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+          pdf.addImage(imgData, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
           pdf.save(filename);
           return filename;
         }
@@ -100,7 +115,7 @@ export const downloadProductCatalogPdf = async (product) => {
     }
   }
 
-  // 2. FALLBACK: NATIVE VECTOR PDF GENERATOR
+  // 2. FALLBACK: NATIVE VECTOR PDF GENERATOR (3 PAGES)
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -169,12 +184,12 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.text("ARCL INSTRUMENTS PVT. LTD.", margin, y);
 
   doc.setFontSize(8.5);
-  doc.text(`CATALOG SPEC SHEET: ${docRef}`, pageWidth - margin, y - 2, { align: "right" });
+  doc.text(`CATALOG SPEC: ${docRef}`, pageWidth - margin, y - 2, { align: "right" });
 
   y += 4.5;
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...brandAmber);
+  doc.setTextColor(...brandEmerald);
   doc.text("AN ISO 9001:2015 CERTIFIED COMPANY", margin, y);
 
   doc.setFont("helvetica", "normal");
@@ -190,7 +205,7 @@ export const downloadProductCatalogPdf = async (product) => {
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...textMuted);
-  doc.text("Standard: Industry Compliant", pageWidth - margin, y, { align: "right" });
+  doc.text("Standard: IS / ASTM / BS / EN Compliant", pageWidth - margin, y, { align: "right" });
 
   y += 3.5;
   doc.setDrawColor(...borderColor);
@@ -291,90 +306,90 @@ export const downloadProductCatalogPdf = async (product) => {
   const specsObj = product.specifications || {};
   const capacityVal = specsObj["Capacity"] || specsObj["capacity"] || "500 / 2000 / 3000 kN";
   const accuracyVal = specsObj["Accuracy"] || specsObj["accuracy"] || "±1% (Class 1)";
-  const displayVal = specsObj["Display Unit"] || specsObj["display"] || "10-INCH Touch / Digital";
-  const operationVal = specsObj["Control System"] || specsObj["operation"] || "SERVO CONTROLLED";
+  const displayVal = specsObj["Display Unit"] || specsObj["Display"] || specsObj["display"] || "10-INCH Touch / Digital";
+  const operationVal = specsObj["Control System"] || specsObj["Operation"] || specsObj["operation"] || "SERVO CONTROLLED";
 
   const highlightCards = [
     { title: "Capacity", val: String(capacityVal).split("/")[0].trim() || "2000 kN" },
     { title: "Loading Accuracy", val: String(accuracyVal).split("(")[0].trim() || "±1%" },
     { title: "Display Unit", val: String(displayVal).split("/")[0].trim() || "10-INCH Digital" },
-    { title: "Operation", val: String(operationVal).split("/")[0].trim() || "Automatic Servo" },
+    { title: "Operation", val: String(operationVal).split("/")[0].trim() || "SERVO CONTROLLED" },
   ];
 
   highlightCards.forEach((c, idx) => {
-    const cardX = margin + idx * (cardWidth + 3);
+    const cx = margin + idx * (cardWidth + 3);
     doc.setFillColor(...bgLight);
-    doc.roundedRect(cardX, y, cardWidth, cardHeight, 2, 2, "F");
+    doc.roundedRect(cx, y, cardWidth, cardHeight, 2, 2, "F");
     doc.setDrawColor(...borderColor);
-    doc.roundedRect(cardX, y, cardWidth, cardHeight, 2, 2, "S");
+    doc.roundedRect(cx, y, cardWidth, cardHeight, 2, 2, "S");
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(...brandNavy);
-    const splitVal = doc.splitTextToSize(c.val, cardWidth - 4);
-    doc.text(splitVal[0] || c.val, cardX + cardWidth / 2, y + 7, { align: "center" });
+    const shortVal = c.val.length > 15 ? c.val.substring(0, 14) + "..." : c.val;
+    doc.text(shortVal, cx + cardWidth / 2, y + 7.5, { align: "center" });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.5);
     doc.setTextColor(...textMuted);
-    doc.text(c.title, cardX + cardWidth / 2, y + 13.5, { align: "center" });
+    doc.text(c.title, cx + cardWidth / 2, y + 13, { align: "center" });
   });
 
   y += cardHeight + 7;
 
-  // QR Code + Certification Box at bottom of Page 1
-  const qrBoxHeight = 24;
-  doc.setFillColor(240, 249, 255);
-  doc.roundedRect(margin, y, contentWidth, qrBoxHeight, 2, 2, "F");
-  doc.setDrawColor(186, 230, 253);
-  doc.roundedRect(margin, y, contentWidth, qrBoxHeight, 2, 2, "S");
+  // Page 1 Bottom: Key Features Summary
+  doc.setFillColor(...bgLight);
+  doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, "F");
+  doc.setDrawColor(...borderColor);
+  doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, "S");
 
-  if (qrBase64) {
-    try {
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin + 3, y + 2.5, 19, 19, 1.5, 1.5, "F");
-      doc.addImage(qrBase64, "PNG", margin + 4, y + 3.5, 17, 17, undefined, "FAST");
-    } catch (e) {}
-  }
-
-  const qrTextX = qrBase64 ? margin + 26 : margin + 6;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(...brandNavy);
-  doc.text("SCAN FOR LIVE SPECS & DIGITAL CERTIFICATE", qrTextX, y + 7.5);
+  doc.text("ENGINEERING HIGHLIGHTS & SAFETY ASSURANCE", margin + 5, y + 6);
+
+  const p1Highlights = [
+    "High-Rigidity 4-Column Solid Loading Frame for minimal deflection under peak stress",
+    "Closed-Loop Digital Servo Pace Rate Regulation ensuring repeatable test cycles",
+    "Automatic Specimen Failure Peak Detection with instant auto-release valve",
+    "Direct USB & Ethernet LAN Port for automated test data export and PC software logging",
+  ];
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.2);
+  doc.setFontSize(7.5);
   doc.setTextColor(...textDark);
-  doc.text(
-    "Scan the official QR code to view live engineering specifications, test certificates, standard operating procedures, and direct factory calibration data on arclinstruments.com.",
-    qrTextX,
-    y + 12.5,
-    { maxWidth: contentWidth - (qrBase64 ? 30 : 10) }
-  );
+  p1Highlights.forEach((h, idx) => {
+    doc.text(`•  ${h}`, margin + 6, y + 13 + idx * 6);
+  });
+
+  // Page 1 Footer
+  doc.setFontSize(7);
+  doc.setTextColor(...textMuted);
+  doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
+  doc.text("Page 1 of 3", pageWidth - margin, pageHeight - 7, { align: "right" });
 
   // =========================================================================
-  // PAGE 2 — TECHNICAL INFORMATION & FEATURES
+  // PAGE 2 — TECHNICAL SPECIFICATIONS + HOW IT WORKS
   // =========================================================================
   doc.addPage();
   y = margin;
 
-  // Page 2 Mini Header
+  // Top Mini Header
   doc.setFillColor(...brandNavy);
   doc.rect(margin, y, contentWidth, 1.5, "F");
-  y += 5.5;
+  y += 5;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(...brandNavy);
-  doc.text("ARCL INSTRUMENTS PVT. LTD. — TECHNICAL SPECIFICATIONS & FEATURES", margin, y);
+  doc.text("ARCL INSTRUMENTS PVT. LTD. — TECHNICAL SPECIFICATIONS & WORKFLOW", margin, y);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...textMuted);
   doc.text(docRef, pageWidth - margin, y, { align: "right" });
 
-  y += 2.5;
+  y += 3;
   doc.setDrawColor(...borderColor);
   doc.line(margin, y, pageWidth - margin, y);
   y += 6;
@@ -384,389 +399,373 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.setFontSize(10.5);
   doc.setTextColor(...brandNavy);
   doc.text("TECHNICAL SPECIFICATIONS", margin, y);
-  y += 4;
 
-  const specKeys = Object.keys(specsObj);
-  let tableBody = [];
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...textMuted);
+  doc.text("Standard compliance & certified technical ratings", margin, y + 4.5);
+  y += 7;
 
-  if (specKeys.length > 0) {
-    tableBody = specKeys.map((key) => {
-      const val = String(specsObj[key]);
-      const standard =
-        key.toLowerCase().includes("platen") || key.toLowerCase().includes("frame")
-          ? "IS 516 / IS 14858"
-          : key.toLowerCase().includes("accuracy")
-          ? "IS 1828 / ASTM E4"
-          : "—";
-      return [formatTitleCase(key), standard, val];
-    });
+  let specRows = [];
+  if (product.specifications && Object.keys(product.specifications).length > 0) {
+    specRows = Object.entries(product.specifications).map(([k, v]) => [
+      formatTitleCase(k),
+      String(v),
+    ]);
   } else {
-    tableBody = [
-      ["Capacity", "—", "500 kN / 2000 kN / 3000 kN"],
-      ["Loading Accuracy", "IS 1828 / ASTM E4", "±1% (Class 1)"],
-      ["Upper & Lower Platens", "IS 516 / IS 14858", "Hardened & Ground Steel"],
-      ["Pace-Rate Control", "Automatic", "Servo Controlled via Microcontroller"],
-      ["Flexural Testing Attachments", "On Customer Demand", "Available"],
+    specRows = [
+      ["Frame Capacity", "500 kN / 2000 kN / 3000 kN"],
+      ["Loading Accuracy", "±1% of indicated load (Class 1)"],
+      ["Platen Hardness & Surface", "55 HRC Hardened & Fine Ground"],
+      ["Piston Travel / Stroke", "50 mm with Over-Travel Limit Switch"],
+      ["Power Supply", "415V AC, 3 Phase, 50 Hz"],
+      ["Standard Compliance", "IS 14858, IS 516, ASTM C39, BS 1881"],
     ];
   }
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    head: [["PARAMETER", "STANDARD", "TECHNICAL VALUE"]],
-    body: tableBody,
+    head: [["Parameter / Specification", "Standard Technical Value"]],
+    body: specRows.slice(0, 10),
     theme: "striped",
     headStyles: {
       fillColor: brandNavy,
       textColor: [255, 255, 255],
-      fontStyle: "bold",
       fontSize: 8,
-      cellPadding: 2.8,
+      fontStyle: "bold",
+      cellPadding: 2.5,
     },
     bodyStyles: {
       fontSize: 7.5,
       textColor: textDark,
-      cellPadding: 2.4,
+      cellPadding: 2.2,
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: contentWidth * 0.38 },
-      1: { cellWidth: contentWidth * 0.25 },
-      2: { cellWidth: contentWidth * 0.37 },
+      0: { cellWidth: 80, fontStyle: "bold", textColor: [2, 28, 87] },
+      1: { cellWidth: contentWidth - 80 },
     },
+    margin: { left: margin, right: margin },
   });
 
-  y = doc.lastAutoTable.finalY + 8;
+  y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 60;
 
-  // Key Features & Advantages (2-Column Grid)
+  // How It Works / Working Principle
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
   doc.setTextColor(...brandNavy);
-  doc.text("KEY FEATURES & ADVANTAGES", margin, y);
-  y += 5;
+  doc.text("HOW IT WORKS / WORKING PRINCIPLE", margin, y);
 
-  const defaultFeatures = [
-    "Servo Controlled Operation with advanced automatic load control",
-    "10-Inch Touchscreen Display for easy operation and monitoring",
-    "Upper & Lower Platens as per applicable IS 516 / IS 14858 requirements",
-    "Automatic Pace-Rate Control through Software",
-    "Auto Pace-Rate Display for real-time monitoring of loading rate",
-    "Data Backup Facility for secure storage and retrieval of test results",
-    "Silent Operation for a comfortable laboratory environment",
-    "User Safety Feature with Metal Door / Guard",
-    "Loading Accuracy up to ±1%",
-  ];
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...textMuted);
+  doc.text("Step-by-step standardized testing procedure", margin, y + 4.5);
+  y += 7;
 
-  const features = product.features && product.features.length > 0 ? product.features : defaultFeatures;
-  const colWidth = (contentWidth - 6) / 2;
-  const leftFeatures = features.filter((_, i) => i % 2 === 0);
-  const rightFeatures = features.filter((_, i) => i % 2 === 1);
-
-  const startFeaturesY = y;
-  let leftY = startFeaturesY;
-  leftFeatures.forEach((feat) => {
+  if (product.category?.howItWorks) {
     doc.setFillColor(240, 249, 255);
-    doc.setDrawColor(224, 242, 254);
-    const splitFeat = doc.splitTextToSize(feat, colWidth - 10);
-    const cardH = Math.max(splitFeat.length * 3.4 + 4, 10);
-
-    doc.roundedRect(margin, leftY, colWidth, cardH, 1.5, 1.5, "F");
-    doc.roundedRect(margin, leftY, colWidth, cardH, 1.5, 1.5, "S");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...brandEmerald);
-    doc.text("✓", margin + 3, leftY + 4.5);
+    doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "F");
+    doc.setDrawColor(186, 230, 253);
+    doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "S");
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
-    doc.setTextColor(...textDark);
-    doc.text(splitFeat, margin + 7.5, leftY + 4.5);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...brandNavy);
+    const splitHow = doc.splitTextToSize(product.category.howItWorks, contentWidth - 6);
+    doc.text(splitHow.slice(0, 3), margin + 3, y + 4.5);
+    y += 17;
+  }
 
-    leftY += cardH + 2.5;
-  });
+  const stepList =
+    product.category?.howItWorksSteps && product.category.howItWorksSteps.length > 0
+      ? product.category.howItWorksSteps
+      : [
+          {
+            title: "Sample Preparation & Centering",
+            description: "Place the prepared specimen symmetrically on lower platen using concentric centering guides.",
+          },
+          {
+            title: "Pace Rate & Parameter Setting",
+            description: "Configure testing parameters, specimen dimensions, and target pace rate (e.g. 5.2 kN/s) on digital HMI.",
+          },
+          {
+            title: "Automatic Servo Loading Execution",
+            description: "Initiate test with one-touch start; electro-hydraulic servo system applies uniform, shock-free compression.",
+          },
+          {
+            title: "Peak Failure Detection & Logging",
+            description: "Automatic specimen break detection stops loading, records peak stress/load, and logs data to memory.",
+          },
+        ];
 
-  let rightY = startFeaturesY;
-  rightFeatures.forEach((feat) => {
-    const col2X = margin + colWidth + 6;
-    doc.setFillColor(240, 249, 255);
-    doc.setDrawColor(224, 242, 254);
-    const splitFeat = doc.splitTextToSize(feat, colWidth - 10);
-    const cardH = Math.max(splitFeat.length * 3.4 + 4, 10);
+  const stepBoxWidth = (contentWidth - 6) / 2;
+  const stepBoxHeight = 22;
 
-    doc.roundedRect(col2X, rightY, colWidth, cardH, 1.5, 1.5, "F");
-    doc.roundedRect(col2X, rightY, colWidth, cardH, 1.5, 1.5, "S");
+  stepList.slice(0, 4).forEach((st, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const sx = margin + col * (stepBoxWidth + 6);
+    const sy = y + row * (stepBoxHeight + 4);
 
+    doc.setFillColor(...bgLight);
+    doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "F");
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "S");
+
+    // Number Badge
+    doc.setFillColor(...brandNavy);
+    doc.roundedRect(sx + 3, sy + 3, 5, 5, 1, 1, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(idx + 1), sx + 5.5, sy + 6.8, { align: "center" });
+
+    // Step Title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(...brandEmerald);
-    doc.text("✓", col2X + 3, rightY + 4.5);
+    doc.setTextColor(...brandNavy);
+    doc.text(st.title, sx + 10, sy + 6.8);
 
+    // Step Desc
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.8);
     doc.setTextColor(...textDark);
-    doc.text(splitFeat, col2X + 7.5, rightY + 4.5);
-
-    rightY += cardH + 2.5;
+    const splitDesc = doc.splitTextToSize(st.description, stepBoxWidth - 6);
+    doc.text(splitDesc.slice(0, 3), sx + 3, sy + 12);
   });
 
-  y = Math.max(leftY, rightY) + 4;
-
-  // Product Status Highlights (Reliability & Availability)
-  const statusCardWidth = (contentWidth - 6) / 2;
-  const statusH = 14;
-
-  doc.setFillColor(...bgLight);
-  doc.roundedRect(margin, y, statusCardWidth, statusH, 2, 2, "F");
-  doc.setDrawColor(...borderColor);
-  doc.roundedRect(margin, y, statusCardWidth, statusH, 2, 2, "S");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...brandNavy);
-  doc.text("RELIABILITY", margin + 4, y + 5.5);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...brandAmber);
-  doc.text("Tested & Trusted", margin + 4, y + 10.5);
-
-  const statusCard2X = margin + statusCardWidth + 6;
-  doc.setFillColor(...bgLight);
-  doc.roundedRect(statusCard2X, y, statusCardWidth, statusH, 2, 2, "F");
-  doc.setDrawColor(...borderColor);
-  doc.roundedRect(statusCard2X, y, statusCardWidth, statusH, 2, 2, "S");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...brandNavy);
-  doc.text("AVAILABILITY", statusCard2X + 4, y + 5.5);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...brandEmerald);
-  doc.text("Ready to Dispatch", statusCard2X + 4, y + 10.5);
+  // Page 2 Footer
+  doc.setFontSize(7);
+  doc.setTextColor(...textMuted);
+  doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
+  doc.text("Page 2 of 3", pageWidth - margin, pageHeight - 7, { align: "right" });
 
   // =========================================================================
-  // PAGE 3 — APPLICATIONS + COMPANY INFORMATION
+  // PAGE 3 — APPLICATIONS + STANDARD SUPPLY + CONTACT / FOOTER
   // =========================================================================
   doc.addPage();
   y = margin;
 
-  // Page 3 Mini Header
+  // Top Mini Header
   doc.setFillColor(...brandNavy);
   doc.rect(margin, y, contentWidth, 1.5, "F");
-  y += 5.5;
+  y += 5;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(...brandNavy);
-  doc.text("ARCL INSTRUMENTS PVT. LTD. — APPLICATIONS & COMPANY INFORMATION", margin, y);
+  doc.text("ARCL INSTRUMENTS PVT. LTD. — APPLICATIONS & SUPPLY OUTFIT", margin, y);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...textMuted);
   doc.text(docRef, pageWidth - margin, y, { align: "right" });
 
-  y += 2.5;
+  y += 3;
   doc.setDrawColor(...borderColor);
   doc.line(margin, y, pageWidth - margin, y);
   y += 6;
 
-  // Heading: INDUSTRIAL & LABORATORY APPLICATIONS
+  // 2-Column: Applications & System Advantages
+  const colWidth = (contentWidth - 6) / 2;
+  const colHeight = 54;
+
+  // Left: Applications
+  doc.setFillColor(236, 253, 245);
+  doc.roundedRect(margin, y, colWidth, colHeight, 2.5, 2.5, "F");
+  doc.setDrawColor(167, 243, 208);
+  doc.roundedRect(margin, y, colWidth, colHeight, 2.5, 2.5, "S");
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
-  doc.setTextColor(...brandNavy);
-  doc.text("INDUSTRIAL & LABORATORY APPLICATIONS", margin, y);
-  y += 5;
+  doc.setFontSize(8.5);
+  doc.setTextColor(6, 78, 59);
+  doc.text("KEY INDUSTRIAL & LAB APPLICATIONS", margin + 4, y + 6);
 
-  const defaultApplications = [
-    "Concrete Cube Compression Testing",
-    "Concrete Cylinder Compression Testing",
-    "Testing of Concrete Blocks and Paver Blocks",
-    "Quality Control of Ready-Mix Concrete (RMC)",
-    "Testing in Civil Engineering and Construction Material Laboratories",
-    "Research & Development Laboratories",
-    "Educational Institutions and Engineering Colleges",
-    "Infrastructure and Construction Project Laboratories",
+  const defaultApps = [
+    "Ready-Mix Concrete (RMC) & Commercial Batching Plants",
+    "Civil Engineering, Material Testing & Calibration Laboratories",
+    "Highway, Expressway, Bridge & Metro Infrastructure Projects",
+    "NABL / Quality Assurance & Government Research Institutions",
+    "Precast Concrete, Block & Construction Materials Manufacturing",
   ];
-
-  const applications =
+  const appsToRender =
     product.applications && product.applications.length > 0
       ? product.applications
-      : defaultApplications;
+      : defaultApps;
 
-  const leftApps = applications.filter((_, i) => i % 2 === 0);
-  const rightApps = applications.filter((_, i) => i % 2 === 1);
-
-  const startAppsY = y;
-  let leftAppY = startAppsY;
-  leftApps.forEach((app) => {
-    doc.setFillColor(240, 253, 244);
-    doc.setDrawColor(220, 252, 231);
-    const splitApp = doc.splitTextToSize(app, colWidth - 10);
-    const cardH = Math.max(splitApp.length * 3.4 + 4, 10);
-
-    doc.roundedRect(margin, leftAppY, colWidth, cardH, 1.5, 1.5, "F");
-    doc.roundedRect(margin, leftAppY, colWidth, cardH, 1.5, 1.5, "S");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...brandEmerald);
-    doc.text("•", margin + 3.5, leftAppY + 4.5);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
-    doc.setTextColor(...textDark);
-    doc.text(splitApp, margin + 7.5, leftAppY + 4.5);
-
-    leftAppY += cardH + 2.5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.2);
+  doc.setTextColor(15, 23, 42);
+  appsToRender.slice(0, 5).forEach((app, i) => {
+    const splitApp = doc.splitTextToSize(`•  ${app}`, colWidth - 8);
+    doc.text(splitApp.slice(0, 2), margin + 4, y + 13 + i * 8);
   });
 
-  let rightAppY = startAppsY;
-  rightApps.forEach((app) => {
-    const col2X = margin + colWidth + 6;
-    doc.setFillColor(240, 253, 244);
-    doc.setDrawColor(220, 252, 231);
-    const splitApp = doc.splitTextToSize(app, colWidth - 10);
-    const cardH = Math.max(splitApp.length * 3.4 + 4, 10);
+  // Right: System Advantages & Safety
+  const rightColX = margin + colWidth + 6;
+  doc.setFillColor(239, 246, 255);
+  doc.roundedRect(rightColX, y, colWidth, colHeight, 2.5, 2.5, "F");
+  doc.setDrawColor(191, 219, 254);
+  doc.roundedRect(rightColX, y, colWidth, colHeight, 2.5, 2.5, "S");
 
-    doc.roundedRect(col2X, rightAppY, colWidth, cardH, 1.5, 1.5, "F");
-    doc.roundedRect(col2X, rightAppY, colWidth, cardH, 1.5, 1.5, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...brandNavy);
+  doc.text("SYSTEM ADVANTAGES & SAFETY", rightColX + 4, y + 6);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...brandEmerald);
-    doc.text("•", col2X + 3.5, rightAppY + 4.5);
+  const advList = [
+    "Precision load cell / pressure transducer for high linearity",
+    "Emergency stop button & transparent fragment safety door",
+    "Over-load & over-travel hydraulic safety cut-off protection",
+    "Real-time load vs time graphical display on touchscreen",
+    "Optional RS232 / USB interface for automated PC logging",
+  ];
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
-    doc.setTextColor(...textDark);
-    doc.text(splitApp, col2X + 7.5, rightAppY + 4.5);
-
-    rightAppY += cardH + 2.5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.2);
+  doc.setTextColor(15, 23, 42);
+  advList.forEach((adv, i) => {
+    const splitAdv = doc.splitTextToSize(`•  ${adv}`, colWidth - 8);
+    doc.text(splitAdv.slice(0, 2), rightColX + 4, y + 13 + i * 8);
   });
 
-  y = Math.max(leftAppY, rightAppY) + 6;
+  y += colHeight + 8;
 
-  // Section: ENGINEERED FOR RELIABLE TESTING
+  // Complete Set Includes (Standard Supply Outfit)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...brandNavy);
-  doc.text("ENGINEERED FOR RELIABLE TESTING", margin, y);
-  y += 4;
+  doc.text("COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT)", margin, y);
+  y += 4.5;
 
-  const summaryText =
-    "ARCL Instruments Pvt. Ltd. designs and manufactures high-precision testing machinery compliant with rigorous national and international standards. Each instrument is calibrated and verified to guarantee superior accuracy, long-term operational stability, and uncompromised operator safety across heavy-duty laboratory and industrial conditions.";
-  doc.setFillColor(...bgLight);
-  doc.roundedRect(margin, y, contentWidth, 18, 2, 2, "F");
-  doc.setDrawColor(...borderColor);
-  doc.roundedRect(margin, y, contentWidth, 18, 2, 2, "S");
+  const defaultOutfit = [
+    "Main Heavy-Duty Loading Frame with High-Rigidity Construction",
+    "Hydraulic Power Pack with High-Precision Servo Valve",
+    "Advanced Digital Microprocessor / Touchscreen Controller Unit",
+    "Hardened & Ground Upper & Lower Compression Platens",
+    "Distance Pieces / Spacers Set for Multiple Specimen Sizes",
+    "Traceable National Calibration Certificate & Operating Manual",
+  ];
+  const outfitList =
+    product.completeSetIncludes && product.completeSetIncludes.length > 0
+      ? product.completeSetIncludes
+      : defaultOutfit;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...textDark);
-  doc.text(doc.splitTextToSize(summaryText, contentWidth - 8), margin + 4, y + 5);
+  const outfitBoxWidth = (contentWidth - 6) / 2;
+  const outfitBoxHeight = 12;
 
-  y += 24;
+  outfitList.slice(0, 6).forEach((item, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const ox = margin + col * (outfitBoxWidth + 6);
+    const oy = y + row * (outfitBoxHeight + 3);
 
-  // Complete Set Includes (if available)
-  if (product.completeSetIncludes && product.completeSetIncludes.length > 0) {
+    doc.setFillColor(...bgLight);
+    doc.roundedRect(ox, oy, outfitBoxWidth, outfitBoxHeight, 1.5, 1.5, "F");
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(ox, oy, outfitBoxWidth, outfitBoxHeight, 1.5, 1.5, "S");
+
+    doc.setFillColor(219, 234, 254);
+    doc.roundedRect(ox + 2.5, oy + 2.5, 4, 7, 1, 1, "F");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...brandNavy);
-    doc.text("COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT)", margin, y);
-    y += 4;
-
-    product.completeSetIncludes.slice(0, 4).forEach((item, idx) => {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(...brandEmerald);
-      doc.text(`${idx + 1}.`, margin + 2, y);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.2);
-      doc.setTextColor(...textDark);
-      doc.text(item, margin + 6, y);
-      y += 4;
-    });
-    y += 2;
-  }
-
-  // Contact / Company Section Card
-  const contactCardHeight = 36;
-  doc.setFillColor(...brandNavy);
-  doc.roundedRect(margin, y, contentWidth, contactCardHeight, 2.5, 2.5, "F");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text("ARCL INSTRUMENTS PVT. LTD.", margin + 6, y + 7);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    "Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India",
-    margin + 6,
-    y + 13
-  );
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(253, 230, 138);
-  doc.text(
-    "Head: +91 8169695728   |   Sales: +91 8369458583   |   Calibration: +91 6205691085",
-    margin + 6,
-    y + 20
-  );
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text(
-    "Email: arclinstruments@gmail.com / info@arclinstruments.com   |   Website: arclinstruments.com",
-    margin + 6,
-    y + 27
-  );
-
-  // =========================================================================
-  // FOOTER (PAGES 1, 2, 3)
-  // =========================================================================
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    const footerY = pageHeight - 13;
-
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.4);
-    doc.line(margin, footerY - 2, pageWidth - margin, footerY - 2);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.2);
-    doc.setTextColor(...brandNavy);
-    doc.text("Website: arclinstruments.com", margin, footerY + 2.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...brandBlue);
+    doc.text(String(idx + 1), ox + 4.5, oy + 6.8, { align: "center" });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.8);
     doc.setTextColor(...textDark);
-    doc.text(`Product Code: ${sku}`, pageWidth / 2, footerY + 2.5, { align: "center" });
+    const splitItem = doc.splitTextToSize(item, outfitBoxWidth - 10);
+    doc.text(splitItem.slice(0, 2), ox + 8, oy + 5.5);
+  });
+
+  y += 3 * (outfitBoxHeight + 3) + 7;
+
+  // 3 Badges Row
+  const badgeWidth = (contentWidth - 6) / 3;
+  const badgeHeight = 13;
+  const badges = [
+    { title: "ISO 9001:2015", sub: "Quality Certified" },
+    { title: "100% Quality Tested", sub: "Pre-Dispatch Inspection" },
+    { title: "Pan-India Support", sub: "On-Site Calibration" },
+  ];
+
+  badges.forEach((b, i) => {
+    const bx = margin + i * (badgeWidth + 3);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(bx, y, badgeWidth, badgeHeight, 1.5, 1.5, "F");
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(bx, y, badgeWidth, badgeHeight, 1.5, 1.5, "S");
 
     doc.setFont("helvetica", "bold");
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, footerY + 2.5, {
-      align: "right",
-    });
+    doc.setFontSize(7.5);
+    doc.setTextColor(...brandNavy);
+    doc.text(b.title, bx + badgeWidth / 2, y + 5.5, { align: "center" });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.2);
-    doc.setTextColor(148, 163, 184);
-    doc.text(
-      "© 2026 ARCL Instruments Pvt. Ltd. All rights reserved. | An ISO 9001:2015 Certified Company",
-      margin,
-      footerY + 7
-    );
-  }
+    doc.setFontSize(6.5);
+    doc.setTextColor(...textMuted);
+    doc.text(b.sub, bx + badgeWidth / 2, y + 10, { align: "center" });
+  });
 
+  y += badgeHeight + 6;
+
+  // Company Contact & Certification Footer Box
+  const contactBoxHeight = 36;
+  doc.setFillColor(...brandNavy);
+  doc.roundedRect(margin, y, contentWidth, contactBoxHeight, 2.5, 2.5, "F");
+
+  // Title in contact box
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text("ARCL INSTRUMENTS PVT. LTD.", margin + 5, y + 6);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(203, 213, 225);
+  doc.text("Precision Testing Instruments for Concrete, Cement, Soil, Bitumen & Surveying", margin + 5, y + 10.5);
+
+  doc.setDrawColor(255, 255, 255, 0.2);
+  doc.line(margin + 5, y + 13, pageWidth - margin - 5, y + 13);
+
+  // 3 Contact Columns
+  const cColWidth = (contentWidth - 10) / 3;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.8);
+  doc.setTextColor(226, 232, 240);
+
+  // Col 1: Address
+  doc.text(
+    doc.splitTextToSize("Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708", cColWidth - 4),
+    margin + 5,
+    y + 18
+  );
+
+  // Col 2: Phones
+  doc.text(
+    ["+91 8169695728 (Head)", "+91 8369458583 (Sales)", "+91 6205691085 (Calib)"],
+    margin + 5 + cColWidth,
+    y + 18
+  );
+
+  // Col 3: Email & Web
+  doc.text(
+    ["arclinstruments@gmail.com", "info@arclinstruments.com", "www.arclinstruments.com"],
+    margin + 5 + cColWidth * 2,
+    y + 18
+  );
+
+  // Page 3 Footer
+  doc.setFontSize(7);
+  doc.setTextColor(...textMuted);
+  doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
+  doc.text("Page 3 of 3", pageWidth - margin, pageHeight - 7, { align: "right" });
+
+  // Save PDF
   doc.save(filename);
   return filename;
 };

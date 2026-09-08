@@ -1,8 +1,11 @@
-import { Search, X, SlidersHorizontal } from "lucide-react";
+import { Search, X, SlidersHorizontal, Layers } from "lucide-react";
+import { formatTitleCase } from "../../utils/stringUtils.js";
 
 const ProductToolbar = ({
   search,
   setSearch,
+  selectedEquipmentType,
+  onClearEquipmentType,
   sort,
   setSort,
   totalProducts,
@@ -33,6 +36,22 @@ const ProductToolbar = ({
           </button>
         )}
       </div>
+
+      {/* ACTIVE RANGE BADGE (IF SELECTED) */}
+      {selectedEquipmentType && (
+        <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-200/80 text-[#021C57] px-3.5 py-1.5 rounded-2xl text-xs font-semibold shrink-0">
+          <Layers size={13} className="text-blue-600" />
+          <span>Range: <strong>{formatTitleCase(selectedEquipmentType)}</strong></span>
+          <button
+            type="button"
+            onClick={onClearEquipmentType}
+            className="p-0.5 hover:bg-blue-100 rounded-lg text-blue-700 hover:text-blue-900 transition cursor-pointer"
+            title="Clear equipment type filter"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* RIGHT: COUNT & SORT */}
       <div className="flex items-center gap-4 flex-wrap justify-between md:justify-end">

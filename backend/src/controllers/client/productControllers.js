@@ -143,14 +143,17 @@ export const getProducts = async (req, res) => {
       filter.category = catId;
     }
 
-    // Filter by Equipment Type (slug or ObjectId)
+    // Filter by Equipment Type (slug, name, or ObjectId)
     if (equipmentType && equipmentType.trim()) {
-      let eqId = equipmentType;
-      if (!equipmentType.match(/^[0-9a-fA-F]{24}$/)) {
+      let eqId = null;
+      if (equipmentType.match(/^[0-9a-fA-F]{24}$/)) {
+        eqId = equipmentType;
+      } else {
+        const cleanEq = equipmentType.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const eq = await EquipmentType.findOne({
           $or: [
-            { slug: equipmentType },
-            { name: { $regex: `^${equipmentType.trim()}$`, $options: "i" } },
+            { slug: equipmentType.trim().toLowerCase() },
+            { name: { $regex: `^${cleanEq}$`, $options: "i" } },
           ],
         });
         if (eq) {
@@ -176,6 +179,9 @@ export const getProducts = async (req, res) => {
         } else {
           filter.category = { $in: catIds };
         }
+      } else {
+        // Requested equipment type does not exist, return empty array immediately
+        return res.status(200).json({ success: true, count: 0, data: [] });
       }
     }
 

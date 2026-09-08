@@ -74,6 +74,17 @@ const ProductListingPage = () => {
     });
   }, [search, selectedEquipmentType, sort]);
 
+  const handleSelectEquipmentType = (typeVal) => {
+    setSelectedEquipmentType(typeVal);
+    if (typeof window !== "undefined" && window.history?.pushState) {
+      if (typeVal) {
+        window.history.pushState({}, "", `/products?equipmentType=${encodeURIComponent(typeVal)}`);
+      } else {
+        window.history.pushState({}, "", "/products");
+      }
+    }
+  };
+
   const handleResetFilters = () => {
     setSearch("");
     setSelectedEquipmentType("");
@@ -204,9 +215,46 @@ const ProductListingPage = () => {
         const pEqSlug = (p.category?.equipmentType?.slug || "")
           .toLowerCase()
           .trim();
-        return (
-          pEqId === targetEq || pEqName === targetEq || pEqSlug === targetEq
-        );
+
+        if (
+          pEqId === targetEq ||
+          pEqName === targetEq ||
+          pEqSlug === targetEq ||
+          pEqName.includes(targetEq) ||
+          targetEq.includes(pEqName)
+        ) {
+          return true;
+        }
+
+        // Cross-reference categories list if product's category is only an ID
+        const pCatId = String(p.category?._id || p.category || "");
+        if (pCatId && Array.isArray(categories) && categories.length > 0) {
+          const matchedCat = categories.find((c) => String(c._id) === pCatId);
+          if (matchedCat?.equipmentType) {
+            const catEqId = String(
+              matchedCat.equipmentType?._id || matchedCat.equipmentType || ""
+            )
+              .toLowerCase()
+              .trim();
+            const catEqName = (matchedCat.equipmentType?.name || "")
+              .toLowerCase()
+              .trim();
+            const catEqSlug = (matchedCat.equipmentType?.slug || "")
+              .toLowerCase()
+              .trim();
+            if (
+              catEqId === targetEq ||
+              catEqName === targetEq ||
+              catEqSlug === targetEq ||
+              catEqName.includes(targetEq) ||
+              targetEq.includes(catEqName)
+            ) {
+              return true;
+            }
+          }
+        }
+
+        return false;
       });
     }
 
@@ -229,7 +277,7 @@ const ProductListingPage = () => {
     }
 
     return list;
-  }, [products, search, selectedEquipmentType, hasActiveFilters]);
+  }, [products, search, selectedEquipmentType, hasActiveFilters, categories]);
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -289,7 +337,7 @@ const ProductListingPage = () => {
               equipmentTypes={orderedEquipmentTypes}
               selectedEquipmentType={selectedEquipmentType}
               setSelectedEquipmentType={(typeId) => {
-                setSelectedEquipmentType(typeId);
+                handleSelectEquipmentType(typeId);
                 setMobileFilterOpen(false);
               }}
               onReset={handleResetFilters}
@@ -306,7 +354,7 @@ const ProductListingPage = () => {
               categories={categories}
               equipmentTypes={orderedEquipmentTypes}
               selectedEquipmentType={selectedEquipmentType}
-              setSelectedEquipmentType={setSelectedEquipmentType}
+              setSelectedEquipmentType={handleSelectEquipmentType}
               onReset={handleResetFilters}
               hasActiveFilters={hasActiveFilters}
             />
@@ -317,6 +365,8 @@ const ProductListingPage = () => {
             <ProductToolbar
               search={search}
               setSearch={setSearch}
+              selectedEquipmentType={selectedEquipmentType}
+              onClearEquipmentType={() => handleSelectEquipmentType("")}
               sort={sort}
               setSort={setSort}
               totalProducts={displayedProducts.length}
@@ -334,7 +384,7 @@ const ProductListingPage = () => {
                   <EquipmentTypeProductRow
                     key={section.equipmentType._id}
                     section={section}
-                    onSelectType={(typeId) => setSelectedEquipmentType(typeId)}
+                    onSelectType={(typeId) => handleSelectEquipmentType(typeId)}
                   />
                 ))}
 
