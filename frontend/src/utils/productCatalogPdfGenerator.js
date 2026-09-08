@@ -46,31 +46,21 @@ export const downloadProductCatalogPdf = async (product) => {
   const textMuted = [100, 116, 139]; // #64748b
   const bgLight = [248, 250, 252]; // #f8fafc
 
+  // ==========================================
+  // PAGE 1: LETTERHEAD, BANNER, OVERVIEW, SPECS
+  // ==========================================
   let y = margin;
 
-  // 1. TOP LETTERHEAD / HEADER
+  // 1. TOP BRAND ACCENT BAR
   doc.setFillColor(...brandNavy);
   doc.rect(margin, y, contentWidth, 2.5, "F");
-  y += 6;
+  y += 8.5;
 
+  // 2. HEADER LETTERHEAD
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(17);
+  doc.setFontSize(15.5);
   doc.setTextColor(...brandNavy);
   doc.text("ARCL INSTRUMENTS PVT. LTD.", margin, y);
-
-  doc.setFontSize(8.5);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...brandAmber);
-  doc.text("AN ISO 9001:2015 CERTIFIED MANUFACTURER", margin, y + 4.5);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...textMuted);
-  doc.text(
-    "Civil Engineering & Material Testing Equipment | Web: arclinstruments.com | +91 81696 95728",
-    margin,
-    y + 8.5
-  );
 
   const docRef = `DOC #${(product._id || "ARCL").slice(-6).toUpperCase()}`;
   const issueDate = new Date().toLocaleDateString("en-IN", {
@@ -79,22 +69,33 @@ export const downloadProductCatalogPdf = async (product) => {
     year: "numeric",
   });
 
-  doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.setTextColor(...brandNavy);
-  doc.text(`CATALOG SPEC SHEET: ${docRef}`, pageWidth - margin, y, { align: "right" });
+  doc.text(`CATALOG SPEC SHEET: ${docRef}`, pageWidth - margin, y - 2, { align: "right" });
+
+  y += 4.5;
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...brandAmber);
+  doc.text("AN ISO 9001:2015 CERTIFIED MANUFACTURER", margin, y);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...textMuted);
-  doc.text(`Date: ${issueDate}`, pageWidth - margin, y + 4.5, { align: "right" });
-  doc.text("Standard: Industry Compliant", pageWidth - margin, y + 8.5, { align: "right" });
+  doc.text(`Date: ${issueDate}`, pageWidth - margin, y, { align: "right" });
 
-  y += 13;
+  y += 4;
+  doc.text(
+    "Civil Engineering & Material Testing Equipment | Web: arclinstruments.com | +91 81696 95728",
+    margin,
+    y
+  );
+  doc.text("Standard: Industry Compliant", pageWidth - margin, y, { align: "right" });
+
+  y += 3.5;
   doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.4);
   doc.line(margin, y, pageWidth - margin, y);
-  y += 6;
+  y += 5;
 
   // 2. PRODUCT BANNER
   doc.setFillColor(...brandNavy);
@@ -237,163 +238,162 @@ export const downloadProductCatalogPdf = async (product) => {
         1: { width: contentWidth * 0.55 },
       },
     });
-
-    y = doc.lastAutoTable.finalY + 8;
   }
 
-  // 5. WORKING PRINCIPLE & MECHANISM (IF PRESENT)
+  // ==========================================
+  // PAGE 2: OPERATING MECHANISM, FEATURES, APPS, FOOTER
+  // ==========================================
+  doc.addPage();
+  y = margin;
+
+  // PAGE 2 MINI HEADER STRIP
+  doc.setFillColor(...brandNavy);
+  doc.rect(margin, y, contentWidth, 1.5, "F");
+  y += 5.5;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...brandNavy);
+  doc.text("ARCL INSTRUMENTS PVT. LTD. — TECHNICAL SPECIFICATIONS & FEATURES", margin, y);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...textMuted);
+  doc.text(docRef, pageWidth - margin, y, { align: "right" });
+
+  y += 2.5;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 6;
+
+  // WORKING PRINCIPLE & OPERATING MECHANISM (IF PRESENT)
   const howItWorks = product.category?.howItWorks;
   if (howItWorks) {
-    if (y > pageHeight - 50) {
-      doc.addPage();
-      y = margin + 8;
-    }
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(...brandNavy);
-    doc.text("WORKING PRINCIPLE & OPERATING MECHANISM", margin, y + 2);
-    y += 5;
+    doc.text("WORKING PRINCIPLE & OPERATING MECHANISM", margin, y);
+    y += 4;
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.8);
     doc.setTextColor(...textDark);
     const splitHow = doc.splitTextToSize(howItWorks, contentWidth - 8);
-    const boxHeight = Math.min(splitHow.length * 3.8 + 6, 26);
+    const boxHeight = Math.min(splitHow.length * 3.6 + 5, 24);
 
     doc.setFillColor(254, 243, 199);
     doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, "F");
     doc.setDrawColor(245, 158, 11);
     doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, "S");
 
-    doc.text(splitHow.slice(0, 5), margin + 4, y + 4.5);
-    y += boxHeight + 8;
+    doc.text(splitHow.slice(0, 4), margin + 4, y + 4.5);
+    y += boxHeight + 7;
   }
 
-  // 6. FEATURES & APPLICATIONS
+  // 2-COLUMN FEATURES & APPLICATIONS
   const features = product.features || [];
   const applications = product.applications || [];
+  const colWidth = (contentWidth - 6) / 2;
+  const startColsY = y;
 
-  if (features.length > 0 || applications.length > 0) {
-    if (y > pageHeight - 55) {
-      doc.addPage();
-      y = margin + 8;
-    }
+  // COL 1: FEATURES
+  if (features.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...brandNavy);
+    doc.text("KEY FEATURES & ADVANTAGES", margin, y);
+    let featY = y + 4.5;
 
-    if (features.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...brandNavy);
-      doc.text("KEY FEATURES & ADVANTAGES", margin, y);
-      y += 5;
+    features.forEach((feat) => {
+      doc.setFillColor(...brandNavy);
+      doc.circle(margin + 2, featY - 1, 0.7, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...textDark);
+      const splitFeat = doc.splitTextToSize(feat, colWidth - 6);
+      doc.text(splitFeat, margin + 5, featY);
+      featY += splitFeat.length * 3.4 + 1.2;
+    });
 
-      features.forEach((feat) => {
-        if (y > pageHeight - 25) {
-          doc.addPage();
-          y = margin + 8;
-        }
-        doc.setFillColor(...brandNavy);
-        doc.circle(margin + 2, y - 1, 0.8, "F");
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7.8);
-        doc.setTextColor(...textDark);
-        const splitFeat = doc.splitTextToSize(feat, contentWidth - 8);
-        doc.text(splitFeat, margin + 5, y);
-        y += splitFeat.length * 3.6 + 1.5;
-      });
-      y += 4;
-    }
-
-    if (applications.length > 0) {
-      if (y > pageHeight - 45) {
-        doc.addPage();
-        y = margin + 8;
-      }
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...brandEmerald);
-      doc.text("INDUSTRIAL & LABORATORY APPLICATIONS", margin, y);
-      y += 5;
-
-      applications.forEach((app) => {
-        if (y > pageHeight - 25) {
-          doc.addPage();
-          y = margin + 8;
-        }
-        doc.setFillColor(...brandEmerald);
-        doc.circle(margin + 2, y - 1, 0.8, "F");
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7.8);
-        doc.setTextColor(...textDark);
-        const splitApp = doc.splitTextToSize(app, contentWidth - 8);
-        doc.text(splitApp, margin + 5, y);
-        y += splitApp.length * 3.6 + 1.5;
-      });
-      y += 4;
-    }
+    y = Math.max(y, featY);
   }
 
-  // 7. COMPLETE SET INCLUDES
+  // COL 2: APPLICATIONS
+  if (applications.length > 0) {
+    const col2X = margin + colWidth + 6;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...brandEmerald);
+    doc.text("INDUSTRIAL APPLICATIONS", col2X, startColsY);
+    let appY = startColsY + 4.5;
+
+    applications.forEach((app) => {
+      doc.setFillColor(...brandEmerald);
+      doc.circle(col2X + 2, appY - 1, 0.7, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...textDark);
+      const splitApp = doc.splitTextToSize(app, colWidth - 6);
+      doc.text(splitApp, col2X + 5, appY);
+      appY += splitApp.length * 3.4 + 1.2;
+    });
+
+    y = Math.max(y, appY);
+  }
+
+  y += 5;
+
+  // COMPLETE SET INCLUDES (IF PRESENT)
   const completeSet = product.completeSetIncludes || [];
   if (completeSet.length > 0) {
-    if (y > pageHeight - 45) {
-      doc.addPage();
-      y = margin + 8;
-    }
-
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
+    doc.setFontSize(9);
     doc.setTextColor(...brandNavy);
     doc.text("COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT)", margin, y);
-    y += 5;
+    y += 4.5;
 
     completeSet.forEach((item, idx) => {
-      if (y > pageHeight - 25) {
-        doc.addPage();
-        y = margin + 8;
-      }
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.8);
+      doc.setFontSize(7.5);
       doc.setTextColor(...brandEmerald);
       doc.text(`${idx + 1}.`, margin + 2, y);
 
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...textDark);
-      const splitItem = doc.splitTextToSize(item, contentWidth - 10);
-      doc.text(splitItem, margin + 7, y);
-      y += splitItem.length * 3.6 + 1.5;
+      const splitItem = doc.splitTextToSize(item, contentWidth - 8);
+      doc.text(splitItem, margin + 6, y);
+      y += splitItem.length * 3.4 + 1.2;
     });
     y += 4;
   }
 
-  // 8. QUALITY & CERTIFICATION BADGE STRIP
-  if (y < pageHeight - 35) {
-    doc.setFillColor(...bgLight);
-    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, "F");
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, "S");
+  // QUALITY & CERTIFICATION BADGE STRIP
+  doc.setFillColor(...bgLight);
+  doc.roundedRect(margin, y, contentWidth, 11, 2, 2, "F");
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 11, 2, 2, "S");
 
-    doc.setFontSize(7.2);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...brandNavy);
-    doc.text("ISO 9001:2015 Quality", margin + 5, y + 4.5);
-    doc.text("Factory Calibrated & Tested", margin + (contentWidth * 0.35), y + 4.5);
-    doc.text("Direct Manufacturer Warranty", margin + (contentWidth * 0.7), y + 4.5);
+  doc.setFontSize(7.2);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...brandNavy);
+  doc.text("ISO 9001:2015 Quality", margin + 4, y + 4.2);
+  doc.text("Factory Calibrated & Tested", margin + (contentWidth * 0.35), y + 4.2);
+  doc.text("Direct Manufacturer Warranty", margin + (contentWidth * 0.7), y + 4.2);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(...textMuted);
-    doc.text("Rigorous multi-stage inspection", margin + 5, y + 8.5);
-    doc.text("Compliant with ASTM/IS standards", margin + (contentWidth * 0.35), y + 8.5);
-    doc.text("Complete spares & service support", margin + (contentWidth * 0.7), y + 8.5);
-  }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...textMuted);
+  doc.text("Rigorous multi-stage inspection", margin + 4, y + 8);
+  doc.text("Compliant with ASTM/IS standards", margin + (contentWidth * 0.35), y + 8);
+  doc.text("Complete spares & service support", margin + (contentWidth * 0.7), y + 8);
 
-  // 9. FOOTER ON ALL PAGES
+  // ==========================================
+  // FOOTER ON ALL PAGES
+  // ==========================================
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    const footerY = pageHeight - 12;
+    const footerY = pageHeight - 14;
 
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.4);
@@ -402,7 +402,7 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...brandNavy);
-    doc.text("ARCL Instruments Pvt. Ltd.", margin, footerY + 2);
+    doc.text("ARCL Instruments Pvt. Ltd.", margin, footerY + 2.5);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
@@ -410,21 +410,21 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.text(
       "| Airoli, Navi Mumbai - 400708 | arclinstruments@gmail.com | +91 81696 95728",
       margin + 36,
-      footerY + 2
+      footerY + 2.5
     );
 
     doc.setFont("helvetica", "bold");
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, footerY + 2, {
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, footerY + 2.5, {
       align: "right",
     });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      "ISO 9001:2015 Certified Manufacturer | Technical specifications subject to continuous engineering enhancement.",
+      "ISO 9001:2015 Certified Manufacturer | Technical specifications are subject to continuous engineering enhancement.",
       margin,
-      footerY + 6
+      footerY + 7
     );
   }
 
