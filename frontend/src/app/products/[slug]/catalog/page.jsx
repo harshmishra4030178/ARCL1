@@ -3,11 +3,12 @@ import ProductCatalogPdfClient from "../../../../views/ProductCatalogPdfPage.jsx
 export const dynamic = "force-dynamic";
 
 const getBackendUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.startsWith("http")) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (process.env.VERCEL || (process.env.NODE_ENV === "production" && (!envUrl || envUrl.includes("localhost")))) {
     return "https://arcl1-1.onrender.com/api/v1";
+  }
+  if (envUrl && envUrl.startsWith("http")) {
+    return envUrl;
   }
   return "http://localhost:5000/api/v1";
 };

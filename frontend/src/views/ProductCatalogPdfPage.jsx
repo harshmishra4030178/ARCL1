@@ -492,13 +492,24 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
       </div>
 
-      {/* 3. FLOATING PRINT BUTTON (Bottom Mobile Friendly) */}
+      {/* 3. FLOATING DIRECT DOWNLOAD BUTTON (Bottom Mobile Friendly) */}
       <div className="max-w-4xl mx-auto mt-6 text-center print:hidden">
         <button
-          onClick={handlePrintDownload}
-          className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white px-8 py-3 rounded-2xl font-bold shadow-lg transition duration-200 cursor-pointer text-sm"
+          onClick={handleDirectDownload}
+          disabled={downloading}
+          className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] disabled:bg-blue-950 text-white px-8 py-3.5 rounded-2xl font-bold shadow-lg transition duration-200 cursor-pointer text-sm active:scale-95 disabled:cursor-not-allowed"
         >
-          <Printer size={16} /> Print / Save as PDF
+          {downloading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Downloading Catalog PDF...</span>
+            </>
+          ) : (
+            <>
+              <Download size={18} />
+              <span>Download Catalog (PDF)</span>
+            </>
+          )}
         </button>
       </div>
     </div>
