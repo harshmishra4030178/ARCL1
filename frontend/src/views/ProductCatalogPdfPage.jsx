@@ -61,172 +61,26 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     if (downloading || !product) return;
     try {
       setDownloading(true);
-      const toastId = toast.loading("Generating PDF catalog document...");
+      const toastId = toast.loading("Generating Official PDF Catalog...");
 
-      const element = document.getElementById("catalog-document");
-      if (!element) {
-        toast.update(toastId, {
-          render: "Catalog document element not found.",
-          type: "error",
-          isLoading: false,
-          autoClose: 2500,
-        });
-        setDownloading(false);
-        return;
-      }
-
-      // Pre-convert all images to base64 Data URLs so canvas is never tainted
-      const images = element.querySelectorAll("img");
-      await Promise.all(
-        Array.from(images).map(async (img) => {
-          if (!img.src || img.src.startsWith("data:")) return;
-          try {
-            const res = await fetch(img.src, { mode: "cors" });
-            if (!res.ok) return;
-            const blob = await res.blob();
-            await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                img.src = reader.result;
-                resolve();
-              };
-              reader.onerror = () => resolve();
-              reader.readAsDataURL(blob);
-            });
-          } catch (e) {
-            // Ignore individual image load failure
-          }
-        })
-      );
-
-      // Render DOM to High-Resolution Canvas using html-to-image or html2canvas-pro
-      let canvas = null;
-      try {
-        const { toCanvas } = await import("html-to-image");
-        canvas = await toCanvas(element, {
-          quality: 0.98,
-          pixelRatio: 2,
-          backgroundColor: "#ffffff",
-          cacheBust: true,
-          style: {
-            margin: "0",
-            maxWidth: "100%",
-            borderRadius: "0",
-            boxShadow: "none",
-          },
-        });
-      } catch (toImageErr) {
-        console.warn("html-to-image fallback to html2canvas-pro:", toImageErr);
-        const html2canvasProModule = await import("html2canvas-pro");
-        const html2canvasPro = html2canvasProModule.default || html2canvasProModule;
-        canvas = await html2canvasPro(element, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        });
-      }
-
-      if (!canvas) {
-        throw new Error("Could not render document canvas");
-      }
-
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-
-      const pdfWidth = 210;
-      const pdfHeight = 297;
-      const margin = 8;
-      const contentWidth = pdfWidth - margin * 2;
-      const pageContentHeight = pdfHeight - margin * 2;
-
-      let currentY = 0;
-      let pageIndex = 0;
-
-      while (currentY < canvas.height) {
-        if (pageIndex > 0) {
-          pdf.addPage();
-        }
-
-        const sliceHeightPx = Math.min(
-          canvas.height - currentY,
-          (pageContentHeight * canvas.width) / contentWidth
-        );
-
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = sliceHeightPx;
-        const pageCtx = pageCanvas.getContext("2d");
-        pageCtx.fillStyle = "#ffffff";
-        pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-
-        pageCtx.drawImage(
-          canvas,
-          0,
-          currentY,
-          canvas.width,
-          sliceHeightPx,
-          0,
-          0,
-          canvas.width,
-          sliceHeightPx
-        );
-
-        const sliceImgData = pageCanvas.toDataURL("image/jpeg", 0.98);
-        const sliceHeightMm = (sliceHeightPx * contentWidth) / canvas.width;
-
-        pdf.addImage(
-          sliceImgData,
-          "JPEG",
-          margin,
-          margin,
-          contentWidth,
-          sliceHeightMm,
-          undefined,
-          "FAST"
-        );
-
-        currentY += sliceHeightPx;
-        pageIndex++;
-      }
-
-      const cleanName = (product?.name || "Product")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const filename = `ARCL-${cleanName}-Catalog.pdf`;
-
-      pdf.save(filename);
+      await downloadProductCatalogPdf(product);
 
       toast.update(toastId, {
         render: "Catalog PDF downloaded successfully!",
         type: "success",
         isLoading: false,
-        autoClose: 3000,
+        autoClose: 2500,
       });
     } catch (err) {
       console.error("Direct PDF download error:", err);
       reportClientError({
-        message: `Catalog PDF Generation Exception: ${err.message || "Canvas Export Failed"}`,
+        message: `Catalog PDF Generation Exception: ${err.message || "Export Failed"}`,
         stack: err.stack,
         severity: "error",
         metadata: { product: product?.name, slug: product?.slug },
       });
-
-      try {
-        await downloadProductCatalogPdf(product);
-        toast.dismiss();
-        toast.success("Catalog PDF generated and downloaded to your device!");
-      } catch (fallbackErr) {
-        toast.dismiss();
-        toast.error("Could not download PDF. Please try again.");
-      }
+      toast.dismiss();
+      toast.error("Could not download PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
