@@ -29,6 +29,11 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const { product: storeProduct, loading: storeLoading, error, fetchSingleProduct } = useProductStore();
   const [product, setProduct] = useState(initialProduct || null);
   const [downloading, setDownloading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (initialProduct) {
@@ -48,7 +53,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     }
   }, [storeProduct]);
 
-  const loading = !product && storeLoading;
+  const loading = !product && (storeLoading || !mounted);
 
   const handleDirectDownload = async () => {
     if (downloading) return;
@@ -189,11 +194,13 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     );
   }
 
-  const currentDate = new Date().toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const currentDate = mounted
+    ? new Date().toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
 
   const imageUrl =
     Array.isArray(product.images) && product.images[0]
