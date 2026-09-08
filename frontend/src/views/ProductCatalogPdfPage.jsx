@@ -35,22 +35,111 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
     }
   }, [slug]);
 
-  const handlePrintDownload = () => {
+  const handleDirectDownload = async () => {
+    if (downloading) return;
     try {
-      if (typeof window !== "undefined") {
-        const originalTitle = document.title;
-        if (product?.name) {
-          document.title = `ARCL - ${formatTitleCase(product.name)} - Technical Catalog`;
-        }
-        window.print();
-        setTimeout(() => {
-          document.title = originalTitle;
-        }, 1500);
+      setDownloading(true);
+      const toastId = toast.loading("Generating direct PDF download...");
+
+      const element = document.getElementById("catalog-document");
+      if (!element) {
+        toast.update(toastId, {
+          render: "Catalog document not found.",
+          type: "error",
+          isLoading: false,
+          autoClose: 2000,
+        });
+        setDownloading(false);
+        return;
       }
+
+      // Dynamic imports to guarantee 100% SSR safety in Next.js
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 6;
+      const contentWidth = pdfWidth - margin * 2;
+      const contentHeight = (canvas.height * contentWidth) / canvas.width;
+
+      let heightLeft = contentHeight;
+      let position = margin;
+
+      // Page 1
+      pdf.addImage(
+        imgData,
+        "JPEG",
+        margin,
+        position,
+        contentWidth,
+        contentHeight,
+        undefined,
+        "FAST"
+      );
+      heightLeft -= (pdfHeight - margin * 2);
+
+      // Remaining pages if catalog spans multiple A4 pages
+      while (heightLeft > 0) {
+        position = margin - (contentHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(
+          imgData,
+          "JPEG",
+          margin,
+          position,
+          contentWidth,
+          contentHeight,
+          undefined,
+          "FAST"
+        );
+        heightLeft -= (pdfHeight - margin * 2);
+      }
+
+      const cleanName = (product?.name || "Product")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      const filename = `ARCL-${cleanName}-Catalog.pdf`;
+
+      // Direct file download to user's device
+      pdf.save(filename);
+
+      toast.update(toastId, {
+        render: "Catalog PDF downloaded successfully to your device!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000,
+      });
     } catch (err) {
-      console.error("PDF Print error:", err);
+      console.error("Direct PDF download error:", err);
+      toast.dismiss();
+      toast.error("Could not generate direct PDF file. Opening browser print/save...");
       window.print();
+    } finally {
+      setDownloading(false);
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   if (loading) {
@@ -137,10 +226,21 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
           </a>
 
           <button
-            onClick={handlePrintDownload}
-            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer"
+            onClick={handleDirectDownload}
+            disabled={downloading}
+            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] disabled:bg-blue-950 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer disabled:cursor-not-allowed"
           >
-            <Download size={15} /> Download Catalog (PDF)
+            {downloading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Downloading PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download size={15} />
+                <span>Download Catalog (PDF)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
