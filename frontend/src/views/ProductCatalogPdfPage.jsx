@@ -63,7 +63,68 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
       setDownloading(true);
       const toastId = toast.loading("Generating Official PDF Catalog...");
 
-      await downloadProductCatalogPdf(product);
+      const element = document.getElementById("catalog-document");
+      if (!element) {
+        throw new Error("Catalog document element not found");
+      }
+
+      // Pre-convert all images in element to base64 Data URLs so CORS/canvas never gets blocked
+      const images = element.querySelectorAll("img");
+      await Promise.all(
+        Array.from(images).map(async (img) => {
+          if (!img.src || img.src.startsWith("data:")) return;
+          try {
+            const res = await fetch(img.src, { mode: "cors" });
+            if (!res.ok) return;
+            const blob = await res.blob();
+            await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                img.src = reader.result;
+                resolve();
+              };
+              reader.onerror = () => resolve();
+              reader.readAsDataURL(blob);
+            });
+          } catch (e) {}
+        })
+      );
+
+      const html2canvasProModule = await import("html2canvas-pro");
+      const html2canvasPro = html2canvasProModule.default || html2canvasProModule;
+      window.html2canvas = html2canvasPro;
+
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const cleanName = (product?.name || "Product")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      const filename = `ARCL-${cleanName}-Catalog.pdf`;
+
+      await new Promise((resolve, reject) => {
+        pdf.html(element, {
+          callback: function (doc) {
+            doc.save(filename);
+            resolve();
+          },
+          x: 15,
+          y: 15,
+          width: 565,
+          windowWidth: 850,
+          autoPaging: "text",
+          html2canvas: {
+            useCORS: true,
+            allowTaint: true,
+            scale: 2,
+          },
+        }).catch(reject);
+      });
 
       toast.update(toastId, {
         render: "Catalog PDF downloaded successfully!",
@@ -72,15 +133,21 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         autoClose: 2500,
       });
     } catch (err) {
-      console.error("Direct PDF download error:", err);
-      reportClientError({
-        message: `Catalog PDF Generation Exception: ${err.message || "Export Failed"}`,
-        stack: err.stack,
-        severity: "error",
-        metadata: { product: product?.name, slug: product?.slug },
-      });
-      toast.dismiss();
-      toast.error("Could not download PDF. Please try again.");
+      console.error("Direct PDF download error, attempting fallback:", err);
+      try {
+        await downloadProductCatalogPdf(product);
+        toast.dismiss();
+        toast.success("Catalog PDF downloaded successfully!");
+      } catch (fallbackErr) {
+        reportClientError({
+          message: `Catalog PDF Generation Exception: ${err.message || "Export Failed"}`,
+          stack: err.stack,
+          severity: "error",
+          metadata: { product: product?.name, slug: product?.slug },
+        });
+        toast.dismiss();
+        toast.error("Could not download PDF. Please try again.");
+      }
     } finally {
       setDownloading(false);
     }
