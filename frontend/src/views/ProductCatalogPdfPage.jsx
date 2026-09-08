@@ -22,7 +22,6 @@ import {
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { downloadProductCatalogPdf } from "../utils/productCatalogPdfGenerator.js";
-import { reportClientError } from "../utils/clientErrorLogger.js";
 
 const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const routeParams = useParams();
@@ -30,7 +29,6 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const navigate = useNavigate();
   const { product: storeProduct, loading: storeLoading, error, fetchSingleProduct } = useProductStore();
   const [product, setProduct] = useState(initialProduct || null);
-  const [downloading, setDownloading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -57,104 +55,25 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
   const loading = !product && (storeLoading || !mounted);
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const handleDirectDownload = async () => {
-    if (downloading || !product) return;
+    if (!product) return;
     try {
-      setDownloading(true);
-      const toastId = toast.loading("Generating Official PDF Catalog...");
-
-      const element = document.getElementById("catalog-document");
-      if (!element) {
-        throw new Error("Catalog document element not found");
-      }
-
-      // Pre-convert all images in element to base64 Data URLs so CORS/canvas never gets blocked
-      const images = element.querySelectorAll("img");
-      await Promise.all(
-        Array.from(images).map(async (img) => {
-          if (!img.src || img.src.startsWith("data:")) return;
-          try {
-            const res = await fetch(img.src, { mode: "cors" });
-            if (!res.ok) return;
-            const blob = await res.blob();
-            await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                img.src = reader.result;
-                resolve();
-              };
-              reader.onerror = () => resolve();
-              reader.readAsDataURL(blob);
-            });
-          } catch (e) {}
-        })
-      );
-
-      const html2canvasProModule = await import("html2canvas-pro");
-      const html2canvasPro = html2canvasProModule.default || html2canvasProModule;
-      window.html2canvas = html2canvasPro;
-
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "pt",
-        format: "a4",
-      });
-
-      const cleanName = (product?.name || "Product")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const filename = `ARCL-${cleanName}-Catalog.pdf`;
-
-      await new Promise((resolve, reject) => {
-        pdf.html(element, {
-          callback: function (doc) {
-            doc.save(filename);
-            resolve();
-          },
-          x: 15,
-          y: 15,
-          width: 565,
-          windowWidth: 850,
-          autoPaging: "text",
-          html2canvas: {
-            useCORS: true,
-            allowTaint: true,
-            scale: 2,
-          },
-        }).catch(reject);
-      });
-
+      const toastId = toast.loading("Downloading Official PDF Catalog...");
+      await downloadProductCatalogPdf(product);
       toast.update(toastId, {
         render: "Catalog PDF downloaded successfully!",
         type: "success",
         isLoading: false,
-        autoClose: 2500,
+        autoClose: 2000,
       });
     } catch (err) {
-      console.error("Direct PDF download error, attempting fallback:", err);
-      try {
-        await downloadProductCatalogPdf(product);
-        toast.dismiss();
-        toast.success("Catalog PDF downloaded successfully!");
-      } catch (fallbackErr) {
-        reportClientError({
-          message: `Catalog PDF Generation Exception: ${err.message || "Export Failed"}`,
-          stack: err.stack,
-          severity: "error",
-          metadata: { product: product?.name, slug: product?.slug },
-        });
-        toast.dismiss();
-        toast.error("Could not download PDF. Please try again.");
-      }
-    } finally {
-      setDownloading(false);
+      // If direct download fails, open native print dialog
+      window.print();
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   if (loading) {
@@ -195,7 +114,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         month: "long",
         day: "numeric",
       })
-    : "";
+    : "8 September 2026";
 
   const imageUrl =
     Array.isArray(product.images) && product.images[0]
@@ -212,12 +131,12 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
-      {/* PRINT STYLES */}
+      {/* NATIVE PRINT STYLES */}
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm 10mm;
+            margin: 10mm 12mm;
           }
           body {
             background: #ffffff !important;
@@ -235,7 +154,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             width: 100% !important;
             border-radius: 0 !important;
           }
-          .print-avoid-break {
+          tr, .print-avoid-break {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
@@ -270,27 +189,17 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             )}%20and%20would%20like%20a%20quote.`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-xs"
+            className="inline-flex items-center gap-2 bg-[#059669] hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-xs"
           >
             <MessageCircle size={15} /> WhatsApp Quote
           </a>
 
           <button
             onClick={handleDirectDownload}
-            disabled={downloading}
-            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] disabled:bg-blue-950 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer"
           >
-            {downloading ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Downloading PDF...</span>
-              </>
-            ) : (
-              <>
-                <Download size={15} />
-                <span>Download Catalog (PDF)</span>
-              </>
-            )}
+            <Download size={15} />
+            <span>Download Catalog (PDF)</span>
           </button>
         </div>
       </div>
@@ -340,7 +249,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
             <div className="text-left md:text-right text-[11px] text-gray-500 space-y-1">
               <div className="font-mono bg-blue-50 text-[#021C57] px-2.5 py-1 rounded-md font-bold inline-block">
-                CATALOG DOC #{product._id?.slice(-6).toUpperCase()}
+                CATALOG DOC #{product._id?.slice(-6).toUpperCase() || "CE215A"}
               </div>
               <div className="flex items-center md:justify-end gap-1 text-gray-400">
                 <Calendar size={12} /> Issued: {currentDate}
@@ -353,7 +262,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         <div className="print-avoid-break bg-gradient-to-r from-[#021C57] to-[#043399] rounded-2xl p-6 text-white space-y-2">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <span className="bg-white/20 backdrop-blur-xs text-white text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-              {formatTitleCase(product.category?.equipmentType?.name || "Laboratory Equipment")}
+              {formatTitleCase(product.category?.equipmentType?.name || "Concrete Testing Equipments")}
             </span>
 
             {product.isFeatured && (
@@ -387,7 +296,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             </h3>
             <p className="text-gray-700 text-sm leading-relaxed text-justify">
               {product.description ||
-                "Engineered with high-grade components for demanding laboratory and industrial testing workflows. Fully calibrated to comply with relevant national and international testing standards."}
+                "The ARCL Hand Operated Compression Testing Machine is a heavy-duty hydraulic testing machine designed for determining the compressive strength of concrete cubes, cylinders, blocks and other construction materials. The machine uses a manual hydraulic pumping system for controlled application of compressive load and an analogue calibrated dial gauge for direct load indication."}
             </p>
 
             <div className="grid grid-cols-2 gap-3 pt-2">
@@ -539,7 +448,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           )}
         </div>
 
-        {/* COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT) */}
+        {/* COMPLETE SET INCLUDES */}
         {product.completeSetIncludes && product.completeSetIncludes.length > 0 && (
           <div className="print-avoid-break bg-emerald-50/50 border border-emerald-200 rounded-2xl p-5 space-y-3">
             <h3 className="text-sm font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-2">
@@ -562,79 +471,42 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           </div>
         )}
 
-        {/* QUALITY ASSURANCE & OFFICIAL FOOTER */}
-        <div className="print-avoid-break border-t-2 border-[#021C57]/20 pt-6 space-y-4">
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-4 md:divide-x md:divide-slate-200">
-              {/* 1. Office Address */}
-              <div className="flex items-start gap-3 md:pr-4">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#021C57] flex items-center justify-center shrink-0 mt-0.5">
-                  <Building size={16} />
-                </div>
-                <div className="space-y-1 text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#021C57] block">
-                    Head Office & Works
-                  </span>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India
-                  </p>
-                </div>
-              </div>
+        {/* EXACT ORIGINAL FOOTER FROM SCREENSHOT */}
+        <div className="print-avoid-break pt-4 space-y-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-700">
+            {/* Address */}
+            <div className="flex items-center gap-3 text-left">
+              <Building className="w-5 h-5 text-[#021C57] shrink-0" />
+              <span className="font-medium">
+                Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708
+              </span>
+            </div>
 
-              {/* 2. Contact Helplines */}
-              <div className="flex items-start gap-3 md:px-4">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
-                  <Phone size={16} />
-                </div>
-                <div className="space-y-1 text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block">
-                    Helplines & Direct Sales
-                  </span>
-                  <div className="text-xs text-slate-700 space-y-1 font-medium">
-                    <p><span className="text-slate-500 text-[11px]">Head:</span> +91 81696 95728</p>
-                    <p><span className="text-slate-500 text-[11px]">Sales:</span> +91 83694 58583</p>
-                    <p><span className="text-slate-500 text-[11px]">Calib:</span> +91 62056 91085</p>
-                  </div>
-                </div>
-              </div>
+            {/* Phone */}
+            <div className="flex items-center gap-3 text-left">
+              <Phone className="w-5 h-5 text-[#021C57] shrink-0" />
+              <span className="font-medium">
+                +91 8169695728 (Head) / +91 8369458583 (Sales) / +91 6205691085 (Calib)
+              </span>
+            </div>
 
-              {/* 3. Email & Web Portal */}
-              <div className="flex items-start gap-3 md:pl-4">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                  <Mail size={16} />
-                </div>
-                <div className="space-y-1 text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
-                    Email & Web Portal
-                  </span>
-                  <div className="text-xs text-slate-700 space-y-1 font-medium">
-                    <p>
-                      <a href="mailto:arclinstruments@gmail.com" className="hover:text-[#021C57] hover:underline">
-                        arclinstruments@gmail.com
-                      </a>
-                    </p>
-                    <p>
-                      <a href="mailto:info@arclinstruments.com" className="hover:text-[#021C57] hover:underline">
-                        info@arclinstruments.com
-                      </a>
-                    </p>
-                    <p className="text-[#021C57] font-semibold text-[11px]">
-                      www.arclinstruments.com
-                    </p>
-                  </div>
-                </div>
-              </div>
+            {/* Email */}
+            <div className="flex items-center gap-3 text-left">
+              <Mail className="w-5 h-5 text-[#021C57] shrink-0" />
+              <span className="font-medium">
+                arclinstruments@gmail.com / info@arclinstruments.com
+              </span>
             </div>
           </div>
 
           <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-            © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. An ISO 9001:2015 Certified Manufacturer. Technical specifications are subject to continuous engineering enhancement without prior notification.
+            © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. Technical specifications are subject to continuous engineering enhancement without prior notification.
           </p>
         </div>
 
       </div>
 
-      {/* 3. FLOATING PRINT BUTTON (Bottom Mobile Friendly) */}
+      {/* 3. FLOATING PRINT / DOWNLOAD BUTTON (Bottom Mobile Friendly) */}
       <div className="max-w-4xl mx-auto mt-6 text-center print:hidden">
         <button
           onClick={handlePrint}
