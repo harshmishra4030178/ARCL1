@@ -18,7 +18,6 @@ import {
   Phone,
   Calendar,
   Cog,
-  Check,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
@@ -62,12 +61,12 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     if (downloading || !product) return;
     try {
       setDownloading(true);
-      const toastId = toast.loading("Generating 3-page PDF catalog document...");
+      const toastId = toast.loading("Generating PDF catalog document...");
 
-      const pageElements = document.querySelectorAll(".catalog-page");
-      if (!pageElements || pageElements.length === 0) {
+      const element = document.getElementById("catalog-document");
+      if (!element) {
         toast.update(toastId, {
-          render: "Catalog pages not found.",
+          render: "Catalog document element not found.",
           type: "error",
           isLoading: false,
           autoClose: 2500,
@@ -76,10 +75,10 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         return;
       }
 
-      // Pre-convert all images in all pages to base64 Data URLs so canvas is never tainted
-      const allImages = document.querySelectorAll("#catalog-document img");
+      // Pre-convert all images to base64 Data URLs so canvas is never tainted
+      const images = element.querySelectorAll("img");
       await Promise.all(
-        Array.from(allImages).map(async (img) => {
+        Array.from(images).map(async (img) => {
           if (!img.src || img.src.startsWith("data:")) return;
           try {
             const res = await fetch(img.src, { mode: "cors" });
@@ -95,10 +94,43 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
               reader.readAsDataURL(blob);
             });
           } catch (e) {
-            // Ignore individual image failure
+            // Ignore individual image load failure
           }
         })
       );
+
+      // Render DOM to High-Resolution Canvas using html-to-image or html2canvas-pro
+      let canvas = null;
+      try {
+        const { toCanvas } = await import("html-to-image");
+        canvas = await toCanvas(element, {
+          quality: 0.98,
+          pixelRatio: 2,
+          backgroundColor: "#ffffff",
+          cacheBust: true,
+          style: {
+            margin: "0",
+            maxWidth: "100%",
+            borderRadius: "0",
+            boxShadow: "none",
+          },
+        });
+      } catch (toImageErr) {
+        console.warn("html-to-image fallback to html2canvas-pro:", toImageErr);
+        const html2canvasProModule = await import("html2canvas-pro");
+        const html2canvasPro = html2canvasProModule.default || html2canvasProModule;
+        canvas = await html2canvasPro(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+        });
+      }
+
+      if (!canvas) {
+        throw new Error("Could not render document canvas");
+      }
 
       const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF({
@@ -108,43 +140,60 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         compress: true,
       });
 
-      const { toCanvas } = await import("html-to-image");
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const margin = 8;
+      const contentWidth = pdfWidth - margin * 2;
+      const pageContentHeight = pdfHeight - margin * 2;
 
-      for (let i = 0; i < pageElements.length; i++) {
-        const pageEl = pageElements[i];
-        if (i > 0) {
+      let currentY = 0;
+      let pageIndex = 0;
+
+      while (currentY < canvas.height) {
+        if (pageIndex > 0) {
           pdf.addPage();
         }
 
-        let pageCanvas = null;
-        try {
-          pageCanvas = await toCanvas(pageEl, {
-            quality: 0.98,
-            pixelRatio: 2,
-            backgroundColor: "#ffffff",
-            cacheBust: true,
-            style: {
-              margin: "0",
-              boxShadow: "none",
-            },
-          });
-        } catch (toImgErr) {
-          console.warn("html-to-image fallback to html2canvas-pro:", toImgErr);
-          const html2canvasProModule = await import("html2canvas-pro");
-          const html2canvasPro = html2canvasProModule.default || html2canvasProModule;
-          pageCanvas = await html2canvasPro(pageEl, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#ffffff",
-            logging: false,
-          });
-        }
+        const sliceHeightPx = Math.min(
+          canvas.height - currentY,
+          (pageContentHeight * canvas.width) / contentWidth
+        );
 
-        if (pageCanvas) {
-          const pageImgData = pageCanvas.toDataURL("image/jpeg", 0.98);
-          pdf.addImage(pageImgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
-        }
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeightPx;
+        const pageCtx = pageCanvas.getContext("2d");
+        pageCtx.fillStyle = "#ffffff";
+        pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+        pageCtx.drawImage(
+          canvas,
+          0,
+          currentY,
+          canvas.width,
+          sliceHeightPx,
+          0,
+          0,
+          canvas.width,
+          sliceHeightPx
+        );
+
+        const sliceImgData = pageCanvas.toDataURL("image/jpeg", 0.98);
+        const sliceHeightMm = (sliceHeightPx * contentWidth) / canvas.width;
+
+        pdf.addImage(
+          sliceImgData,
+          "JPEG",
+          margin,
+          margin,
+          contentWidth,
+          sliceHeightMm,
+          undefined,
+          "FAST"
+        );
+
+        currentY += sliceHeightPx;
+        pageIndex++;
       }
 
       const cleanName = (product?.name || "Product")
@@ -240,8 +289,6 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         product.category.howItWorksSteps.length > 0)
   );
 
-  const docId = (product._id || "ARCL").slice(-6).toUpperCase();
-
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
       {/* PRINT STYLES */}
@@ -249,27 +296,27 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 10mm 10mm;
           }
           body {
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .catalog-page {
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            margin: 0 !important;
-            padding: 12mm 14mm !important;
+          #catalog-document {
             border: none !important;
-            border-radius: 0 !important;
             box-shadow: none !important;
-            width: 210mm !important;
-            min-height: 297mm !important;
-            height: 297mm !important;
-            box-sizing: border-box !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            border-radius: 0 !important;
+          }
+          .print-avoid-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -292,7 +339,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             {formatTitleCase(product.name)}
           </Link>
           <ChevronRight size={12} className="text-gray-400 shrink-0" />
-          <span className="font-bold text-[#021C57]">PDF Catalog (3 Pages)</span>
+          <span className="font-bold text-[#021C57]">PDF Catalog</span>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -327,409 +374,341 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         </div>
       </div>
 
-      {/* 2. OFFICIAL CATALOG PRINTABLE PAGES CONTAINER */}
-      <div id="catalog-document" className="max-w-4xl mx-auto space-y-8 print:space-y-0">
-        
-        {/* ==================== PAGE 1 ==================== */}
-        <div className="catalog-page bg-white border border-gray-300 rounded-3xl shadow-xl p-8 md:p-12 text-gray-800 flex flex-col justify-between min-h-[1050px] relative">
-          <div className="space-y-6">
-            {/* HEADER LETTERHEAD */}
-            <div className="border-b-2 border-[#021C57] pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <img
-                  src={logo}
-                  alt="ARCL Logo"
-                  crossOrigin="anonymous"
-                  className="w-20 md:w-24 object-contain"
-                />
-                <div>
-                  <h1 className="text-xl md:text-2xl font-black text-[#021C57] tracking-tight">
-                    ARCL INSTRUMENTS PVT. LTD.
-                  </h1>
-                  <p className="text-xs md:text-sm font-semibold text-emerald-700 mt-0.5 flex items-center gap-1.5">
-                    <Award size={14} /> An ISO 9001:2015 Certified Company
-                  </p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                    Building Trust Through Precision Quality & Engineered Reliability
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 self-start sm:self-auto">
-                {product.qrCode && (
-                  <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 flex items-center gap-2">
-                    <img
-                      src={product.qrCode}
-                      alt="Product QR"
-                      crossOrigin="anonymous"
-                      className="w-13 h-13 object-contain bg-white rounded-lg p-0.5 border border-blue-100"
-                    />
-                    <div className="text-[8.5px] font-bold text-[#021C57] leading-tight text-left">
-                      <span>SCAN FOR LIVE</span><br />
-                      <span className="text-gray-500 font-normal">SPECS & CERT</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="text-left sm:text-right text-[11px] text-gray-500 space-y-1">
-                  <div className="font-mono bg-blue-50 text-[#021C57] px-2.5 py-1 rounded-md font-bold inline-block">
-                    CATALOG DOC #{docId}
-                  </div>
-                  <div className="flex items-center sm:justify-end gap-1 text-gray-400">
-                    <Calendar size={12} /> Issued: {currentDate}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* PRODUCT BANNER & TITLE */}
-            <div className="bg-gradient-to-r from-[#021C57] to-[#043399] rounded-2xl p-5 text-white space-y-2 shadow-sm">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <span className="bg-white/20 backdrop-blur-xs text-white text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-                  {formatTitleCase(product.category?.equipmentType?.name || "Laboratory Equipment")}
-                </span>
-
-                {product.isFeatured && (
-                  <span className="bg-amber-400 text-gray-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full">
-                    ★ Flagship Instrument
-                  </span>
-                )}
-              </div>
-
-              <h2 className="text-2xl md:text-3xl font-extrabold text-white leading-tight">
-                {formatTitleCase(product.name)}
-              </h2>
-            </div>
-
-            {/* PRODUCT OVERVIEW & IMAGE */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              {/* IMAGE */}
-              <div className="md:col-span-5 bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-inner flex items-center justify-center p-3">
-                <img
-                  src={imageUrl}
-                  alt={product.name}
-                  crossOrigin="anonymous"
-                  className="w-full h-64 object-contain rounded-xl"
-                />
-              </div>
-
-              {/* OVERVIEW */}
-              <div className="md:col-span-7 space-y-3.5">
-                <h3 className="text-base font-bold text-[#021C57] border-b border-gray-100 pb-1.5 flex items-center gap-2">
-                  <span>Product Overview & Summary</span>
-                </h3>
-                <p className="text-gray-700 text-xs sm:text-sm leading-relaxed text-justify">
-                  {product.description ||
-                    "Engineered with high-grade components for demanding laboratory and industrial testing workflows. Fully calibrated to comply with relevant national and international testing standards."}
-                </p>
-
-                <div className="grid grid-cols-2 gap-2.5 pt-1">
-                  {product.productCode && (
-                    <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 text-xs">
-                      <span className="text-gray-500 block font-medium uppercase tracking-wider text-[9px]">Product Code / SKU:</span>
-                      <span className="font-mono font-black text-[#021C57] text-xs sm:text-sm">
-                        {product.productCode.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  {product.hsnCode && (
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 text-xs">
-                      <span className="text-gray-500 block font-medium uppercase tracking-wider text-[9px]">HSN Code:</span>
-                      <span className="font-mono font-black text-emerald-800 text-xs sm:text-sm">
-                        {product.hsnCode.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
-                    <span className="text-gray-400 block font-medium text-[9px]">Standard:</span>
-                    <span className="font-bold text-[#021C57] text-xs">
-                      ASTM / IS Compliant
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
-                    <span className="text-gray-400 block font-medium text-[9px]">Availability:</span>
-                    <span className="font-bold text-[#021C57] text-xs">
-                      Ready to Dispatch
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* QUALITY HIGHLIGHTS PILLS */}
-            <div className="grid grid-cols-3 gap-3 pt-2">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-xs font-bold text-[#021C57] block">ISO 9001:2015 Quality</span>
-                <span className="text-[10px] text-gray-500">Multi-stage inspection</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-xs font-bold text-[#021C57] block">Factory Calibrated</span>
-                <span className="text-[10px] text-gray-500">Traceable certificate</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-xs font-bold text-[#021C57] block">Manufacturer Warranty</span>
-                <span className="text-[10px] text-gray-500">Genuine parts support</span>
-              </div>
-            </div>
-          </div>
-
-          {/* PAGE 1 FOOTER */}
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-between text-[10px] text-gray-400">
-            <span>ARCL Instruments Pvt. Ltd. • Official Technical Brochure</span>
-            <span className="font-bold text-[#021C57]">Page 1 of 3</span>
-            <span>www.arclinstruments.com</span>
-          </div>
-        </div>
-
-        {/* ==================== PAGE 2 ==================== */}
-        <div className="catalog-page bg-white border border-gray-300 rounded-3xl shadow-xl p-8 md:p-12 text-gray-800 flex flex-col justify-between min-h-[1050px] relative">
-          <div className="space-y-6">
-            {/* MINI HEADER */}
-            <div className="border-b border-[#021C57] pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img src={logo} alt="ARCL Logo" className="w-12 object-contain" />
-                <span className="text-sm font-bold text-[#021C57]">ARCL INSTRUMENTS PVT. LTD.</span>
-              </div>
-              <span className="text-xs font-mono font-bold text-gray-500">
-                {formatTitleCase(product.name)} • DOC #{docId}
-              </span>
-            </div>
-
-            {/* TECHNICAL SPECIFICATIONS TABLE */}
-            {product.specifications && Object.keys(product.specifications).length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-base font-bold text-[#021C57] flex items-center gap-2 border-b border-gray-100 pb-2">
-                  <ShieldCheck className="w-5 h-5 text-blue-600" /> Technical Specifications
-                </h3>
-
-                <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#021C57] text-white">
-                      <tr>
-                        <th className="p-3 font-semibold w-1/2">Parameter / Specification</th>
-                        <th className="p-3 font-semibold w-1/2">Standard Technical Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {Object.entries(product.specifications).map(([key, val], idx) => (
-                        <tr key={key} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/80"}>
-                          <td className="p-2.5 font-semibold text-gray-700">
-                            {formatTitleCase(key)}
-                          </td>
-                          <td className="p-2.5 text-gray-900 font-medium">
-                            {String(val)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* WORKING PRINCIPLE & OPERATING MECHANISM */}
-            {hasHowItWorks && (
-              <div className="space-y-3 pt-2">
-                <h3 className="text-base font-bold text-[#021C57] flex items-center gap-2 border-b border-gray-100 pb-2">
-                  <Cog className="w-5 h-5 text-amber-600" /> Working Principle & Operating Mechanism
-                </h3>
-
-                {product.category.howItWorks && (
-                  <p className="text-xs text-gray-700 leading-relaxed font-medium bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/70">
-                    {product.category.howItWorks}
-                  </p>
-                )}
-
-                {product.category.howItWorksSteps && product.category.howItWorksSteps.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {product.category.howItWorksSteps.map((step, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                            {step.stepNumber || idx + 1}
-                          </span>
-                          <span className="font-bold text-xs text-[#021C57] truncate">
-                            {step.title || `Step ${idx + 1}`}
-                          </span>
-                        </div>
-                        {step.description && (
-                          <p className="text-[10.5px] text-gray-600 leading-relaxed pl-6">
-                            {step.description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* PAGE 2 FOOTER */}
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-between text-[10px] text-gray-400">
-            <span>ARCL Instruments Pvt. Ltd. • Technical Specifications</span>
-            <span className="font-bold text-[#021C57]">Page 2 of 3</span>
-            <span>www.arclinstruments.com</span>
-          </div>
-        </div>
-
-        {/* ==================== PAGE 3 ==================== */}
-        <div className="catalog-page bg-white border border-gray-300 rounded-3xl shadow-xl p-8 md:p-12 text-gray-800 flex flex-col justify-between min-h-[1050px] relative">
-          <div className="space-y-6">
-            {/* MINI HEADER */}
-            <div className="border-b border-[#021C57] pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img src={logo} alt="ARCL Logo" className="w-12 object-contain" />
-                <span className="text-sm font-bold text-[#021C57]">ARCL INSTRUMENTS PVT. LTD.</span>
-              </div>
-              <span className="text-xs font-mono font-bold text-gray-500">
-                {formatTitleCase(product.name)} • DOC #{docId}
-              </span>
-            </div>
-
-            {/* FEATURES & APPLICATIONS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* FEATURES */}
-              {product.features && product.features.length > 0 && (
-                <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-[#021C57] uppercase tracking-wider">
-                    Key Features & Advantages
-                  </h3>
-                  <ul className="space-y-1.5 text-xs text-gray-700">
-                    {product.features.map((feat, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 size={13} className="text-blue-600 shrink-0 mt-0.5" />
-                        <span>{feat}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* APPLICATIONS */}
-              {product.applications && product.applications.length > 0 && (
-                <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
-                    Industrial & Lab Applications
-                  </h3>
-                  <ul className="space-y-1.5 text-xs text-gray-700">
-                    {product.applications.map((app, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{app}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT) */}
-            {product.completeSetIncludes && product.completeSetIncludes.length > 0 && (
-              <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
-                <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white text-[9px] flex items-center justify-center font-bold">
-                    ✓
-                  </span>
-                  Complete Set Includes (Standard Supply Outfit)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800">
-                  {product.completeSetIncludes.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-white p-2 rounded-xl border border-emerald-100 flex items-start gap-2 shadow-2xs"
-                    >
-                      <span className="font-bold text-emerald-700 shrink-0 text-xs">{idx + 1}.</span>
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* QUALITY ASSURANCE & OFFICIAL FOOTER */}
-            <div className="space-y-3 pt-2">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-2xs">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:divide-x md:divide-slate-200">
-                  {/* 1. Office Address */}
-                  <div className="flex items-start gap-2.5 md:pr-3">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#021C57] flex items-center justify-center shrink-0 mt-0.5">
-                      <Building size={14} />
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#021C57] block">
-                        Head Office & Works
-                      </span>
-                      <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-                        Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 2. Contact Helplines */}
-                  <div className="flex items-start gap-2.5 md:px-3">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
-                      <Phone size={14} />
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 block">
-                        Helplines & Sales
-                      </span>
-                      <div className="text-[11px] text-slate-700 space-y-0.5 font-medium">
-                        <p><span className="text-slate-500 text-[10px]">Head:</span> +91 81696 95728</p>
-                        <p><span className="text-slate-500 text-[10px]">Sales:</span> +91 83694 58583</p>
-                        <p><span className="text-slate-500 text-[10px]">Calib:</span> +91 62056 91085</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. Email & Web Portal */}
-                  <div className="flex items-start gap-2.5 md:pl-3">
-                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                      <Mail size={14} />
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">
-                        Email & Web Portal
-                      </span>
-                      <div className="text-[11px] text-slate-700 space-y-0.5 font-medium">
-                        <p>
-                          <a href="mailto:arclinstruments@gmail.com" className="hover:text-[#021C57]">
-                            arclinstruments@gmail.com
-                          </a>
-                        </p>
-                        <p>
-                          <a href="mailto:info@arclinstruments.com" className="hover:text-[#021C57]">
-                            info@arclinstruments.com
-                          </a>
-                        </p>
-                        <p className="text-[#021C57] font-semibold text-[10.5px]">
-                          www.arclinstruments.com
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-                © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. An ISO 9001:2015 Certified Manufacturer. Technical specifications are subject to continuous engineering enhancement without prior notification.
+      {/* 2. OFFICIAL CATALOG PRINTABLE BROCHURE SHEET */}
+      <div
+        id="catalog-document"
+        className="max-w-4xl mx-auto bg-white border border-gray-300 rounded-3xl shadow-xl p-8 md:p-12 text-gray-800 space-y-8 print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-full"
+      >
+        {/* HEADER LETTERHEAD */}
+        <div className="print-avoid-break border-b-2 border-[#021C57] pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <img
+              src={logo}
+              alt="ARCL Logo"
+              crossOrigin="anonymous"
+              className="w-20 md:w-24 object-contain"
+            />
+            <div>
+              <h1 className="text-xl md:text-2xl font-black text-[#021C57] tracking-tight">
+                ARCL INSTRUMENTS PVT. LTD.
+              </h1>
+              <p className="text-xs md:text-sm font-semibold text-emerald-700 mt-0.5 flex items-center gap-1.5">
+                <Award size={14} /> An ISO 9001:2015 Certified Company
+              </p>
+              <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                Building Trust Through Precision Quality & Engineered Reliability
               </p>
             </div>
           </div>
 
-          {/* PAGE 3 FOOTER */}
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-between text-[10px] text-gray-400">
-            <span>ARCL Instruments Pvt. Ltd. • Quality & Warranty</span>
-            <span className="font-bold text-[#021C57]">Page 3 of 3</span>
-            <span>www.arclinstruments.com</span>
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            {product.qrCode && (
+              <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 flex items-center gap-2">
+                <img
+                  src={product.qrCode}
+                  alt="Product QR"
+                  crossOrigin="anonymous"
+                  className="w-14 h-14 object-contain bg-white rounded-lg p-0.5 border border-blue-100"
+                />
+                <div className="text-[9px] font-bold text-[#021C57] leading-tight text-left">
+                  <span>SCAN FOR LIVE</span><br />
+                  <span className="text-gray-500 font-normal">SPECS & CERT</span>
+                </div>
+              </div>
+            )}
+
+            <div className="text-left md:text-right text-[11px] text-gray-500 space-y-1">
+              <div className="font-mono bg-blue-50 text-[#021C57] px-2.5 py-1 rounded-md font-bold inline-block">
+                CATALOG DOC #{product._id?.slice(-6).toUpperCase()}
+              </div>
+              <div className="flex items-center md:justify-end gap-1 text-gray-400">
+                <Calendar size={12} /> Issued: {currentDate}
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* PRODUCT BANNER & TITLE */}
+        <div className="print-avoid-break bg-gradient-to-r from-[#021C57] to-[#043399] rounded-2xl p-6 text-white space-y-2">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <span className="bg-white/20 backdrop-blur-xs text-white text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+              {formatTitleCase(product.category?.equipmentType?.name || "Laboratory Equipment")}
+            </span>
+
+            {product.isFeatured && (
+              <span className="bg-amber-400 text-gray-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full">
+                ★ Flagship Instrument
+              </span>
+            )}
+          </div>
+
+          <h2 className="text-2xl md:text-3xl font-extrabold text-white leading-tight">
+            {formatTitleCase(product.name)}
+          </h2>
+        </div>
+
+        {/* PRODUCT OVERVIEW & IMAGE */}
+        <div className="print-avoid-break grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+          {/* IMAGE */}
+          <div className="md:col-span-5 bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-inner flex items-center justify-center p-3">
+            <img
+              src={imageUrl}
+              alt={product.name}
+              crossOrigin="anonymous"
+              className="w-full h-64 object-contain rounded-xl"
+            />
+          </div>
+
+          {/* OVERVIEW */}
+          <div className="md:col-span-7 space-y-4">
+            <h3 className="text-lg font-bold text-[#021C57] border-b border-gray-100 pb-2">
+              Product Overview
+            </h3>
+            <p className="text-gray-700 text-sm leading-relaxed text-justify">
+              {product.description ||
+                "Engineered with high-grade components for demanding laboratory and industrial testing workflows. Fully calibrated to comply with relevant national and international testing standards."}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              {product.productCode && (
+                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 text-xs">
+                  <span className="text-gray-500 block font-medium uppercase tracking-wider text-[10px]">Product Code / SKU:</span>
+                  <span className="font-mono font-black text-[#021C57] text-sm">
+                    {product.productCode.toUpperCase()}
+                  </span>
+                </div>
+              )}
+
+              {product.hsnCode && (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs">
+                  <span className="text-gray-500 block font-medium uppercase tracking-wider text-[10px]">HSN Code:</span>
+                  <span className="font-mono font-black text-emerald-800 text-sm">
+                    {product.hsnCode.toUpperCase()}
+                  </span>
+                </div>
+              )}
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+                <span className="text-gray-400 block font-medium">Reliability:</span>
+                <span className="font-bold text-[#021C57]">
+                  Tested & Trusted
+                </span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+                <span className="text-gray-400 block font-medium">Availability:</span>
+                <span className="font-bold text-[#021C57]">
+                  Ready to Dispatch
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* TECHNICAL SPECIFICATIONS TABLE */}
+        {product.specifications && Object.keys(product.specifications).length > 0 && (
+          <div className="print-avoid-break space-y-4">
+            <h3 className="text-lg font-bold text-[#021C57] flex items-center gap-2 border-b border-gray-100 pb-2">
+              <ShieldCheck className="w-5 h-5 text-blue-600" /> Technical Specifications
+            </h3>
+
+            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-[#021C57] text-white">
+                  <tr>
+                    <th className="p-3.5 font-semibold w-1/2">Parameter / Specification</th>
+                    <th className="p-3.5 font-semibold w-1/2">Standard Technical Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {Object.entries(product.specifications).map(([key, val], idx) => (
+                    <tr
+                      key={key}
+                      className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}
+                    >
+                      <td className="p-3.5 font-semibold text-gray-700">
+                        {formatTitleCase(key)}
+                      </td>
+                      <td className="p-3.5 text-gray-900 font-medium">
+                        {String(val)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* WORKING PRINCIPLE & OPERATING MECHANISM */}
+        {hasHowItWorks && (
+          <div className="print-avoid-break space-y-4">
+            <h3 className="text-lg font-bold text-[#021C57] flex items-center gap-2 border-b border-gray-100 pb-2">
+              <Cog className="w-5 h-5 text-amber-600" /> Working Principle & Operating Mechanism
+            </h3>
+
+            {product.category.howItWorks && (
+              <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-medium bg-amber-50/40 p-4 rounded-xl border border-amber-200/70">
+                {product.category.howItWorks}
+              </p>
+            )}
+
+            {product.category.howItWorksSteps &&
+              product.category.howItWorksSteps.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {product.category.howItWorksSteps.map((step, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {step.stepNumber || idx + 1}
+                        </span>
+                        <span className="font-bold text-xs text-[#021C57] truncate">
+                          {step.title || `Step ${idx + 1}`}
+                        </span>
+                      </div>
+                      {step.description && (
+                        <p className="text-[11px] text-gray-600 leading-relaxed pl-7">
+                          {step.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* FEATURES & APPLICATIONS */}
+        <div className="print-avoid-break grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* FEATURES */}
+          {product.features && product.features.length > 0 && (
+            <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-[#021C57] uppercase tracking-wider">
+                Key Features & Advantages
+              </h3>
+              <ul className="space-y-2 text-xs text-gray-700">
+                {product.features.map((feat, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                    <span>{feat}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* APPLICATIONS */}
+          {product.applications && product.applications.length > 0 && (
+            <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-wider">
+                Industrial & Lab Applications
+              </h3>
+              <ul className="space-y-2 text-xs text-gray-700">
+                {product.applications.map((app, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{app}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* COMPLETE SET INCLUDES (STANDARD SUPPLY OUTFIT) */}
+        {product.completeSetIncludes && product.completeSetIncludes.length > 0 && (
+          <div className="print-avoid-break bg-emerald-50/50 border border-emerald-200 rounded-2xl p-5 space-y-3">
+            <h3 className="text-sm font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center font-bold">
+                ✓
+              </span>
+              Complete Set Includes (Standard Supply Outfit)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-gray-800">
+              {product.completeSetIncludes.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white p-2.5 rounded-xl border border-emerald-100 flex items-start gap-2 shadow-2xs"
+                >
+                  <span className="font-bold text-emerald-700 shrink-0">{idx + 1}.</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* QUALITY ASSURANCE & OFFICIAL FOOTER */}
+        <div className="print-avoid-break border-t-2 border-[#021C57]/20 pt-6 space-y-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-4 md:divide-x md:divide-slate-200">
+              {/* 1. Office Address */}
+              <div className="flex items-start gap-3 md:pr-4">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#021C57] flex items-center justify-center shrink-0 mt-0.5">
+                  <Building size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#021C57] block">
+                    Head Office & Works
+                  </span>
+                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                    Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India
+                  </p>
+                </div>
+              </div>
+
+              {/* 2. Contact Helplines */}
+              <div className="flex items-start gap-3 md:px-4">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <Phone size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block">
+                    Helplines & Direct Sales
+                  </span>
+                  <div className="text-xs text-slate-700 space-y-1 font-medium">
+                    <p><span className="text-slate-500 text-[11px]">Head:</span> +91 81696 95728</p>
+                    <p><span className="text-slate-500 text-[11px]">Sales:</span> +91 83694 58583</p>
+                    <p><span className="text-slate-500 text-[11px]">Calib:</span> +91 62056 91085</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Email & Web Portal */}
+              <div className="flex items-start gap-3 md:pl-4">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <Mail size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
+                    Email & Web Portal
+                  </span>
+                  <div className="text-xs text-slate-700 space-y-1 font-medium">
+                    <p>
+                      <a href="mailto:arclinstruments@gmail.com" className="hover:text-[#021C57] hover:underline">
+                        arclinstruments@gmail.com
+                      </a>
+                    </p>
+                    <p>
+                      <a href="mailto:info@arclinstruments.com" className="hover:text-[#021C57] hover:underline">
+                        info@arclinstruments.com
+                      </a>
+                    </p>
+                    <p className="text-[#021C57] font-semibold text-[11px]">
+                      www.arclinstruments.com
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+            © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. An ISO 9001:2015 Certified Manufacturer. Technical specifications are subject to continuous engineering enhancement without prior notification.
+          </p>
         </div>
 
       </div>
