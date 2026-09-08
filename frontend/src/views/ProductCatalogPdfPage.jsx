@@ -321,14 +321,16 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             )}
 
             {product.isFeatured ? (
-              <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+              <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-amber-300">
                 ★ FLAGSHIP INSTRUMENT
               </span>
             ) : (
-              <span className="bg-emerald-400/90 text-slate-950 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs">
+              <span className="bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs border border-emerald-400">
                 ● PRECISION CERTIFIED
               </span>
             )}
+
+
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white leading-tight tracking-tight relative z-10">
@@ -549,25 +551,33 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           </div>
         )}
 
-        {/* QUALITY BADGES & COMPANY FOOTER */}
+        {/* QUALITY TRUST BADGES & COMPANY FOOTER */}
         <div className="print-section space-y-3 pt-2">
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center shadow-2xs">
-              <Award className="w-4 h-4 text-amber-500 mx-auto mb-0.5" />
-              <div className="text-[11px] font-bold text-[#021C57]">ISO 9001:2015</div>
-              <div className="text-[9px] text-slate-400 font-medium">Quality Certified</div>
+          {/* Quality Trust Badges */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 text-center shadow-xs flex flex-col items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mb-1.5 border border-amber-200">
+                <Award className="w-4 h-4" />
+              </div>
+              <div className="text-xs font-black text-[#021C57]">ISO 9001:2015</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Quality Certified</div>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center shadow-2xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 mx-auto mb-0.5" />
-              <div className="text-[11px] font-bold text-emerald-800">100% Tested</div>
-              <div className="text-[9px] text-slate-400 font-medium">Pre-Dispatch Inspection</div>
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 text-center shadow-xs flex flex-col items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-1.5 border border-emerald-200">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="text-xs font-black text-emerald-800">100% Quality Tested</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Pre-Dispatch Inspection</div>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center shadow-2xs">
-              <Building className="w-4 h-4 text-blue-600 mx-auto mb-0.5" />
-              <div className="text-[11px] font-bold text-blue-900">Pan-India Support</div>
-              <div className="text-[9px] text-slate-400 font-medium">On-Site Calibration</div>
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 text-center shadow-xs flex flex-col items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-1.5 border border-blue-200">
+                <Building className="w-4 h-4" />
+              </div>
+              <div className="text-xs font-black text-blue-900">Pan-India Support</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">On-Site Calibration</div>
             </div>
           </div>
+
 
           <div className="bg-[#021C57] text-white rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/15 pb-2.5">
