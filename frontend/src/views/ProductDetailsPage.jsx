@@ -337,6 +337,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
 
           <div className="flex items-center gap-2">
             <button
+              suppressHydrationWarning
               onClick={() => toggleCompare(product)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold transition cursor-pointer text-xs shrink-0 ${
                 isInCompare(product._id)
@@ -350,6 +351,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
             </button>
 
             <button
+              suppressHydrationWarning
               onClick={handleShare}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium transition cursor-pointer text-xs shrink-0"
               title="Copy link"
@@ -399,6 +401,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
               <div className="flex items-center gap-3 overflow-x-auto pb-2">
                 {imagesList.map((imgUrl, idx) => (
                   <button
+                    suppressHydrationWarning
                     key={idx}
                     onClick={() => setSelectedImageIndex(idx)}
                     className={`w-20 h-20 rounded-2xl border-2 p-1.5 bg-white transition shrink-0 cursor-pointer overflow-hidden ${
@@ -499,6 +502,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
 
                   <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
                     <button
+                      suppressHydrationWarning
                       onClick={() => {
                         const link = document.createElement("a");
                         link.href = product.qrCode;
@@ -514,6 +518,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                     </button>
 
                     <button
+                      suppressHydrationWarning
                       onClick={handleShare}
                       className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
                     >
@@ -569,6 +574,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide">
                   <span>Key Specifications</span>
                   <button
+                    suppressHydrationWarning
                     onClick={() => {
                       setActiveTab("specs");
                       const elem = document.getElementById("product-tabs");
@@ -612,6 +618,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
               <div className="grid sm:grid-cols-3 gap-3">
                 {/* 1. REQUEST QUOTE BUTTON */}
                 <button
+                  suppressHydrationWarning
                   onClick={() => setOpenQuoteModal(true)}
                   className="w-full bg-[#021C57] hover:bg-[#03308f] text-white py-3.5 px-4 rounded-2xl font-bold transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer active:scale-95"
                 >
@@ -620,6 +627,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
 
                 {/* 2. ADD TO QUOTE BASKET */}
                 <button
+                  suppressHydrationWarning
                   onClick={() => {
                     addItem(product, 1);
                     openCart();
@@ -645,23 +653,9 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
 
               {/* ZERO-COST INSTANT QUOTATION & WHATSAPP ROW */}
               <div className="grid sm:grid-cols-2 gap-3 pt-1">
-                {/* 4. INSTANT PDF QUOTATION (WITH LETTERHEAD & GST PROFORMA) - HIDDEN AS REQUESTED */}
-                {/* 
-                <button
-                  onClick={() =>
-                    generateQuotationPdf({
-                      items: [{ product, quantity: 1 }],
-                    })
-                  }
-                  className="w-full bg-slate-900 hover:bg-black text-white py-3 px-3 rounded-2xl font-bold transition shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
-                >
-                  <FileText size={14} className="text-amber-400" />
-                  <span>Instant PDF Quote</span>
-                </button>
-                */}
-
                 {/* 5. INSTANT WHATSAPP QUOTE */}
                 <button
+                  suppressHydrationWarning
                   onClick={() => sendProductToWhatsApp(product)}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-3 rounded-2xl font-bold transition shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
                 >
@@ -696,6 +690,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
           <div className="flex border-b border-gray-200 overflow-x-auto bg-gray-50/60 p-2 gap-2">
             {tabsList.map((tab) => (
               <button
+                suppressHydrationWarning
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 flex items-center gap-2 ${
