@@ -194,22 +194,42 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.text(formatTitleCase(categoryName).toUpperCase(), margin + 4, y + 5);
   }
 
-  // Flagship / Precision Pill
-  if (product.isFeatured) {
-    doc.setFillColor(245, 158, 11);
-    doc.roundedRect(pageWidth - margin - 38, y + 2, 34, 4.2, 1, 1, "F");
-    doc.setFontSize(6);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text("★ FLAGSHIP INSTRUMENT", pageWidth - margin - 36, y + 5);
-  } else {
-    doc.setFillColor(5, 150, 105);
-    doc.roundedRect(pageWidth - margin - 38, y + 2, 34, 4.2, 1, 1, "F");
-    doc.setFontSize(6);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 255, 255);
-    doc.text("● PRECISION CERTIFIED", pageWidth - margin - 34, y + 5);
+  // Flagship Instrument Golden Pill (Exact Vector Star & Bounded Capsule)
+  const pillW = 46;
+  const pillH = 5.2;
+  const pillX = pageWidth - margin - pillW - 4;
+  const pillY = y + 2.5;
+
+  // Golden Amber Capsule Pill
+  doc.setFillColor(245, 158, 11); // #F59E0B
+  doc.roundedRect(pillX, pillY, pillW, pillH, 2.6, 2.6, "F");
+
+  // Crisp Vector Star Icon (No font encoding corruption)
+  const starCenterX = pillX + 5.5;
+  const starCenterY = pillY + 2.6;
+  const starR = 1.3;
+  const starInnerR = 0.55;
+  doc.setFillColor(15, 23, 42);
+
+  const starPts = [];
+  for (let s = 0; s < 5; s++) {
+    const outerA = ((Math.PI * 2) / 5) * s - Math.PI / 2;
+    const innerA = outerA + Math.PI / 5;
+    starPts.push({ x: starCenterX + Math.cos(outerA) * starR, y: starCenterY + Math.sin(outerA) * starR });
+    starPts.push({ x: starCenterX + Math.cos(innerA) * starInnerR, y: starCenterY + Math.sin(innerA) * starInnerR });
   }
+
+  const relStarPts = [];
+  for (let i = 1; i < starPts.length; i++) {
+    relStarPts.push([starPts[i].x - starPts[i - 1].x, starPts[i].y - starPts[i - 1].y]);
+  }
+  doc.lines(relStarPts, starPts[0].x, starPts[0].y, [1, 1], "F", true);
+
+  // Bold Text cleanly bounded inside the golden pill
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("FLAGSHIP INSTRUMENT", pillX + 9, pillY + 3.6);
 
   // Product Name
   const productName = (product.name || "").toUpperCase();

@@ -320,15 +320,9 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
               </span>
             )}
 
-            {product.isFeatured ? (
-              <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-amber-300">
+            <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-xs flex items-center gap-1 border border-amber-300">
                 ★ FLAGSHIP INSTRUMENT
               </span>
-            ) : (
-              <span className="bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs border border-emerald-400">
-                ● PRECISION CERTIFIED
-              </span>
-            )}
 
 
           </div>
