@@ -35,17 +35,73 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
     }
   }, [slug]);
 
-  const handlePrintDownload = () => {
+  const handleDirectDownload = async () => {
+    if (downloading) return;
     try {
       setDownloading(true);
-      window.print();
-      toast.info("Preparing PDF catalog for print/download...");
+      const toastId = toast.loading("Generating direct PDF download...");
+
+      const element = document.getElementById("catalog-document");
+      if (!element) {
+        toast.update(toastId, {
+          render: "Catalog document ready. Opening print view...",
+          type: "info",
+          isLoading: false,
+          autoClose: 2000,
+        });
+        window.print();
+        setDownloading(false);
+        return;
+      }
+
+      // Dynamic import to prevent SSR build issues in Next.js
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+
+      const cleanName = (product?.name || "Product")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      const filename = `ARCL-${cleanName}-Catalog.pdf`;
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          scrollY: 0,
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+        },
+        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+      };
+
+      await html2pdf().set(opt).from(element).save();
+
+      toast.update(toastId, {
+        render: "Catalog PDF downloaded successfully!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000,
+      });
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to initiate PDF print. Please use Ctrl+P.");
+      console.error("Direct PDF download error:", err);
+      toast.info("Downloading via print dialog...");
+      window.print();
     } finally {
       setDownloading(false);
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   if (loading) {
@@ -132,11 +188,29 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
           </a>
 
           <button
-            onClick={handlePrintDownload}
-            disabled={downloading}
-            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer"
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3.5 py-2.5 rounded-xl transition cursor-pointer"
+            title="Print or Save via Browser"
           >
-            <Download size={15} /> Download Catalog (PDF)
+            <Printer size={15} /> Print
+          </button>
+
+          <button
+            onClick={handleDirectDownload}
+            disabled={downloading}
+            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] disabled:bg-blue-950 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer disabled:cursor-not-allowed"
+          >
+            {downloading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Downloading PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download size={15} />
+                <span>Download Catalog (PDF)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -152,6 +226,7 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
             <img
               src={logo}
               alt="ARCL Logo"
+              crossOrigin="anonymous"
               className="w-20 md:w-24 object-contain"
             />
             <div>
@@ -173,6 +248,7 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
                 <img
                   src={product.qrCode}
                   alt="Product QR"
+                  crossOrigin="anonymous"
                   className="w-14 h-14 object-contain bg-white rounded-lg p-0.5 border border-blue-100"
                 />
                 <div className="text-[9px] font-bold text-[#021C57] leading-tight text-left">
@@ -219,6 +295,7 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
             <img
               src={imageUrl}
               alt={product.name}
+              crossOrigin="anonymous"
               className="w-full h-64 object-contain rounded-xl"
             />
           </div>

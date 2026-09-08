@@ -17,6 +17,7 @@
     "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "html2pdf.js": "^0.14.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",
     "mongoose": "^9.9.4",
