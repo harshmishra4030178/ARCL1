@@ -22,7 +22,7 @@ const loadImageBase64 = async (url) => {
 
 /**
  * Generates and directly downloads the official technical catalog PDF brochure for an ARCL product
- * 1:1 identical to the website catalog brochure design using STRICTLY real backend data
+ * AUTO-PAGINATES dynamically based on the exact amount of real data present.
  * @param {Object} product The product object
  */
 export const downloadProductCatalogPdf = async (product) => {
@@ -35,15 +35,20 @@ export const downloadProductCatalogPdf = async (product) => {
     .replace(/[^A-Z0-9_-]+/g, "-");
   const filename = `ARCL-${cleanSku}-Technical-Brochure.pdf`;
 
-  // 1. ATTEMPT 1:1 PIXEL-PERFECT DOM RENDER OF EXACT USER DESIGN
+  // 1. ATTEMPT 1:1 PIXEL-PERFECT DOM AUTO-PAGINATION RENDER
   if (typeof window !== "undefined") {
-    const page1El = document.querySelector(".catalog-page-1");
-    const page2El = document.querySelector(".catalog-page-2");
-    const page3El = document.querySelector(".catalog-page-3");
     const catalogDocEl = document.querySelector("#catalog-document");
 
-    if (page1El || catalogDocEl) {
+    if (catalogDocEl) {
       try {
+        const canvas = await html2canvas(catalogDocEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+        });
+
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
@@ -52,70 +57,65 @@ export const downloadProductCatalogPdf = async (product) => {
 
         const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
         const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+        const marginX = 8;
+        const marginY = 8;
+        const contentWidth = pdfWidth - marginX * 2; // 194mm
+        const contentHeight = pdfHeight - marginY * 2; // 281mm
 
-        if (page1El) {
-          const canvas1 = await html2canvas(page1El, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#ffffff",
-            logging: false,
-          });
+        // Convert canvas dimensions to PDF mm ratio
+        const totalHeightInPdfMm = (canvas.height * contentWidth) / canvas.width;
 
-          const imgData1 = canvas1.toDataURL("image/jpeg", 0.98);
-          pdf.addImage(imgData1, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
-
-          if (page2El) {
-            const canvas2 = await html2canvas(page2El, {
-              scale: 2,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: "#ffffff",
-              logging: false,
-            });
-
-            const imgData2 = canvas2.toDataURL("image/jpeg", 0.98);
-            pdf.addPage();
-            pdf.addImage(imgData2, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
-          }
-
-          if (page3El) {
-            const canvas3 = await html2canvas(page3El, {
-              scale: 2,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: "#ffffff",
-              logging: false,
-            });
-
-            const imgData3 = canvas3.toDataURL("image/jpeg", 0.98);
-            pdf.addPage();
-            pdf.addImage(imgData3, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
-          }
-
-          pdf.save(filename);
-          return filename;
-        } else if (catalogDocEl) {
-          const canvas = await html2canvas(catalogDocEl, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#ffffff",
-            logging: false,
-          });
-
+        if (totalHeightInPdfMm <= contentHeight) {
+          // Fits on exactly 1 single page!
           const imgData = canvas.toDataURL("image/jpeg", 0.98);
-          pdf.addImage(imgData, "JPEG", 6, 6, pdfWidth - 12, pdfHeight - 12, undefined, "FAST");
-          pdf.save(filename);
-          return filename;
+          pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, totalHeightInPdfMm, undefined, "FAST");
+        } else {
+          // Auto slice across multiple pages dynamically
+          const pageCanvasHeight = (canvas.width * contentHeight) / contentWidth;
+          let currentCanvasY = 0;
+          let pageIndex = 0;
+
+          while (currentCanvasY < canvas.height) {
+            if (pageIndex > 0) {
+              pdf.addPage();
+            }
+
+            const currentSliceHeight = Math.min(pageCanvasHeight, canvas.height - currentCanvasY);
+            const sliceCanvas = document.createElement("canvas");
+            sliceCanvas.width = canvas.width;
+            sliceCanvas.height = currentSliceHeight;
+            const ctx = sliceCanvas.getContext("2d");
+
+            ctx.drawImage(
+              canvas,
+              0,
+              currentCanvasY,
+              canvas.width,
+              currentSliceHeight,
+              0,
+              0,
+              canvas.width,
+              currentSliceHeight
+            );
+
+            const imgData = sliceCanvas.toDataURL("image/jpeg", 0.98);
+            const renderedSliceHeight = (currentSliceHeight * contentWidth) / canvas.width;
+            pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, renderedSliceHeight, undefined, "FAST");
+
+            currentCanvasY += pageCanvasHeight;
+            pageIndex++;
+          }
         }
+
+        pdf.save(filename);
+        return filename;
       } catch (domErr) {
         console.warn("DOM canvas capture fallback to vector generator:", domErr);
       }
     }
   }
 
-  // 2. FALLBACK: NATIVE VECTOR PDF GENERATOR (STRICTLY REAL BACKEND DATA)
+  // 2. FALLBACK: NATIVE VECTOR PDF GENERATOR (AUTO-PAGINATED DYNAMICALLY)
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -189,10 +189,32 @@ export const downloadProductCatalogPdf = async (product) => {
     ? product.completeSetIncludes.filter((item) => Boolean(item && String(item).trim()))
     : [];
 
-  // =========================================================================
-  // PAGE 1 — PRODUCT COVER + OVERVIEW
-  // =========================================================================
   let y = margin;
+
+  const ensureSpace = (neededHeight) => {
+    if (y + neededHeight > pageHeight - margin - 15) {
+      doc.addPage();
+      y = margin;
+      // Mini Continuation Header
+      doc.setFillColor(...brandNavy);
+      doc.rect(margin, y, contentWidth, 1.5, "F");
+      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...brandNavy);
+      doc.text(`ARCL INSTRUMENTS PVT. LTD. — ${(product.name || "").toUpperCase()}`, margin, y);
+      if (docRef) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...textMuted);
+        doc.text(docRef, pageWidth - margin, y, { align: "right" });
+      }
+      y += 3;
+      doc.setDrawColor(...borderColor);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 6;
+    }
+  };
 
   // Top Accent Bar
   doc.setFillColor(...brandNavy);
@@ -235,7 +257,7 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.line(margin, y, pageWidth - margin, y);
   y += 6;
 
-  // Hero Product Banner & Title
+  // Hero Banner
   doc.setFillColor(...brandNavy);
   doc.roundedRect(margin, y, contentWidth, 22, 2.5, 2.5, "F");
 
@@ -273,7 +295,7 @@ export const downloadProductCatalogPdf = async (product) => {
 
   y += 28;
 
-  // Hero Area: Real Product Image + Overview
+  // Hero Area: Image + Overview
   const heroImageWidth = 72;
   const heroImageHeight = 62;
   const overviewX = imageBase64 ? margin + heroImageWidth + 6 : margin;
@@ -313,10 +335,11 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.text(splitDesc.slice(0, 9), overviewX, y + 12);
   }
 
-  y += imageBase64 ? heroImageHeight + 6 : 40;
+  y += imageBase64 ? heroImageHeight + 6 : 38;
 
   // Real Highlight Cards (from specs)
   if (highlightSpecs.length > 0) {
+    ensureSpace(28);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(...brandNavy);
@@ -349,12 +372,55 @@ export const downloadProductCatalogPdf = async (product) => {
     y += cardHeight + 7;
   }
 
+  // Real Technical Specifications Table
+  if (specsEntries.length > 0) {
+    ensureSpace(40);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...brandNavy);
+    doc.text("TECHNICAL SPECIFICATIONS", margin, y);
+    y += 5;
+
+    const specRows = specsEntries.map(([k, v]) => [formatTitleCase(k), String(v)]);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Parameter / Specification", "Technical Value"]],
+      body: specRows,
+      theme: "striped",
+      headStyles: {
+        fillColor: brandNavy,
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: "bold",
+        cellPadding: 2.5,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: textDark,
+        cellPadding: 2.2,
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: {
+        0: { cellWidth: 80, fontStyle: "bold", textColor: [2, 28, 87] },
+        1: { cellWidth: contentWidth - 80 },
+      },
+      margin: { left: margin, right: margin },
+    });
+
+    y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 60;
+  }
+
   // Real Key Features
   if (featuresList.length > 0) {
+    ensureSpace(featuresList.length * 6 + 15);
     doc.setFillColor(...bgLight);
-    doc.roundedRect(margin, y, contentWidth, 34, 2.5, 2.5, "F");
+    const fHeight = Math.min(featuresList.length * 6 + 12, 45);
+    doc.roundedRect(margin, y, contentWidth, fHeight, 2.5, 2.5, "F");
     doc.setDrawColor(...borderColor);
-    doc.roundedRect(margin, y, contentWidth, 34, 2.5, 2.5, "S");
+    doc.roundedRect(margin, y, contentWidth, fHeight, 2.5, 2.5, "S");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
@@ -364,190 +430,85 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...textDark);
-    featuresList.slice(0, 4).forEach((h, idx) => {
+    featuresList.slice(0, 6).forEach((h, idx) => {
       doc.text(`•  ${h}`, margin + 6, y + 13 + idx * 5.5);
     });
+
+    y += fHeight + 8;
   }
 
-  // Page 1 Footer
-  doc.setFontSize(7);
-  doc.setTextColor(...textMuted);
-  doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
-  doc.text("Page 1", pageWidth - margin, pageHeight - 7, { align: "right" });
-
-  // =========================================================================
-  // PAGE 2 — TECHNICAL SPECIFICATIONS + HOW IT WORKS (IF EXISTS)
-  // =========================================================================
-  if (specsEntries.length > 0 || howItWorksText || howItWorksSteps.length > 0) {
-    doc.addPage();
-    y = margin;
-
-    // Top Mini Header
-    doc.setFillColor(...brandNavy);
-    doc.rect(margin, y, contentWidth, 1.5, "F");
-    y += 5;
-
+  // Real How It Works
+  if (howItWorksText || howItWorksSteps.length > 0) {
+    ensureSpace(35);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
+    doc.setFontSize(10.5);
     doc.setTextColor(...brandNavy);
-    doc.text("ARCL INSTRUMENTS PVT. LTD. — TECHNICAL SPECIFICATIONS & WORKFLOW", margin, y);
-
-    if (docRef) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(...textMuted);
-      doc.text(docRef, pageWidth - margin, y, { align: "right" });
-    }
-
-    y += 3;
-    doc.setDrawColor(...borderColor);
-    doc.line(margin, y, pageWidth - margin, y);
+    doc.text("HOW IT WORKS / WORKING PRINCIPLE", margin, y);
     y += 6;
 
-    // Technical Specifications Table (Real)
-    if (specsEntries.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
+    if (howItWorksText) {
+      doc.setFillColor(240, 249, 255);
+      doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "F");
+      doc.setDrawColor(186, 230, 253);
+      doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "S");
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
       doc.setTextColor(...brandNavy);
-      doc.text("TECHNICAL SPECIFICATIONS", margin, y);
-      y += 5;
-
-      const specRows = specsEntries.map(([k, v]) => [formatTitleCase(k), String(v)]);
-
-      autoTable(doc, {
-        startY: y,
-        head: [["Parameter / Specification", "Technical Value"]],
-        body: specRows,
-        theme: "striped",
-        headStyles: {
-          fillColor: brandNavy,
-          textColor: [255, 255, 255],
-          fontSize: 8,
-          fontStyle: "bold",
-          cellPadding: 2.5,
-        },
-        bodyStyles: {
-          fontSize: 7.5,
-          textColor: textDark,
-          cellPadding: 2.2,
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252],
-        },
-        columnStyles: {
-          0: { cellWidth: 80, fontStyle: "bold", textColor: [2, 28, 87] },
-          1: { cellWidth: contentWidth - 80 },
-        },
-        margin: { left: margin, right: margin },
-      });
-
-      y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 60;
+      const splitHow = doc.splitTextToSize(howItWorksText, contentWidth - 6);
+      doc.text(splitHow.slice(0, 3), margin + 3, y + 4.5);
+      y += 17;
     }
 
-    // How It Works / Working Principle (Real)
-    if (howItWorksText || howItWorksSteps.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(...brandNavy);
-      doc.text("HOW IT WORKS / WORKING PRINCIPLE", margin, y);
-      y += 6;
+    if (howItWorksSteps.length > 0) {
+      const stepBoxWidth = (contentWidth - 6) / 2;
+      const stepBoxHeight = 22;
 
-      if (howItWorksText) {
-        doc.setFillColor(240, 249, 255);
-        doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "F");
-        doc.setDrawColor(186, 230, 253);
-        doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "S");
+      howItWorksSteps.forEach((st, idx) => {
+        ensureSpace(stepBoxHeight + 5);
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const sx = margin + col * (stepBoxWidth + 6);
+        const sy = y + row * (stepBoxHeight + 4);
 
-        doc.setFont("helvetica", "normal");
+        doc.setFillColor(...bgLight);
+        doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "F");
+        doc.setDrawColor(...borderColor);
+        doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "S");
+
+        doc.setFillColor(...brandNavy);
+        doc.roundedRect(sx + 3, sy + 3, 5, 5, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text(String(st.stepNumber || idx + 1), sx + 5.5, sy + 6.8, { align: "center" });
+
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(7.5);
         doc.setTextColor(...brandNavy);
-        const splitHow = doc.splitTextToSize(howItWorksText, contentWidth - 6);
-        doc.text(splitHow.slice(0, 3), margin + 3, y + 4.5);
-        y += 17;
-      }
+        doc.text(st.title || "Step", sx + 10, sy + 6.8);
 
-      if (howItWorksSteps.length > 0) {
-        const stepBoxWidth = (contentWidth - 6) / 2;
-        const stepBoxHeight = 22;
+        if (st.description) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.8);
+          doc.setTextColor(...textDark);
+          const splitDesc = doc.splitTextToSize(st.description, stepBoxWidth - 6);
+          doc.text(splitDesc.slice(0, 3), sx + 3, sy + 12);
+        }
+      });
 
-        howItWorksSteps.forEach((st, idx) => {
-          const col = idx % 2;
-          const row = Math.floor(idx / 2);
-          const sx = margin + col * (stepBoxWidth + 6);
-          const sy = y + row * (stepBoxHeight + 4);
-
-          doc.setFillColor(...bgLight);
-          doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "F");
-          doc.setDrawColor(...borderColor);
-          doc.roundedRect(sx, sy, stepBoxWidth, stepBoxHeight, 2, 2, "S");
-
-          // Number Badge
-          doc.setFillColor(...brandNavy);
-          doc.roundedRect(sx + 3, sy + 3, 5, 5, 1, 1, "F");
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7);
-          doc.setTextColor(255, 255, 255);
-          doc.text(String(st.stepNumber || idx + 1), sx + 5.5, sy + 6.8, { align: "center" });
-
-          // Step Title
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7.5);
-          doc.setTextColor(...brandNavy);
-          doc.text(st.title || "Step", sx + 10, sy + 6.8);
-
-          // Step Desc
-          if (st.description) {
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(6.8);
-            doc.setTextColor(...textDark);
-            const splitDesc = doc.splitTextToSize(st.description, stepBoxWidth - 6);
-            doc.text(splitDesc.slice(0, 3), sx + 3, sy + 12);
-          }
-        });
-      }
+      y += Math.ceil(howItWorksSteps.length / 2) * (stepBoxHeight + 4) + 6;
     }
-
-    // Page 2 Footer
-    doc.setFontSize(7);
-    doc.setTextColor(...textMuted);
-    doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
-    doc.text("Page 2", pageWidth - margin, pageHeight - 7, { align: "right" });
   }
-
-  // =========================================================================
-  // PAGE 3 — APPLICATIONS + STANDARD SUPPLY + CONTACT / FOOTER
-  // =========================================================================
-  doc.addPage();
-  y = margin;
-
-  // Top Mini Header
-  doc.setFillColor(...brandNavy);
-  doc.rect(margin, y, contentWidth, 1.5, "F");
-  y += 5;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(...brandNavy);
-  doc.text("ARCL INSTRUMENTS PVT. LTD. — APPLICATIONS & SUPPLY OUTFIT", margin, y);
-
-  if (docRef) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...textMuted);
-    doc.text(docRef, pageWidth - margin, y, { align: "right" });
-  }
-
-  y += 3;
-  doc.setDrawColor(...borderColor);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 6;
 
   // Real Applications
   if (applicationsList.length > 0) {
+    ensureSpace(35);
+    const appHeight = Math.min(applicationsList.length * 6 + 12, 45);
     doc.setFillColor(236, 253, 245);
-    doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, "F");
+    doc.roundedRect(margin, y, contentWidth, appHeight, 2.5, 2.5, "F");
     doc.setDrawColor(167, 243, 208);
-    doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, "S");
+    doc.roundedRect(margin, y, contentWidth, appHeight, 2.5, 2.5, "S");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
@@ -557,15 +518,16 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
-    applicationsList.slice(0, 4).forEach((app, i) => {
-      doc.text(`•  ${app}`, margin + 4, y + 13 + i * 6);
+    applicationsList.slice(0, 6).forEach((app, i) => {
+      doc.text(`•  ${app}`, margin + 4, y + 13 + i * 5.5);
     });
 
-    y += 44;
+    y += appHeight + 8;
   }
 
   // Real Complete Set Includes
   if (supplyOutfitList.length > 0) {
+    ensureSpace(35);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...brandNavy);
@@ -603,41 +565,12 @@ export const downloadProductCatalogPdf = async (product) => {
     y += Math.ceil(Math.min(supplyOutfitList.length, 6) / 2) * (outfitBoxHeight + 3) + 7;
   }
 
-  // 3 Badges Row
-  const badgeWidth = (contentWidth - 6) / 3;
-  const badgeHeight = 13;
-  const badges = [
-    { title: "ISO 9001:2015", sub: "Quality Certified" },
-    { title: "100% Quality Tested", sub: "Pre-Dispatch Inspection" },
-    { title: "Pan-India Support", sub: "On-Site Calibration" },
-  ];
-
-  badges.forEach((b, i) => {
-    const bx = margin + i * (badgeWidth + 3);
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(bx, y, badgeWidth, badgeHeight, 1.5, 1.5, "F");
-    doc.setDrawColor(...borderColor);
-    doc.roundedRect(bx, y, badgeWidth, badgeHeight, 1.5, 1.5, "S");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...brandNavy);
-    doc.text(b.title, bx + badgeWidth / 2, y + 5.5, { align: "center" });
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(...textMuted);
-    doc.text(b.sub, bx + badgeWidth / 2, y + 10, { align: "center" });
-  });
-
-  y += badgeHeight + 6;
-
-  // Company Contact & Certification Footer Box
+  // Company Contact Footer Box
+  ensureSpace(45);
   const contactBoxHeight = 36;
   doc.setFillColor(...brandNavy);
   doc.roundedRect(margin, y, contentWidth, contactBoxHeight, 2.5, 2.5, "F");
 
-  // Title in contact box
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(255, 255, 255);
@@ -651,39 +584,38 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.setDrawColor(255, 255, 255, 0.2);
   doc.line(margin + 5, y + 13, pageWidth - margin - 5, y + 13);
 
-  // 3 Contact Columns
   const cColWidth = (contentWidth - 10) / 3;
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.8);
   doc.setTextColor(226, 232, 240);
 
-  // Col 1: Address
   doc.text(
     doc.splitTextToSize("Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708", cColWidth - 4),
     margin + 5,
     y + 18
   );
 
-  // Col 2: Phones
   doc.text(
     ["+91 8169695728 (Head)", "+91 8369458583 (Sales)", "+91 6205691085 (Calib)"],
     margin + 5 + cColWidth,
     y + 18
   );
 
-  // Col 3: Email & Web
   doc.text(
     ["arclinstruments@gmail.com", "info@arclinstruments.com", "www.arclinstruments.com"],
     margin + 5 + cColWidth * 2,
     y + 18
   );
 
-  // Page 3 Footer
-  doc.setFontSize(7);
-  doc.setTextColor(...textMuted);
-  doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
-  doc.text("Page 3", pageWidth - margin, pageHeight - 7, { align: "right" });
+  // Dynamic Auto Pagination Footers: "Page X of {totalPages}"
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...textMuted);
+    doc.text(`ARCL Instruments Pvt. Ltd. | ${product.name || "Brochure"}`, margin, pageHeight - 7);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: "right" });
+  }
 
   // Save PDF
   doc.save(filename);
