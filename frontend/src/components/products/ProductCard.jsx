@@ -62,6 +62,7 @@ const ProductCard = ({ product }) => {
           {/* Top Left Compare Button */}
           <button
             type="button"
+            suppressHydrationWarning
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -153,6 +154,7 @@ const ProductCard = ({ product }) => {
           {/* Add to Quote Basket Button */}
           <button
             type="button"
+            suppressHydrationWarning
             onClick={(e) => {
               e.preventDefault();
               addItem(product, 1);

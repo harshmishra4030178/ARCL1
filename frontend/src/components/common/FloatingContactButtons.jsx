@@ -302,6 +302,7 @@ const FloatingContactButtons = () => {
 
           {/* Subscribe Action Button */}
           <button
+            suppressHydrationWarning
             onClick={() => setIsSubscribeOpen(true)}
             aria-label="Subscribe to New Equipment Launch Alerts"
             className="relative flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 hover:from-amber-500 hover:to-yellow-300 text-slate-950 shadow-lg shadow-amber-500/35 hover:shadow-xl hover:shadow-amber-500/50 transform hover:scale-110 active:scale-95 transition-all duration-300 border-2 border-white cursor-pointer"
@@ -390,6 +391,7 @@ const FloatingContactButtons = () => {
           {/* AI Bot Trigger Button */}
           <button
             type="button"
+            suppressHydrationWarning
             onClick={() => useAiAssistantStore.getState().toggleAssistant()}
             aria-label="Ask ARCL AI Assistant"
             className="relative flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-[#021C57] via-blue-800 to-indigo-600 hover:from-blue-900 hover:to-indigo-500 text-white shadow-lg shadow-indigo-900/40 hover:shadow-xl hover:shadow-indigo-600/50 transform hover:scale-110 active:scale-95 transition-all duration-300 border-2 border-amber-300/80 cursor-pointer"
