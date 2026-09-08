@@ -55,12 +55,12 @@ export async function generateMetadata({ params }) {
       "ARCL Instruments",
     ],
     alternates: {
-      canonical: `https://www.arclinstruments.com/blog/${slug}`,
+      canonical: `https://arclinstruments.com/blog/${slug}`,
     },
     openGraph: {
       title,
       description,
-      url: `https://www.arclinstruments.com/blog/${slug}`,
+      url: `https://arclinstruments.com/blog/${slug}`,
       siteName: "ARCL Instruments Pvt. Ltd.",
       images: [
         {
@@ -99,29 +99,29 @@ export default async function SingleBlogPage({ params }) {
                 "@type": "ListItem",
                 "position": 1,
                 "name": "Home",
-                "item": "https://www.arclinstruments.com",
+                "item": "https://arclinstruments.com",
               },
               {
                 "@type": "ListItem",
                 "position": 2,
                 "name": "Blog",
-                "item": "https://www.arclinstruments.com/blog",
+                "item": "https://arclinstruments.com/blog",
               },
               {
                 "@type": "ListItem",
                 "position": 3,
                 "name": blog.title,
-                "item": `https://www.arclinstruments.com/blog/${slug}`,
+                "item": `https://arclinstruments.com/blog/${slug}`,
               },
             ],
           },
           {
             "@type": "BlogPosting",
-            "@id": `https://www.arclinstruments.com/blog/${slug}#article`,
+            "@id": `https://arclinstruments.com/blog/${slug}#article`,
             "headline": blog.title,
             "name": blog.title,
             "description": blog.excerpt,
-            "image": [blog.featuredImage || "https://www.arclinstruments.com/assets/LOGO.png"],
+            "image": [blog.featuredImage || "https://arclinstruments.com/assets/LOGO.png"],
             "datePublished": blog.publishedAt,
             "dateModified": blog.updatedAt || blog.publishedAt,
             "author": {
@@ -132,15 +132,15 @@ export default async function SingleBlogPage({ params }) {
             "publisher": {
               "@type": "Organization",
               "name": "ARCL Instruments Pvt. Ltd.",
-              "url": "https://www.arclinstruments.com",
+              "url": "https://arclinstruments.com",
               "logo": {
                 "@type": "ImageObject",
-                "url": "https://www.arclinstruments.com/assets/LOGO.png",
+                "url": "https://arclinstruments.com/assets/LOGO.png",
               },
             },
             "mainEntityOfPage": {
               "@type": "WebPage",
-              "@id": `https://www.arclinstruments.com/blog/${slug}`,
+              "@id": `https://arclinstruments.com/blog/${slug}`,
             },
             "articleSection": blog.category,
             "keywords": (blog.tags || []).join(", "),

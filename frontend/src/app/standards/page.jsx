@@ -17,13 +17,13 @@ export const metadata = {
     "ARCL Instruments Navi Mumbai",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/standards",
+    canonical: "https://arclinstruments.com/standards",
   },
   openGraph: {
     title: "Civil Engineering Testing Standards Directory (IS, ASTM, BS Codes) | ARCL",
     description:
       "Find complete equipment lists and 1-click BOQ estimates for certified Indian Standards (IS 516, IS 2720, IS 1208, IS 4031) and international civil testing codes.",
-    url: "https://www.arclinstruments.com/standards",
+    url: "https://arclinstruments.com/standards",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -54,32 +54,32 @@ const standardsJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "Testing Standards Directory",
-          "item": "https://www.arclinstruments.com/standards",
+          "item": "https://arclinstruments.com/standards",
         },
       ],
     },
     {
       "@type": "CollectionPage",
-      "@id": "https://www.arclinstruments.com/standards#webpage",
-      "url": "https://www.arclinstruments.com/standards",
+      "@id": "https://arclinstruments.com/standards#webpage",
+      "url": "https://arclinstruments.com/standards",
       "name": "Civil Engineering Testing Standards Hub (IS, ASTM, BS Codes)",
       "description":
         "Directory of civil material testing standards including IS 516, IS 2720, IS 1208, IS 4031, IS 2386 with certified equipment mapping.",
       "publisher": {
         "@type": "Organization",
         "name": "ARCL Instruments Pvt. Ltd.",
-        "url": "https://www.arclinstruments.com",
+        "url": "https://arclinstruments.com",
       },
     },
     {
       "@type": "FAQPage",
-      "@id": "https://www.arclinstruments.com/standards#faq",
+      "@id": "https://arclinstruments.com/standards#faq",
       "mainEntity": [
         {
           "@type": "Question",

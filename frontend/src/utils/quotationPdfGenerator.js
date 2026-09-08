@@ -72,7 +72,7 @@ export const generateQuotationPdf = ({
             <h1 style="margin: 0; font-size: 24px; font-weight: 900; color: #021C57; letter-spacing: -0.5px;">ARCL INSTRUMENTS PVT. LTD.</h1>
             <p style="margin: 4px 0 0 0; font-size: 11px; font-weight: 700; color: #d97706; text-transform: uppercase; letter-spacing: 1px;">An ISO 9001:2015 Certified Manufacturer</p>
             <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">Precision Civil Engineering & Material Testing Equipment</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;">Plot No. 4, Industrial Area, Phase II | Web: www.arclinstruments.com</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;">Plot No. 4, Industrial Area, Phase II | Web: arclinstruments.com</p>
           </div>
           <div style="text-align: right;">
             <div style="display: inline-block; background: #021C57; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 14px; font-weight: 800; letter-spacing: 0.5px;">

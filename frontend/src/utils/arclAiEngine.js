@@ -464,7 +464,7 @@ export function generateArclAiAnswer(rawQuery) {
     lower.includes("call")
   ) {
     return {
-      text: `**ARCL Instruments Technical Support & Sales Desk:**\n\n📞 **Helpline Phone:** +91 81696 95728\n💬 **WhatsApp Sales Desk:** +91 81696 95728 (Instant Quotations & Catalogs)\n✉️ **Email:** arclinstruments@gmail.com\n🏭 **Factory & Dispatch Hub:** Industrial Area, Phase II (Pan-India Safe Wooden Packaging)\n🌐 **Official Website:** www.arclinstruments.com\n\nAap kisi bhi time WhatsApp par message bhej sakte hain ya hamare engineering desk par call kar sakte hain.`,
+      text: `**ARCL Instruments Technical Support & Sales Desk:**\n\n📞 **Helpline Phone:** +91 81696 95728\n💬 **WhatsApp Sales Desk:** +91 81696 95728 (Instant Quotations & Catalogs)\n✉️ **Email:** arclinstruments@gmail.com\n🏭 **Factory & Dispatch Hub:** Industrial Area, Phase II (Pan-India Safe Wooden Packaging)\n🌐 **Official Website:** arclinstruments.com\n\nAap kisi bhi time WhatsApp par message bhej sakte hain ya hamare engineering desk par call kar sakte hain.`,
       recommendedProducts: [],
       suggestions: [
         "Chat on WhatsApp",

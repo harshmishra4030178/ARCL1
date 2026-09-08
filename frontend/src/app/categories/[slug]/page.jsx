@@ -53,7 +53,7 @@ export async function generateMetadata({ params }) {
     openGraph: {
       title,
       description,
-      url: `https://www.arclinstruments.com/categories/${slug}`,
+      url: `https://arclinstruments.com/categories/${slug}`,
       type: "website",
     },
   };
@@ -79,34 +79,34 @@ export default async function CategoryDetailPage({ params }) {
             "@type": "ListItem",
             "position": 1,
             "name": "Home",
-            "item": "https://www.arclinstruments.com",
+            "item": "https://arclinstruments.com",
           },
           {
             "@type": "ListItem",
             "position": 2,
             "name": "Categories",
-            "item": "https://www.arclinstruments.com/products",
+            "item": "https://arclinstruments.com/products",
           },
           {
             "@type": "ListItem",
             "position": 3,
             "name": category?.name || slug,
-            "item": `https://www.arclinstruments.com/categories/${slug}`,
+            "item": `https://arclinstruments.com/categories/${slug}`,
           },
         ],
       },
       {
         "@type": "CollectionPage",
-        "@id": `https://www.arclinstruments.com/categories/${slug}#webpage`,
+        "@id": `https://arclinstruments.com/categories/${slug}#webpage`,
         "name": category?.name ? `${category.name} Testing Equipment` : `${slug} Equipment`,
         "description":
           category?.description ||
           `Explore high precision ${category?.name || slug} manufactured by ARCL Instruments Pvt. Ltd.`,
-        "url": `https://www.arclinstruments.com/categories/${slug}`,
+        "url": `https://arclinstruments.com/categories/${slug}`,
         "provider": {
           "@type": "Organization",
           "name": "ARCL Instruments Pvt. Ltd.",
-          "url": "https://www.arclinstruments.com",
+          "url": "https://arclinstruments.com",
         },
         "mainEntity": {
           "@type": "ItemList",
@@ -114,7 +114,7 @@ export default async function CategoryDetailPage({ params }) {
             "@type": "ListItem",
             "position": idx + 1,
             "name": p.name,
-            "url": `https://www.arclinstruments.com/products/${p.slug}`,
+            "url": `https://arclinstruments.com/products/${p.slug}`,
           })),
         },
       },

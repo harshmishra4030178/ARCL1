@@ -1,4 +1,4 @@
-const SITE_URL = "https://www.arclinstruments.com";
+const SITE_URL = "https://arclinstruments.com";
 
 const getBackendUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.startsWith("http")) {

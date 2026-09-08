@@ -15,13 +15,13 @@ export const metadata = {
     "ARCL Instruments",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/calibration-services",
+    canonical: "https://arclinstruments.com/calibration-services",
   },
   openGraph: {
     title: "NABL Traceable Calibration & Maintenance Services | ARCL Instruments",
     description:
       "Certified calibration and maintenance for compression testing machines, CBR, vicat, ovens, and lab instruments across India.",
-    url: "https://www.arclinstruments.com/calibration-services",
+    url: "https://arclinstruments.com/calibration-services",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -51,19 +51,19 @@ const calibrationJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "Calibration Services",
-          "item": "https://www.arclinstruments.com/calibration-services",
+          "item": "https://arclinstruments.com/calibration-services",
         },
       ],
     },
     {
       "@type": "Service",
-      "@id": "https://www.arclinstruments.com/calibration-services#service",
+      "@id": "https://arclinstruments.com/calibration-services#service",
       "name": "Laboratory Instrument Calibration & Maintenance Services",
       "serviceType": "Calibration and Maintenance of Civil Testing Equipment",
       "description":
@@ -71,8 +71,8 @@ const calibrationJsonLd = {
       "provider": {
         "@type": "Organization",
         "name": "ARCL Instruments Pvt. Ltd.",
-        "url": "https://www.arclinstruments.com",
-        "logo": "https://www.arclinstruments.com/assets/LOGO.png",
+        "url": "https://arclinstruments.com",
+        "logo": "https://arclinstruments.com/assets/LOGO.png",
       },
       "areaServed": {
         "@type": "Country",

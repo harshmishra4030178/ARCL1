@@ -11,13 +11,13 @@ export const metadata = {
     "civil testing instruments privacy",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/privacy-policy",
+    canonical: "https://arclinstruments.com/privacy-policy",
   },
   openGraph: {
     title: "Privacy Policy | ARCL Instruments Pvt. Ltd.",
     description:
       "Official Privacy Policy of ARCL Instruments Pvt. Ltd. Data protection and quotation confidentiality standards.",
-    url: "https://www.arclinstruments.com/privacy-policy",
+    url: "https://arclinstruments.com/privacy-policy",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {

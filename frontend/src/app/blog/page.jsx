@@ -15,13 +15,13 @@ export const metadata = {
     "ARCL Instruments technical knowledge",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/blog",
+    canonical: "https://arclinstruments.com/blog",
   },
   openGraph: {
     title: "Civil Engineering & Material Testing Technical Guides | ARCL Blog",
     description:
       "Step-by-step laboratory testing guides, formulas, and equipment checklists for Indian Standards (IS Codes) and civil QA/QC.",
-    url: "https://www.arclinstruments.com/blog",
+    url: "https://arclinstruments.com/blog",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -52,28 +52,28 @@ const blogListJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "Blog & Technical Guides",
-          "item": "https://www.arclinstruments.com/blog",
+          "item": "https://arclinstruments.com/blog",
         },
       ],
     },
     {
       "@type": "Blog",
-      "@id": "https://www.arclinstruments.com/blog#blog",
+      "@id": "https://arclinstruments.com/blog#blog",
       "name": "ARCL Instruments Technical Knowledge Hub",
       "description":
         "Technical guides, laboratory test procedures, and standards documentation for civil engineering and material testing.",
-      "url": "https://www.arclinstruments.com/blog",
+      "url": "https://arclinstruments.com/blog",
       "publisher": {
         "@type": "Organization",
         "name": "ARCL Instruments Pvt. Ltd.",
-        "url": "https://www.arclinstruments.com",
-        "logo": "https://www.arclinstruments.com/assets/LOGO.png",
+        "url": "https://arclinstruments.com",
+        "logo": "https://arclinstruments.com/assets/LOGO.png",
       },
     },
   ],

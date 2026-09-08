@@ -12,13 +12,13 @@ export const metadata = {
     "material testing machines India",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/about",
+    canonical: "https://arclinstruments.com/about",
   },
   openGraph: {
     title: "About ARCL Instruments | ISO Certified Testing Machine Manufacturer",
     description:
       "Leading manufacturer of certified civil engineering and laboratory testing instruments based in Navi Mumbai, India.",
-    url: "https://www.arclinstruments.com/about",
+    url: "https://arclinstruments.com/about",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -48,28 +48,28 @@ const aboutJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "About Us",
-          "item": "https://www.arclinstruments.com/about",
+          "item": "https://arclinstruments.com/about",
         },
       ],
     },
     {
       "@type": "AboutPage",
-      "@id": "https://www.arclinstruments.com/about#webpage",
-      "url": "https://www.arclinstruments.com/about",
+      "@id": "https://arclinstruments.com/about#webpage",
+      "url": "https://arclinstruments.com/about",
       "name": "About ARCL Instruments Pvt. Ltd.",
       "description":
         "ARCL Instruments Pvt. Ltd. is an ISO 9001:2015 certified manufacturer & exporter of precision laboratory and civil testing equipment.",
       "mainEntity": {
         "@type": "Organization",
         "name": "ARCL Instruments Pvt. Ltd.",
-        "url": "https://www.arclinstruments.com",
-        "logo": "https://www.arclinstruments.com/assets/LOGO.png",
+        "url": "https://arclinstruments.com",
+        "logo": "https://arclinstruments.com/assets/LOGO.png",
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli",

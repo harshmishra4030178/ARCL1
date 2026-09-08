@@ -17,13 +17,13 @@ export const metadata = {
     "laboratory equipment manufacturer India",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com",
+    canonical: "https://arclinstruments.com",
   },
   openGraph: {
     title: "ARCL Instruments | Material & Civil Testing Lab Equipment Manufacturer Mumbai",
     description:
       "ISO 9001:2015 Certified Manufacturer & Exporter of Precision Civil, Material, Geotechnical & Laboratory Testing Machines in Mumbai, Navi Mumbai & across India.",
-    url: "https://www.arclinstruments.com",
+    url: "https://arclinstruments.com",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -41,12 +41,12 @@ const homeJsonLd = {
   "@graph": [
     {
       "@type": "LocalBusiness",
-      "@id": "https://www.arclinstruments.com/#localbusiness",
+      "@id": "https://arclinstruments.com/#localbusiness",
       "name": "ARCL Instruments Pvt. Ltd.",
       "alternateName": "ARCL Instruments Mumbai",
-      "url": "https://www.arclinstruments.com",
-      "logo": "https://www.arclinstruments.com/assets/LOGO.png",
-      "image": "https://www.arclinstruments.com/assets/LOGO.png",
+      "url": "https://arclinstruments.com",
+      "logo": "https://arclinstruments.com/assets/LOGO.png",
+      "image": "https://arclinstruments.com/assets/LOGO.png",
       "description":
         "Mumbai & Navi Mumbai's premier ISO 9001:2015 certified manufacturer and supplier of civil engineering, concrete, soil, bitumen, and material testing laboratory instruments.",
       "telephone": "+91-8169695728",
@@ -90,24 +90,24 @@ const homeJsonLd = {
     },
     {
       "@type": "WebSite",
-      "@id": "https://www.arclinstruments.com/#website",
-      "url": "https://www.arclinstruments.com",
+      "@id": "https://arclinstruments.com/#website",
+      "url": "https://arclinstruments.com",
       "name": "ARCL Instruments",
       "potentialAction": {
         "@type": "SearchAction",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://www.arclinstruments.com/products?search={search_term_string}",
+          "urlTemplate": "https://arclinstruments.com/products?search={search_term_string}",
         },
         "query-input": "required name=search_term_string",
       },
       "publisher": {
-        "@id": "https://www.arclinstruments.com/#localbusiness",
+        "@id": "https://arclinstruments.com/#localbusiness",
       },
     },
     {
       "@type": "FAQPage",
-      "@id": "https://www.arclinstruments.com/#faq",
+      "@id": "https://arclinstruments.com/#faq",
       "mainEntity": [
         {
           "@type": "Question",

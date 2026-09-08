@@ -14,13 +14,13 @@ export const metadata = {
     "ARCL Instruments",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/products",
+    canonical: "https://arclinstruments.com/products",
   },
   openGraph: {
     title: "Testing Instruments & Laboratory Equipment Catalogue | ARCL Instruments",
     description:
       "Explore certified laboratory and civil engineering testing equipment manufactured by ARCL Instruments Pvt. Ltd.",
-    url: "https://www.arclinstruments.com/products",
+    url: "https://arclinstruments.com/products",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -51,27 +51,27 @@ const productsJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "Products",
-          "item": "https://www.arclinstruments.com/products",
+          "item": "https://arclinstruments.com/products",
         },
       ],
     },
     {
       "@type": "CollectionPage",
-      "@id": "https://www.arclinstruments.com/products#webpage",
-      "url": "https://www.arclinstruments.com/products",
+      "@id": "https://arclinstruments.com/products#webpage",
+      "url": "https://arclinstruments.com/products",
       "name": "Laboratory Testing Equipment & Instruments Catalogue",
       "description":
         "Complete catalogue of civil material testing machines manufactured by ARCL Instruments Pvt. Ltd.",
       "publisher": {
         "@type": "Organization",
         "name": "ARCL Instruments Pvt. Ltd.",
-        "url": "https://www.arclinstruments.com",
+        "url": "https://arclinstruments.com",
       },
     },
   ],

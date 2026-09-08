@@ -5,7 +5,7 @@ export default function robots() {
       allow: "/",
       disallow: ["/admin", "/admin/", "/api/"],
     },
-    sitemap: "https://www.arclinstruments.com/sitemap.xml",
-    host: "https://www.arclinstruments.com",
+    sitemap: "https://arclinstruments.com/sitemap.xml",
+    host: "https://arclinstruments.com",
   };
 }

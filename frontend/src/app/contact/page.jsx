@@ -12,13 +12,13 @@ export const metadata = {
     "ARCL phone number email",
   ],
   alternates: {
-    canonical: "https://www.arclinstruments.com/contact",
+    canonical: "https://arclinstruments.com/contact",
   },
   openGraph: {
     title: "Contact ARCL Instruments | Factory Quotation & Technical Inquiries",
     description:
       "Get instant factory quotes, technical assistance, and calibration support from ARCL Instruments Pvt. Ltd.",
-    url: "https://www.arclinstruments.com/contact",
+    url: "https://arclinstruments.com/contact",
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
@@ -49,20 +49,20 @@ const contactJsonLd = {
           "@type": "ListItem",
           "position": 1,
           "name": "Home",
-          "item": "https://www.arclinstruments.com",
+          "item": "https://arclinstruments.com",
         },
         {
           "@type": "ListItem",
           "position": 2,
           "name": "Contact Us",
-          "item": "https://www.arclinstruments.com/contact",
+          "item": "https://arclinstruments.com/contact",
         },
       ],
     },
     {
       "@type": "ContactPage",
-      "@id": "https://www.arclinstruments.com/contact#webpage",
-      "url": "https://www.arclinstruments.com/contact",
+      "@id": "https://arclinstruments.com/contact#webpage",
+      "url": "https://arclinstruments.com/contact",
       "name": "Contact ARCL Instruments Pvt. Ltd.",
       "description":
         "Contact page for ARCL Instruments Pvt. Ltd. for inquiries, quotation requests, and technical support.",

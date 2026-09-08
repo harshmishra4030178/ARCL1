@@ -2,7 +2,7 @@ import "../index.css";
 import ClientLayout from "./ClientLayout";
 
 export const metadata = {
-  metadataBase: new URL("https://www.arclinstruments.com"),
+  metadataBase: new URL("https://arclinstruments.com"),
   title: {
     default: "ARCL INSTRUMENTS PVT. LTD | Precision Laboratory & Civil Testing Equipment Manufacturer",
     template: "%s | ARCL Instruments",
@@ -36,7 +36,7 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: "https://www.arclinstruments.com",
+    url: "https://arclinstruments.com",
     siteName: "ARCL Instruments Pvt. Ltd.",
     title: "ARCL Instruments | Material & Civil Testing Lab Equipment Manufacturer",
     description:

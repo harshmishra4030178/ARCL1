@@ -60,7 +60,7 @@ export async function generateMetadata({ params }) {
     openGraph: {
       title,
       description,
-      url: `https://www.arclinstruments.com/products/${slug}`,
+      url: `https://arclinstruments.com/products/${slug}`,
       images: [{ url: image, alt: product.name }],
       type: "website",
     },
@@ -89,29 +89,29 @@ export default async function ProductDetailPage({ params }) {
                 "@type": "ListItem",
                 "position": 1,
                 "name": "Home",
-                "item": "https://www.arclinstruments.com",
+                "item": "https://arclinstruments.com",
               },
               {
                 "@type": "ListItem",
                 "position": 2,
                 "name": product.category?.name || "Equipment",
                 "item": product.category?.slug
-                  ? `https://www.arclinstruments.com/categories/${product.category.slug}`
-                  : "https://www.arclinstruments.com/products",
+                  ? `https://arclinstruments.com/categories/${product.category.slug}`
+                  : "https://arclinstruments.com/products",
               },
               {
                 "@type": "ListItem",
                 "position": 3,
                 "name": product.name,
-                "item": `https://www.arclinstruments.com/products/${slug}`,
+                "item": `https://arclinstruments.com/products/${slug}`,
               },
             ],
           },
           {
             "@type": "Product",
-            "@id": `https://www.arclinstruments.com/products/${slug}#product`,
+            "@id": `https://arclinstruments.com/products/${slug}#product`,
             "name": product.name,
-            "image": Array.isArray(product.images) && product.images.length > 0 ? product.images : ["https://www.arclinstruments.com/assets/LOGO.png"],
+            "image": Array.isArray(product.images) && product.images.length > 0 ? product.images : ["https://arclinstruments.com/assets/LOGO.png"],
             "description":
               product.description ||
               `Certified ${product.name} precision testing machine manufactured by ARCL Instruments Pvt. Ltd. Complying with IS/ASTM/BS standards.`,
@@ -124,12 +124,12 @@ export default async function ProductDetailPage({ params }) {
             "manufacturer": {
               "@type": "Organization",
               "name": "ARCL Instruments Pvt. Ltd.",
-              "url": "https://www.arclinstruments.com",
+              "url": "https://arclinstruments.com",
             },
             "category": product.category?.name || "Civil Laboratory Testing Equipment",
             "offers": {
               "@type": "Offer",
-              "url": `https://www.arclinstruments.com/products/${slug}`,
+              "url": `https://arclinstruments.com/products/${slug}`,
               "priceCurrency": "INR",
               "price": "Contact for Factory Price",
               "availability": "https://schema.org/InStock",

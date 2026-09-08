@@ -32,7 +32,7 @@ export default function PrivacyPolicy() {
             Welcome to <strong>ARCL Instruments Pvt. Ltd.</strong> (“ARCL”, “we”, “our”, or “us”). We are an ISO 9001:2015 certified manufacturer and exporter of precision civil engineering, construction materials, soil, concrete, bitumen, and laboratory testing equipment based in Navi Mumbai, Maharashtra, India.
           </p>
           <p className="text-slate-600 leading-relaxed">
-            This Privacy Policy outlines our standards regarding the collection, maintenance, protection, and disclosure of personal and business information gathered through our official website (<strong>https://www.arclinstruments.com</strong>), direct technical consultations, and digital quotation inquiry systems.
+            This Privacy Policy outlines our standards regarding the collection, maintenance, protection, and disclosure of personal and business information gathered through our official website (<strong>https://arclinstruments.com</strong>), direct technical consultations, and digital quotation inquiry systems.
           </p>
         </>
       ),
