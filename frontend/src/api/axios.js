@@ -1,4 +1,5 @@
 import axios from "axios";
+import { reportClientError } from "../utils/clientErrorLogger.js";
 
 const getBaseURL = () => {
   const envUrl =
@@ -69,12 +70,15 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle token expiry / unauthorized access
+// Response interceptor to handle token expiry & AUTOMATICALLY LOG API FAILURES
 API.interceptors.response.use(
   (response) => response,
   (error) => {
+    const url = error.config?.url || "";
+    const isErrorLogEndpoint = url.includes("/client/error-logs") || url.includes("/admin/error-logs");
+
     if (typeof window !== "undefined" && error.response?.status === 401) {
-      const isAuthRoute = error.config?.url?.includes("/auth/");
+      const isAuthRoute = url.includes("/auth/");
       const isAdminRoute = window.location.pathname.startsWith("/admin");
 
       if (!isAuthRoute && isAdminRoute && window.location.pathname !== "/admin/login") {
@@ -83,6 +87,34 @@ API.interceptors.response.use(
         window.location.href = "/admin/login";
       }
     }
+
+    // Capture and automatically report any API failure across the website
+    if (!isErrorLogEndpoint) {
+      try {
+        const status = error.response?.status;
+        const method = (error.config?.method || "GET").toUpperCase();
+        const resMessage = error.response?.data?.message || error.message || "API Request Failed";
+        const severity = !status || status >= 500 ? "critical" : status >= 400 ? "warning" : "error";
+
+        reportClientError({
+          message: `API ${method} ${url} [${status || "NETWORK_ERROR"}]: ${resMessage}`,
+          stack: error.stack || "",
+          source: "api",
+          statusCode: status || 0,
+          method,
+          severity,
+          metadata: {
+            endpoint: url,
+            status,
+            method,
+            responseData: error.response?.data,
+          },
+        });
+      } catch (e) {
+        // Ignored
+      }
+    }
+
     return Promise.reject(error);
   }
 );

@@ -11,6 +11,7 @@ import CompareFloatingBar from "../components/common/CompareFloatingBar";
 import ArclAiAssistant from "../components/ai/ArclAiAssistant";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
+import { ErrorBoundary } from "../components/common/ErrorBoundary.jsx";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -27,6 +28,29 @@ export default function ClientLayout({ children }) {
 
   if (isAdmin || isPdfPage) {
     return (
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop={true}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+            style={{ zIndex: 999999 }}
+          />
+          {children}
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
       <Suspense fallback={null}>
         <ToastContainer
           position="top-right"
@@ -41,35 +65,15 @@ export default function ClientLayout({ children }) {
           theme="light"
           style={{ zIndex: 999999 }}
         />
+        <Navbar />
         {children}
+        <Footer />
+        <QuoteCartDrawer />
+        <FloatingQuoteCartButton />
+        <CompareFloatingBar />
+        <ArclAiAssistant />
+        <FloatingContactButtons />
       </Suspense>
-    );
-  }
-
-  return (
-    <Suspense fallback={null}>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={true}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        style={{ zIndex: 999999 }}
-      />
-      <Navbar />
-      {children}
-      <Footer />
-      <QuoteCartDrawer />
-      <FloatingQuoteCartButton />
-      <CompareFloatingBar />
-      <ArclAiAssistant />
-      <FloatingContactButtons />
-    </Suspense>
+    </ErrorBoundary>
   );
 }
-

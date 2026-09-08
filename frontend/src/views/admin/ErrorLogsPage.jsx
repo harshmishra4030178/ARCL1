@@ -19,6 +19,9 @@ import {
   Server,
   Layers,
   Sparkles,
+  Radio,
+  WifiOff,
+  Cpu,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -49,7 +52,7 @@ const ErrorLogsPage = () => {
     const interval = setInterval(() => {
       fetchLogs();
       fetchStats();
-    }, 4000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [liveStreamActive, filters, pagination.page]);
@@ -62,16 +65,17 @@ const ErrorLogsPage = () => {
   const handleTriggerTestError = () => {
     try {
       reportClientError({
-        message: "Test Diagnostic Exception for ARCL System Verification",
-        stack: "Error: Test Diagnostic\n  at AdminErrorLogsPage.jsx:45:12\n  at simulateTest (ARCL/diagnostics.js:10:4)",
+        message: "Simulated Test Error: Verified real-time client ingestion across ARCL platform",
+        stack: "Error: Simulated Test Error\n  at AdminErrorLogsPage.jsx:45:12\n  at reportClientError (clientErrorLogger.js:20:4)",
+        source: "frontend",
         severity: "warning",
-        metadata: { trigger: "Manual Admin Dashboard Trigger" },
+        metadata: { trigger: "Manual Admin Diagnostic Verification", url: window.location.href },
       });
-      toast.success("Triggered test error report! Refreshing in 1 second...");
+      toast.success("Triggered real-time test error! Reflected in ~1 second...");
       setTimeout(() => {
         fetchLogs();
         fetchStats();
-      }, 1000);
+      }, 800);
     } catch (e) {
       toast.error("Test trigger failed");
     }
@@ -81,49 +85,61 @@ const ErrorLogsPage = () => {
     switch (severity) {
       case "critical":
         return (
-          <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
             <XCircle size={12} className="text-red-600" /> Critical
           </span>
         );
       case "error":
         return (
-          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
             <AlertTriangle size={12} className="text-amber-600" /> Error
           </span>
         );
       case "warning":
         return (
-          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-900 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
             <Bug size={12} className="text-yellow-600" /> Warning
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
             <Clock size={12} className="text-blue-600" /> Info
           </span>
         );
     }
   };
 
-  const getSourceIcon = (source) => {
+  const getSourceBadge = (source) => {
     switch (source) {
       case "backend":
         return (
-          <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-            <Server size={12} /> Backend
+          <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
+            <Server size={11} /> Backend API
+          </span>
+        );
+      case "api":
+        return (
+          <span className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
+            <WifiOff size={11} /> API Call Fail
+          </span>
+        );
+      case "react_boundary":
+        return (
+          <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
+            <Cpu size={11} /> React UI Crash
           </span>
         );
       case "frontend":
         return (
-          <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-            <Globe size={12} /> Frontend
+          <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
+            <Globe size={11} /> Frontend Browser
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-            <Layers size={12} /> {source}
+          <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
+            <Layers size={11} /> {source || "Runtime"}
           </span>
         );
     }
@@ -134,25 +150,32 @@ const ErrorLogsPage = () => {
       {/* 1. HEADER & ACTION BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-red-50 text-red-600 rounded-xl">
-              <ShieldAlert size={24} />
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-red-50 text-red-600 rounded-2xl">
+              <ShieldAlert size={26} />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-[#021C57] tracking-tight">
-                System Health & Error Monitoring
-              </h1>
-              <p className="text-xs text-gray-500 font-medium">
-                Live automated capture of runtime client crashes, API errors, and backend exceptions
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-[#021C57] tracking-tight">
+                  Live Error & Health Monitoring
+                </h1>
+                {liveStreamActive && (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full animate-pulse">
+                    <Radio size={10} /> Live (3s)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                Real-time automated ingestion of client browser errors, React crashes, and backend API exceptions
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={handleTriggerTestError}
-            className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
           >
             <Sparkles size={14} className="text-amber-600" />
             Trigger Test Error
@@ -175,14 +198,13 @@ const ErrorLogsPage = () => {
             className="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
           >
             <Trash2 size={14} />
-            Clear Resolved Logs
+            Clear Resolved
           </button>
         </div>
       </div>
 
       {/* 2. KPI METRICS CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Logs */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Total Recorded</p>
@@ -193,7 +215,6 @@ const ErrorLogsPage = () => {
           </div>
         </div>
 
-        {/* Unresolved Errors */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-amber-500">Unresolved Issues</p>
@@ -204,7 +225,6 @@ const ErrorLogsPage = () => {
           </div>
         </div>
 
-        {/* Critical Errors */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-red-500">Critical Failures</p>
@@ -215,7 +235,6 @@ const ErrorLogsPage = () => {
           </div>
         </div>
 
-        {/* Last 24 Hours */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-purple-500">Last 24 Hours</p>
@@ -230,7 +249,6 @@ const ErrorLogsPage = () => {
       {/* 3. FILTERS & SEARCH BAR */}
       <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Search */}
           <div className="relative">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -242,7 +260,6 @@ const ErrorLogsPage = () => {
             />
           </div>
 
-          {/* Severity Filter */}
           <div>
             <select
               value={filters.severity}
@@ -257,20 +274,20 @@ const ErrorLogsPage = () => {
             </select>
           </div>
 
-          {/* Source Filter */}
           <div>
             <select
               value={filters.source}
               onChange={(e) => setFilter("source", e.target.value)}
               className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#021C57]"
             >
-              <option value="all">All Sources (Frontend & Backend)</option>
-              <option value="frontend">Frontend (Client Browser)</option>
-              <option value="backend">Backend (Node/Express API)</option>
+              <option value="all">All Sources</option>
+              <option value="frontend">Frontend Browser</option>
+              <option value="api">API Call Failures</option>
+              <option value="react_boundary">React UI Crashes</option>
+              <option value="backend">Backend Server API</option>
             </select>
           </div>
 
-          {/* Resolution Status */}
           <div>
             <select
               value={filters.resolved}
@@ -278,7 +295,7 @@ const ErrorLogsPage = () => {
               className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#021C57]"
             >
               <option value="all">All Statuses (Resolved & Unresolved)</option>
-              <option value="false">Unresolved Only (Needs Action)</option>
+              <option value="false">Unresolved Only (Action Required)</option>
               <option value="true">Resolved Only</option>
             </select>
           </div>
@@ -311,9 +328,9 @@ const ErrorLogsPage = () => {
                 <tr>
                   <td colSpan={6} className="p-12 text-center text-gray-500">
                     <CheckCircle2 size={40} className="text-emerald-500 mx-auto mb-2" />
-                    <p className="font-bold text-gray-800 text-sm">No Error Logs Found</p>
+                    <p className="font-bold text-gray-800 text-sm">No Active Error Reports</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      Your platform is operating smoothly with 0 active error reports under this filter.
+                      Your platform is running smoothly. Any client, API or server error will appear here immediately in real time.
                     </p>
                   </td>
                 </tr>
@@ -324,19 +341,18 @@ const ErrorLogsPage = () => {
                     day: "numeric",
                     hour: "2-digit",
                     minute: "2-digit",
+                    second: "2-digit",
                   });
 
                   return (
                     <tr
                       key={log._id}
-                      className={`transition hover:bg-gray-50/80 ${
-                        log.resolved ? "opacity-60 bg-gray-50/30" : ""
-                      }`}
+                      className={"transition hover:bg-gray-50/80 " + (log.resolved ? "opacity-60 bg-gray-50/30" : "")}
                     >
                       {/* Severity & Source */}
                       <td className="p-4 align-top space-y-1.5 whitespace-nowrap">
                         <div>{getSeverityBadge(log.severity)}</div>
-                        <div>{getSourceIcon(log.source)}</div>
+                        <div>{getSourceBadge(log.source)}</div>
                       </td>
 
                       {/* Error Message */}
@@ -353,8 +369,8 @@ const ErrorLogsPage = () => {
                           </button>
                         )}
                         {log.userAgent && (
-                          <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                            Device: {log.userAgent}
+                          <p className="text-[10px] text-gray-400 truncate mt-0.5 font-mono">
+                            {log.userAgent}
                           </p>
                         )}
                       </td>
@@ -376,13 +392,13 @@ const ErrorLogsPage = () => {
                         )}
                         {log.method && (
                           <span className="inline-block bg-gray-100 text-gray-600 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded mt-1">
-                            {log.method} {log.statusCode || 500}
+                            {log.method} {log.statusCode || ""}
                           </span>
                         )}
                       </td>
 
                       {/* Reported At */}
-                      <td className="p-4 align-top whitespace-nowrap text-gray-500">
+                      <td className="p-4 align-top whitespace-nowrap text-gray-500 font-mono text-[11px]">
                         {dateStr}
                       </td>
 
@@ -404,11 +420,7 @@ const ErrorLogsPage = () => {
                         <button
                           onClick={() => toggleResolve(log._id)}
                           title={log.resolved ? "Mark Unresolved" : "Mark Resolved"}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
-                            log.resolved
-                              ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                          }`}
+                          className={"px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer " + (log.resolved ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-emerald-600 hover:bg-emerald-700 text-white")}
                         >
                           {log.resolved ? "Reopen" : "Resolve"}
                         </button>

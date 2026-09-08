@@ -13,7 +13,6 @@ const errorLogSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ["frontend", "backend", "api", "unhandledRejection"],
       default: "frontend",
       index: true,
     },
@@ -74,7 +73,6 @@ const errorLogSchema = new mongoose.Schema(
   }
 );
 
-// Index for high performance querying
 errorLogSchema.index({ createdAt: -1, severity: 1, resolved: 1 });
 
 const ErrorLog = mongoose.models.ErrorLog || mongoose.model("ErrorLog", errorLogSchema);
