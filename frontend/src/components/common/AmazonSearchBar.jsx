@@ -51,13 +51,14 @@ const CALIBRATION_DOMAINS = [
       "Digital Caliper",
       "Outside Micrometer",
       "Dial Indicator",
-      "Height Gage",
-      "Feeler Gage",
-      "Bore Gage",
-      "Radius Gage",
+      "Height Gauge",
+      "Feeler Gauge",
+      "Bore Gauge",
+      "Radius Gauge",
       "Protractor",
       "Test Sieves",
       "Steel Scale",
+      "Measuring Tape",
       "Cube Mould",
       "Beam Mould",
       "Cylindrical Mould",
@@ -157,12 +158,21 @@ const AmazonSearchBar = ({ isMobile = false }) => {
   const { equipmentTypes = [], fetchEquipmentTypes } = useEquipmentTypeStore();
 
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState("all");
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
   const [mounted, setMounted] = useState(false);
   const recognitionRef = useRef(null);
+
+  const sortedEquipmentTypes = useMemo(() => {
+    return [...equipmentTypes].sort((a, b) => {
+      const orderA = typeof a.displayOrder === "number" ? a.displayOrder : 999;
+      const orderB = typeof b.displayOrder === "number" ? b.displayOrder : 999;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [equipmentTypes]);
 
   useEffect(() => {
     setMounted(true);
@@ -238,6 +248,46 @@ const AmazonSearchBar = ({ isMobile = false }) => {
     }
   };
 
+  const isTypeMatch = (eqObjOrId, selected) => {
+    if (!selected || selected === "all" || !eqObjOrId) return false;
+    const selStr = String(selected).toLowerCase().trim();
+    if (typeof eqObjOrId === "object") {
+      const id = String(eqObjOrId._id || "").toLowerCase().trim();
+      const name = String(eqObjOrId.name || "").toLowerCase().trim();
+      const slug = String(eqObjOrId.slug || "").toLowerCase().trim();
+      return selStr === id || selStr === name || selStr === slug;
+    }
+    const strId = String(eqObjOrId).toLowerCase().trim();
+    return selStr === strId;
+  };
+
+  const selectedTypeObj = useMemo(() => {
+    if (!selectedEquipmentType || selectedEquipmentType === "all") return null;
+    return equipmentTypes.find((eq) => isTypeMatch(eq, selectedEquipmentType)) || null;
+  }, [equipmentTypes, selectedEquipmentType]);
+
+  const scopedEquipmentProducts = useMemo(() => {
+    if (!selectedEquipmentType || selectedEquipmentType === "all") return products;
+    return products.filter((p) => {
+      const catEq = p.category?.equipmentType;
+      const directEqId = p.equipmentTypeId || p.category?.equipmentType;
+      const directEqName = p.equipmentTypeName;
+      return (
+        isTypeMatch(catEq, selectedEquipmentType) ||
+        isTypeMatch(directEqId, selectedEquipmentType) ||
+        (directEqName && isTypeMatch({ name: directEqName }, selectedEquipmentType))
+      );
+    });
+  }, [products, selectedEquipmentType]);
+
+  const scopedEquipmentCategories = useMemo(() => {
+    if (!selectedEquipmentType || selectedEquipmentType === "all") return categories;
+    return categories.filter((c) => {
+      const catEq = c.equipmentType;
+      return isTypeMatch(catEq, selectedEquipmentType);
+    });
+  }, [categories, selectedEquipmentType]);
+
   // Typo-tolerant Filtered Data (Equipment Types, Categories, Products, Calibration)
   const filteredData = useMemo(() => {
     const cleanQ = query.trim().toLowerCase();
@@ -250,18 +300,22 @@ const AmazonSearchBar = ({ isMobile = false }) => {
       };
     }
 
-    // 1. Matching equipment types
-    const matchingEquipmentTypes = equipmentTypes
-      .filter((eq) => {
-        const name = eq.name || "";
-        return name.toLowerCase().includes(cleanQ) || fuzzyMatch(cleanQ, name);
-      })
-      .slice(0, 3);
+    // 1. Matching equipment types (only when "all" is active)
+    const matchingEquipmentTypes =
+      selectedEquipmentType === "all"
+        ? equipmentTypes
+            .filter((eq) => {
+              const name = eq.name || "";
+              return name.toLowerCase().includes(cleanQ) || fuzzyMatch(cleanQ, name);
+            })
+            .slice(0, 3)
+        : [];
 
     const matchedEqIds = new Set(matchingEquipmentTypes.map((e) => String(e._id)));
 
-    // 2. Matching categories
-    const matchingCategories = categories
+    // 2. Matching categories (strictly scoped to selected equipment type)
+    const catPool = selectedEquipmentType !== "all" ? scopedEquipmentCategories : categories;
+    const matchingCategories = catPool
       .filter((c) => {
         const catEqId = String(c.equipmentType?._id || c.equipmentType || "");
         const name = c.name || "";
@@ -274,22 +328,13 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           fuzzyMatch(cleanQ, `${name} ${eqName}`)
         );
       })
-      .slice(0, 3);
+      .slice(0, 4);
 
     const matchedCatIds = new Set(matchingCategories.map((c) => String(c._id)));
 
-    // 3. Matching products
-    let prodList = products;
-    if (selectedCategory !== "all") {
-      prodList = prodList.filter(
-        (p) =>
-          p.category?._id === selectedCategory ||
-          p.category?.slug === selectedCategory ||
-          p.category === selectedCategory
-      );
-    }
-
-    const matchingProducts = prodList
+    // 3. Matching products (strictly scoped to selected equipment type)
+    const prodPool = selectedEquipmentType !== "all" ? scopedEquipmentProducts : products;
+    const matchingProducts = prodPool
       .filter((p) => {
         const pCatId = String(p.category?._id || p.category || "");
         const pEqName = p.category?.equipmentType?.name || p.equipmentTypeName || "";
@@ -308,7 +353,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           fuzzyMatch(cleanQ, searchableText)
         );
       })
-      .slice(0, 5);
+      .slice(0, 8);
 
     // 4. Matching Calibration Services & Instruments
     const isGeneralCalibration =
@@ -319,43 +364,45 @@ const AmazonSearchBar = ({ isMobile = false }) => {
 
     const matchingCalibration = [];
 
-    // If typing "calibration", include main hub
-    if (isGeneralCalibration) {
-      matchingCalibration.push({
-        id: "main-hub",
-        title: "ARCL Calibration Services (NABL Traceable All 7 Domains)",
-        url: "/calibration-services",
-        badge: "Specialist Calibration",
-        sampleList: ["Force & UTM", "Dimensional", "Pressure", "Mass & Balance", "Temperature"],
-      });
-    }
-
-    // Match individual calibration domains & instruments
-    CALIBRATION_DOMAINS.forEach((domain) => {
-      const isDomainMatch =
-        domain.title.toLowerCase().includes(cleanQ) ||
-        fuzzyMatch(cleanQ, domain.title);
-
-      const matchedInstruments = domain.instruments.filter((inst) => {
-        const instLower = inst.toLowerCase();
-        return (
-          instLower.includes(cleanQ) ||
-          fuzzyMatch(cleanQ, instLower) ||
-          (isGeneralCalibration && true)
-        );
-      });
-
-      if (isDomainMatch || matchedInstruments.length > 0) {
+    // If typing "calibration" and general mode is on
+    if (selectedEquipmentType === "all") {
+      if (isGeneralCalibration) {
         matchingCalibration.push({
-          id: domain.id,
-          title: domain.title,
-          url: `/calibration-services#${domain.id}`,
-          badge: "Calibration Service",
-          icon: domain.icon,
-          sampleList: matchedInstruments.slice(0, 4),
+          id: "main-hub",
+          title: "ARCL Calibration Services (NABL Traceable All 7 Domains)",
+          url: "/calibration-services",
+          badge: "Specialist Calibration",
+          sampleList: ["Force & UTM", "Dimensional", "Pressure", "Mass & Balance", "Temperature"],
         });
       }
-    });
+
+      // Match individual calibration domains & instruments
+      CALIBRATION_DOMAINS.forEach((domain) => {
+        const isDomainMatch =
+          domain.title.toLowerCase().includes(cleanQ) ||
+          fuzzyMatch(cleanQ, domain.title);
+
+        const matchedInstruments = domain.instruments.filter((inst) => {
+          const instLower = inst.toLowerCase();
+          return (
+            instLower.includes(cleanQ) ||
+            fuzzyMatch(cleanQ, instLower) ||
+            (isGeneralCalibration && true)
+          );
+        });
+
+        if (isDomainMatch || matchedInstruments.length > 0) {
+          matchingCalibration.push({
+            id: domain.id,
+            title: domain.title,
+            url: `/calibration-services#${domain.id}`,
+            badge: "Calibration Service",
+            icon: domain.icon,
+            sampleList: matchedInstruments.slice(0, 4),
+          });
+        }
+      });
+    }
 
     return {
       matchingEquipmentTypes,
@@ -363,24 +410,74 @@ const AmazonSearchBar = ({ isMobile = false }) => {
       matchingProducts,
       matchingCalibration: matchingCalibration.slice(0, 3),
     };
-  }, [query, selectedCategory, equipmentTypes, categories, products]);
+  }, [
+    query,
+    selectedEquipmentType,
+    equipmentTypes,
+    categories,
+    products,
+    scopedEquipmentProducts,
+    scopedEquipmentCategories,
+  ]);
 
   const allSuggestions = useMemo(() => {
     const list = [];
-    filteredData.matchingCalibration.forEach((cal) => {
-      list.push({ type: "calibration", data: cal, url: cal.url });
-    });
-    filteredData.matchingEquipmentTypes.forEach((eq) => {
-      list.push({ type: "equipmentType", data: eq, url: `/products?search=${encodeURIComponent(eq.name)}` });
-    });
+    if (!query.trim()) {
+      if (selectedEquipmentType !== "all") {
+        scopedEquipmentProducts.forEach((prod) => {
+          list.push({
+            type: "product",
+            data: prod,
+            url: `/products/${prod.slug || prod._id}`,
+          });
+        });
+        scopedEquipmentCategories.forEach((cat) => {
+          list.push({
+            type: "category",
+            data: cat,
+            url: `/categories/${cat.slug || cat._id}`,
+          });
+        });
+      }
+      return list;
+    }
+
     filteredData.matchingProducts.forEach((prod) => {
-      list.push({ type: "product", data: prod, url: `/products/${prod.slug}` });
+      list.push({
+        type: "product",
+        data: prod,
+        url: `/products/${prod.slug || prod._id}`,
+      });
     });
     filteredData.matchingCategories.forEach((cat) => {
-      list.push({ type: "category", data: cat, url: `/categories/${cat.slug}` });
+      list.push({
+        type: "category",
+        data: cat,
+        url: `/categories/${cat.slug || cat._id}`,
+      });
+    });
+    filteredData.matchingEquipmentTypes.forEach((eq) => {
+      list.push({
+        type: "equipmentType",
+        data: eq,
+        url: `/products?equipmentType=${encodeURIComponent(eq.name)}`,
+      });
+    });
+    filteredData.matchingCalibration.forEach((cal) => {
+      list.push({
+        type: "calibration",
+        data: cal,
+        url: cal.url,
+      });
     });
     return list;
-  }, [filteredData]);
+  }, [
+    filteredData,
+    query,
+    selectedEquipmentType,
+    scopedEquipmentProducts,
+    scopedEquipmentCategories,
+  ]);
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
@@ -400,10 +497,10 @@ const AmazonSearchBar = ({ isMobile = false }) => {
         return;
       }
 
-      const catParam = selectedCategory !== "all" ? `&category=${selectedCategory}` : "";
-      navigate(`/products?search=${encodeURIComponent(trimmed)}${catParam}`);
-    } else if (selectedCategory !== "all") {
-      navigate(`/products?category=${selectedCategory}`);
+      const eqParam = selectedEquipmentType !== "all" ? `&equipmentType=${encodeURIComponent(selectedEquipmentType)}` : "";
+      navigate(`/products?search=${encodeURIComponent(trimmed)}${eqParam}`);
+    } else if (selectedEquipmentType !== "all") {
+      navigate(`/products?equipmentType=${encodeURIComponent(selectedEquipmentType)}`);
     } else {
       navigate("/products");
     }
@@ -438,22 +535,22 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             : "border-gray-300 focus-within:border-[#021C57] focus-within:ring-2 focus-within:ring-[#021C57]/20"
         } shadow-xs transition-all overflow-hidden`}
       >
-        {/* LEFT: CATEGORY SCOPE SELECTOR */}
+        {/* LEFT: EQUIPMENT TYPE SCOPE SELECTOR */}
         <div className="relative h-full flex items-center bg-gray-100 hover:bg-gray-200 border-r border-gray-300 transition shrink-0">
           <select
-            value={selectedCategory}
+            value={selectedEquipmentType}
             onChange={(e) => {
-              setSelectedCategory(e.target.value);
+              setSelectedEquipmentType(e.target.value);
               inputRef.current?.focus();
             }}
             suppressHydrationWarning={true}
-            className="h-full pl-3 pr-7 bg-transparent text-xs font-semibold text-gray-700 appearance-none cursor-pointer focus:outline-hidden max-w-[110px] sm:max-w-[140px] truncate"
-            title="Search Category Scope"
+            className="h-full pl-3 pr-7 bg-transparent text-xs font-semibold text-gray-700 appearance-none cursor-pointer focus:outline-hidden max-w-[115px] sm:max-w-[155px] truncate"
+            title="Filter by Equipment Type"
           >
-            <option value="all">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat._id} value={cat._id}>
-                {cat.name}
+            <option value="all">All Equipment</option>
+            {sortedEquipmentTypes.map((eqType) => (
+              <option key={eqType._id} value={eqType.name}>
+                {formatTitleCase(eqType.name)}
               </option>
             ))}
           </select>
@@ -560,8 +657,139 @@ const AmazonSearchBar = ({ isMobile = false }) => {
       {/* AUTOCOMPLETE SUGGESTION DROPDOWN */}
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150 max-h-[520px] overflow-y-auto">
-          {/* 1. DEFAULT POPULAR SUGGESTIONS (WHEN QUERY IS EMPTY) */}
-          {!query.trim() && (
+          {/* 1A. EMPTY QUERY BUT SPECIFIC EQUIPMENT TYPE SELECTED -> SHOW ALL PRODUCTS & CATEGORIES IN THIS TYPE */}
+          {!query.trim() && selectedEquipmentType !== "all" && (
+            <div className="p-3 sm:p-4 space-y-3">
+              {/* HEADER BANNER FOR SELECTED TYPE */}
+              <div className="flex items-center justify-between bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#021C57] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <Package size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-[#021C57]">
+                      {formatTitleCase(selectedTypeObj?.name || selectedEquipmentType)}
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      {scopedEquipmentProducts.length} Instruments & Testing Machines
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/products?equipmentType=${encodeURIComponent(selectedEquipmentType)}`);
+                    setIsOpen(false);
+                  }}
+                  className="text-xs font-bold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1 cursor-pointer"
+                >
+                  View All <ArrowRight size={12} />
+                </button>
+              </div>
+
+              {/* PRODUCTS IN THIS TYPE */}
+              {scopedEquipmentProducts.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-1">
+                    Available Instruments & Machines ({scopedEquipmentProducts.length})
+                  </p>
+                  <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                    {scopedEquipmentProducts.map((prod, pIdx) => {
+                      const thumb =
+                        Array.isArray(prod.images) && prod.images[0]
+                          ? prod.images[0]
+                          : typeof prod.images === "string" && prod.images
+                          ? prod.images
+                          : "/assets/LOGO.png";
+                      const prodUrl = `/products/${prod.slug || prod._id}`;
+                      const isSelected = selectedIndex === pIdx;
+
+                      return (
+                        <Link
+                          key={prod._id}
+                          to={prodUrl}
+                          onClick={() => {
+                            setIsOpen(false);
+                            setQuery("");
+                          }}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-xl transition border cursor-pointer group ${
+                            isSelected
+                              ? "bg-blue-100/80 border-blue-200"
+                              : "border-transparent hover:border-blue-100 hover:bg-blue-50/60"
+                          }`}
+                        >
+                          <img
+                            src={thumb}
+                            alt={prod.name}
+                            className="w-10 h-10 object-contain bg-white rounded-lg border border-gray-100 p-1 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[#021C57] truncate">
+                              {formatTitleCase(prod.name)}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500">
+                              {prod.category?.name && (
+                                <span className="text-blue-700 font-medium truncate">
+                                  {formatTitleCase(prod.category.name)}
+                                </span>
+                              )}
+                              {prod.productCode && (
+                                <span className="font-mono bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded text-[10px] font-semibold">
+                                  {prod.productCode}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight
+                            size={13}
+                            className="text-gray-300 group-hover:text-[#021C57] transition shrink-0"
+                          />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 text-center text-xs text-gray-500 bg-gray-50 rounded-xl">
+                  Explore full range in catalogue
+                </div>
+              )}
+
+              {/* CATEGORIES UNDER THIS TYPE */}
+              {scopedEquipmentCategories.length > 0 && (
+                <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-1">
+                    Categories ({scopedEquipmentCategories.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                    {scopedEquipmentCategories.map((cat, cIdx) => {
+                      const globalIdx = scopedEquipmentProducts.length + cIdx;
+                      const isSelected = selectedIndex === globalIdx;
+
+                      return (
+                        <Link
+                          key={cat._id}
+                          to={`/categories/${cat.slug}`}
+                          onClick={() => setIsOpen(false)}
+                          className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border transition font-medium truncate ${
+                            isSelected
+                              ? "bg-blue-100 text-[#021C57] border-blue-300 font-semibold"
+                              : "bg-gray-50 hover:bg-blue-50 hover:text-[#021C57] text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          <Layers size={12} className="text-blue-600 shrink-0" />
+                          <span className="truncate">{formatTitleCase(cat.name)}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 1B. DEFAULT POPULAR SUGGESTIONS (WHEN QUERY IS EMPTY AND "ALL EQUIPMENT" SELECTED) */}
+          {!query.trim() && selectedEquipmentType === "all" && (
             <div className="p-3 sm:p-4 space-y-3">
               <div>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -645,17 +873,164 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             </div>
           )}
 
-          {/* 2. MATCHED RESULTS (CALIBRATION + EQUIPMENT TYPES + PRODUCTS + CATEGORIES) */}
+          {/* 2. MATCHED RESULTS (PRODUCTS FIRST, THEN CATEGORIES, THEN EQUIPMENT TYPES, THEN CALIBRATION) */}
           {query.trim() && (
             <div className="py-2">
-              {/* MATCHING CALIBRATION SERVICES */}
+              {/* 1. MATCHING PRODUCTS (DIRECT INSTRUMENTS & MACHINES - MOST IMPORTANT) */}
+              {filteredData.matchingProducts.length > 0 && (
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2 flex items-center justify-between">
+                    <span>Testing Instruments & Machines</span>
+                    <span className="text-[10px] text-blue-600 font-semibold">{filteredData.matchingProducts.length} Results</span>
+                  </p>
+                  {filteredData.matchingProducts.map((prod, pIdx) => {
+                    const globalIdx = pIdx;
+                    const isSelected = selectedIndex === globalIdx;
+                    const thumb =
+                      Array.isArray(prod.images) && prod.images[0]
+                        ? prod.images[0]
+                        : typeof prod.images === "string" && prod.images
+                        ? prod.images
+                        : "/assets/LOGO.png";
+
+                    const prodUrl = `/products/${prod.slug || prod._id}`;
+
+                    return (
+                      <Link
+                        key={prod._id}
+                        to={prodUrl}
+                        onClick={() => {
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition border-b border-gray-50 last:border-0 cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-100/70 shadow-2xs"
+                            : "hover:bg-blue-50/60"
+                        }`}
+                      >
+                        <img
+                          src={thumb}
+                          alt={prod.name}
+                          className="w-11 h-11 object-contain bg-white rounded-lg border border-gray-100 p-1 shrink-0 shadow-2xs"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
+                            {formatTitleCase(prod.name)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500">
+                            {prod.category?.name && (
+                              <span className="text-blue-700 font-medium truncate">
+                                {formatTitleCase(prod.category.name)}
+                              </span>
+                            )}
+                            {prod.productCode && (
+                              <span className="font-mono bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded text-[10px] font-semibold">
+                                {prod.productCode}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowRight size={14} className="text-gray-400 shrink-0" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 2. MATCHING CATEGORIES */}
+              {filteredData.matchingCategories.length > 0 && (
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+                    Categories
+                  </p>
+                  {filteredData.matchingCategories.map((cat, idx) => {
+                    const globalIdx = (filteredData.matchingProducts?.length || 0) + idx;
+                    const isSelected = selectedIndex === globalIdx;
+                    const catUrl = `/categories/${cat.slug || cat._id}`;
+
+                    return (
+                      <Link
+                        key={cat._id}
+                        to={catUrl}
+                        onClick={() => {
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-50 text-[#021C57] font-semibold"
+                            : "text-gray-800 hover:bg-gray-50 font-medium"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Layers size={15} className="text-blue-600 shrink-0" />
+                          <span>in {formatTitleCase(cat.name)}</span>
+                        </div>
+                        <span className="text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                          Category
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 3. MATCHING EQUIPMENT TYPES */}
+              {filteredData.matchingEquipmentTypes?.length > 0 && (
+                <div className="px-3 py-2 border-b border-gray-100 bg-blue-50/40">
+                  <p className="text-[11px] font-bold text-[#021C57] uppercase tracking-wider mb-1.5 px-2 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-blue-600" /> Equipment Classifications
+                  </p>
+                  {filteredData.matchingEquipmentTypes.map((eq, eqIdx) => {
+                    const globalIdx =
+                      (filteredData.matchingProducts?.length || 0) +
+                      (filteredData.matchingCategories?.length || 0) +
+                      eqIdx;
+                    const isSelected = selectedIndex === globalIdx;
+                    const eqUrl = `/products?equipmentType=${encodeURIComponent(eq.name)}`;
+
+                    return (
+                      <Link
+                        key={eq._id}
+                        to={eqUrl}
+                        onClick={() => {
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-100 text-[#021C57] font-semibold"
+                            : "text-gray-900 hover:bg-blue-100/60 font-medium"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Layers size={15} className="text-[#021C57] shrink-0" />
+                          <span>{formatTitleCase(eq.name)}</span>
+                        </div>
+                        <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                          Equipment Type
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 4. MATCHING CALIBRATION SERVICES */}
               {filteredData.matchingCalibration?.length > 0 && (
-                <div className="px-3 py-2 border-b border-gray-100 bg-cyan-50/50">
+                <div className="px-3 py-2 bg-cyan-50/50">
                   <p className="text-[11px] font-bold text-cyan-900 uppercase tracking-wider mb-1.5 px-2 flex items-center gap-1.5">
                     <ShieldCheck size={13} className="text-cyan-700" /> Calibration Services & Instruments
                   </p>
                   {filteredData.matchingCalibration.map((cal, calIdx) => {
-                    const isSelected = selectedIndex === calIdx;
+                    const globalIdx =
+                      (filteredData.matchingProducts?.length || 0) +
+                      (filteredData.matchingCategories?.length || 0) +
+                      (filteredData.matchingEquipmentTypes?.length || 0) +
+                      calIdx;
+                    const isSelected = selectedIndex === globalIdx;
+
                     return (
                       <Link
                         key={cal.id || calIdx}
@@ -664,7 +1039,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                           setIsOpen(false);
                           setQuery("");
                         }}
-                        className={`block px-3 py-2.5 rounded-xl transition mb-1 last:mb-0 ${
+                        className={`block px-3 py-2.5 rounded-xl transition mb-1 last:mb-0 cursor-pointer ${
                           isSelected
                             ? "bg-cyan-100 text-cyan-950 font-semibold"
                             : "text-slate-900 hover:bg-cyan-100/70"
@@ -694,142 +1069,6 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                             ))}
                           </div>
                         )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* MATCHING EQUIPMENT TYPES */}
-              {filteredData.matchingEquipmentTypes?.length > 0 && (
-                <div className="px-3 py-2 border-b border-gray-100 bg-blue-50/40">
-                  <p className="text-[11px] font-bold text-[#021C57] uppercase tracking-wider mb-1.5 px-2 flex items-center gap-1.5">
-                    <Sparkles size={12} className="text-blue-600" /> Equipment Classifications
-                  </p>
-                  {filteredData.matchingEquipmentTypes.map((eq, eqIdx) => {
-                    const globalIdx = (filteredData.matchingCalibration?.length || 0) + eqIdx;
-                    const isSelected = selectedIndex === globalIdx;
-                    return (
-                      <Link
-                        key={eq._id}
-                        to={`/products?search=${encodeURIComponent(eq.name)}`}
-                        onClick={() => {
-                          setIsOpen(false);
-                          setQuery("");
-                        }}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
-                          isSelected
-                            ? "bg-blue-100 text-[#021C57] font-semibold"
-                            : "text-gray-900 hover:bg-blue-100/60 font-medium"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Layers size={15} className="text-[#021C57] shrink-0" />
-                          <span>{eq.name}</span>
-                        </div>
-                        <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                          Equipment Type
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* MATCHING CATEGORIES */}
-              {filteredData.matchingCategories.length > 0 && (
-                <div className="px-3 py-2 border-b border-gray-100">
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
-                    Categories
-                  </p>
-                  {filteredData.matchingCategories.map((cat, idx) => {
-                    const globalIdx =
-                      (filteredData.matchingCalibration?.length || 0) +
-                      (filteredData.matchingEquipmentTypes?.length || 0) +
-                      idx;
-                    const isSelected = selectedIndex === globalIdx;
-                    return (
-                      <Link
-                        key={cat._id}
-                        to={`/categories/${cat.slug}`}
-                        onClick={() => {
-                          setIsOpen(false);
-                          setQuery("");
-                        }}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
-                          isSelected
-                            ? "bg-blue-50 text-[#021C57] font-semibold"
-                            : "text-gray-800 hover:bg-gray-50 font-medium"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Layers size={15} className="text-blue-600 shrink-0" />
-                          <span>in {cat.name}</span>
-                        </div>
-                        <span className="text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
-                          Category
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* MATCHING PRODUCTS */}
-              {filteredData.matchingProducts.length > 0 && (
-                <div className="px-3 py-2">
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
-                    Testing Instruments & Machines
-                  </p>
-                  {filteredData.matchingProducts.map((prod, pIdx) => {
-                    const globalIdx =
-                      (filteredData.matchingCalibration?.length || 0) +
-                      (filteredData.matchingEquipmentTypes?.length || 0) +
-                      (filteredData.matchingCategories?.length || 0) +
-                      pIdx;
-                    const isSelected = selectedIndex === globalIdx;
-                    const thumb =
-                      Array.isArray(prod.images) && prod.images[0]
-                        ? prod.images[0]
-                        : "/assets/LOGO.png";
-
-                    return (
-                      <Link
-                        key={prod._id}
-                        to={`/products/${prod.slug}`}
-                        onClick={() => {
-                          setIsOpen(false);
-                          setQuery("");
-                        }}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition border-b border-gray-50 last:border-0 ${
-                          isSelected
-                            ? "bg-blue-50"
-                            : "hover:bg-gray-50"
-                        }`}
-                      >
-                        <img
-                          src={thumb}
-                          alt={prod.name}
-                          className="w-10 h-10 object-contain bg-white rounded-md border border-gray-100 p-0.5 shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
-                            {prod.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500">
-                            {prod.category?.name && (
-                              <span className="text-blue-700 font-medium truncate">
-                                {prod.category.name}
-                              </span>
-                            )}
-                            {prod.productCode && (
-                              <span className="font-mono bg-gray-100 px-1.5 py-0.2 rounded text-[10px]">
-                                {prod.productCode}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <ArrowRight size={14} className="text-gray-400 shrink-0" />
                       </Link>
                     );
                   })}

@@ -12,6 +12,7 @@ import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import { Filter, RotateCcw, Layers, ArrowRight, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import { formatTitleCase } from "../utils/stringUtils.js";
+import { fuzzyMatch } from "../utils/fuzzySearch.js";
 import { Link, useLocation } from "../utils/navigation.jsx";
 
 const ProductListingPage = () => {
@@ -24,15 +25,16 @@ const ProductListingPage = () => {
   const [selectedEquipmentType, setSelectedEquipmentType] = useState("");
   const [sort, setSort] = useState("latest");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const isFirstMount = useRef(true);
 
-  // Read URL query parameters on mount or query change
+  // Synchronize state with URL parameters
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const urlSearch = urlParams.get("search");
-      const urlEq = urlParams.get("equipmentType") || urlParams.get("category");
-      if (urlSearch) setSearch(urlSearch);
-      if (urlEq) setSelectedEquipmentType(urlEq);
+      const urlSearch = urlParams.get("search") || "";
+      const urlEq = urlParams.get("equipmentType") || urlParams.get("category") || "";
+      setSearch(urlSearch);
+      setSelectedEquipmentType(urlEq);
     }
   }, [location.search]);
 
@@ -41,24 +43,35 @@ const ProductListingPage = () => {
   const bottomSentinelRef = useRef(null);
 
   useEffect(() => {
-    // Fetch all catalog data in parallel including Home Showcase for exact order alignment
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const initialSearch = urlParams?.get("search") || "";
+    const initialEq = urlParams?.get("equipmentType") || urlParams?.get("category") || "";
+
+    // Fetch all catalog metadata and initial filtered/unfiltered products cleanly
     Promise.all([
-      fetchProducts(),
       fetchCategories(),
       fetchEquipmentTypes(),
       fetchHomeShowcase(),
+      fetchProducts({
+        search: initialSearch,
+        equipmentType: initialEq,
+        sort: "latest",
+      }),
     ]).catch((err) => console.error("Catalogue fetch error:", err));
   }, []);
 
-  // Fetch filtered products from backend whenever base search/type/sort change
+  // Fetch filtered products from backend whenever search/type/sort change after mount
   useEffect(() => {
-    if (selectedEquipmentType || search || sort !== "latest") {
-      fetchProducts({
-        search,
-        equipmentType: selectedEquipmentType,
-        sort,
-      });
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
     }
+
+    fetchProducts({
+      search,
+      equipmentType: selectedEquipmentType,
+      sort,
+    });
   }, [search, selectedEquipmentType, sort]);
 
   const handleResetFilters = () => {
@@ -66,6 +79,9 @@ const ProductListingPage = () => {
     setSelectedEquipmentType("");
     setSort("latest");
     setVisibleSectionsCount(2);
+    if (typeof window !== "undefined" && window.history?.pushState) {
+      window.history.pushState({}, "", "/products");
+    }
   };
 
   const hasActiveFilters = Boolean(
@@ -162,6 +178,59 @@ const ProductListingPage = () => {
     return () => observer.disconnect();
   }, [hasActiveFilters, visibleSectionsCount, equipmentTypeSections.length]);
 
+  // Client-side instant filter to guarantee exact sync with active search & equipment type
+  const displayedProducts = useMemo(() => {
+    if (!hasActiveFilters) return products;
+    let list = Array.isArray(products) ? [...products] : [];
+
+    if (selectedEquipmentType) {
+      const targetEq = String(selectedEquipmentType).toLowerCase().trim();
+      list = list.filter((p) => {
+        const pEqId = String(
+          p.category?.equipmentType?._id ||
+            p.category?.equipmentType ||
+            p.equipmentTypeId ||
+            ""
+        )
+          .toLowerCase()
+          .trim();
+        const pEqName = (
+          p.category?.equipmentType?.name ||
+          p.equipmentTypeName ||
+          ""
+        )
+          .toLowerCase()
+          .trim();
+        const pEqSlug = (p.category?.equipmentType?.slug || "")
+          .toLowerCase()
+          .trim();
+        return (
+          pEqId === targetEq || pEqName === targetEq || pEqSlug === targetEq
+        );
+      });
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p) => {
+        const name = (p.name || "").toLowerCase();
+        const code = (p.productCode || "").toLowerCase();
+        const model = (p.modelNumber || "").toLowerCase();
+        const catName = (p.category?.name || "").toLowerCase();
+        const eqName = (
+          p.category?.equipmentType?.name ||
+          p.equipmentTypeName ||
+          ""
+        ).toLowerCase();
+        const desc = (p.description || "").toLowerCase();
+        const combined = `${name} ${code} ${model} ${catName} ${eqName} ${desc}`;
+        return combined.includes(q) || fuzzyMatch(q, combined);
+      });
+    }
+
+    return list;
+  }, [products, search, selectedEquipmentType, hasActiveFilters]);
+
   return (
     <div className="bg-gray-50 min-h-screen">
       {/* HERO SECTION */}
@@ -250,14 +319,14 @@ const ProductListingPage = () => {
               setSearch={setSearch}
               sort={sort}
               setSort={setSort}
-              totalProducts={products.length}
+              totalProducts={displayedProducts.length}
               onReset={handleResetFilters}
               hasActiveFilters={hasActiveFilters}
             />
 
             {/* CASE A: USER HAS APPLIED SEARCH OR DIRECT FILTERS -> SHOW FILTERED GRID */}
             {hasActiveFilters ? (
-              <ProductGrid products={products} loading={loading} />
+              <ProductGrid products={displayedProducts} loading={loading} />
             ) : (
               /* CASE B: DEFAULT VIEW -> SECTION-WISE BY EQUIPMENT TYPE (1 PRODUCT PER CATEGORY) */
               <div className="space-y-10">

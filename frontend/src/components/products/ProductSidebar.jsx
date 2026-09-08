@@ -19,15 +19,26 @@ const ProductSidebar = ({
     );
   }, [equipmentTypes]);
 
+  const isTypeMatch = (type, selected) => {
+    if (!selected || !type) return false;
+    const selStr = String(selected).toLowerCase().trim();
+    const typeId = String(type._id || "").toLowerCase().trim();
+    const typeName = String(type.name || "").toLowerCase().trim();
+    const typeSlug = String(type.slug || "").toLowerCase().trim();
+    return selStr === typeId || selStr === typeName || selStr === typeSlug;
+  };
+
   // Filter and sort categories based on the equipment type order
   const filteredCategories = useMemo(() => {
     const list = selectedEquipmentType
-      ? categories.filter(
-          (c) =>
-            c.equipmentType?._id === selectedEquipmentType ||
-            c.equipmentType?.slug === selectedEquipmentType ||
-            c.equipmentType === selectedEquipmentType
-        )
+      ? categories.filter((c) => {
+          const catEq = c.equipmentType;
+          if (!catEq) return false;
+          if (typeof catEq === "object") {
+            return isTypeMatch(catEq, selectedEquipmentType);
+          }
+          return isTypeMatch({ _id: catEq }, selectedEquipmentType);
+        })
       : categories;
 
     const typeOrderMap = new Map();
@@ -83,26 +94,25 @@ const ProductSidebar = ({
             {!selectedEquipmentType && <span className="text-[10px]">●</span>}
           </button>
 
-          {sortedEquipmentTypes.map((type) => (
-            <button
-              key={type._id}
-              onClick={() =>
-                setSelectedEquipmentType(
-                  selectedEquipmentType === type._id ? "" : type._id
-                )
-              }
-              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer flex items-center justify-between ${
-                selectedEquipmentType === type._id
-                  ? "bg-[#021C57] text-white shadow-xs font-bold"
-                  : "text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <span className="truncate pr-2">{formatTitleCase(type.name)}</span>
-              {selectedEquipmentType === type._id && (
-                <span className="text-[10px]">●</span>
-              )}
-            </button>
-          ))}
+          {sortedEquipmentTypes.map((type) => {
+            const isSelected = isTypeMatch(type, selectedEquipmentType);
+            return (
+              <button
+                key={type._id}
+                onClick={() =>
+                  setSelectedEquipmentType(isSelected ? "" : type.name || type._id)
+                }
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer flex items-center justify-between ${
+                  isSelected
+                    ? "bg-[#021C57] text-white shadow-xs font-bold"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <span className="truncate pr-2">{formatTitleCase(type.name)}</span>
+                {isSelected && <span className="text-[10px]">●</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
