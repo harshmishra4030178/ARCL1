@@ -13,6 +13,7 @@ import {
   FaUsers,
   FaBell,
   FaBookOpen,
+  FaShieldAlt,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -26,6 +27,7 @@ const allMenuItems = [
   { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope />, module: "inquiries" },
   { name: "Contact Messages", path: "/admin/contact-messages", icon: <FaEnvelope />, module: "contacts" },
   { name: "Subscribers", path: "/admin/subscribers", icon: <FaBell />, module: "subscribers" },
+  { name: "Error Monitoring", path: "/admin/error-logs", icon: <FaShieldAlt /> },
 ];
 
 const Sidebar = () => {

@@ -1,4 +1,5 @@
 import ApiError from "../utils/ApiError.js";
+import ErrorLog from "../models/errorLogModel.js";
 
 /**
  * Global centralized error handling middleware
@@ -30,6 +31,38 @@ export const errorHandler = (err, req, res, next) => {
   }
   if (err.name === "TokenExpiredError") {
     error = new ApiError(401, "Token expired. Please log in again.");
+  }
+
+  // Asynchronously record server/critical errors into MongoDB
+  const statusCode = error.statusCode || 500;
+  if (statusCode >= 500) {
+    try {
+      const userAgent = req.headers?.["user-agent"] || "";
+      const ipAddress =
+        req.headers?.["x-forwarded-for"]?.split(",")[0] ||
+        req.socket?.remoteAddress ||
+        "";
+
+      ErrorLog.create({
+        message: String(error.message || "Server Exception").slice(0, 1000),
+        stack: error.stack ? String(error.stack).slice(0, 5000) : "",
+        source: "backend",
+        url: req.originalUrl || req.url || "",
+        route: req.baseUrl || "",
+        method: req.method || "",
+        statusCode,
+        severity: "critical",
+        userAgent: String(userAgent).slice(0, 500),
+        ipAddress: String(ipAddress).slice(0, 100),
+        metadata: {
+          params: req.params,
+          query: req.query,
+          userId: req.user?._id,
+        },
+      }).catch((dbErr) => console.warn("Failed to write backend ErrorLog:", dbErr.message));
+    } catch (e) {
+      // Ignored
+    }
   }
 
   const response = {

@@ -19,6 +19,7 @@ import adminSubscriberRoutes from "./routes/admin/subscriberRoutes.js";
 import adminUserRoutes from "./routes/admin/userRoutes.js";
 import adminAnalyticsRoutes from "./routes/admin/analyticsRoutes.js";
 import adminBlogRoutes from "./routes/admin/blogRoutes.js";
+import adminErrorLogRoutes from "./routes/admin/errorLogRoutes.js";
 
 // ================= CLIENT ROUTES =================
 import clientCategoryRoutes from "./routes/client/categoryRoutes.js";
@@ -29,6 +30,7 @@ import clientContactRoutes from "./routes/client/contactRoutes.js";
 import clientSubscriberRoutes from "./routes/client/subscriberRoutes.js";
 import clientAnalyticsRoutes from "./routes/client/analyticsRoutes.js";
 import clientBlogRoutes from "./routes/client/blogRoutes.js";
+import clientErrorLogRoutes from "./routes/client/errorLogRoutes.js";
 
 const app = express();
 
@@ -111,6 +113,7 @@ app.use(`${ADMIN_API}/subscribers`, verifyAdmin, checkModulePermission("subscrib
 app.use(`${ADMIN_API}/users`, verifyAdmin, verifyUserManageAccess, adminUserRoutes);
 app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 app.use(`${ADMIN_API}/blogs`, verifyAdmin, checkModulePermission("blogs"), adminBlogRoutes);
+app.use(`${ADMIN_API}/error-logs`, verifyAdmin, adminErrorLogRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
@@ -121,6 +124,7 @@ app.use(`${CLIENT_API}/contacts`, clientContactRoutes);
 app.use(`${CLIENT_API}/subscribers`, clientSubscriberRoutes);
 app.use(`${CLIENT_API}/analytics`, clientAnalyticsRoutes);
 app.use(`${CLIENT_API}/blogs`, clientBlogRoutes);
+app.use(`${CLIENT_API}/error-logs`, clientErrorLogRoutes);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {

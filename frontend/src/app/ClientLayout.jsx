@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -10,11 +10,17 @@ import FloatingContactButtons from "../components/common/FloatingContactButtons"
 import CompareFloatingBar from "../components/common/CompareFloatingBar";
 import ArclAiAssistant from "../components/ai/ArclAiAssistant";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
+import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 export default function ClientLayout({ children }) {
   useVisitorTracker();
+
+  useEffect(() => {
+    initClientErrorLogger();
+  }, []);
+
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith("/admin");
   const isPdfPage = pathname?.includes("/catalog") && pathname?.startsWith("/products/");
