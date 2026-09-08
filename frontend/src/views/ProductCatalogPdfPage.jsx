@@ -22,18 +22,33 @@ import {
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
-const ProductCatalogPdfPage = ({ initialSlug }) => {
+const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const routeParams = useParams();
-  const slug = initialSlug || routeParams.slug;
+  const slug = initialSlug || routeParams?.slug;
   const navigate = useNavigate();
-  const { product, loading, error, fetchSingleProduct } = useProductStore();
+  const { product: storeProduct, loading: storeLoading, error, fetchSingleProduct } = useProductStore();
+  const [product, setProduct] = useState(initialProduct || null);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (slug) {
-      fetchSingleProduct(slug);
+    if (initialProduct) {
+      setProduct(initialProduct);
+    } else if (slug) {
+      fetchSingleProduct(slug)
+        .then((data) => {
+          if (data) setProduct(data);
+        })
+        .catch((err) => console.error("Catalog product fetch error:", err));
     }
-  }, [slug]);
+  }, [slug, initialProduct]);
+
+  useEffect(() => {
+    if (storeProduct && !product) {
+      setProduct(storeProduct);
+    }
+  }, [storeProduct]);
+
+  const loading = !product && storeLoading;
 
   const handleDirectDownload = async () => {
     if (downloading) return;
