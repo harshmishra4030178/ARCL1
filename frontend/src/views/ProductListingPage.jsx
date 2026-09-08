@@ -10,7 +10,7 @@ import EquipmentTypeProductRow from "../components/products/EquipmentTypeProduct
 import { useProductStore } from "../store/useProductStore.js";
 import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
-import { Filter, RotateCcw, Layers, ArrowRight, Sparkles, ChevronDown } from "lucide-react";
+import { Filter, RotateCcw, Layers, ArrowRight, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { Link, useLocation } from "../utils/navigation.jsx";
 
@@ -166,7 +166,17 @@ const ProductListingPage = () => {
     <div className="bg-gray-50 min-h-screen">
       {/* HERO SECTION */}
       <section className="bg-white border-b border-gray-100 py-10 px-4 md:px-8 text-center">
-        <div className="max-w-[1600px] mx-auto space-y-2">
+        <div className="max-w-[1600px] mx-auto space-y-3">
+          
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-2 font-medium flex-wrap">
+            <Link href="/" className="hover:text-[#021C57] transition-colors">
+              Home
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="text-[#021C57] font-bold truncate">Laboratory Equipments</span>
+          </nav>
+
           <div className="inline-flex items-center gap-2 bg-blue-50 text-[#021C57] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-blue-200">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Complete Testing Inventory
           </div>

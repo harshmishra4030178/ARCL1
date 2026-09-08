@@ -16,8 +16,9 @@ const EquipmentTypeProductRow = ({
   dragHandleProps,
 }) => {
   const scrollRef = useRef(null);
+  const [mounted, setMounted] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   const checkScrollState = useCallback(() => {
     if (scrollRef.current) {
@@ -28,6 +29,7 @@ const EquipmentTypeProductRow = ({
   }, []);
 
   useEffect(() => {
+    setMounted(true);
     checkScrollState();
     const el = scrollRef.current;
     if (el) {
@@ -125,19 +127,23 @@ const EquipmentTypeProductRow = ({
           {section.products.length > 1 && (
             <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-gray-200">
               <button
+                type="button"
                 onClick={() => handleScroll("left")}
-                disabled={!canScrollLeft}
+                disabled={!mounted || !canScrollLeft}
                 aria-label={`Scroll ${typeName} left`}
                 title="Scroll Left"
+                suppressHydrationWarning
                 className="w-8 h-8 rounded-xl border border-gray-200 bg-gray-50 hover:bg-[#021C57] text-gray-700 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-50 disabled:hover:text-gray-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => handleScroll("right")}
-                disabled={!canScrollRight}
+                disabled={!mounted || !canScrollRight}
                 aria-label={`Scroll ${typeName} right`}
                 title="Scroll Right"
+                suppressHydrationWarning
                 className="w-8 h-8 rounded-xl border border-gray-200 bg-gray-50 hover:bg-[#021C57] text-gray-700 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-50 disabled:hover:text-gray-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
               >
                 <ChevronRight size={16} />
@@ -151,11 +157,13 @@ const EquipmentTypeProductRow = ({
       <div className="relative group/track">
         
         {/* Floating Left Arrow Button */}
-        {canScrollLeft && (
+        {mounted && canScrollLeft && (
           <button
+            type="button"
             onClick={() => handleScroll("left")}
             aria-label={`Scroll ${typeName} left`}
             title="View previous items"
+            suppressHydrationWarning
             className="absolute left-1 sm:-left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/95 hover:bg-[#021C57] text-[#021C57] hover:text-white border-2 border-gray-200 hover:border-[#021C57] shadow-xl flex items-center justify-center transition-all duration-300 transform hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md"
           >
             <ChevronLeft size={24} className="stroke-[2.5]" />
@@ -163,16 +171,18 @@ const EquipmentTypeProductRow = ({
         )}
 
         {/* Left Gradient Edge Mask */}
-        {canScrollLeft && (
+        {mounted && canScrollLeft && (
           <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-r from-white via-white/70 to-transparent pointer-events-none z-10 rounded-l-3xl transition-opacity"></div>
         )}
 
         {/* Floating Right Arrow Button (">") */}
-        {canScrollRight && (
+        {mounted && canScrollRight && (
           <button
+            type="button"
             onClick={() => handleScroll("right")}
             aria-label={`Scroll ${typeName} right`}
             title="View more items"
+            suppressHydrationWarning
             className="absolute right-1 sm:-right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/95 hover:bg-[#021C57] text-[#021C57] hover:text-white border-2 border-gray-200 hover:border-[#021C57] shadow-xl flex items-center justify-center transition-all duration-300 transform hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md group-hover/track:shadow-2xl"
           >
             <ChevronRight size={24} className="stroke-[2.5]" />
@@ -180,7 +190,7 @@ const EquipmentTypeProductRow = ({
         )}
 
         {/* Right Gradient Edge Mask */}
-        {canScrollRight && (
+        {mounted && canScrollRight && (
           <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-l from-white via-white/70 to-transparent pointer-events-none z-10 rounded-r-3xl transition-opacity"></div>
         )}
 

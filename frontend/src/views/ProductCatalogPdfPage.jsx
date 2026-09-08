@@ -7,6 +7,7 @@ const logo = "/assets/LOGO.png";
 import {
   Download,
   ArrowLeft,
+  ChevronRight,
   MessageCircle,
   Printer,
   CheckCircle2,
@@ -102,12 +103,21 @@ const ProductCatalogPdfPage = ({ initialSlug }) => {
     <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
       {/* 1. TOP ACTION TOOLBAR (Hidden in Print) */}
       <div className="max-w-4xl mx-auto mb-6 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
-        <button
-          onClick={() => navigate(`/products/${product.slug}`)}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#021C57] transition cursor-pointer"
-        >
-          <ArrowLeft size={16} /> Back to Product
-        </button>
+        <div className="flex items-center gap-2 text-xs font-medium text-gray-500 flex-wrap">
+          <Link href="/" className="hover:text-[#021C57] transition">
+            Home
+          </Link>
+          <ChevronRight size={12} className="text-gray-400 shrink-0" />
+          <Link href="/products" className="hover:text-[#021C57] transition">
+            Laboratory Equipments
+          </Link>
+          <ChevronRight size={12} className="text-gray-400 shrink-0" />
+          <Link href={`/products/${product.slug}`} className="hover:text-[#021C57] max-w-[180px] sm:max-w-[240px] truncate transition">
+            {formatTitleCase(product.name)}
+          </Link>
+          <ChevronRight size={12} className="text-gray-400 shrink-0" />
+          <span className="font-bold text-[#021C57]">PDF Catalog</span>
+        </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           <a

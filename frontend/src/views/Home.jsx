@@ -23,7 +23,7 @@ import {
   Move,
 } from "lucide-react";
 
-const Home = () => {
+const Home = ({ initialShowcase = [] }) => {
   const {
     homeShowcase,
     homeShowcaseLoading,
@@ -32,15 +32,25 @@ const Home = () => {
 
   const { reorderEquipmentTypes } = useEquipmentTypeStore();
 
-  const [sectionsList, setSectionsList] = useState([]);
+  const [sectionsList, setSectionsList] = useState(
+    Array.isArray(initialShowcase) && initialShowcase.length > 0
+      ? initialShowcase
+      : []
+  );
   const [canReorder, setCanReorder] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   useEffect(() => {
+    if (Array.isArray(initialShowcase) && initialShowcase.length > 0) {
+      useProductStore.setState({
+        homeShowcase: initialShowcase,
+        homeShowcaseLoading: false,
+      });
+    }
     fetchHomeShowcase();
-  }, [fetchHomeShowcase]);
+  }, [fetchHomeShowcase, initialShowcase]);
 
   useEffect(() => {
     if (Array.isArray(homeShowcase) && homeShowcase.length > 0) {

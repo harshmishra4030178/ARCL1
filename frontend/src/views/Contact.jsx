@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Link } from "../utils/navigation.jsx";
 import {
   MapPin,
   Phone,
@@ -10,6 +11,7 @@ import {
   MessageSquare,
   Clock,
   ArrowUpRight,
+  ChevronRight,
 } from "lucide-react";
 import { useContactStore } from "../store/useContactStore.js";
 import { toast } from "react-toastify";
@@ -195,6 +197,15 @@ function Contact() {
         <div className="relative mx-auto max-w-7xl px-5 py-20 sm:px-8 md:py-24 lg:px-10">
 
           <div className="max-w-3xl">
+
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-blue-200/80 mb-6 font-medium flex-wrap">
+              <Link href="/" className="hover:text-white transition-colors">
+                Home
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-blue-300/60 shrink-0" />
+              <span className="text-white font-semibold truncate">Contact Us</span>
+            </nav>
 
             <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-sm">
               <span className="h-2 w-2 rounded-full bg-blue-300" />

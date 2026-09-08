@@ -68,6 +68,9 @@ export const metadata = {
       "max-snippet": -1,
     },
   },
+  verification: {
+    google: "Mq-moqdyg-M2BS6wTh301R6U-gAmOxNFBQWVoPJQ1Y4",
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -75,6 +78,7 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="google-site-verification" content="Mq-moqdyg-M2BS6wTh301R6U-gAmOxNFBQWVoPJQ1Y4" />
         <meta name="geo.region" content="IN-MH" />
         <meta name="geo.placename" content="Navi Mumbai, Mumbai, Maharashtra" />
         <meta name="geo.position" content="19.1551;72.9984" />

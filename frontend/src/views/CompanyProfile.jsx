@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, Download, ExternalLink, MessageCircle } from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, ExternalLink, MessageCircle } from "lucide-react";
 import { Link } from "../utils/navigation.jsx";
 
 const CompanyProfile = () => {
@@ -11,18 +11,19 @@ const CompanyProfile = () => {
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {/* Top Bar with Quick Navigation */}
       <div className="bg-slate-950 px-4 sm:px-8 py-3.5 border-b border-slate-800 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
+        <nav className="flex items-center gap-2 text-xs text-slate-400 font-medium">
           <Link
-            to="/"
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
+            href="/"
+            className="p-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
             <span>Home</span>
           </Link>
-          <span className="font-bold text-sm sm:text-base text-white">
-            ARCL Instruments — Company Profile (PDF)
+          <ChevronRight size={13} className="text-slate-500 shrink-0" />
+          <span className="font-bold text-sm text-cyan-300">
+            Company Profile (PDF)
           </span>
-        </div>
+        </nav>
 
         <div className="flex items-center gap-2.5">
           <a

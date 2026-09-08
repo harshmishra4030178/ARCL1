@@ -93,6 +93,15 @@ export default function BlogListPage() {
         <div className="absolute inset-0 bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:24px_24px] opacity-10 pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl">
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-slate-400 mb-6 font-medium flex-wrap">
+              <Link href="/" className="hover:text-amber-400 transition-colors">
+                Home
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="text-amber-300 font-semibold truncate">Knowledge Hub</span>
+            </nav>
+
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs font-bold tracking-wide uppercase mb-6 backdrop-blur-md">
               <BookOpen className="w-4 h-4" />
               <span>ARCL Technical Knowledge Hub</span>

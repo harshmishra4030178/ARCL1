@@ -1,35 +1,54 @@
 import axios from "axios";
 
 const getBaseURL = () => {
-  if (typeof window !== "undefined") {
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
-    if (isLocalhost) {
-      return "http://localhost:5000/api/v1";
-    }
-    return "https://arcl1-1.onrender.com/api/v1";
-  }
-
-  let envUrl =
+  const envUrl =
     (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL);
 
-  if (!envUrl || envUrl.includes("localhost") || envUrl.includes("arcl.onrender.com")) {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname || "";
+    const isLocal =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.") ||
+      hostname.endsWith(".local");
+
+    if (isLocal) {
+      if (envUrl && envUrl.includes("localhost")) {
+        return envUrl;
+      }
+      return `http://${hostname === "0.0.0.0" ? "localhost" : hostname}:5000/api/v1`;
+    }
+
+    if (envUrl) {
+      let url = String(envUrl).trim().replace(/\/+$/, "");
+      if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
+        url += "/api/v1";
+      }
+      return url;
+    }
+
     return "https://arcl1-1.onrender.com/api/v1";
   }
 
-  let url = envUrl;
-  url = String(url).trim().replace(/\/+$/, "");
-  if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
-    url += "/api/v1";
+  // Server-side (SSR / Node.js)
+  if (envUrl) {
+    let url = String(envUrl).trim().replace(/\/+$/, "");
+    if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
+      url += "/api/v1";
+    }
+    return url;
   }
-  return url;
+
+  return "http://127.0.0.1:5000/api/v1";
 };
 
 const API = axios.create({
   baseURL: getBaseURL(),
+  timeout: 30000,
 });
 
 // Request interceptor to attach Bearer token

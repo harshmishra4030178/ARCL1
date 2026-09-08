@@ -12,6 +12,7 @@ import {
   Building2,
   Compass,
   ArrowRight,
+  ChevronRight,
   Sparkles,
   FlaskConical,
   Gauge,
@@ -203,6 +204,15 @@ export default function About() {
             {/* LEFT: HERO COPY */}
             <div className="lg:col-span-7 space-y-6">
               
+              {/* Breadcrumb Navigation */}
+              <nav className="flex items-center gap-2 text-xs text-blue-200/80 mb-2 font-medium flex-wrap">
+                <Link href="/" className="hover:text-cyan-300 transition-colors">
+                  Home
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-blue-300/60 shrink-0" />
+                <span className="text-cyan-300 font-semibold truncate">About ARCL</span>
+              </nav>
+
               <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur-md text-cyan-300 text-xs font-bold uppercase tracking-widest">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                 Leading Laboratory Instrument Manufacturer

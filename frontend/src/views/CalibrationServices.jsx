@@ -343,6 +343,15 @@ function Calibration() {
         {/* Hero content */}
         <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-16 px-5 pb-24 pt-16 lg:grid-cols-[1.1fr_.9fr] lg:px-8 lg:pt-20">
           <div>
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-slate-400 mb-6 font-medium flex-wrap">
+              <Link href="/" className="hover:text-cyan-300 transition-colors">
+                Home
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="text-cyan-300 font-semibold truncate">Calibration Services</span>
+            </nav>
+
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">
               <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
               Specialist Calibration Services

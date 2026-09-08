@@ -507,6 +507,15 @@ export default function StandardsDirectoryPage() {
 
         <div className="max-w-7xl mx-auto space-y-6 relative z-10">
           
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-2 text-xs text-blue-200/80 mb-2 font-medium flex-wrap">
+            <Link href="/" className="hover:text-amber-400 transition-colors">
+              Home
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-blue-300/60 shrink-0" />
+            <span className="text-amber-300 font-semibold truncate">IS Standards Directory</span>
+          </nav>
+
           {/* Top Pill Badges */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-blue-200 text-xs font-bold">

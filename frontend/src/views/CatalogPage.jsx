@@ -5,6 +5,7 @@ import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useProductStore } from "../store/useProductStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import CategoryProductsCatalogModal from "../components/catalog/CategoryProductsCatalogModal.jsx";
+import { Link } from "../utils/navigation.jsx";
 import {
   FileText,
   Search,
@@ -12,6 +13,7 @@ import {
   Sparkles,
   Award,
   ArrowRight,
+  ChevronRight,
   FlaskConical,
   Gauge,
   Scale,
@@ -102,6 +104,16 @@ const CatalogPage = () => {
       {/* 1. HERO SECTION */}
       <section className="bg-gradient-to-b from-white to-gray-50 border-b border-gray-200/80 py-12 md:py-16 px-4 md:px-10 text-center">
         <div className="max-w-4xl mx-auto space-y-4">
+          
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-2 font-medium flex-wrap">
+            <Link href="/" className="hover:text-[#021C57] transition-colors">
+              Home
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="text-[#021C57] font-bold truncate">Equipment Catalog & Brochures</span>
+          </nav>
+
           <div className="inline-flex items-center gap-2 bg-blue-50 text-[#021C57] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-blue-200">
             <Award size={14} className="text-blue-600" /> Official Technical Documentation
           </div>

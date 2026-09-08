@@ -14,13 +14,17 @@ export default async function sitemap() {
   const BACKEND_URL = getBackendUrl();
   let categories = [];
   let products = [];
+  let blogs = [];
 
   try {
-    const [catRes, prodRes] = await Promise.all([
+    const [catRes, prodRes, blogRes] = await Promise.all([
       fetch(`${BACKEND_URL}/client/categories`, {
         next: { revalidate: 3600 },
       }),
       fetch(`${BACKEND_URL}/client/products`, {
+        next: { revalidate: 3600 },
+      }),
+      fetch(`${BACKEND_URL}/client/blogs`, {
         next: { revalidate: 3600 },
       }),
     ]);
@@ -32,6 +36,10 @@ export default async function sitemap() {
     if (prodRes.ok) {
       const prodData = await prodRes.json();
       products = prodData?.data || [];
+    }
+    if (blogRes.ok) {
+      const blogData = await blogRes.json();
+      blogs = blogData?.data || [];
     }
   } catch (error) {
     console.error("Next.js sitemap fetch error:", error);
@@ -114,7 +122,7 @@ export default async function sitemap() {
     priority: 0.8,
   }));
 
-  const blogSlugs = [
+  const defaultBlogSlugs = [
     "is-516-concrete-cube-compressive-strength-test-complete-guide",
     "is-2720-cbr-test-california-bearing-ratio-soil-highway-subgrade",
     "is-1208-bitumen-ductility-test-highway-construction-guide",
@@ -122,12 +130,20 @@ export default async function sitemap() {
     "importance-of-nabl-calibration-for-civil-testing-laboratories",
   ];
 
-  const blogUrls = blogSlugs.map((slug) => ({
-    url: `${SITE_URL}/blog/${slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly",
-    priority: 0.85,
-  }));
+  const blogUrls =
+    blogs.length > 0
+      ? blogs.map((b) => ({
+          url: `${SITE_URL}/blog/${b.slug}`,
+          lastModified: b.updatedAt ? new Date(b.updatedAt) : new Date(),
+          changeFrequency: "weekly",
+          priority: 0.85,
+        }))
+      : defaultBlogSlugs.map((slug) => ({
+          url: `${SITE_URL}/blog/${slug}`,
+          lastModified: new Date(),
+          changeFrequency: "weekly",
+          priority: 0.85,
+        }));
 
   return [...staticUrls, ...categoryUrls, ...productUrls, ...blogUrls];
 }

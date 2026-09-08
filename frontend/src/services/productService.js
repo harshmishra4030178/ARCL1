@@ -17,8 +17,13 @@ import {
 export const productService = {
   // CLIENT GET ALL
   getAll: async (params = {}) => {
-    const res = await getProducts(params);
-    return res.data?.data || res.data;
+    try {
+      const res = await getProducts(params);
+      return res.data?.data || res.data || [];
+    } catch (error) {
+      console.warn("productService.getAll error:", error.message);
+      return [];
+    }
   },
 
   // ADMIN GET ALL (Active + Inactive)
@@ -54,14 +59,24 @@ export const productService = {
 
   // CLIENT GET FEATURED SHOWCASE
   getFeaturedShowcase: async () => {
-    const res = await getFeaturedShowcase();
-    return res.data?.data || res.data;
+    try {
+      const res = await getFeaturedShowcase();
+      return res.data?.data || res.data || [];
+    } catch (error) {
+      console.warn("productService.getFeaturedShowcase error:", error.message);
+      return [];
+    }
   },
 
   // CLIENT GET ULTRA-FAST HOME SHOWCASE
   getHomeShowcase: async () => {
-    const res = await getHomeShowcase();
-    return res.data?.data || res.data;
+    try {
+      const res = await getHomeShowcase();
+      return res.data?.data || res.data || [];
+    } catch (error) {
+      console.warn("productService.getHomeShowcase error:", error.message);
+      return [];
+    }
   },
 
   // CLIENT GET RELATED PRODUCTS IN SAME EQUIPMENT TYPE

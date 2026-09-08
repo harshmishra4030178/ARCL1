@@ -138,14 +138,40 @@ const homeJsonLd = {
   ],
 };
 
-export default function HomePage() {
+const getBackendUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.startsWith("http")) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    return "https://arcl1-1.onrender.com/api/v1";
+  }
+  return "http://localhost:5000/api/v1";
+};
+
+async function getHomeShowcaseData() {
+  try {
+    const BACKEND_URL = getBackendUrl();
+    const res = await fetch(`${BACKEND_URL}/client/products/home-showcase`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json?.data || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const initialShowcase = await getHomeShowcaseData();
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
       />
-      <HomeClient />
+      <HomeClient initialShowcase={initialShowcase} />
     </>
   );
 }
