@@ -76,29 +76,6 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
   const [openQuoteModal, setOpenQuoteModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [relatedEquipment, setRelatedEquipment] = useState([]);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-
-  const handleDownloadCatalogPdf = async (e) => {
-    if (e) e.preventDefault();
-    if (downloadingPdf || !product) return;
-    try {
-      setDownloadingPdf(true);
-      const toastId = toast.loading("Generating catalog PDF...");
-      await downloadProductCatalogPdf(product);
-      toast.update(toastId, {
-        render: "Catalog PDF downloaded successfully to your device!",
-        type: "success",
-        isLoading: false,
-        autoClose: 3000,
-      });
-    } catch (err) {
-      console.error("Direct PDF download error:", err);
-      toast.dismiss();
-      toast.error("Could not download PDF. Please try again.");
-    } finally {
-      setDownloadingPdf(false);
-    }
-  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -658,24 +635,12 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 </button>
 
                 {/* 3. DOWNLOAD PDF CATALOG SPEC SHEET */}
-                <button
-                  type="button"
-                  onClick={handleDownloadCatalogPdf}
-                  disabled={downloadingPdf}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg text-xs sm:text-sm cursor-pointer active:scale-95 disabled:opacity-75 disabled:cursor-not-allowed"
+                <Link
+                  to={`/products/${product.slug}/catalog`}
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg text-xs sm:text-sm cursor-pointer active:scale-95"
                 >
-                  {downloadingPdf ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Downloading PDF...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={15} />
-                      <span>Download Catalog (PDF)</span>
-                    </>
-                  )}
-                </button>
+                  <Download size={15} /> Download Catalog (PDF)
+                </Link>
               </div>
 
               {/* ZERO-COST INSTANT QUOTATION & WHATSAPP ROW */}
