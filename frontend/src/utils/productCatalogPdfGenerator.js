@@ -291,18 +291,27 @@ export const downloadProductCatalogPdf = async (product) => {
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    const footerY = pageHeight - 10;
+    const footerY = pageHeight - 12;
 
-    doc.setDrawColor(226, 232, 240);
+    doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.4);
     doc.line(margin, footerY - 2, pageWidth - margin, footerY - 2);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...brandNavy);
+    doc.text(
+      "ARCL Instruments Pvt. Ltd.",
+      margin,
+      footerY + 2
+    );
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(...textMuted);
     doc.text(
-      "ARCL Instruments Pvt. Ltd. | Official Equipment Catalog | Contact: arclinstruments@gmail.com | +91 81696 95728",
-      margin,
+      "| Airoli, Navi Mumbai - 400708 | arclinstruments@gmail.com | +91 81696 95728",
+      margin + 36,
       footerY + 2
     );
 
@@ -310,6 +319,15 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, footerY + 2, {
       align: "right",
     });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      "ISO 9001:2015 Certified Manufacturer | Technical specifications subject to continuous engineering enhancement.",
+      margin,
+      footerY + 6
+    );
   }
 
   const cleanName = (product.name || "Product")

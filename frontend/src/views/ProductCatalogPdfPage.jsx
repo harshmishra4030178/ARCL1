@@ -458,58 +458,86 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           </div>
         )}
 
-        {/* QUALITY ASSURANCE & FOOTER */}
-        <div className="border-t-2 border-gray-200 pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center md:text-left text-xs text-gray-600 bg-gray-50 rounded-2xl p-4 border border-gray-200">
-            <div className="flex items-center gap-2">
-              <Building size={16} className="text-[#021C57] shrink-0" />
-              <span>Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708</span>
-            </div>
+        {/* QUALITY ASSURANCE & OFFICIAL FOOTER */}
+        <div className="border-t-2 border-[#021C57]/20 pt-6 space-y-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-4 md:divide-x md:divide-slate-200">
+              {/* 1. Office Address */}
+              <div className="flex items-start gap-3 md:pr-4">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#021C57] flex items-center justify-center shrink-0 mt-0.5">
+                  <Building size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#021C57] block">
+                    Head Office & Works
+                  </span>
+                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                    Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Phone size={16} className="text-[#021C57] shrink-0" />
-              <span>+91 8169695728 (Head) / +91 8369458583 (Sales) / +91 6205691085 (Calib)</span>
-            </div>
+              {/* 2. Contact Helplines */}
+              <div className="flex items-start gap-3 md:px-4">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <Phone size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block">
+                    Helplines & Direct Sales
+                  </span>
+                  <div className="text-xs text-slate-700 space-y-1 font-medium">
+                    <p><span className="text-slate-500 text-[11px]">Head:</span> +91 81696 95728</p>
+                    <p><span className="text-slate-500 text-[11px]">Sales:</span> +91 83694 58583</p>
+                    <p><span className="text-slate-500 text-[11px]">Calib:</span> +91 62056 91085</p>
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Mail size={16} className="text-[#021C57] shrink-0" />
-              <span>
-                <a href="mailto:arclinstruments@gmail.com" className="hover:underline">
-                  arclinstruments@gmail.com
-                </a>
-                {" / "}
-                <a href="mailto:info@arclinstruments.com" className="hover:underline">
-                  info@arclinstruments.com
-                </a>
-              </span>
+              {/* 3. Email & Web Portal */}
+              <div className="flex items-start gap-3 md:pl-4">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <Mail size={16} />
+                </div>
+                <div className="space-y-1 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
+                    Email & Web Portal
+                  </span>
+                  <div className="text-xs text-slate-700 space-y-1 font-medium">
+                    <p>
+                      <a href="mailto:arclinstruments@gmail.com" className="hover:text-[#021C57] hover:underline">
+                        arclinstruments@gmail.com
+                      </a>
+                    </p>
+                    <p>
+                      <a href="mailto:info@arclinstruments.com" className="hover:text-[#021C57] hover:underline">
+                        info@arclinstruments.com
+                      </a>
+                    </p>
+                    <p className="text-[#021C57] font-semibold text-[11px]">
+                      www.arclinstruments.com
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-            © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. Technical specifications are subject to continuous engineering enhancement without prior notification.
+          <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+            © {new Date().getFullYear()} ARCL Instruments Pvt. Ltd. All rights reserved. An ISO 9001:2015 Certified Manufacturer. Technical specifications are subject to continuous engineering enhancement without prior notification.
           </p>
         </div>
 
       </div>
 
-      {/* 3. FLOATING DIRECT DOWNLOAD BUTTON (Bottom Mobile Friendly) */}
+      {/* 3. FLOATING PRINT BUTTON (Bottom Mobile Friendly) */}
       <div className="max-w-4xl mx-auto mt-6 text-center print:hidden">
         <button
-          onClick={handleDirectDownload}
-          disabled={downloading}
-          className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] disabled:bg-blue-950 text-white px-8 py-3.5 rounded-2xl font-bold shadow-lg transition duration-200 cursor-pointer text-sm active:scale-95 disabled:cursor-not-allowed"
+          onClick={handlePrint}
+          className="inline-flex items-center gap-2.5 bg-[#021C57] hover:bg-[#043399] text-white px-8 py-3.5 rounded-2xl font-bold shadow-lg hover:shadow-xl transition duration-200 cursor-pointer text-sm active:scale-95"
         >
-          {downloading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Downloading Catalog PDF...</span>
-            </>
-          ) : (
-            <>
-              <Download size={18} />
-              <span>Download Catalog (PDF)</span>
-            </>
-          )}
+          <Printer size={18} />
+          <span>Print / Save as PDF</span>
         </button>
       </div>
     </div>
