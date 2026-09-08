@@ -39,11 +39,20 @@ const ErrorLogsPage = () => {
   } = useErrorLogStore();
 
   const [selectedLogForModal, setSelectedLogForModal] = useState(null);
+  const [liveStreamActive, setLiveStreamActive] = useState(true);
 
   useEffect(() => {
     fetchLogs();
     fetchStats();
-  }, []);
+
+    if (!liveStreamActive) return;
+    const interval = setInterval(() => {
+      fetchLogs();
+      fetchStats();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [liveStreamActive, filters, pagination.page]);
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);

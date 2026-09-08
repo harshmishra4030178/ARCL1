@@ -1,5 +1,7 @@
 "use client";
 
+import API from "../api/axios.js";
+
 let isInitialized = false;
 let lastReportedTime = 0;
 const reportedSignatures = new Set();
@@ -57,27 +59,22 @@ export const reportClientError = async ({
       },
     };
 
-    // Determine backend base URL
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    let baseUrl = "http://localhost:5000/api/v1";
-    if (envUrl && envUrl.startsWith("http")) {
-      baseUrl = envUrl;
-    } else if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
-      baseUrl = "https://arcl1-1.onrender.com/api/v1";
-    }
-
-    // Send error report via fetch
-    fetch(`${baseUrl}/client/error-logs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    }).catch((err) => {
-      // Fallback to sendBeacon if fetch fails
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-        navigator.sendBeacon(`${baseUrl}/client/error-logs`, blob);
+    API.post("/client/error-logs", payload).catch(() => {
+      // Determine backend base URL as fallback
+      const envUrl = process.env.NEXT_PUBLIC_API_URL;
+      let baseUrl = "http://localhost:5000/api/v1";
+      if (envUrl && envUrl.startsWith("http")) {
+        baseUrl = envUrl;
+      } else if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+        baseUrl = "https://arcl1-1.onrender.com/api/v1";
       }
+
+      fetch(`${baseUrl}/client/error-logs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {});
     });
   } catch (e) {
     // Silent fail
