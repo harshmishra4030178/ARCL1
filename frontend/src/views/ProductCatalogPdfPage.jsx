@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
+import { downloadProductCatalogPdf } from "../utils/productCatalogPdfGenerator.js";
 
 const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const routeParams = useParams();
@@ -56,91 +57,12 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const loading = !product && (storeLoading || !mounted);
 
   const handleDirectDownload = async () => {
-    if (downloading) return;
+    if (downloading || !product) return;
     try {
       setDownloading(true);
       const toastId = toast.loading("Generating direct PDF download...");
 
-      const element = document.getElementById("catalog-document");
-      if (!element) {
-        toast.update(toastId, {
-          render: "Catalog document not found.",
-          type: "error",
-          isLoading: false,
-          autoClose: 2000,
-        });
-        setDownloading(false);
-        return;
-      }
-
-      // Dynamic imports to guarantee 100% SSR safety in Next.js
-      const html2canvasModule = await import("html2canvas");
-      const html2canvas = html2canvasModule.default || html2canvasModule;
-      const { jsPDF } = await import("jspdf");
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const margin = 6;
-      const contentWidth = pdfWidth - margin * 2;
-      const contentHeight = (canvas.height * contentWidth) / canvas.width;
-
-      let heightLeft = contentHeight;
-      let position = margin;
-
-      // Page 1
-      pdf.addImage(
-        imgData,
-        "JPEG",
-        margin,
-        position,
-        contentWidth,
-        contentHeight,
-        undefined,
-        "FAST"
-      );
-      heightLeft -= (pdfHeight - margin * 2);
-
-      // Remaining pages if catalog spans multiple A4 pages
-      while (heightLeft > 0) {
-        position = margin - (contentHeight - heightLeft);
-        pdf.addPage();
-        pdf.addImage(
-          imgData,
-          "JPEG",
-          margin,
-          position,
-          contentWidth,
-          contentHeight,
-          undefined,
-          "FAST"
-        );
-        heightLeft -= (pdfHeight - margin * 2);
-      }
-
-      const cleanName = (product?.name || "Product")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const filename = `ARCL-${cleanName}-Catalog.pdf`;
-
-      // Direct file download to user's device
-      pdf.save(filename);
+      await downloadProductCatalogPdf(product);
 
       toast.update(toastId, {
         render: "Catalog PDF downloaded successfully to your device!",
@@ -151,8 +73,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     } catch (err) {
       console.error("Direct PDF download error:", err);
       toast.dismiss();
-      toast.error("Could not generate direct PDF file. Opening browser print/save...");
-      window.print();
+      toast.error("Could not download PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
