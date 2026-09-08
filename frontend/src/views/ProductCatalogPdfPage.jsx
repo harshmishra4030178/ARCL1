@@ -62,16 +62,16 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const handleDirectDownload = async () => {
     if (!product) return;
     try {
-      const toastId = toast.loading("Downloading Official PDF Catalog...");
-      await downloadProductCatalogPdf(product);
+      const toastId = toast.loading("Generating Official 3-Page Technical Brochure PDF...");
+      const filename = await downloadProductCatalogPdf(product);
       toast.update(toastId, {
-        render: "Catalog PDF downloaded successfully!",
+        render: `Brochure (${filename}) downloaded successfully!`,
         type: "success",
         isLoading: false,
-        autoClose: 2000,
+        autoClose: 2500,
       });
     } catch (err) {
-      // If direct download fails, open native print dialog
+      console.error("PDF generation error:", err);
       window.print();
     }
   };
@@ -179,7 +179,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             {formatTitleCase(product.name)}
           </Link>
           <ChevronRight size={12} className="text-gray-400 shrink-0" />
-          <span className="font-bold text-[#021C57]">PDF Catalog</span>
+          <span className="font-bold text-[#021C57]">PDF Technical Brochure</span>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -196,10 +196,10 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
           <button
             onClick={handleDirectDownload}
-            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer"
+            className="inline-flex items-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer uppercase tracking-wider"
           >
             <Download size={15} />
-            <span>Download Catalog (PDF)</span>
+            <span>DOWNLOAD PRODUCT PDF</span>
           </button>
         </div>
       </div>
