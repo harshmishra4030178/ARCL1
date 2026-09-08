@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas-pro";
 import { formatTitleCase } from "./stringUtils.js";
 
 const loadImageBase64 = async (url) => {
@@ -20,7 +21,8 @@ const loadImageBase64 = async (url) => {
 };
 
 /**
- * Generates and directly downloads the official 3-page technical catalog PDF brochure for an ARCL product
+ * Generates and directly downloads the official technical catalog PDF brochure for an ARCL product
+ * 1:1 identical to the website catalog brochure design
  * @param {Object} product The product object
  */
 export const downloadProductCatalogPdf = async (product) => {
@@ -28,6 +30,77 @@ export const downloadProductCatalogPdf = async (product) => {
     throw new Error("Product data is required to generate catalog");
   }
 
+  const cleanSku = (product.productCode || product.slug || "PRODUCT")
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]+/g, "-");
+  const filename = `ARCL-${cleanSku}-Product-Brochure.pdf`;
+
+  // 1. ATTEMPT 1:1 PIXEL-PERFECT DOM RENDER OF EXACT USER DESIGN
+  if (typeof window !== "undefined") {
+    const page1El = document.querySelector(".catalog-page-1");
+    const page2El = document.querySelector(".catalog-page-2");
+    const catalogDocEl = document.querySelector("#catalog-document");
+
+    if (page1El || catalogDocEl) {
+      try {
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+        const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+
+        if (page1El) {
+          const canvas1 = await html2canvas(page1El, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+          });
+
+          const imgData1 = canvas1.toDataURL("image/jpeg", 0.98);
+          pdf.addImage(imgData1, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+
+          if (page2El) {
+            const canvas2 = await html2canvas(page2El, {
+              scale: 2,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: "#ffffff",
+              logging: false,
+            });
+
+            const imgData2 = canvas2.toDataURL("image/jpeg", 0.98);
+            pdf.addPage();
+            pdf.addImage(imgData2, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+          }
+
+          pdf.save(filename);
+          return filename;
+        } else if (catalogDocEl) {
+          const canvas = await html2canvas(catalogDocEl, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+          });
+
+          const imgData = canvas.toDataURL("image/jpeg", 0.98);
+          pdf.addImage(imgData, "JPEG", 8, 8, pdfWidth - 16, pdfHeight - 16, undefined, "FAST");
+          pdf.save(filename);
+          return filename;
+        }
+      } catch (domErr) {
+        console.warn("DOM canvas capture fallback to vector generator:", domErr);
+      }
+    }
+  }
+
+  // 2. FALLBACK: NATIVE VECTOR PDF GENERATOR
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -693,11 +766,6 @@ export const downloadProductCatalogPdf = async (product) => {
       footerY + 7
     );
   }
-
-  const cleanSku = (product.productCode || product.slug || "PRODUCT")
-    .toUpperCase()
-    .replace(/[^A-Z0-9_-]+/g, "-");
-  const filename = `ARCL-${cleanSku}-Product-Brochure.pdf`;
 
   doc.save(filename);
   return filename;
