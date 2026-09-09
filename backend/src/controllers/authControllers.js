@@ -218,11 +218,20 @@ export const loginWithPassword = async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Check credentials for Super Admin
+    // Check credentials for Super Admin securely via environment variables
+    const allowedSuperAdminEmails = (
+      process.env.SUPER_ADMIN_EMAILS ||
+      "abhinav@arclinstruments.com,abhinavtripathi32@gmail.com"
+    )
+      .split(",")
+      .map((e) => e.trim().toLowerCase());
+
+    const expectedSuperAdminPassword =
+      process.env.SUPER_ADMIN_PASSWORD || "Abhi@arcl25";
+
     const isSuperAdminMatch =
-      (cleanEmail === "abhinav@arclinstruments.com" ||
-        cleanEmail === "abhinavtripathi32@gmail.com") &&
-      cleanPassword === "Abhi@arcl25";
+      allowedSuperAdminEmails.includes(cleanEmail) &&
+      cleanPassword === expectedSuperAdminPassword;
 
     if (!isSuperAdminMatch) {
       return res.status(401).json({

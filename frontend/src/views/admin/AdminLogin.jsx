@@ -72,16 +72,48 @@ const AdminLogin = () => {
       // Emergency Panic Hotkey (Escape key)
       if (e.key === "Escape") {
         setIsWindowBlurred((prev) => !prev);
+        return;
+      }
+
+      // Anti-Inspect / DevTools Key Interceptions
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const isDevToolsKey =
+        e.key === "F12" ||
+        ((isMac ? e.metaKey && e.altKey : e.ctrlKey && e.shiftKey) &&
+          (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) ||
+        ((isMac ? e.metaKey : e.ctrlKey) && (e.key === "u" || e.key === "U"));
+
+      if (isDevToolsKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsWindowBlurred(true);
+        toast.warn("🛡️ Security Alert: Inspect & Developer Tools are blocked on Executive Login.", {
+          icon: "🔒",
+          autoClose: 3000,
+        });
+      }
+    };
+
+    // DevTools Open Detection (via window dimensions)
+    const checkDevTools = () => {
+      const widthThreshold = window.outerWidth - window.innerWidth > 160;
+      const heightThreshold = window.outerHeight - window.innerHeight > 160;
+      if (widthThreshold || heightThreshold) {
+        if (privacyVeilEnabled) {
+          setIsWindowBlurred(true);
+        }
       }
     };
 
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", checkDevTools);
     return () => {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", checkDevTools);
     };
   }, [privacyVeilEnabled]);
 
@@ -296,8 +328,19 @@ const AdminLogin = () => {
     });
   };
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    toast.warn("🔒 Right-click inspect is disabled on executive portal.", {
+      icon: "🛡️",
+      autoClose: 2000,
+    });
+  };
+
   return (
-    <div className="relative min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none font-sans">
+    <div
+      onContextMenu={handleContextMenu}
+      className="relative min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none font-sans"
+    >
       
       {/* 🌌 DYNAMIC AMBIENT LIGHT MESH GLOWS */}
       <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/25 rounded-full blur-[140px] pointer-events-none animate-pulse"></div>
