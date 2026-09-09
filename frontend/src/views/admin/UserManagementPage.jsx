@@ -145,7 +145,11 @@ const UserManagementPage = () => {
   const canManageUsers = useMemo(() => {
     if (!currentAdminUser) return false;
     if (currentAdminUser.role === "superadmin") return true;
-    if (currentAdminUser.email?.toLowerCase() === "admin@arcl.com") return true;
+    if (
+      currentAdminUser.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
+      currentAdminUser.email?.toLowerCase() === "abhinavtripathi32@gmail.com"
+    )
+      return true;
     if (currentAdminUser.permissions?.users?.manage === true) return true;
     return false;
   }, [currentAdminUser]);
@@ -887,8 +891,7 @@ const UserManagementPage = () => {
                       <td className="p-4">
                         {user.role === "superadmin" ||
                         user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-                        user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-800 border border-amber-400/50 text-xs font-black tracking-wide shadow-2xs">
                             <FaCrown className="text-amber-600 text-xs" /> SUPER ADMIN
                           </span>
@@ -923,8 +926,7 @@ const UserManagementPage = () => {
                       <td className="p-4">
                         {user.role === "superadmin" ||
                         user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-                        user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-xs border border-slate-800">
                             <FaShieldAlt className="text-amber-400" /> Full Access (19/19)
                           </span>
@@ -956,8 +958,7 @@ const UserManagementPage = () => {
                               updatingId === user._id ||
                               user.role === "superadmin" ||
                               user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                              user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-                              user.email?.toLowerCase() === "admin@arcl.com"
+                              user.email?.toLowerCase() === "abhinavtripathi32@gmail.com"
                             }
                           />
                           <span
@@ -990,8 +991,7 @@ const UserManagementPage = () => {
                       <td className="p-4 text-center">
                         {user.role === "superadmin" ||
                         user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-                        user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
                           <span className="text-[10px] text-slate-400 font-semibold italic">Protected</span>
                         ) : (
                           <button

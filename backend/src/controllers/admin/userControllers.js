@@ -78,7 +78,6 @@ export const updateUserRole = asyncHandler(async (req, res) => {
     user.role === "superadmin" ||
     user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
     user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === "admin@arcl.com" ||
     user.email.toLowerCase() === envAdminEmail;
 
   if (isSuper) {
@@ -126,7 +125,6 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
     user.role === "superadmin" ||
     user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
     user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === "admin@arcl.com" ||
     user.email.toLowerCase() === envAdminEmail;
 
   if (isSuper) {
@@ -168,7 +166,6 @@ export const deleteUser = asyncHandler(async (req, res) => {
     user.role === "superadmin" ||
     user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
     user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === "admin@arcl.com" ||
     user.email.toLowerCase() === envAdminEmail;
 
   if (isSuper) {
@@ -205,7 +202,6 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
     user.role === "superadmin" ||
     user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
     user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === "admin@arcl.com" ||
     user.email.toLowerCase() === envAdminEmail;
 
   if (isSuper) {

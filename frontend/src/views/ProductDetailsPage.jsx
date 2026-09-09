@@ -390,7 +390,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
               {/* MAIN IMAGE */}
               <img
                 src={currentImage}
-                alt={product.name}
+                alt={`${formatTitleCase(product.name)} - Civil Engineering Laboratory Testing Equipment - ARCL Instruments`}
                 className="max-h-[360px] sm:max-h-[420px] w-auto object-contain transition duration-500 group-hover:scale-105"
               />
 
@@ -412,7 +412,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                   >
                     <img
                       src={imgUrl}
-                      alt={`Thumbnail ${idx + 1}`}
+                      alt={`${formatTitleCase(product.name)} Angle View ${idx + 1} - ARCL Instruments`}
                       className="w-full h-full object-contain"
                     />
                   </button>

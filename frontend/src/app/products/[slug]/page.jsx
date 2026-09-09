@@ -15,8 +15,8 @@ async function getProduct(slug) {
     const BACKEND_URL = getBackendUrl();
     const res = await fetch(`${BACKEND_URL}/client/products/${slug}`, {
       next: { revalidate: 60 },
-    });
-    if (!res.ok) return null;
+    }).catch(() => null);
+    if (!res || !res.ok) return null;
     const data = await res.json();
     return data?.data || null;
   } catch (error) {
@@ -32,37 +32,44 @@ export async function generateMetadata({ params }) {
   if (!product) {
     return {
       title: "Product Not Found | ARCL Instruments",
-      description: "The requested laboratory testing instrument could not be located.",
+      description: "The requested civil engineering testing instrument could not be located.",
+      robots: { index: false, follow: true },
     };
   }
 
-  const title = `${product.name} | ARCL Instruments`;
+  const categoryName = product.category?.name || "Material Testing Equipment";
+  const title = `${product.name} | ${categoryName} | ARCL Instruments`;
   const description =
     product.description?.slice(0, 160) ||
-    `Certified ${product.name} precision testing equipment manufactured by ARCL Instruments Pvt. Ltd.`;
+    `Certified ${product.name} precision testing equipment manufactured by ARCL Instruments Pvt. Ltd. Complying with IS, ASTM, and BS testing standards.`;
   const image =
     Array.isArray(product.images) && product.images[0]
       ? product.images[0]
-      : "/assets/LOGO.png";
+      : "https://arclinstruments.com/assets/LOGO.png";
 
   return {
     title,
     description,
     keywords: [
       product.name,
-      product.category?.name,
-      "lab testing equipment",
+      `${product.name} manufacturer India`,
+      `${product.name} supplier`,
+      categoryName,
+      "Civil Engineering Laboratory Equipment",
+      "material testing machines",
       "ARCL Instruments",
     ].filter(Boolean),
     alternates: {
-      canonical: `/products/${slug}`,
+      canonical: `https://arclinstruments.com/products/${slug}`,
     },
     openGraph: {
       title,
       description,
       url: `https://arclinstruments.com/products/${slug}`,
-      images: [{ url: image, alt: product.name }],
+      siteName: "ARCL Instruments Pvt. Ltd.",
+      images: [{ url: image, alt: product.name, width: 1200, height: 630 }],
       type: "website",
+      locale: "en_IN",
     },
     twitter: {
       card: "summary_large_image",
@@ -94,7 +101,7 @@ export default async function ProductDetailPage({ params }) {
               {
                 "@type": "ListItem",
                 "position": 2,
-                "name": product.category?.name || "Equipment",
+                "name": product.category?.name || "Products",
                 "item": product.category?.slug
                   ? `https://arclinstruments.com/categories/${product.category.slug}`
                   : "https://arclinstruments.com/products",
@@ -131,20 +138,15 @@ export default async function ProductDetailPage({ params }) {
               "@type": "Offer",
               "url": `https://arclinstruments.com/products/${slug}`,
               "priceCurrency": "INR",
-              "price": "Contact for Factory Price",
+              ...(typeof product.price === "number" && product.price > 0
+                ? { "price": product.price }
+                : {}),
               "availability": "https://schema.org/InStock",
               "itemCondition": "https://schema.org/NewCondition",
               "seller": {
                 "@type": "Organization",
                 "name": "ARCL Instruments Pvt. Ltd.",
               },
-            },
-            "aggregateRating": {
-              "@type": "AggregateRating",
-              "ratingValue": "4.9",
-              "reviewCount": "28",
-              "bestRating": "5",
-              "worstRating": "1",
             },
           },
         ],
@@ -159,7 +161,7 @@ export default async function ProductDetailPage({ params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
         />
       )}
-      <ProductDetailsClient initialSlug={slug} initialProduct={product} />
+      <ProductDetailsClient initialSlug={slug} />
     </>
   );
 }

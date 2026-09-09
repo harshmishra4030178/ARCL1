@@ -25,19 +25,20 @@ export const metadata = {
     siteName: "ARCL Instruments Pvt. Ltd.",
     images: [
       {
-        url: "/assets/LOGO.png",
+        url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
         alt: "ARCL Calibration Services",
       },
     ],
     type: "website",
+    locale: "en_IN",
   },
   twitter: {
     card: "summary_large_image",
     title: "Calibration & Maintenance Services | ARCL Instruments",
     description: "Multi-point calibration & certification with NABL traceability.",
-    images: ["/assets/LOGO.png"],
+    images: ["https://arclinstruments.com/assets/LOGO.png"],
   },
 };
 
@@ -81,7 +82,6 @@ const calibrationJsonLd = {
       "offers": {
         "@type": "Offer",
         "priceCurrency": "INR",
-        "price": "Contact for Calibration Quote",
         "availability": "https://schema.org/InStock",
       },
     },
@@ -99,4 +99,3 @@ export default function CalibrationServicesRoute() {
     </>
   );
 }
-

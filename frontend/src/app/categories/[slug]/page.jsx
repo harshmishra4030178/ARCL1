@@ -15,12 +15,12 @@ async function getCategoryData(slug) {
   try {
     const BACKEND_URL = getBackendUrl();
     const [catRes, prodRes] = await Promise.all([
-      fetch(`${BACKEND_URL}/client/categories/${slug}`, { next: { revalidate: 60 } }),
-      fetch(`${BACKEND_URL}/client/products/category/${slug}`, { next: { revalidate: 60 } }),
+      fetch(`${BACKEND_URL}/client/categories/${slug}`, { next: { revalidate: 60 } }).catch(() => null),
+      fetch(`${BACKEND_URL}/client/products/category/${slug}`, { next: { revalidate: 60 } }).catch(() => null),
     ]);
 
-    const category = catRes.ok ? (await catRes.json())?.data : null;
-    const products = prodRes.ok ? (await prodRes.json())?.data : [];
+    const category = catRes && catRes.ok ? (await catRes.json())?.data : null;
+    const products = prodRes && prodRes.ok ? (await prodRes.json())?.data : [];
     return { category, products };
   } catch (error) {
     return { category: null, products: [] };
@@ -32,29 +32,48 @@ export async function generateMetadata({ params }) {
   const slug = resolvedParams?.slug;
   const { category } = await getCategoryData(slug);
 
-  const name = category?.name || slug;
-  const title = `${name} Testing Equipment & Instruments | ARCL Instruments`;
+  const name = category?.name || slug?.replace(/-/g, " ");
+  const title = `${name} | Civil Material Testing Equipment Manufacturer | ARCL Instruments`;
   const description =
     category?.description?.slice(0, 160) ||
-    `Browse certified ${name} testing instruments and machines manufactured by ARCL Instruments Pvt. Ltd.`;
+    `Browse certified ${name} manufactured by ARCL Instruments Pvt. Ltd. Complying with IS, ASTM, and BS standards with NABL traceable calibration.`;
+  const image = category?.image || "https://arclinstruments.com/assets/LOGO.png";
 
   return {
     title,
     description,
     keywords: [
       name,
-      "lab testing equipment",
-      "civil testing machines",
+      `${name} manufacturer India`,
+      `${name} supplier Mumbai`,
+      "civil engineering laboratory equipment",
+      "material testing machines",
       "ARCL Instruments",
     ],
     alternates: {
-      canonical: `/categories/${slug}`,
+      canonical: `https://arclinstruments.com/categories/${slug}`,
     },
     openGraph: {
       title,
       description,
       url: `https://arclinstruments.com/categories/${slug}`,
+      siteName: "ARCL Instruments Pvt. Ltd.",
+      images: [
+        {
+          url: image,
+          width: 1200,
+          height: 630,
+          alt: `${name} - ARCL Instruments`,
+        },
+      ],
       type: "website",
+      locale: "en_IN",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
     },
   };
 }
@@ -68,6 +87,8 @@ export default async function CategoryDetailPage({ params }) {
   if (products && products.length === 1 && products[0]?.slug) {
     redirect(`/products/${products[0].slug}`);
   }
+
+  const categoryName = category?.name || slug?.replace(/-/g, " ");
 
   const categoryJsonLd = {
     "@context": "https://schema.org",
@@ -84,13 +105,13 @@ export default async function CategoryDetailPage({ params }) {
           {
             "@type": "ListItem",
             "position": 2,
-            "name": "Categories",
+            "name": "Products",
             "item": "https://arclinstruments.com/products",
           },
           {
             "@type": "ListItem",
             "position": 3,
-            "name": category?.name || slug,
+            "name": categoryName,
             "item": `https://arclinstruments.com/categories/${slug}`,
           },
         ],
@@ -98,10 +119,10 @@ export default async function CategoryDetailPage({ params }) {
       {
         "@type": "CollectionPage",
         "@id": `https://arclinstruments.com/categories/${slug}#webpage`,
-        "name": category?.name ? `${category.name} Testing Equipment` : `${slug} Equipment`,
+        "name": `${categoryName} Testing Equipment & Instruments`,
         "description":
           category?.description ||
-          `Explore high precision ${category?.name || slug} manufactured by ARCL Instruments Pvt. Ltd.`,
+          `Explore high precision ${categoryName} manufactured by ARCL Instruments Pvt. Ltd. Complying with IS/ASTM standards.`,
         "url": `https://arclinstruments.com/categories/${slug}`,
         "provider": {
           "@type": "Organization",

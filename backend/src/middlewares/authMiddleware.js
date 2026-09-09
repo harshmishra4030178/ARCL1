@@ -73,9 +73,14 @@ export const isSuperAdminUser = (user) => {
   if (!user) return false;
   if (user.role === "superadmin") return true;
 
-  const envEmails = ["admin@arcl.com"];
+  const envEmails = ["abhinav@arclinstruments.com", "abhinavtripathi32@gmail.com"];
   if (process.env.ADMIN_EMAIL) {
     process.env.ADMIN_EMAIL.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+  if (process.env.SUPER_ADMIN_EMAILS) {
+    process.env.SUPER_ADMIN_EMAILS.split(",").forEach((e) => {
       if (e.trim()) envEmails.push(e.trim().toLowerCase());
     });
   }
