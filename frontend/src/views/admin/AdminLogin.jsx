@@ -102,27 +102,27 @@ const AdminLogin = () => {
     }
   };
 
-  // Quick Developer / Primary Admin Access
-  const handleQuickAdminLogin = async () => {
-    try {
-      setLoading(true);
-      clearError();
-      setAccessDeniedNotice(null);
+  // // Quick Developer / Primary Admin Access
+  // const handleQuickAdminLogin = async () => {
+  //   try {
+  //     setLoading(true);
+  //     clearError();
+  //     setAccessDeniedNotice(null);
 
-      await loginWithGoogle({
-        email: "admin@arcl.com",
-        name: "ARCL Administrator",
-        picture: "",
-        googleId: "local-admin-dev",
-      });
-      toast.success("Logged in as ARCL Administrator");
-      navigate(redirectPath, { replace: true });
-    } catch (err) {
-      toast.error(err.message || "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  //     await loginWithGoogle({
+  //       email: "admin@arcl.com",
+  //       name: "ARCL Administrator",
+  //       picture: "",
+  //       googleId: "local-admin-dev",
+  //     });
+  //     toast.success("Logged in as ARCL Administrator");
+  //     navigate(redirectPath, { replace: true });
+  //   } catch (err) {
+  //     toast.error(err.message || "Login failed");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-linear-to-br from-[#021C57] via-[#052b7a] to-gray-900 flex items-center justify-center p-4">
@@ -179,7 +179,7 @@ const AdminLogin = () => {
           <div id="googleSignInBtn" className="flex justify-center min-h-[44px]"></div>
 
           {/* Quick Admin Access Button */}
-          <div className="w-full pt-4 border-t border-gray-100 text-center">
+          {/* <div className="w-full pt-4 border-t border-gray-100 text-center">
             <p className="text-xs text-gray-400 mb-3">Quick Developer / Setup Access</p>
             <button
               onClick={handleQuickAdminLogin}
@@ -189,7 +189,7 @@ const AdminLogin = () => {
               <FaUserTie className="text-base" />
               {loading ? "Authenticating..." : "Continue as Admin (admin@arcl.com)"}
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* SECURITY FOOTER */}

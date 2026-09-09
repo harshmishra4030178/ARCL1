@@ -24,7 +24,7 @@ const parseGoogleCredential = (credential) => {
  * Get all authorized admin emails from environment variables
  */
 const getAuthorizedAdminEmails = () => {
-  const emails = ["admin@arcl.com"];
+  const emails = [];
   if (process.env.ADMIN_EMAIL) {
     process.env.ADMIN_EMAIL.split(",").forEach((e) => {
       if (e.trim()) emails.push(e.trim().toLowerCase());
@@ -102,7 +102,7 @@ export const googleLogin = async (req, res) => {
     } else {
       // User exists in database
       // If email is admin@arcl.com or in .env ADMIN_EMAIL, ensure role is elevated to 'admin'
-      if (email === "admin@arcl.com" || isEnvAdmin) {
+      if (isEnvAdmin) {
         user.role = "admin";
         user.isActive = true;
       }
@@ -126,7 +126,7 @@ export const googleLogin = async (req, res) => {
       users: { manage: true },
     };
 
-    if (isEnvAdmin || email === "admin@arcl.com") {
+    if (isEnvAdmin ) {
       user.role = "superadmin";
       user.permissions = defaultFullPermissions;
       user.markModified("permissions");
