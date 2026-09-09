@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { googleLoginApi, getMeApi } from "../api/authApi";
+import { googleLoginApi, loginWithPasswordApi, getMeApi } from "../api/authApi";
 
 const getSavedToken = () => {
   if (typeof window === "undefined") return null;
@@ -56,6 +56,47 @@ export const useAuthStore = create((set, get) => ({
       }
     } catch (err) {
       console.error("Login with Google error:", err);
+      const errorMessage =
+        err.response?.data?.message || err.message || "Authentication failed";
+
+      set({
+        error: errorMessage,
+        loading: false,
+        isAuthenticated: false,
+      });
+
+      throw new Error(errorMessage);
+    }
+  },
+
+  // =========================
+  // LOGIN WITH EMAIL & PASSWORD (SUPER ADMIN)
+  // =========================
+  loginWithPassword: async ({ email, password }) => {
+    try {
+      set({ loading: true, error: null });
+
+      const res = await loginWithPasswordApi({ email, password });
+      const data = res.data;
+
+      if (data.success && data.token) {
+        localStorage.setItem("arcl_admin_token", data.token);
+        localStorage.setItem("arcl_admin_user", JSON.stringify(data.user));
+
+        set({
+          token: data.token,
+          user: data.user,
+          isAuthenticated: true,
+          loading: false,
+          error: null,
+        });
+
+        return data.user;
+      } else {
+        throw new Error(data.message || "Login failed");
+      }
+    } catch (err) {
+      console.error("Login with password error:", err);
       const errorMessage =
         err.response?.data?.message || err.message || "Authentication failed";
 

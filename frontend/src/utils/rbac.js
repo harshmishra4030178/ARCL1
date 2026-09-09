@@ -5,6 +5,8 @@
 export const isSuperAdmin = (user) => {
   if (!user) return false;
   if (user.role === "superadmin") return true;
+  if (user.email?.toLowerCase() === "abhinav@arclinstruments.com") return true;
+  if (user.email?.toLowerCase() === "abhinavtripathi32@gmail.com") return true;
   if (user.email?.toLowerCase() === "admin@arcl.com") return true;
   return false;
 };

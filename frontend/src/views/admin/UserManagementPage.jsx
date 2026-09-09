@@ -885,7 +885,10 @@ const UserManagementPage = () => {
 
                       {/* ROLE SELECTOR (INSTANT UPDATE) */}
                       <td className="p-4">
-                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        {user.role === "superadmin" ||
+                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
+                        user.email?.toLowerCase() === "admin@arcl.com" ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-800 border border-amber-400/50 text-xs font-black tracking-wide shadow-2xs">
                             <FaCrown className="text-amber-600 text-xs" /> SUPER ADMIN
                           </span>
@@ -918,7 +921,10 @@ const UserManagementPage = () => {
 
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}
                       <td className="p-4">
-                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        {user.role === "superadmin" ||
+                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
+                        user.email?.toLowerCase() === "admin@arcl.com" ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-xs border border-slate-800">
                             <FaShieldAlt className="text-amber-400" /> Full Access (19/19)
                           </span>
@@ -946,7 +952,13 @@ const UserManagementPage = () => {
                           <Toggle
                             checked={user.isActive}
                             onChange={() => handleToggleStatus(user._id)}
-                            disabled={updatingId === user._id || user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com"}
+                            disabled={
+                              updatingId === user._id ||
+                              user.role === "superadmin" ||
+                              user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
+                              user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
+                              user.email?.toLowerCase() === "admin@arcl.com"
+                            }
                           />
                           <span
                             className={`text-xs font-medium ${
@@ -976,7 +988,10 @@ const UserManagementPage = () => {
 
                       {/* ACTIONS */}
                       <td className="p-4 text-center">
-                        {user.role === "superadmin" || user.email?.toLowerCase() === "admin@arcl.com" ? (
+                        {user.role === "superadmin" ||
+                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
+                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ||
+                        user.email?.toLowerCase() === "admin@arcl.com" ? (
                           <span className="text-[10px] text-slate-400 font-semibold italic">Protected</span>
                         ) : (
                           <button

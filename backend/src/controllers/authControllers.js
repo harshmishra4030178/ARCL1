@@ -200,6 +200,106 @@ export const googleLogin = async (req, res) => {
 };
 
 /**
+ * @desc    Super Admin Direct Email & Password Login
+ * @route   POST /api/v1/auth/login
+ * @access  Public
+ */
+export const loginWithPassword = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    // Check credentials for Super Admin
+    const isSuperAdminMatch =
+      (cleanEmail === "abhinav@arclinstruments.com" ||
+        cleanEmail === "abhinavtripathi32@gmail.com") &&
+      cleanPassword === "Abhi@arcl25";
+
+    if (!isSuperAdminMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Super Admin ID or Password. Access Denied.",
+      });
+    }
+
+    const defaultFullPermissions = {
+      products: { create: true, edit: true, delete: true },
+      categories: { create: true, edit: true, delete: true },
+      equipmentTypes: { create: true, edit: true, delete: true },
+      blogs: { create: true, edit: true, delete: true },
+      inquiries: { view: true, delete: true },
+      contacts: { view: true, delete: true },
+      subscribers: { view: true, delete: true },
+      users: { manage: true },
+    };
+
+    // Find or create the super admin user in MongoDB
+    let user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      user = await User.create({
+        name: "Abhinav (Super Admin)",
+        email: cleanEmail,
+        role: "superadmin",
+        isActive: true,
+        permissions: defaultFullPermissions,
+        lastLogin: new Date(),
+      });
+    } else {
+      user.role = "superadmin";
+      user.isActive = true;
+      user.permissions = defaultFullPermissions;
+      user.lastLogin = new Date();
+      user.markModified("permissions");
+      await user.save();
+    }
+
+    // Generate JWT token (7 days validity)
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      success: true,
+      isAdmin: true,
+      message: "Super Admin authenticated successfully! Welcome back.",
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        picture: user.picture || "",
+        role: user.role,
+        permissions: user.permissions || defaultFullPermissions,
+      },
+    });
+  } catch (error) {
+    console.error("Password Login Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Authentication failed. Internal Server Error.",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Get Current Logged-In User Profile
  * @route   GET /api/v1/auth/me
  * @access  Admin
