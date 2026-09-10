@@ -41,7 +41,7 @@ export async function generateMetadata({ params }) {
   const title = `${product.name} | ${categoryName} | ARCL Instruments`;
   const description =
     product.description?.slice(0, 160) ||
-    `Certified ${product.name} precision testing equipment manufactured by ARCL Instruments Pvt. Ltd. Complying with IS, ASTM, and BS testing standards.`;
+    `Certified ${product.name} precision testing equipment manufactured by ARCL Instruments Private Limited. Complying with IS, ASTM, and BS testing standards.`;
   const image =
     Array.isArray(product.images) && product.images[0]
       ? product.images[0]
@@ -121,7 +121,7 @@ export default async function ProductDetailPage({ params }) {
             "image": Array.isArray(product.images) && product.images.length > 0 ? product.images : ["https://arclinstruments.com/assets/LOGO.png"],
             "description":
               product.description ||
-              `Certified ${product.name} precision testing machine manufactured by ARCL Instruments Pvt. Ltd. Complying with IS/ASTM/BS standards.`,
+              `Certified ${product.name} precision testing machine manufactured by ARCL Instruments Private Limited. Complying with IS/ASTM/BS standards.`,
             "sku": product.productCode || product.slug,
             "mpn": product.productCode || product.slug,
             "brand": {
@@ -130,7 +130,7 @@ export default async function ProductDetailPage({ params }) {
             },
             "manufacturer": {
               "@type": "Organization",
-              "name": "ARCL Instruments Pvt. Ltd.",
+              "name": "ARCL Instruments Private Limited",
               "url": "https://arclinstruments.com",
             },
             "category": product.category?.name || "Civil Laboratory Testing Equipment",
@@ -145,7 +145,7 @@ export default async function ProductDetailPage({ params }) {
               "itemCondition": "https://schema.org/NewCondition",
               "seller": {
                 "@type": "Organization",
-                "name": "ARCL Instruments Pvt. Ltd.",
+                "name": "ARCL Instruments Private Limited",
               },
             },
           },

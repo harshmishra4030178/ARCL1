@@ -109,9 +109,9 @@ const Carousel = () => {
                 </p>
 
                 {/* Stroked Outlined Heading */}
-                <h1 className="lg:text-7xl md:text-5xl text-3xl font-black stroke-text leading-tight my-2 drop-shadow-md">
+                <h2 className="lg:text-7xl md:text-5xl text-3xl font-black stroke-text leading-tight my-2 drop-shadow-md">
                   {item.heading}
-                </h1>
+                </h2>
 
                 {/* Description Text */}
                 <p className="my-4 font-normal text-sm md:text-2xl text-slate-100 leading-relaxed max-w-3xl drop-shadow-sm">

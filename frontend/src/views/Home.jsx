@@ -155,125 +155,77 @@ const Home = ({ initialShowcase = [] }) => {
           <div className="max-w-6xl mx-auto">
             {/* Section Heading */}
             <div className="text-center mb-10">
-              <h2 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black text-[#021C57]">
-                Laboratory Instruments & Testing Equipment
-              </h2>
+              <span className="inline-flex items-center gap-2 bg-blue-50 text-[#021C57] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-blue-200">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Leading Civil &amp; Material Testing Manufacturer
+              </span>
+              <h1 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black text-[#021C57] tracking-tight">
+                Civil Laboratory Equipment Manufacturer &amp; Supplier in Mumbai
+              </h1>
+              <p className="mt-3 text-gray-600 text-sm md:text-base max-w-3xl mx-auto">
+                ARCL Instruments Private Limited manufactures precision civil engineering, construction materials, soil, concrete, bitumen, and laboratory testing machines with NABL-traceable calibration across Mumbai, Navi Mumbai, Thane, and Maharashtra.
+              </p>
             </div>
 
             {/* Content */}
-            <div className="bg-gray-50 rounded-3xl border border-gray-100 p-6 md:p-10 shadow-sm">
+            <div className="bg-gray-50 rounded-3xl border border-gray-100 p-6 md:p-10 shadow-sm space-y-6">
               <p className="text-gray-700 text-sm md:text-base leading-8">
                 <strong className="text-[#021C57]">
                   ARCL Instruments Private Limited
                 </strong>{" "}
-                manufactures and supplies a wide range of laboratory
-                instruments, including equipment for concrete, cement,
-                aggregate, soil, bitumen, surveying, and scientific
-                applications.
+                is an <strong className="text-[#021C57]">ISO 9001:2015 certified</strong> premier manufacturer and supplier of civil laboratory testing instruments. Based in Navi Mumbai, we supply high-precision testing apparatus for concrete, soil geotechnical investigations, bitumen asphalt, cement, aggregates, surveying, and non-destructive testing (NDT) across Mumbai, Navi Mumbai, Thane, Pune, and all industrial regions of Maharashtra.
               </p>
 
-              <p className="mt-5 text-gray-700 text-sm md:text-base leading-8">
-                We use flexible management practices to quickly adapt to
-                changing market needs. Our focus on science and innovation
-                enables us to develop new laboratory instruments while
-                maintaining strong connections with customers, industry experts,
-                and professionals.
-              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                <Link to="/categories/concrete-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Concrete Testing</span>
+                  <span className="text-[10px] text-gray-500">CTM, Moulds, Slump</span>
+                </Link>
+                <Link to="/categories/soil-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Soil Testing</span>
+                  <span className="text-[10px] text-gray-500">CBR, Direct Shear, SPT</span>
+                </Link>
+                <Link to="/categories/aggregate-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Aggregate Testing</span>
+                  <span className="text-[10px] text-gray-500">Sieve Shakers, Impact</span>
+                </Link>
+                <Link to="/categories/bitumen-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Bitumen Testing</span>
+                  <span className="text-[10px] text-gray-500">Ductility, Penetrometer</span>
+                </Link>
+                <Link to="/categories/cement-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Cement Testing</span>
+                  <span className="text-[10px] text-gray-500">Vicat, Le-Chatelier</span>
+                </Link>
+                <Link to="/categories/surveying-instruments" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Surveying Equipment</span>
+                  <span className="text-[10px] text-gray-500">Total Station, Auto Level</span>
+                </Link>
+                <Link to="/categories/non-destructive-testing-ndt-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">NDT Instruments</span>
+                  <span className="text-[10px] text-gray-500">Rebound Hammer, UPV</span>
+                </Link>
+                <Link to="/calibration-services" className="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl text-center transition group shadow-2xs">
+                  <span className="text-xs font-bold text-emerald-900 block">Calibration Services</span>
+                  <span className="text-[10px] text-emerald-700">NABL Traceable</span>
+                </Link>
+              </div>
 
-              <p className="mt-5 text-gray-700 text-sm md:text-base leading-8">
-                ARCL is an{" "}
-                <strong className="text-[#021C57]">
-                  ISO 9001:2015 Certified Company
-                </strong>
-                , and our products are designed to meet stringent international
-                standards and laboratory quality requirements, including{" "}
-                <strong className="text-[#021C57]">ISO/IEC 17025:2017</strong>.
-              </p>
-
-              {/* Highlight Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-                  <h3 className="text-lg font-bold text-[#021C57]">
-                    ISO 9001:2015
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Certified Company
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-                  <h3 className="text-lg font-bold text-[#021C57]">
-                    International Standards
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Quality-Focused Products
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-                  <h3 className="text-lg font-bold text-[#021C57]">
-                    Innovation
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Science & Technology Driven
-                  </p>
+              {/* Local Service Hub Links */}
+              <div className="pt-3 border-t border-gray-200/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <span className="text-gray-500 font-medium">Dedicated Regional Testing Hubs:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link to="/civil-lab-equipment-mumbai" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
+                    Mumbai Equipment Hub →
+                  </Link>
+                  <Link to="/civil-lab-equipment-navi-mumbai" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
+                    Navi Mumbai Office &amp; Lab →
+                  </Link>
+                  <Link to="/civil-lab-equipment-thane" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
+                    Thane Construction Hub →
+                  </Link>
                 </div>
               </div>
             </div>
-                  <section className="py-6 md:py-6 px-6 md:px-12 lg:px-16 bg-gray-50">
-          <div className="max-w-6xl mx-auto">
-            {/* Section Heading */}
-            <div className="text-center mb-10">
-              <h2 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black text-[#021C57]">
-                Civil Laboratory Equipment
-              </h2>
-
-              <p className="mt-4 max-w-3xl mx-auto text-gray-600 text-sm md:text-base leading-7">
-                Precision-engineered laboratory equipment for reliable testing,
-                measurement, research, and quality control applications.
-              </p>
-            </div>
-
-            {/* Main Content Card */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-10">
-              <p className="text-gray-700 text-sm md:text-base leading-8">
-                ARCL offers a wide range of laboratory equipment designed to
-                enhance precision, reliability, and efficiency across various
-                scientific and engineering applications.
-              </p>
-
-              <p className="mt-5 text-gray-700 text-sm md:text-base leading-8">
-                Our advanced range includes{" "}
-                <strong className="text-[#021C57]">
-                  fully automatic Compression Testing Machines
-                </strong>{" "}
-                for precise concrete strength testing, laboratory ovens that
-                provide uniform heating, and{" "}
-                <strong className="text-[#021C57]">Pan Mixers</strong> for
-                consistent and efficient material mixing.
-              </p>
-
-              <p className="mt-5 text-gray-700 text-sm md:text-base leading-8">
-                Our precision{" "}
-                <strong className="text-[#021C57]">laboratory balances</strong>{" "}
-                provide accurate material measurements, while our{" "}
-                <strong className="text-[#021C57]">
-                  Non-Destructive Testing (NDT) instruments
-                </strong>{" "}
-                use advanced technology to deliver reliable testing data.
-              </p>
-
-              <p className="mt-5 text-gray-700 text-sm md:text-base leading-8">
-                ARCL laboratory equipment is designed with user-friendly
-                controls and practical operating features to support high
-                standards of performance, accuracy, reliability, and safety.
-              </p>
-
-              {/* Equipment Categories */}
-            </div>
-          </div>
-        </section>
-
           </div>
 
         {/* =========================================================

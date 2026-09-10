@@ -131,7 +131,7 @@ export default async function SingleBlogPage({ params }) {
             },
             "publisher": {
               "@type": "Organization",
-              "name": "ARCL Instruments Pvt. Ltd.",
+              "name": "ARCL Instruments Private Limited",
               "url": "https://arclinstruments.com",
               "logo": {
                 "@type": "ImageObject",

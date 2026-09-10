@@ -3,7 +3,7 @@ import BlogListPage from "../../views/BlogListPage.jsx";
 export const metadata = {
   title: "Civil Engineering & Material Testing Knowledge Hub | ARCL Instruments Blog",
   description:
-    "Expert technical guides, laboratory test procedures, Indian Standards (IS 516, IS 2720, IS 1208, IS 4031), calibration methods, and civil QA/QC benchmarks by ARCL Instruments Pvt. Ltd.",
+    "Expert technical guides, laboratory test procedures, Indian Standards (IS 516, IS 2720, IS 1208, IS 4031), calibration methods, and civil QA/QC benchmarks by ARCL Instruments Private Limited.",
   keywords: [
     "civil engineering blog India",
     "material testing lab guides",
@@ -71,7 +71,7 @@ const blogListJsonLd = {
       "url": "https://arclinstruments.com/blog",
       "publisher": {
         "@type": "Organization",
-        "name": "ARCL Instruments Pvt. Ltd.",
+        "name": "ARCL Instruments Private Limited",
         "url": "https://arclinstruments.com",
         "logo": "https://arclinstruments.com/assets/LOGO.png",
       },

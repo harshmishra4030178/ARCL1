@@ -123,6 +123,24 @@ export default async function sitemap() {
       priority: 0.8,
     },
     {
+      url: `${SITE_URL}/civil-lab-equipment-mumbai`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.95,
+    },
+    {
+      url: `${SITE_URL}/civil-lab-equipment-navi-mumbai`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.95,
+    },
+    {
+      url: `${SITE_URL}/civil-lab-equipment-thane`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.95,
+    },
+    {
       url: `${SITE_URL}/privacy-policy`,
       lastModified: new Date(),
       changeFrequency: "monthly",

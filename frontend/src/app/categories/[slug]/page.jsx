@@ -36,7 +36,7 @@ export async function generateMetadata({ params }) {
   const title = `${name} | Civil Material Testing Equipment Manufacturer | ARCL Instruments`;
   const description =
     category?.description?.slice(0, 160) ||
-    `Browse certified ${name} manufactured by ARCL Instruments Pvt. Ltd. Complying with IS, ASTM, and BS standards with NABL traceable calibration.`;
+    `Browse certified ${name} manufactured by ARCL Instruments Private Limited. Complying with IS, ASTM, and BS standards with NABL traceable calibration.`;
   const image = category?.image || "https://arclinstruments.com/assets/LOGO.png";
 
   return {
@@ -122,11 +122,11 @@ export default async function CategoryDetailPage({ params }) {
         "name": `${categoryName} Testing Equipment & Instruments`,
         "description":
           category?.description ||
-          `Explore high precision ${categoryName} manufactured by ARCL Instruments Pvt. Ltd. Complying with IS/ASTM standards.`,
+          `Explore high precision ${categoryName} manufactured by ARCL Instruments Private Limited. Complying with IS/ASTM standards.`,
         "url": `https://arclinstruments.com/categories/${slug}`,
         "provider": {
           "@type": "Organization",
-          "name": "ARCL Instruments Pvt. Ltd.",
+          "name": "ARCL Instruments Private Limited",
           "url": "https://arclinstruments.com",
         },
         "mainEntity": {

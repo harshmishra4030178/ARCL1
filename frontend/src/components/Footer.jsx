@@ -268,8 +268,39 @@ const Footer = () => {
 
         </div>
 
+        {/* Regional Testing Hubs & Key Service Locations */}
+        <div className="mt-8 pt-6 border-t border-slate-800/60">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+              <TbMapPin className="text-blue-400 shrink-0" size={14} />
+              <span>Civil Lab Equipment Hubs:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-300">
+              <Link to="/civil-lab-equipment-mumbai" className="hover:text-blue-400 transition-colors">
+                Civil Lab Equipment Mumbai
+              </Link>
+              <span className="text-slate-600">•</span>
+              <Link to="/civil-lab-equipment-navi-mumbai" className="hover:text-blue-400 transition-colors">
+                Civil Lab Equipment Navi Mumbai
+              </Link>
+              <span className="text-slate-600">•</span>
+              <Link to="/civil-lab-equipment-thane" className="hover:text-blue-400 transition-colors">
+                Civil Lab Equipment Thane
+              </Link>
+              <span className="text-slate-600">•</span>
+              <Link to="/calibration-services" className="hover:text-blue-400 transition-colors">
+                NABL Calibration Services
+              </Link>
+              <span className="text-slate-600">•</span>
+              <Link to="/standards" className="hover:text-blue-400 transition-colors">
+                IS / ASTM Testing Standards
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* Bottom Compact Divider & Copyright */}
-        <div className="mt-10 pt-6 border-t border-slate-800/80">
+        <div className="mt-6 pt-6 border-t border-slate-800/80">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs sm:text-sm">
 
             {/* Copyright */}

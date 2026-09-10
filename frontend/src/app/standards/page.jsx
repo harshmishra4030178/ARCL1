@@ -73,7 +73,7 @@ const standardsJsonLd = {
         "Directory of civil material testing standards including IS 516, IS 2720, IS 1208, IS 4031, IS 2386 with certified equipment mapping.",
       "publisher": {
         "@type": "Organization",
-        "name": "ARCL Instruments Pvt. Ltd.",
+        "name": "ARCL Instruments Private Limited",
         "url": "https://arclinstruments.com",
       },
     },

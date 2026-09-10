@@ -82,7 +82,7 @@ const organizationJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
         "ARCL Instruments Private Limited",
         "ARCL Material Testing Machines"
       ],
@@ -134,7 +134,7 @@ const organizationJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
         "ARCL Instruments Private Limited"
       ],
       "publisher": {

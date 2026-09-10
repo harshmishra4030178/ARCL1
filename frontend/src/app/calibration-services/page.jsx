@@ -4,7 +4,7 @@ export const metadata = {
   title:
     "Instrument Calibration & Maintenance Services | ISO/IEC 17025 Compliant | ARCL Instruments",
   description:
-    "Certified multi-point instrument calibration, on-site commissioning, load cell calibration, and maintenance services for civil, mechanical, thermal, pressure, and laboratory testing equipment by ARCL Instruments Pvt. Ltd.",
+    "Certified multi-point instrument calibration, on-site commissioning, load cell calibration, and maintenance services for civil, mechanical, thermal, pressure, and laboratory testing equipment by ARCL Instruments Private Limited.",
   keywords: [
     "instrument calibration services",
     "laboratory calibration India",
@@ -71,7 +71,7 @@ const calibrationJsonLd = {
         "Professional NABL-traceable multi-point calibration, on-site commissioning, repair, and annual maintenance contract (AMC) services for laboratory and civil testing instruments.",
       "provider": {
         "@type": "Organization",
-        "name": "ARCL Instruments Pvt. Ltd.",
+        "name": "ARCL Instruments Private Limited",
         "url": "https://arclinstruments.com",
         "logo": "https://arclinstruments.com/assets/LOGO.png",
       },

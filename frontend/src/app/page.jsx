@@ -1,34 +1,38 @@
 import HomeClient from "../views/Home.jsx";
 
 export const metadata = {
-  title: "ARCL Instruments Private Limited | Civil Engineering Laboratory Equipment & Material Testing Machines Manufacturer India",
+  title: "Civil Lab Equipment Manufacturer & Supplier in Mumbai | ARCL Instruments",
   description:
-    "ARCL Instruments Private Limited is India's leading ISO 9001:2015 certified manufacturer and supplier of precision civil engineering laboratory equipment, concrete testing machines, soil CBR testers, bitumen ductility apparatus, aggregate sieve shakers, and cement testing instruments.",
+    "ARCL Instruments Private Limited is a civil laboratory equipment manufacturer and supplier in Mumbai and Navi Mumbai, offering concrete, soil, aggregate, bitumen, surveying and NDT testing equipment.",
   keywords: [
+    "civil lab equipment supplier in Mumbai",
+    "civil laboratory equipment supplier in Mumbai",
+    "civil lab equipment manufacturers in Mumbai",
+    "civil engineering lab equipment Mumbai",
+    "civil testing equipment supplier Mumbai",
+    "laboratory equipment supplier Mumbai",
+    "material testing equipment Mumbai",
+    "civil lab equipment Navi Mumbai",
+    "civil laboratory equipment Navi Mumbai",
+    "best civil lab equipment supplier in Mumbai",
+    "civil laboratory equipment manufacturer in Mumbai",
+    "civil lab equipment supplier in Maharashtra",
+    "concrete testing equipment Mumbai",
+    "soil testing equipment Mumbai",
+    "aggregate testing equipment Mumbai",
+    "bitumen testing equipment Mumbai",
+    "surveying equipment Mumbai",
+    "NDT equipment Mumbai",
+    "calibration services Mumbai",
     "ARCL Instruments Private Limited",
-    "ARCL Instruments",
-    "Civil Engineering Laboratory Equipment",
-    "Material Testing Equipment Manufacturer India",
-    "Laboratory Testing Equipment Supplier India",
-    "Concrete Testing Equipment",
-    "Soil Testing Equipment",
-    "Aggregate Testing Equipment",
-    "Cement Testing Equipment",
-    "Bitumen Testing Equipment",
-    "Civil Laboratory Equipment Manufacturer",
-    "Concrete compression testing machine CTM",
-    "Soil CBR testing machine",
-    "Digital Sieve Shaker",
-    "NABL calibration laboratory equipment",
-    "ARCL Instruments Navi Mumbai Mumbai",
   ],
   alternates: {
     canonical: "https://arclinstruments.com",
   },
   openGraph: {
-    title: "ARCL Instruments Private Limited | Civil Engineering Laboratory Equipment Manufacturer & Supplier India",
+    title: "Civil Lab Equipment Manufacturer & Supplier in Mumbai | ARCL Instruments",
     description:
-      "ISO 9001:2015 Certified Manufacturer & Exporter of Precision Civil, Material, Geotechnical, Concrete, Asphalt, Aggregate, and Cement Testing Machines across India.",
+      "ARCL Instruments Private Limited is a civil laboratory equipment manufacturer and supplier in Mumbai and Navi Mumbai, offering concrete, soil, aggregate, bitumen, surveying and NDT testing equipment.",
     url: "https://arclinstruments.com",
     siteName: "ARCL Instruments Private Limited",
     images: [
@@ -36,7 +40,7 @@ export const metadata = {
         url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments Private Limited - Civil Engineering Laboratory Equipment Manufacturer India",
+        alt: "ARCL Instruments Private Limited - Civil Laboratory Equipment Manufacturer & Supplier in Mumbai",
       },
     ],
     type: "website",
@@ -44,9 +48,9 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "ARCL Instruments Private Limited | Civil Engineering & Material Testing Laboratory Equipment",
+    title: "Civil Lab Equipment Manufacturer & Supplier in Mumbai | ARCL Instruments",
     description:
-      "Precision civil engineering laboratory testing machines complying with IS, ASTM, BS, and AASHTO standards.",
+      "ARCL Instruments Private Limited is a civil laboratory equipment manufacturer and supplier in Mumbai and Navi Mumbai, offering concrete, soil, aggregate, bitumen, surveying and NDT testing equipment.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
   },
 };
@@ -60,7 +64,7 @@ const homeJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
         "ARCL Instruments Private Limited",
         "ARCL Instruments India"
       ],
@@ -121,7 +125,7 @@ const homeJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
         "ARCL Instruments Private Limited"
       ],
       "description": "Civil Engineering & Material Testing Laboratory Equipment Manufacturer in India",

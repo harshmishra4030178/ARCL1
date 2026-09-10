@@ -3,7 +3,7 @@ import CatalogClient from "../../views/CatalogPage.jsx";
 export const metadata = {
   title: "Equipment Catalog & Technical PDF Brochures | ARCL Instruments",
   description:
-    "Download official technical product catalogs, civil laboratory testing brochures, and equipment specification sheets from ARCL Instruments Pvt. Ltd. Complying with IS, ASTM, and BS codes.",
+    "Download official technical product catalogs, civil laboratory testing brochures, and equipment specification sheets from ARCL Instruments Private Limited Complying with IS, ASTM, and BS codes.",
   keywords: [
     "laboratory equipment catalog PDF",
     "civil testing machines brochure",

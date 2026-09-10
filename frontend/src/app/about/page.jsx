@@ -3,7 +3,7 @@ import AboutClient from "../../views/About.jsx";
 export const metadata = {
   title: "About ARCL Instruments | ISO Certified Testing Machine Manufacturer",
   description:
-    "Learn about ARCL Instruments Pvt. Ltd. Leading manufacturer of certified civil engineering, concrete, soil, bitumen, and material testing laboratory instruments in Navi Mumbai, India.",
+    "Learn about ARCL Instruments Private Limited Leading manufacturer of certified civil engineering, concrete, soil, bitumen, and material testing laboratory instruments in Navi Mumbai, India.",
   keywords: [
     "about ARCL Instruments",
     "laboratory equipment manufacturer",
@@ -62,12 +62,12 @@ const aboutJsonLd = {
       "@type": "AboutPage",
       "@id": "https://arclinstruments.com/about#webpage",
       "url": "https://arclinstruments.com/about",
-      "name": "About ARCL Instruments Pvt. Ltd.",
+      "name": "About ARCL Instruments Private Limited",
       "description":
-        "ARCL Instruments Pvt. Ltd. is an ISO 9001:2015 certified manufacturer & exporter of precision laboratory and civil testing equipment.",
+        "ARCL Instruments Private Limited is an ISO 9001:2015 certified manufacturer & exporter of precision laboratory and civil testing equipment.",
       "mainEntity": {
         "@type": "Organization",
-        "name": "ARCL Instruments Pvt. Ltd.",
+        "name": "ARCL Instruments Private Limited",
         "url": "https://arclinstruments.com",
         "logo": "https://arclinstruments.com/assets/LOGO.png",
         "address": {

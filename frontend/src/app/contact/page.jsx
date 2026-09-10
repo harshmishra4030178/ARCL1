@@ -64,12 +64,12 @@ const contactJsonLd = {
       "@type": "ContactPage",
       "@id": "https://arclinstruments.com/contact#webpage",
       "url": "https://arclinstruments.com/contact",
-      "name": "Contact ARCL Instruments Pvt. Ltd.",
+      "name": "Contact ARCL Instruments Private Limited",
       "description":
-        "Contact page for ARCL Instruments Pvt. Ltd. for inquiries, quotation requests, and technical support.",
+        "Contact page for ARCL Instruments Private Limited for inquiries, quotation requests, and technical support.",
       "mainEntity": {
         "@type": "LocalBusiness",
-        "name": "ARCL Instruments Pvt. Ltd.",
+        "name": "ARCL Instruments Private Limited",
         "telephone": "+91-8169695728",
         "email": "arclinstruments@gmail.com",
         "address": {
