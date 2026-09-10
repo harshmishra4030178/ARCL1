@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -15,6 +15,17 @@ import {
   Layers,
   Check,
   Search,
+  Heading2,
+  Heading3,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Quote,
+  Table,
+  Eye,
+  Edit3,
+  CornerDownLeft,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import API from "../../api/axios";
@@ -24,6 +35,7 @@ import { useEquipmentTypeStore } from "../../store/useEquipmentTypeStore";
 import { useProductStore } from "../../store/useProductStore";
 import { STANDARDS_DATA } from "../../data/standardsData";
 import { formatTitleCase } from "../../utils/stringUtils";
+import { parseRichContentToHtml } from "../../utils/richContentParser";
 
 // Extract base catalog machines from STANDARDS_DATA
 const BASE_CATALOG_MACHINES = STANDARDS_DATA.flatMap((s) =>
@@ -45,6 +57,8 @@ export default function BlogForm({ blogId, isEdit = false }) {
 
   const [galleryFilter, setGalleryFilter] = useState("All");
   const [machineSearch, setMachineSearch] = useState("");
+  const [contentTab, setContentTab] = useState("write"); // 'write' | 'preview'
+  const contentTextareaRef = useRef(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -65,6 +79,29 @@ export default function BlogForm({ blogId, isEdit = false }) {
   });
 
   const [saving, setSaving] = useState(false);
+
+  // Helper to insert formatting or paragraphs at cursor position
+  const insertFormatting = (prefix, suffix = "", defaultPlaceholder = "") => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const currentVal = formData.content || "";
+    const selectedText = currentVal.substring(start, end) || defaultPlaceholder;
+
+    const before = currentVal.substring(0, start);
+    const after = currentVal.substring(end);
+
+    const newVal = before + prefix + selectedText + suffix + after;
+    setFormData((prev) => ({ ...prev, content: newVal }));
+
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + prefix.length + selectedText.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 50);
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -646,21 +683,178 @@ export default function BlogForm({ blogId, isEdit = false }) {
               />
             </div>
 
-            {/* Markdown Body Content */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                <span>Article Content (Headings, Steps, Formulas) *</span>
-                <span className="text-[11px] text-slate-400 font-normal">Supports Markdown (## Heading, **Bold**)</span>
-              </label>
-              <textarea
-                name="content"
-                rows={10}
-                required
-                value={formData.content}
-                onChange={handleChange}
-                placeholder="## 1. Overview&#10;Write the step-by-step procedure, formulas, and apparatus requirements..."
-                className="w-full px-4 py-3 rounded-xl border border-slate-300 text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
-              />
+            {/* Rich Article Content with Formatting Toolbar & Live Preview */}
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Article Content (Headings, Paragraphs, Lists & Formulas) *
+                </label>
+
+                {/* Write vs Preview Tabs */}
+                <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setContentTab("write")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      contentTab === "write"
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Edit3 size={12} /> Write / Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setContentTab("preview")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      contentTab === "preview"
+                        ? "bg-amber-500 text-slate-950 shadow-xs font-black"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Eye size={12} /> 👁️ Live Preview
+                  </button>
+                </div>
+              </div>
+
+              {contentTab === "write" ? (
+                <div className="space-y-2">
+                  {/* Quick Formatting Toolbar */}
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      Tools:
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n\n## ", "\n", "Main Heading")}
+                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Add H2 Section Heading"
+                    >
+                      <Heading2 size={12} className="text-amber-600" /> H2 Heading
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n\n### ", "\n", "Subheading")}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Add H3 Subheading"
+                    >
+                      <Heading3 size={12} className="text-blue-600" /> H3 Sub
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("**", "**", "bold text")}
+                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-900 font-black border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Make Text Bold"
+                    >
+                      <Bold size={12} /> Bold
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("*", "*", "italic text")}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 italic font-semibold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Make Text Italic"
+                    >
+                      <Italic size={12} /> Italic
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n\n", "", "")}
+                      className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold border border-amber-300 shadow-2xs transition cursor-pointer flex items-center gap-1"
+                      title="Insert New Paragraph (Double Line Break)"
+                    >
+                      <CornerDownLeft size={12} className="text-amber-700" /> New Paragraph
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n- ", "\n- ", "List item 1")}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Add Bulleted List"
+                    >
+                      <List size={12} className="text-emerald-600" /> Bullet List
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n1. ", "\n2. ", "Step 1")}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Add Numbered List"
+                    >
+                      <ListOrdered size={12} className="text-purple-600" /> Numbered
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => insertFormatting("\n> ", "\n", "Important Note / Quality Benchmark")}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Add Highlighted Note Box"
+                    >
+                      <Quote size={12} className="text-amber-600" /> Note Box
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        insertFormatting(
+                          "\n\n| Parameter / Component | Specification / IS Standard |\n| --- | --- |\n| Test Specimen Size | 150mm x 150mm x 150mm |\n| Curing Period | 7 / 28 Days |\n\n",
+                          "",
+                          ""
+                        )
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs hover:border-amber-400 transition cursor-pointer flex items-center gap-1"
+                      title="Insert Table"
+                    >
+                      <Table size={12} className="text-indigo-600" /> Table
+                    </button>
+                  </div>
+
+                  {/* Main Textarea with proper line height & whitespace handling */}
+                  <textarea
+                    ref={contentTextareaRef}
+                    name="content"
+                    rows={12}
+                    required
+                    value={formData.content}
+                    onChange={handleChange}
+                    placeholder="Type or paste your article here. You can paste paragraphs, headings, lists, tables, or plain text..."
+                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-300 text-sm leading-relaxed text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 shadow-2xs font-sans placeholder-slate-400"
+                  />
+
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                    💡 <strong>Tip:</strong> Press <kbd className="px-1.5 py-0.5 bg-slate-200 rounded font-mono text-[10px]">Enter</kbd> twice for a new paragraph. Click <strong>"👁️ Live Preview"</strong> above to check how it looks on the frontend before saving.
+                  </p>
+                </div>
+              ) : (
+                /* Live Preview Container */
+                <div className="p-6 sm:p-8 bg-white rounded-2xl border-2 border-amber-400/60 shadow-md space-y-4 max-h-[500px] overflow-y-auto">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 text-xs font-bold border border-amber-200">
+                      <Sparkles size={12} className="text-amber-600" /> Real-Time Frontend Preview
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {formData.content ? `${formData.content.length} characters` : "Empty"}
+                    </span>
+                  </div>
+
+                  {formData.content ? (
+                    <div
+                      className="prose prose-slate max-w-none text-slate-700"
+                      dangerouslySetInnerHTML={{
+                        __html: parseRichContentToHtml(formData.content),
+                      }}
+                    />
+                  ) : (
+                    <div className="py-12 text-center text-slate-400 text-sm italic">
+                      No content typed yet. Switch to "Write / Edit" to add content.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Standards & Tags */}

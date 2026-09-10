@@ -24,6 +24,7 @@ import { useProductStore } from "../store/useProductStore";
 import { STANDARDS_DATA } from "../data/standardsData";
 import { sendProductToWhatsApp } from "../utils/whatsappQuote";
 import { generateQuotationPdf } from "../utils/quotationPdfGenerator";
+import { parseRichContentToHtml } from "../utils/richContentParser";
 
 export default function BlogDetailsPage({ initialSlug, initialBlog }) {
   const { currentBlog, relatedBlogs, fetchBlogBySlug, isLoading } = useBlogStore();
@@ -255,15 +256,9 @@ export default function BlogDetailsPage({ initialSlug, initialBlog }) {
 
               {/* Article Markdown Body */}
               <div
-                className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-h2:text-xl sm:prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4 prose-h2:text-slate-900 prose-p:text-slate-700 prose-p:leading-relaxed prose-li:text-slate-700 prose-strong:text-slate-900 prose-a:text-amber-600 hover:prose-a:text-amber-700"
+                className="prose prose-slate max-w-none text-slate-700"
                 dangerouslySetInnerHTML={{
-                  __html: blog.content
-                    .replace(/## (.*?)\n/g, '<h2 id="$1" class="text-xl sm:text-2xl font-bold text-slate-900 mt-8 mb-4 pb-2 border-b border-slate-100">$1</h2>')
-                    .replace(/### (.*?)\n/g, '<h3 class="text-lg font-bold text-slate-800 mt-6 mb-2">$1</h3>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em class="italic text-slate-800">$1</em>')
-                    .replace(/---/g, '<hr class="my-8 border-slate-200" />')
-                    .replace(/\\n/g, '<br/>'),
+                  __html: parseRichContentToHtml(blog.content),
                 }}
               />
 
