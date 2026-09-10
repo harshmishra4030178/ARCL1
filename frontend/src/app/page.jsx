@@ -1,10 +1,12 @@
 import HomeClient from "../views/Home.jsx";
 
 export const metadata = {
-  title: "Civil Engineering Laboratory Equipment & Material Testing Machines Manufacturer India | ARCL Instruments",
+  title: "ARCL Instruments Private Limited | Civil Engineering Laboratory Equipment & Material Testing Machines Manufacturer India",
   description:
-    "ARCL Instruments Pvt. Ltd. is India's leading ISO 9001:2015 certified manufacturer and supplier of precision civil engineering laboratory equipment, concrete testing machines, soil CBR testers, bitumen ductility apparatus, aggregate sieve shakers, and cement testing instruments.",
+    "ARCL Instruments Private Limited is India's leading ISO 9001:2015 certified manufacturer and supplier of precision civil engineering laboratory equipment, concrete testing machines, soil CBR testers, bitumen ductility apparatus, aggregate sieve shakers, and cement testing instruments.",
   keywords: [
+    "ARCL Instruments Private Limited",
+    "ARCL Instruments",
     "Civil Engineering Laboratory Equipment",
     "Material Testing Equipment Manufacturer India",
     "Laboratory Testing Equipment Supplier India",
@@ -24,17 +26,17 @@ export const metadata = {
     canonical: "https://arclinstruments.com",
   },
   openGraph: {
-    title: "Civil Engineering Laboratory Equipment Manufacturer & Supplier India | ARCL Instruments",
+    title: "ARCL Instruments Private Limited | Civil Engineering Laboratory Equipment Manufacturer & Supplier India",
     description:
       "ISO 9001:2015 Certified Manufacturer & Exporter of Precision Civil, Material, Geotechnical, Concrete, Asphalt, Aggregate, and Cement Testing Machines across India.",
     url: "https://arclinstruments.com",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments - Civil Engineering Laboratory Equipment Manufacturer India",
+        alt: "ARCL Instruments Private Limited - Civil Engineering Laboratory Equipment Manufacturer India",
       },
     ],
     type: "website",
@@ -42,7 +44,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Civil Engineering & Material Testing Laboratory Equipment | ARCL Instruments",
+    title: "ARCL Instruments Private Limited | Civil Engineering & Material Testing Laboratory Equipment",
     description:
       "Precision civil engineering laboratory testing machines complying with IS, ASTM, BS, and AASHTO standards.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
@@ -55,8 +57,13 @@ const homeJsonLd = {
     {
       "@type": "LocalBusiness",
       "@id": "https://arclinstruments.com/#localbusiness",
-      "name": "ARCL Instruments Pvt. Ltd.",
-      "alternateName": "ARCL Instruments India",
+      "name": "ARCL Instruments Private Limited",
+      "alternateName": [
+        "ARCL Instruments",
+        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
+        "ARCL Instruments India"
+      ],
       "url": "https://arclinstruments.com",
       "logo": "https://arclinstruments.com/assets/LOGO.png",
       "image": "https://arclinstruments.com/assets/LOGO.png",
@@ -111,7 +118,12 @@ const homeJsonLd = {
       "@type": "WebSite",
       "@id": "https://arclinstruments.com/#website",
       "url": "https://arclinstruments.com",
-      "name": "ARCL Instruments",
+      "name": "ARCL Instruments Private Limited",
+      "alternateName": [
+        "ARCL Instruments",
+        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited"
+      ],
       "description": "Civil Engineering & Material Testing Laboratory Equipment Manufacturer in India",
       "potentialAction": {
         "@type": "SearchAction",

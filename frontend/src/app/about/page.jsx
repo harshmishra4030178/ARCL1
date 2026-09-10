@@ -19,20 +19,20 @@ export const metadata = {
     description:
       "Leading manufacturer of certified civil engineering and laboratory testing instruments based in Navi Mumbai, India.",
     url: "https://arclinstruments.com/about",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "About ARCL Instruments Pvt. Ltd.",
+        alt: "About ARCL Instruments Private Limited",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "About ARCL Instruments Pvt. Ltd.",
+    title: "About ARCL Instruments Private Limited",
     description: "ISO 9001:2015 Certified Civil & Material Testing Equipment Manufacturer.",
     images: ["/assets/LOGO.png"],
   },

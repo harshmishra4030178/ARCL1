@@ -66,7 +66,7 @@ export async function generateMetadata({ params }) {
       title,
       description,
       url: `https://arclinstruments.com/products/${slug}`,
-      siteName: "ARCL Instruments Pvt. Ltd.",
+      siteName: "ARCL Instruments Private Limited",
       images: [{ url: image, alt: product.name, width: 1200, height: 630 }],
       type: "website",
       locale: "en_IN",

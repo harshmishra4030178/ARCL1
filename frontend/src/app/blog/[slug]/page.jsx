@@ -61,7 +61,7 @@ export async function generateMetadata({ params }) {
       title,
       description,
       url: `https://arclinstruments.com/blog/${slug}`,
-      siteName: "ARCL Instruments Pvt. Ltd.",
+      siteName: "ARCL Instruments Private Limited",
       images: [
         {
           url: image,
@@ -72,7 +72,7 @@ export async function generateMetadata({ params }) {
       ],
       type: "article",
       publishedTime: blog.publishedAt,
-      authors: [blog.author?.name || "ARCL Instruments"],
+      authors: [blog.author?.name || "ARCL Instruments Private Limited"],
     },
     twitter: {
       card: "summary_large_image",

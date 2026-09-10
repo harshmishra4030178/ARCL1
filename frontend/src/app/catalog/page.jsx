@@ -14,24 +14,24 @@ export const metadata = {
     canonical: "https://arclinstruments.com/catalog",
   },
   openGraph: {
-    title: "Equipment Catalog & Technical PDF Brochures | ARCL Instruments",
+    title: "Equipment Catalog & Technical PDF Brochures | ARCL Instruments Private Limited",
     description:
       "Download certified civil engineering and material testing equipment catalogs and PDF specification sheets.",
     url: "https://arclinstruments.com/catalog",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments Equipment Catalog",
+        alt: "ARCL Instruments Private Limited Equipment Catalog",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Equipment Catalog & PDF Brochures | ARCL Instruments",
+    title: "Equipment Catalog & PDF Brochures | ARCL Instruments Private Limited",
     description: "Download official civil engineering testing equipment catalogs and specifications.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
   },

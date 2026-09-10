@@ -18,24 +18,24 @@ export const metadata = {
     canonical: "https://arclinstruments.com/blog",
   },
   openGraph: {
-    title: "Civil Engineering & Material Testing Technical Guides | ARCL Blog",
+    title: "Civil Engineering & Material Testing Technical Guides | ARCL Instruments Private Limited",
     description:
       "Step-by-step laboratory testing guides, formulas, and equipment checklists for Indian Standards (IS Codes) and civil QA/QC.",
     url: "https://arclinstruments.com/blog",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Technical Knowledge Hub",
+        alt: "ARCL Instruments Private Limited Technical Knowledge Hub",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Civil Engineering & Testing Guides | ARCL Instruments",
+    title: "Civil Engineering & Testing Guides | ARCL Instruments Private Limited",
     description:
       "Authoritative laboratory testing procedures and IS code guides for civil engineers.",
     images: ["/assets/LOGO.png"],

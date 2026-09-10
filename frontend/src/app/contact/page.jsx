@@ -1,10 +1,11 @@
 import ContactClient from "../../views/Contact.jsx";
 
 export const metadata = {
-  title: "Contact Us & Get a Quote | ARCL Instruments Pvt. Ltd.",
+  title: "Contact Us & Get a Quote | ARCL Instruments Private Limited",
   description:
-    "Get in touch with ARCL Instruments Pvt. Ltd. for instant instrument pricing, factory quotations, custom engineering requirements, technical support, and office visits in Airoli, Navi Mumbai.",
+    "Get in touch with ARCL Instruments Private Limited for instant instrument pricing, factory quotations, custom engineering requirements, technical support, and office visits in Airoli, Navi Mumbai.",
   keywords: [
+    "contact ARCL Instruments Private Limited",
     "contact ARCL Instruments",
     "laboratory equipment quote",
     "civil testing machines price India",
@@ -15,24 +16,24 @@ export const metadata = {
     canonical: "https://arclinstruments.com/contact",
   },
   openGraph: {
-    title: "Contact ARCL Instruments | Factory Quotation & Technical Inquiries",
+    title: "Contact ARCL Instruments Private Limited | Factory Quotation & Technical Inquiries",
     description:
-      "Get instant factory quotes, technical assistance, and calibration support from ARCL Instruments Pvt. Ltd.",
+      "Get instant factory quotes, technical assistance, and calibration support from ARCL Instruments Private Limited.",
     url: "https://arclinstruments.com/contact",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "Contact ARCL Instruments",
+        alt: "Contact ARCL Instruments Private Limited",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact ARCL Instruments",
+    title: "Contact ARCL Instruments Private Limited",
     description:
       "Direct factory pricing and quotes for civil testing machines. Call +91-8169695728 or email arclinstruments@gmail.com.",
     images: ["/assets/LOGO.png"],

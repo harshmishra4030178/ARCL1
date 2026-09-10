@@ -16,42 +16,42 @@ const faqData = [
     id: 1,
     question: "Who supplies best laboratory equipment in Navi Mumbai?",
     answer:
-      "ARCL Instruments Pvt. Ltd. supplies laboratory and material testing equipment in Navi Mumbai, including civil engineering, concrete, soil, aggregate and general laboratory testing equipment.",
+      "ARCL Instruments Private Limited supplies laboratory and material testing equipment in Navi Mumbai, including civil engineering, concrete, soil, aggregate and general laboratory testing equipment.",
     category: "Suppliers & Network",
   },
   {
     id: 2,
     question: "Does ARCL Instruments supply concrete testing equipment?",
     answer:
-      "Yes. ARCL Instruments Pvt. Ltd. supplies concrete testing equipment including compression testing machines, cube moulds, vibrating tables, slump testing equipment and other concrete laboratory instruments.",
+      "Yes. ARCL Instruments Private Limited supplies concrete testing equipment including compression testing machines, cube moulds, vibrating tables, slump testing equipment and other concrete laboratory instruments.",
     category: "Concrete Testing",
   },
   {
     id: 3,
     question: "Does ARCL supply soil testing equipment in Maharashtra?",
     answer:
-      "ARCL Instruments supplies soil testing and geotechnical laboratory equipment for construction, civil engineering and material testing applications across Maharashtra.",
+      "ARCL Instruments Private Limited supplies soil testing and geotechnical laboratory equipment for construction, civil engineering and material testing applications across Maharashtra.",
     category: "Soil Mechanics",
   },
   {
     id: 4,
     question: "Top supplier of laboratory equipment in Mumbai?",
     answer:
-      "ARCL Instruments Pvt. Ltd. supplies laboratory and material testing equipment in Mumbai & Navi Mumbai, including civil engineering, concrete, soil, aggregate and general laboratory testing equipment. ARCL Instruments is best for Quality & Services.",
+      "ARCL Instruments Private Limited supplies laboratory and material testing equipment in Mumbai & Navi Mumbai, including civil engineering, concrete, soil, aggregate and general laboratory testing equipment. ARCL Instruments Private Limited is best for Quality & Services.",
     category: "Quality & Service",
   },
   {
     id: 5,
     question: "Does ARCL Instruments calibrate lab equipment?",
     answer:
-      "Yes. ARCL Instruments Pvt. Ltd. is also a calibration lab so they do calibration of concrete testing equipment including compression testing machines, cube moulds, vibrating tables, slump testing equipment and other concrete laboratory instruments.",
+      "Yes. ARCL Instruments Private Limited is also a calibration lab so they do calibration of concrete testing equipment including compression testing machines, cube moulds, vibrating tables, slump testing equipment and other concrete laboratory instruments.",
     category: "Calibration & NABL",
   },
   {
     id: 6,
     question: "Does ARCL supply surveying equipment?",
     answer:
-      "ARCL Instruments supplies Surveying equipment and NDT equipment as well, civil engineering and material testing applications across Maharashtra and India.",
+      "ARCL Instruments Private Limited supplies Surveying equipment and NDT equipment as well, civil engineering and material testing applications across Maharashtra and India.",
     category: "Survey & NDT",
   },
 ];

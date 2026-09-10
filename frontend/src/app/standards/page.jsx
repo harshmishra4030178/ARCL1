@@ -20,24 +20,24 @@ export const metadata = {
     canonical: "https://arclinstruments.com/standards",
   },
   openGraph: {
-    title: "Civil Engineering Testing Standards Directory (IS, ASTM, BS Codes) | ARCL",
+    title: "Civil Engineering Testing Standards Directory (IS, ASTM, BS Codes) | ARCL Instruments Private Limited",
     description:
       "Find complete equipment lists and 1-click BOQ estimates for certified Indian Standards (IS 516, IS 2720, IS 1208, IS 4031) and international civil testing codes.",
     url: "https://arclinstruments.com/standards",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments Testing Standards Directory",
+        alt: "ARCL Instruments Private Limited Testing Standards Directory",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Civil Engineering Testing Standards Hub | ARCL Instruments",
+    title: "Civil Engineering Testing Standards Hub | ARCL Instruments Private Limited",
     description:
       "Access complete equipment checklists and 1-click BOQ quotes for IS 516, IS 2720, IS 1208, and ASTM civil testing standards.",
     images: ["/assets/LOGO.png"],

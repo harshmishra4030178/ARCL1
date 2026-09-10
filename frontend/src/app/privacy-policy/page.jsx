@@ -1,9 +1,9 @@
 import PrivacyPolicy from "../../views/PrivacyPolicy.jsx";
 
 export const metadata = {
-  title: "Privacy Policy | ARCL Instruments Pvt. Ltd.",
+  title: "Privacy Policy | ARCL Instruments Private Limited",
   description:
-    "Official Privacy Policy of ARCL Instruments Pvt. Ltd. Understand how we collect, protect, and process quotation inquiries, customer data, and technical specifications.",
+    "Official Privacy Policy of ARCL Instruments Private Limited. Understand how we collect, protect, and process quotation inquiries, customer data, and technical specifications.",
   keywords: [
     "ARCL privacy policy",
     "data protection ARCL instruments",
@@ -14,25 +14,25 @@ export const metadata = {
     canonical: "https://arclinstruments.com/privacy-policy",
   },
   openGraph: {
-    title: "Privacy Policy | ARCL Instruments Pvt. Ltd.",
+    title: "Privacy Policy | ARCL Instruments Private Limited",
     description:
-      "Official Privacy Policy of ARCL Instruments Pvt. Ltd. Data protection and quotation confidentiality standards.",
+      "Official Privacy Policy of ARCL Instruments Private Limited. Data protection and quotation confidentiality standards.",
     url: "https://arclinstruments.com/privacy-policy",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments Privacy Policy",
+        alt: "ARCL Instruments Private Limited Privacy Policy",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Privacy Policy | ARCL Instruments Pvt. Ltd.",
-    description: "Official Privacy Policy & Data Protection Standards of ARCL Instruments Pvt. Ltd.",
+    title: "Privacy Policy | ARCL Instruments Private Limited",
+    description: "Official Privacy Policy & Data Protection Standards of ARCL Instruments Private Limited.",
     images: ["/assets/LOGO.png"],
   },
 };

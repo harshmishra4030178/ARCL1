@@ -4,12 +4,14 @@ import ClientLayout from "./ClientLayout";
 export const metadata = {
   metadataBase: new URL("https://arclinstruments.com"),
   title: {
-    default: "ARCL Instruments | Civil Engineering & Material Testing Equipment Manufacturer India",
-    template: "%s | ARCL Instruments",
+    default: "ARCL Instruments Private Limited | Civil Engineering & Material Testing Equipment Manufacturer India",
+    template: "%s | ARCL Instruments Private Limited",
   },
   description:
-    "ARCL Instruments Pvt. Ltd. is an ISO 9001:2015 certified leading manufacturer and exporter of precision civil engineering, concrete, soil, bitumen, cement, aggregate, and material testing laboratory instruments in India.",
+    "ARCL Instruments Private Limited is an ISO 9001:2015 certified leading manufacturer and exporter of precision civil engineering, concrete, soil, bitumen, cement, aggregate, and material testing laboratory instruments in India.",
   keywords: [
+    "ARCL Instruments Private Limited",
+    "ARCL Instruments",
     "Civil Engineering Laboratory Equipment",
     "Material Testing Equipment Manufacturer India",
     "Laboratory Testing Equipment Supplier",
@@ -22,9 +24,9 @@ export const metadata = {
     "NABL calibration laboratory equipment",
     "ARCL Instruments Navi Mumbai",
   ],
-  authors: [{ name: "ARCL Instruments Pvt. Ltd.", url: "https://arclinstruments.com" }],
-  creator: "ARCL Instruments Pvt. Ltd.",
-  publisher: "ARCL Instruments Pvt. Ltd.",
+  authors: [{ name: "ARCL Instruments Private Limited", url: "https://arclinstruments.com" }],
+  creator: "ARCL Instruments Private Limited",
+  publisher: "ARCL Instruments Private Limited",
   category: "Industrial Equipment & Laboratory Testing Machines",
   formatDetection: {
     email: false,
@@ -35,8 +37,8 @@ export const metadata = {
     type: "website",
     locale: "en_IN",
     url: "https://arclinstruments.com",
-    siteName: "ARCL Instruments Pvt. Ltd.",
-    title: "ARCL Instruments | Civil & Material Testing Laboratory Equipment Manufacturer",
+    siteName: "ARCL Instruments Private Limited",
+    title: "ARCL Instruments Private Limited | Civil & Material Testing Laboratory Equipment Manufacturer",
     description:
       "ISO 9001:2015 certified manufacturer of precision civil engineering, soil, concrete, asphalt, cement, and material testing machines in India.",
     images: [
@@ -44,13 +46,13 @@ export const metadata = {
         url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments - Civil & Material Testing Laboratory Equipment",
+        alt: "ARCL Instruments Private Limited - Civil & Material Testing Laboratory Equipment",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ARCL Instruments | Civil Engineering & Material Testing Equipment",
+    title: "ARCL Instruments Private Limited | Civil Engineering & Material Testing Equipment",
     description:
       "Precision testing instruments for civil, geotechnical, and quality control laboratories across India.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
@@ -77,14 +79,19 @@ const organizationJsonLd = {
     {
       "@type": "Organization",
       "@id": "https://arclinstruments.com/#organization",
-      "name": "ARCL Instruments Pvt. Ltd.",
-      "alternateName": ["ARCL Instruments", "ARCL Material Testing Machines"],
+      "name": "ARCL Instruments Private Limited",
+      "alternateName": [
+        "ARCL Instruments",
+        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited",
+        "ARCL Material Testing Machines"
+      ],
       "url": "https://arclinstruments.com",
       "logo": {
         "@type": "ImageObject",
         "@id": "https://arclinstruments.com/#logo",
         "url": "https://arclinstruments.com/assets/LOGO.png",
-        "caption": "ARCL Instruments Logo",
+        "caption": "ARCL Instruments Private Limited Logo",
       },
       "image": "https://arclinstruments.com/assets/LOGO.png",
       "description":
@@ -120,6 +127,20 @@ const organizationJsonLd = {
         },
       ],
     },
+    {
+      "@type": "WebSite",
+      "@id": "https://arclinstruments.com/#website",
+      "url": "https://arclinstruments.com",
+      "name": "ARCL Instruments Private Limited",
+      "alternateName": [
+        "ARCL Instruments",
+        "ARCL Instruments Pvt. Ltd.",
+        "ARCL Instruments Private Limited"
+      ],
+      "publisher": {
+        "@id": "https://arclinstruments.com/#organization"
+      }
+    }
   ],
 };
 

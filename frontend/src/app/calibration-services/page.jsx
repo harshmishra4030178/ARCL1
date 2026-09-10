@@ -18,17 +18,17 @@ export const metadata = {
     canonical: "https://arclinstruments.com/calibration-services",
   },
   openGraph: {
-    title: "NABL Traceable Calibration & Maintenance Services | ARCL Instruments",
+    title: "NABL Traceable Calibration & Maintenance Services | ARCL Instruments Private Limited",
     description:
       "Certified calibration and maintenance for compression testing machines, CBR, vicat, ovens, and lab instruments across India.",
     url: "https://arclinstruments.com/calibration-services",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "https://arclinstruments.com/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Calibration Services",
+        alt: "ARCL Instruments Private Limited Calibration Services",
       },
     ],
     type: "website",
@@ -36,7 +36,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Calibration & Maintenance Services | ARCL Instruments",
+    title: "Calibration & Maintenance Services | ARCL Instruments Private Limited",
     description: "Multi-point calibration & certification with NABL traceability.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
   },

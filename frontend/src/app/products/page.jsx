@@ -17,24 +17,24 @@ export const metadata = {
     canonical: "https://arclinstruments.com/products",
   },
   openGraph: {
-    title: "Testing Instruments & Laboratory Equipment Catalogue | ARCL Instruments",
+    title: "Testing Instruments & Laboratory Equipment Catalogue | ARCL Instruments Private Limited",
     description:
-      "Explore certified laboratory and civil engineering testing equipment manufactured by ARCL Instruments Pvt. Ltd.",
+      "Explore certified laboratory and civil engineering testing equipment manufactured by ARCL Instruments Private Limited.",
     url: "https://arclinstruments.com/products",
-    siteName: "ARCL Instruments Pvt. Ltd.",
+    siteName: "ARCL Instruments Private Limited",
     images: [
       {
         url: "/assets/LOGO.png",
         width: 1200,
         height: 630,
-        alt: "ARCL Instruments Products Catalogue",
+        alt: "ARCL Instruments Private Limited Products Catalogue",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Testing Instruments Catalogue | ARCL Instruments",
+    title: "Testing Instruments Catalogue | ARCL Instruments Private Limited",
     description:
       "Precision civil engineering testing instruments and laboratory machines across India.",
     images: ["/assets/LOGO.png"],
