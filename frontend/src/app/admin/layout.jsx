@@ -9,6 +9,8 @@ import Navbar from "../../components/admin/layout/Navbar";
 import { checkPathAccess } from "../../utils/rbac.js";
 import { FaLock } from "react-icons/fa";
 
+import { sendHeartbeatApi, setPresenceOfflineApi } from "../../api/authApi.js";
+
 export default function AdminLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -24,6 +26,44 @@ export default function AdminLayout({ children }) {
       router.push("/admin/login");
     }
   }, [isLoginPage, checkingAuth, isAuthenticated, router]);
+
+  // Live Heartbeat telemetry: keep admin presence active in real time (20s)
+  useEffect(() => {
+    if (!isAuthenticated || isLoginPage) return;
+
+    // Send immediate heartbeat
+    sendHeartbeatApi().catch(() => {});
+
+    // Ping every 20 seconds for tight real-time presence
+    const heartbeatInterval = setInterval(() => {
+      sendHeartbeatApi().catch(() => {});
+    }, 20000);
+
+    // Send heartbeat when user returns to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        sendHeartbeatApi().catch(() => {});
+      }
+    };
+
+    // Immediately notify server when tab is closed or navigated away
+    const handlePageLeave = () => {
+      try {
+        setPresenceOfflineApi().catch(() => {});
+      } catch (e) {}
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageLeave);
+    window.addEventListener("beforeunload", handlePageLeave);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageLeave);
+      window.removeEventListener("beforeunload", handlePageLeave);
+    };
+  }, [isAuthenticated, isLoginPage]);
 
   const hasAccess = useMemo(() => {
     if (!user) return false;

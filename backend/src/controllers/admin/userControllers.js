@@ -28,6 +28,27 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
   const users = await User.find(filter).sort({ createdAt: -1 });
 
+  const now = new Date();
+  const fortyFiveSecondsAgo = new Date(now.getTime() - 45 * 1000);
+  const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+
+  const enrichedUsers = users.map((u) => {
+    const userObj = u.toObject();
+    const lastActive = userObj.lastActiveAt;
+
+    let activeStatus = "offline";
+    if (lastActive && new Date(lastActive) >= fortyFiveSecondsAgo) {
+      activeStatus = "online";
+    } else if (lastActive && new Date(lastActive) >= twoMinutesAgo) {
+      activeStatus = "away";
+    }
+
+    userObj.isOnline = activeStatus === "online";
+    userObj.activeStatus = activeStatus;
+    userObj.lastActiveAt = lastActive;
+    return userObj;
+  });
+
   // Calculate high level metrics
   const totalCount = await User.countDocuments();
   const adminCount = await User.countDocuments({
@@ -35,17 +56,19 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   });
   const userCount = await User.countDocuments({ role: "user" });
   const activeCount = await User.countDocuments({ isActive: true });
+  const onlineCount = enrichedUsers.filter((u) => u.isOnline).length;
 
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        users,
+        users: enrichedUsers,
         metrics: {
           total: totalCount,
           admins: adminCount,
           users: userCount,
           active: activeCount,
+          online: onlineCount,
         },
       },
       "Users retrieved successfully."

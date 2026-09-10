@@ -5,13 +5,18 @@ import { Link, useNavigate } from "../../../utils/navigation.jsx";
 import { useAuthStore } from "../../../store/useAuthStore.js";
 import { FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import NotificationDropdown from "./NotificationDropdown.jsx";
+import ActiveAdminsDropdown from "./ActiveAdminsDropdown.jsx";
+import { setPresenceOfflineApi } from "../../../api/authApi.js";
 import { toast } from "react-toastify";
 
 const Navbar = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await setPresenceOfflineApi();
+    } catch (e) {}
     logout();
     toast.info("Logged out successfully");
     navigate("/admin/login");
@@ -32,8 +37,11 @@ const Navbar = () => {
         </Link>
       </div>
 
-      {/* Admin Profile, Notifications & Logout */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      {/* Admin Profile, Active Admins Presence, Notifications & Logout */}
+      <div className="flex items-center gap-2.5 sm:gap-4">
+        {/* Active Admins Live Presence */}
+        <ActiveAdminsDropdown />
+
         {/* Notification Center */}
         <NotificationDropdown />
 

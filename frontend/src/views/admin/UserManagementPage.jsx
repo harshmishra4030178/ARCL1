@@ -38,6 +38,58 @@ import StatCard from "../../components/admin/common/StatCard.jsx";
 import SkeletonLoader from "../../components/admin/common/SkeletonLoader.jsx";
 import Toggle from "../../components/admin/common/Toggle.jsx";
 
+const formatWhatsAppLastSeen = (dateStr) => {
+  if (!dateStr) return "Never logged in";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "Offline";
+
+  const now = new Date();
+  const diffInSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  // If active in last 60 seconds (or slight clock tolerance)
+  if (diffInSec >= -30 && diffInSec < 60) return "Just now";
+
+  // Check if today in local timezone
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  const timeString = date.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  if (isToday) {
+    const diffInMin = Math.floor(diffInSec / 60);
+    if (diffInMin >= 1 && diffInMin < 15) {
+      return `${diffInMin}m ago (${timeString})`;
+    }
+    return `Today at ${timeString}`;
+  }
+
+  if (isYesterday) {
+    return `Yesterday at ${timeString}`;
+  }
+
+  const isThisYear = date.getFullYear() === now.getFullYear();
+  const dateString = date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(isThisYear ? {} : { year: "numeric" }),
+  });
+
+  return `${dateString} at ${timeString}`;
+};
+
 const DEFAULT_FULL_PERMISSIONS = {
   products: { create: true, edit: true, delete: true },
   categories: { create: true, edit: true, delete: true },
@@ -162,13 +214,20 @@ const UserManagementPage = () => {
 
   useEffect(() => {
     if (canManageUsers) {
-      fetchUsers();
+      fetchUsers(false);
+
+      // Real-time live polling: updates presence like WhatsApp every 10 seconds
+      const pollInterval = setInterval(() => {
+        fetchUsers(true);
+      }, 10000);
+
+      return () => clearInterval(pollInterval);
     }
   }, [canManageUsers]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       setError("");
       const res = await getAdminUsersApi();
       const data = res.data?.data || res.data;
@@ -178,9 +237,9 @@ const UserManagementPage = () => {
       }
     } catch (err) {
       console.error("Failed to load users:", err);
-      setError("Failed to fetch registered users list.");
+      if (!isBackground) setError("Failed to fetch registered users list.");
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -748,31 +807,38 @@ const UserManagementPage = () => {
       </div>
 
       {/* 2. METRICS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
-          title="Total Registered Accounts"
-          value={metrics.total || users.length}
+          title="Total Registered"
+          value={metrics.total !== undefined ? metrics.total : users.length}
           icon={<FaUsers />}
           color="bg-[#021C57]"
         />
 
         <StatCard
-          title="Active Administrators"
-          value={metrics.admins || users.filter((u) => u.role === "admin" || u.role === "superadmin").length}
+          title="Total Administrators"
+          value={metrics.admins !== undefined ? metrics.admins : users.filter((u) => u.role === "admin" || u.role === "superadmin").length}
           icon={<FaUserShield />}
           color="bg-purple-600"
         />
 
         <StatCard
-          title="Standard Users"
-          value={metrics.users || users.filter((u) => u.role === "user").length}
-          icon={<FaUser />}
+          title="🟢 Logged In Now"
+          value={metrics.online !== undefined ? metrics.online : users.filter((u) => u.isOnline || u.activeStatus === "online").length}
+          icon={<FaCheckCircle />}
           color="bg-emerald-600"
         />
 
         <StatCard
-          title="Active Accounts"
-          value={metrics.active || users.filter((u) => u.isActive).length}
+          title="⚪ Logged Out / Offline"
+          value={(metrics.total || users.length) - (metrics.online || users.filter((u) => u.isOnline || u.activeStatus === "online").length)}
+          icon={<FaUser />}
+          color="bg-slate-600"
+        />
+
+        <StatCard
+          title="Accounts Enabled"
+          value={metrics.active !== undefined ? metrics.active : users.filter((u) => u.isActive).length}
           icon={<FaCheckCircle />}
           color="bg-amber-500"
         />
@@ -810,8 +876,8 @@ const UserManagementPage = () => {
             className="border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none bg-white text-gray-700 cursor-pointer focus:border-blue-500"
           >
             <option value="all">All Status</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Deactivated Only</option>
+            <option value="active">Enabled Only</option>
+            <option value="inactive">Suspended Only</option>
           </select>
         </div>
       </div>
@@ -830,15 +896,15 @@ const UserManagementPage = () => {
       {!loading && !error && filteredUsers.length > 0 && (
         <div className="bg-white rounded-3xl shadow-xs border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[850px]">
+            <table className="w-full text-left min-w-[900px]">
               <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-100">
                 <tr>
                   <th className="p-4">User Details</th>
-                  <th className="p-4">Auth Provider</th>
+                  <th className="p-4">Live Login Status</th>
                   <th className="p-4">Role Access</th>
                   <th className="p-4">Granular Permissions</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Registered Date</th>
+                  <th className="p-4">Account Access</th>
+                  <th className="p-4">Activity &amp; Date</th>
                   <th className="p-4 text-center">Actions</th>
                 </tr>
               </thead>
@@ -848,6 +914,8 @@ const UserManagementPage = () => {
                   const isAdmin =
                     user.role === "admin" || user.role === "superadmin";
                   const permCount = getEnabledCount(user.permissions);
+                  const isUserOnline = user.isOnline || user.activeStatus === "online";
+                  const isUserAway = user.activeStatus === "away";
 
                   return (
                     <tr
@@ -857,17 +925,29 @@ const UserManagementPage = () => {
                       {/* USER INFO */}
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          {user.picture ? (
-                            <img
-                              src={user.picture}
-                              alt={user.name}
-                              className="w-10 h-10 rounded-full object-cover border border-gray-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#021C57] to-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-sm">
-                              {user.name ? user.name.charAt(0).toUpperCase() : "U"}
-                            </div>
-                          )}
+                          <div className="relative shrink-0">
+                            {user.picture ? (
+                              <img
+                                src={user.picture}
+                                alt={user.name}
+                                className="w-10 h-10 rounded-full object-cover border border-gray-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#021C57] to-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-sm">
+                                {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                              </div>
+                            )}
+                            {/* Live Status Dot */}
+                            <span
+                              className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                isUserOnline
+                                  ? "bg-emerald-500 ring-2 ring-emerald-300/60"
+                                  : isUserAway
+                                  ? "bg-amber-400"
+                                  : "bg-gray-300"
+                              }`}
+                            ></span>
+                          </div>
 
                           <div>
                             <div className="font-bold text-gray-900 line-clamp-1">
@@ -880,11 +960,24 @@ const UserManagementPage = () => {
                         </div>
                       </td>
 
-                      {/* AUTH PROVIDER */}
+                      {/* LIVE LOGIN STATUS */}
                       <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2.5 py-1 rounded-lg text-xs font-semibold border border-red-100">
-                          <FaGoogle size={11} className="text-red-500" /> Google OAuth
-                        </span>
+                        {isUserOnline ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-2xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Logged In (Active Now)</span>
+                          </span>
+                        ) : isUserAway ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
+                            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                            <span>Away ({formatWhatsAppLastSeen(user.lastActiveAt)})</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-xs font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            <span>Logged Out (Offline)</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* ROLE SELECTOR (INSTANT UPDATE) */}
@@ -948,7 +1041,7 @@ const UserManagementPage = () => {
                         )}
                       </td>
 
-                      {/* STATUS TOGGLE */}
+                      {/* ACCOUNT ACCESS (ENABLED / SUSPENDED) */}
                       <td className="p-4">
                         <div className="flex items-center gap-2">
                           <Toggle
@@ -966,12 +1059,12 @@ const UserManagementPage = () => {
                               user.isActive ? "text-emerald-600 font-bold" : "text-rose-500"
                             }`}
                           >
-                            {user.isActive ? "Active" : "Suspended"}
+                            {user.isActive ? "Enabled" : "Suspended"}
                           </span>
                         </div>
                       </td>
 
-                      {/* REGISTERED DATE */}
+                      {/* REGISTERED DATE & ACTIVITY */}
                       <td className="p-4 text-xs text-gray-500">
                         <div>
                           {new Date(user.createdAt).toLocaleDateString("en-IN", {
@@ -980,11 +1073,15 @@ const UserManagementPage = () => {
                             day: "numeric",
                           })}
                         </div>
-                        {user.lastLogin && (
-                          <div className="text-[10px] text-gray-400">
-                            Last active: {new Date(user.lastLogin).toLocaleDateString()}
-                          </div>
-                        )}
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {isUserOnline ? (
+                            <span className="text-emerald-600 font-bold">Active in portal</span>
+                          ) : user.lastActiveAt || user.lastLogin ? (
+                            <span>Last seen: {formatWhatsAppLastSeen(user.lastActiveAt || user.lastLogin)}</span>
+                          ) : (
+                            <span>Never logged in</span>
+                          )}
+                        </div>
                       </td>
 
                       {/* ACTIONS */}

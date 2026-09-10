@@ -15,6 +15,10 @@ import {
   FaCheckCircle,
   FaClock,
   FaFire,
+  FaUserShield,
+  FaCrown,
+  FaLaptop,
+  FaMobileAlt,
 } from "react-icons/fa";
 import { Link } from "../../utils/navigation.jsx";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -26,7 +30,23 @@ import { getAllInquiries } from "../../api/inquiryApi.js";
 import { getAllContacts } from "../../api/contactApi.js";
 import { getAdminSubscribersApi } from "../../api/subscriberApi.js";
 import { getAdminVisitorAnalytics } from "../../api/analyticsApi.js";
+import { getActiveAdminsApi } from "../../api/authApi.js";
 import VisitorAnalyticsCard from "../../components/admin/dashboard/VisitorAnalyticsCard.jsx";
+
+const formatTimeAgo = (dateStr) => {
+  if (!dateStr) return "Never";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffInSec = Math.floor((now - date) / 1000);
+
+  if (diffInSec < 60) return "Just now";
+  const diffInMin = Math.floor(diffInSec / 60);
+  if (diffInMin < 60) return `${diffInMin}m ago`;
+  const diffInHours = Math.floor(diffInMin / 60);
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays}d ago`;
+};
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -38,6 +58,11 @@ const Dashboard = () => {
     subscribers: [],
   });
 
+  const [activeAdminsData, setActiveAdminsData] = useState({
+    admins: [],
+    metrics: { online: 0, away: 0, totalAdmins: 0 },
+  });
+
   const [visitorData, setVisitorData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,10 +72,10 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
 
-    // Live auto-refresh telemetry every 30 seconds
+    // Live auto-refresh telemetry every 10 seconds (WhatsApp-style real-time)
     const interval = setInterval(() => {
       fetchDashboardData(true);
-    }, 30000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, []);
@@ -60,7 +85,7 @@ const Dashboard = () => {
       if (!isBackground) setLoading(true);
       setError("");
 
-      const [eqRes, catRes, prodRes, inqRes, conRes, subRes, visitorRes] =
+      const [eqRes, catRes, prodRes, inqRes, conRes, subRes, visitorRes, activeAdminRes] =
         await Promise.all([
           getAdminEquipmentTypes().catch(() => ({ data: [] })),
           getAdminCategories().catch(() => ({ data: [] })),
@@ -69,6 +94,7 @@ const Dashboard = () => {
           getAllContacts().catch(() => ({ contacts: [] })),
           getAdminSubscribersApi().catch(() => ({ data: { subscribers: [] } })),
           getAdminVisitorAnalytics().catch(() => ({ data: null })),
+          getActiveAdminsApi().catch(() => ({ data: { data: { admins: [], metrics: { online: 0 } } } })),
         ]);
 
       const equipmentTypes = eqRes.data?.data || eqRes.data || [];
@@ -79,6 +105,7 @@ const Dashboard = () => {
       const subscribers =
         subRes.data?.data?.subscribers || subRes.data?.subscribers || [];
       const visitorAnalytics = visitorRes?.data || null;
+      const activeAdminInfo = activeAdminRes.data?.data || { admins: [], metrics: { online: 0, away: 0, totalAdmins: 0 } };
 
       setStats({
         equipmentTypes,
@@ -88,6 +115,7 @@ const Dashboard = () => {
         contacts,
         subscribers,
       });
+      setActiveAdminsData(activeAdminInfo);
       setVisitorData(visitorAnalytics);
       setLastRefreshed(new Date());
     } catch (err) {
@@ -284,7 +312,124 @@ const Dashboard = () => {
       {/* 2. VISITOR TRAFFIC & DEVICE ANALYTICS */}
       <VisitorAnalyticsCard visitorData={visitorData} loading={loading} />
 
-      {/* 3. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
+      {/* 3. LIVE LOGGED-IN ADMINS & ACTIVE TEAM PRESENCE */}
+      <div className="bg-white p-4 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#021C57] flex items-center justify-center text-base border border-blue-100">
+              <FaUserShield />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-gray-800 tracking-tight flex items-center gap-2">
+                <span>Currently Active in Admin Panel</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  {activeAdminsData.admins.filter((a) => a.status === "online").length} Working Now
+                </span>
+              </h2>
+              <p className="text-[11px] sm:text-xs text-gray-400">
+                Live presence: only administrators with an active portal session right now are shown
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/admin/users"
+            className="text-xs font-bold text-[#021C57] hover:text-blue-700 transition flex items-center gap-1 self-start sm:self-auto"
+          >
+            Manage Users &amp; Roles ({activeAdminsData.metrics.totalAdmins || 0}) →
+          </Link>
+        </div>
+
+        {/* Online Admins Grid (ONLY CURRENTLY WORKING ADMINS) */}
+        {activeAdminsData.admins.filter((a) => a.status === "online").length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {activeAdminsData.admins
+              .filter((a) => a.status === "online")
+              .map((admin) => (
+                <div
+                  key={admin._id}
+                  className="p-3.5 rounded-2xl border bg-emerald-50/40 border-emerald-200/80 shadow-2xs hover:border-emerald-300 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2.5">
+                    {/* Avatar & Name */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="relative shrink-0">
+                        {admin.picture ? (
+                          <img
+                            src={admin.picture}
+                            alt={admin.name}
+                            className="w-10 h-10 rounded-full object-cover border border-emerald-300 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center text-sm shadow-2xs">
+                            {admin.name ? admin.name.charAt(0).toUpperCase() : "A"}
+                          </div>
+                        )}
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-emerald-500 ring-2 ring-emerald-300/50"></span>
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-xs sm:text-sm font-bold text-gray-900 truncate">
+                            {admin.name || "Administrator"}
+                          </h3>
+                        </div>
+                        <p className="text-[11px] text-gray-500 truncate font-mono">
+                          {admin.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Role Tag */}
+                    {admin.role === "superadmin" ? (
+                      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-300">
+                        <FaCrown className="text-[9px]" /> SUPER
+                      </span>
+                    ) : (
+                      <span className="shrink-0 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Status & Last Seen */}
+                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-emerald-200/60">
+                    <span className="font-bold text-emerald-700 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Active in Portal Now
+                    </span>
+
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-700/70">
+                      {admin.device?.includes("Mobile") ? (
+                        <FaMobileAlt className="text-[9px]" />
+                      ) : (
+                        <FaLaptop className="text-[9px]" />
+                      )}
+                      <span>{admin.device}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center text-xs text-gray-400">
+            No administrators currently active in the portal.
+          </div>
+        )}
+
+        {/* Offline Summary Footer */}
+        <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1 border-t border-gray-50">
+          <span>
+            ⚪ {activeAdminsData.admins.filter((a) => a.status !== "online").length} other admin account(s) are currently logged out / offline.
+          </span>
+          <span className="text-[10px] text-gray-400">
+            Heartbeat: Real-time 20s
+          </span>
+        </div>
+      </div>
+
+      {/* 4. REAL-WORLD ANALYTICS GRAPHS (2-COLUMN LAYOUT) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 min-w-0">
         
         {/* GRAPH 1: DYNAMIC MONTHLY INQUIRIES & DEMAND TREND */}

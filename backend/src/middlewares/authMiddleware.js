@@ -48,6 +48,16 @@ export const verifyAdmin = async (req, res, next) => {
     }
 
     req.user = user;
+
+    // Asynchronously update last active timestamp (throttled to 1 minute)
+    const now = new Date();
+    if (!user.lastActiveAt || now - new Date(user.lastActiveAt) > 60000) {
+      User.findByIdAndUpdate(user._id, {
+        lastActiveAt: now,
+        currentIp: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "",
+      }).catch(() => {});
+    }
+
     next();
   } catch (error) {
     console.error("Auth Middleware Error:", error.message);

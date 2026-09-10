@@ -85,6 +85,10 @@ export const googleLogin = async (req, res) => {
     // Find existing user in MongoDB
     let user = await User.findOne({ email });
 
+    const clientIp =
+      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const userAgent = req.headers["user-agent"] || "";
+
     if (!user) {
       // If user does not exist:
       // If email is in ADMIN_EMAIL -> role is 'admin', otherwise registered with 'user' role
@@ -98,6 +102,9 @@ export const googleLogin = async (req, res) => {
         role: initialRole,
         isActive: true,
         lastLogin: new Date(),
+        lastActiveAt: new Date(),
+        currentIp: clientIp,
+        userAgent: userAgent,
       });
     } else {
       // User exists in database
@@ -111,6 +118,9 @@ export const googleLogin = async (req, res) => {
       if (picture) user.picture = picture;
       if (googleId) user.googleId = googleId;
       user.lastLogin = new Date();
+      user.lastActiveAt = new Date();
+      user.currentIp = clientIp;
+      user.userAgent = userAgent;
       await user.save();
     }
 
@@ -253,6 +263,9 @@ export const loginWithPassword = async (req, res) => {
 
     // Find or create the super admin user in MongoDB
     let user = await User.findOne({ email: cleanEmail });
+    const clientIp =
+      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const userAgent = req.headers["user-agent"] || "";
 
     if (!user) {
       user = await User.create({
@@ -262,12 +275,18 @@ export const loginWithPassword = async (req, res) => {
         isActive: true,
         permissions: defaultFullPermissions,
         lastLogin: new Date(),
+        lastActiveAt: new Date(),
+        currentIp: clientIp,
+        userAgent: userAgent,
       });
     } else {
       user.role = "superadmin";
       user.isActive = true;
       user.permissions = defaultFullPermissions;
       user.lastLogin = new Date();
+      user.lastActiveAt = new Date();
+      user.currentIp = clientIp;
+      user.userAgent = userAgent;
       user.markModified("permissions");
       await user.save();
     }
@@ -344,6 +363,142 @@ export const getMe = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch user profile.",
+    });
+  }
+};
+
+/**
+ * @desc    Admin Heartbeat Ping (Keeps Online Status Fresh)
+ * @route   POST /api/v1/auth/heartbeat
+ * @access  Admin
+ */
+export const heartbeat = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const clientIp =
+      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const userAgent = req.headers["user-agent"] || "";
+
+    await User.findByIdAndUpdate(user._id, {
+      lastActiveAt: new Date(),
+      currentIp: clientIp,
+      userAgent: userAgent,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Heartbeat acknowledged",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Heartbeat error:", err);
+    return res.status(500).json({ success: false, message: "Heartbeat failed" });
+  }
+};
+
+/**
+ * @desc    Set User Presence Immediately Offline on Tab Close / Page Leave
+ * @route   POST /api/v1/auth/offline
+ * @access  Admin
+ */
+export const setPresenceOffline = async (req, res) => {
+  try {
+    const user = req.user;
+    if (user) {
+      // Set lastActiveAt to 60 seconds ago so status immediately flips to offline,
+      // while retaining the exact last seen timestamp!
+      await User.findByIdAndUpdate(user._id, {
+        lastActiveAt: new Date(Date.now() - 60 * 1000),
+      });
+    }
+    return res.status(200).json({ success: true, message: "Presence set to offline" });
+  } catch (err) {
+    return res.status(200).json({ success: true });
+  }
+};
+
+/**
+ * @desc    Get Active Admins & Real-Time Login Presence
+ * @route   GET /api/v1/auth/active-admins
+ * @access  Admin
+ */
+export const getActiveAdmins = async (req, res) => {
+  try {
+    const now = new Date();
+    // Online: strictly active within last 45 seconds (heartbeat is sent every 20s)
+    const fortyFiveSecondsAgo = new Date(now.getTime() - 45 * 1000);
+    // Away: active within last 2 minutes
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+
+    // Fetch all active admin/superadmin users
+    const adminUsers = await User.find({
+      role: { $in: ["admin", "superadmin"] },
+      isActive: true,
+    })
+      .select("name email picture role lastLogin lastActiveAt currentIp userAgent createdAt")
+      .sort({ lastActiveAt: -1, lastLogin: -1 });
+
+    const adminsWithStatus = adminUsers.map((u) => {
+      const lastActive = u.lastActiveAt;
+      let status = "offline";
+
+      if (lastActive && new Date(lastActive) >= fortyFiveSecondsAgo) {
+        status = "online";
+      } else if (lastActive && new Date(lastActive) >= twoMinutesAgo) {
+        status = "away";
+      }
+
+      // Friendly device format
+      let deviceLabel = "Desktop / Web";
+      if (u.userAgent) {
+        if (/mobile|android|iphone|ipad/i.test(u.userAgent)) {
+          deviceLabel = "Mobile Device";
+        } else if (/chrome/i.test(u.userAgent)) {
+          deviceLabel = "Chrome Browser";
+        } else if (/firefox/i.test(u.userAgent)) {
+          deviceLabel = "Firefox Browser";
+        } else if (/safari/i.test(u.userAgent)) {
+          deviceLabel = "Safari Browser";
+        }
+      }
+
+      return {
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        picture: u.picture,
+        role: u.role,
+        lastLogin: u.lastLogin,
+        lastActiveAt: lastActive,
+        status, // 'online' | 'away' | 'offline'
+        isOnline: status === "online",
+        device: deviceLabel,
+      };
+    });
+
+    const onlineCount = adminsWithStatus.filter((u) => u.status === "online").length;
+    const awayCount = adminsWithStatus.filter((u) => u.status === "away").length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        admins: adminsWithStatus,
+        metrics: {
+          online: onlineCount,
+          away: awayCount,
+          totalAdmins: adminsWithStatus.length,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get Active Admins Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch active admins status.",
     });
   }
 };
