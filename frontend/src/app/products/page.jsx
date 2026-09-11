@@ -1,11 +1,11 @@
 import ProductListingClient from "../../views/ProductListingPage.jsx";
 
 export const metadata = {
-  title: "Testing Instruments & Laboratory Equipment Catalogue | ARCL Instruments",
+  title: "Civil Engineering Laboratory Equipment Catalogue | ARCL Instruments",
   description:
     "Explore the complete catalogue of certified laboratory and civil engineering testing equipment by ARCL Instruments Private Limited. High accuracy testing solutions for Concrete, Soil, Bitumen, Cement, and Aggregate labs across India.",
   keywords: [
-    "laboratory equipment catalogue",
+    "civil engineering laboratory equipment catalogue",
     "civil testing machines manufacturer India",
     "soil testing equipment list",
     "cement testing instruments",
@@ -17,7 +17,7 @@ export const metadata = {
     canonical: "https://arclinstruments.com/products",
   },
   openGraph: {
-    title: "Testing Instruments & Laboratory Equipment Catalogue | ARCL Instruments Private Limited",
+    title: "Civil Engineering Laboratory Equipment Catalogue | ARCL Instruments Private Limited",
     description:
       "Explore certified laboratory and civil engineering testing equipment manufactured by ARCL Instruments Private Limited.",
     url: "https://arclinstruments.com/products",
@@ -34,7 +34,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Testing Instruments Catalogue | ARCL Instruments Private Limited",
+    title: "Civil Engineering Laboratory Equipment Catalogue | ARCL Instruments",
     description:
       "Precision civil engineering testing instruments and laboratory machines across India.",
     images: ["/assets/LOGO.png"],

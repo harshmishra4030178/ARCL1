@@ -38,7 +38,7 @@ export async function generateMetadata({ params }) {
   }
 
   const categoryName = product.category?.name || "Material Testing Equipment";
-  const title = `${product.name} Manufacturer & Supplier in Mumbai | ARCL Instruments`;
+  const title = `${product.name} | ${categoryName} | ARCL Instruments`;
   const description =
     product.description?.slice(0, 160) ||
     `Certified ${product.name} precision testing equipment manufactured by ARCL Instruments Private Limited. Complying with IS, ASTM, and BS testing standards.`;

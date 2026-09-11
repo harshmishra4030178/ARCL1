@@ -1,7 +1,7 @@
 import ContactClient from "../../views/Contact.jsx";
 
 export const metadata = {
-  title: "Contact Us & Get a Quote | ARCL Instruments Private Limited",
+  title: "Contact ARCL Instruments | Civil Lab Equipment & Testing Equipment Supplier",
   description:
     "Get in touch with ARCL Instruments Private Limited for instant instrument pricing, factory quotations, custom engineering requirements, technical support, and office visits in Airoli, Navi Mumbai.",
   keywords: [
@@ -16,7 +16,7 @@ export const metadata = {
     canonical: "https://arclinstruments.com/contact",
   },
   openGraph: {
-    title: "Contact ARCL Instruments Private Limited | Factory Quotation & Technical Inquiries",
+    title: "Contact ARCL Instruments | Civil Lab Equipment & Testing Equipment Supplier",
     description:
       "Get instant factory quotes, technical assistance, and calibration support from ARCL Instruments Private Limited.",
     url: "https://arclinstruments.com/contact",
@@ -33,7 +33,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact ARCL Instruments Private Limited",
+    title: "Contact ARCL Instruments | Civil Lab Equipment & Testing Equipment Supplier",
     description:
       "Direct factory pricing and quotes for civil testing machines. Call +91-8169695728 or email arclinstruments@gmail.com.",
     images: ["/assets/LOGO.png"],

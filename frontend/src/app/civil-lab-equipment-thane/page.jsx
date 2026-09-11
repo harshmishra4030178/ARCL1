@@ -17,7 +17,7 @@ import {
 } from "react-icons/fa";
 
 export const metadata = {
-  title: "Civil Lab Equipment Supplier in Thane | ARCL Instruments",
+  title: "Civil Lab Equipment Supplier in Thane & MMR | ARCL Instruments",
   description:
     "ARCL Instruments Private Limited supplies certified civil laboratory equipment and material testing machines across Thane, Ghodbunder Road, Wagle Estate, Kalyan, Dombivli, and Bhiwandi with NABL calibration.",
   keywords: [

@@ -17,7 +17,7 @@ import {
 } from "react-icons/fa";
 
 export const metadata = {
-  title: "Civil Lab Equipment Supplier in Mumbai | ARCL Instruments",
+  title: "Civil Lab Equipment Manufacturer & Supplier in Mumbai | ARCL Instruments",
   description:
     "ARCL Instruments Private Limited is a premier civil laboratory equipment manufacturer and supplier in Mumbai. High-accuracy testing machines for concrete, soil, aggregate, bitumen, cement, surveying, and NDT with NABL calibration.",
   keywords: [

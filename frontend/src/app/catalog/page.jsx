@@ -1,9 +1,9 @@
 import CatalogClient from "../../views/CatalogPage.jsx";
 
 export const metadata = {
-  title: "Equipment Catalog & Technical PDF Brochures | ARCL Instruments",
+  title: "Download Civil Laboratory Equipment Catalog (PDF) | ARCL Instruments",
   description:
-    "Download official technical product catalogs, civil laboratory testing brochures, and equipment specification sheets from ARCL Instruments Private Limited Complying with IS, ASTM, and BS codes.",
+    "Download official technical product catalogs, civil laboratory testing brochures, and equipment specification sheets from ARCL Instruments Private Limited complying with IS, ASTM, and BS codes.",
   keywords: [
     "laboratory equipment catalog PDF",
     "civil testing machines brochure",
@@ -14,7 +14,7 @@ export const metadata = {
     canonical: "https://arclinstruments.com/catalog",
   },
   openGraph: {
-    title: "Equipment Catalog & Technical PDF Brochures | ARCL Instruments Private Limited",
+    title: "Download Civil Laboratory Equipment Catalog (PDF) | ARCL Instruments",
     description:
       "Download certified civil engineering and material testing equipment catalogs and PDF specification sheets.",
     url: "https://arclinstruments.com/catalog",
@@ -31,7 +31,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Equipment Catalog & PDF Brochures | ARCL Instruments Private Limited",
+    title: "Download Civil Laboratory Equipment Catalog (PDF) | ARCL Instruments",
     description: "Download official civil engineering testing equipment catalogs and specifications.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
   },

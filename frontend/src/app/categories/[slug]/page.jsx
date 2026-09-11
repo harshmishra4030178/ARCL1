@@ -33,7 +33,10 @@ export async function generateMetadata({ params }) {
   const { category } = await getCategoryData(slug);
 
   const name = category?.name || slug?.replace(/-/g, " ");
-  const title = `${name} Manufacturer & Supplier in Mumbai | ARCL Instruments`;
+  let title = `${name} Manufacturer & Supplier | ARCL Instruments`;
+  if (slug === "surveying-instruments" || slug === "non-destructive-testing-ndt-equipment") {
+    title = `${name} Supplier in Mumbai | ARCL Instruments`;
+  }
   const description =
     category?.description?.slice(0, 160) ||
     `Browse certified ${name} manufactured by ARCL Instruments Private Limited. Complying with IS, ASTM, and BS standards with NABL traceable calibration.`;

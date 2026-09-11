@@ -18,7 +18,7 @@ import {
 } from "react-icons/fa";
 
 export const metadata = {
-  title: "Civil Lab Equipment Supplier in Navi Mumbai | ARCL Instruments",
+  title: "Civil Lab Equipment Manufacturer & Supplier in Navi Mumbai | ARCL Instruments",
   description:
     "ARCL Instruments Private Limited - Headquartered in Airoli, Navi Mumbai. Leading manufacturer and supplier of civil engineering lab equipment, concrete CTM, soil CBR, bitumen, surveying, and NDT apparatus with local factory support.",
   keywords: [

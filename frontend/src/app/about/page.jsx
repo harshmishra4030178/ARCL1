@@ -1,9 +1,9 @@
 import AboutClient from "../../views/About.jsx";
 
 export const metadata = {
-  title: "About ARCL Instruments | ISO Certified Testing Machine Manufacturer",
+  title: "About ARCL Instruments Private Limited | Civil Lab Equipment Manufacturer",
   description:
-    "Learn about ARCL Instruments Private Limited Leading manufacturer of certified civil engineering, concrete, soil, bitumen, and material testing laboratory instruments in Navi Mumbai, India.",
+    "Learn about ARCL Instruments Private Limited, leading manufacturer of certified civil engineering, concrete, soil, bitumen, and material testing laboratory instruments in Navi Mumbai, India.",
   keywords: [
     "about ARCL Instruments",
     "laboratory equipment manufacturer",
@@ -15,7 +15,7 @@ export const metadata = {
     canonical: "https://arclinstruments.com/about",
   },
   openGraph: {
-    title: "About ARCL Instruments | ISO Certified Testing Machine Manufacturer",
+    title: "About ARCL Instruments Private Limited | Civil Lab Equipment Manufacturer",
     description:
       "Leading manufacturer of certified civil engineering and laboratory testing instruments based in Navi Mumbai, India.",
     url: "https://arclinstruments.com/about",
@@ -32,7 +32,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "About ARCL Instruments Private Limited",
+    title: "About ARCL Instruments Private Limited | Civil Lab Equipment Manufacturer",
     description: "ISO 9001:2015 Certified Civil & Material Testing Equipment Manufacturer.",
     images: ["/assets/LOGO.png"],
   },

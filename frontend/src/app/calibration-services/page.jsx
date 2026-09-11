@@ -2,7 +2,7 @@ import CalibrationServicesClient from "../../views/CalibrationServices.jsx";
 
 export const metadata = {
   title:
-    "Instrument Calibration & Maintenance Services | ISO/IEC 17025 Compliant | ARCL Instruments",
+    "NABL Calibration & Machine Maintenance Services | ARCL Instruments",
   description:
     "Certified multi-point instrument calibration, on-site commissioning, load cell calibration, and maintenance services for civil, mechanical, thermal, pressure, and laboratory testing equipment by ARCL Instruments Private Limited.",
   keywords: [
@@ -36,7 +36,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Calibration & Maintenance Services | ARCL Instruments Private Limited",
+    title: "NABL Calibration & Machine Maintenance Services | ARCL Instruments",
     description: "Multi-point calibration & certification with NABL traceability.",
     images: ["https://arclinstruments.com/assets/LOGO.png"],
   },

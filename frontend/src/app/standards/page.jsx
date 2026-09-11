@@ -1,9 +1,9 @@
 import StandardsDirectoryPage from "../../views/StandardsDirectoryPage.jsx";
 
 export const metadata = {
-  title: "Civil Engineering Testing Standards Hub (IS, ASTM, BS Codes) | ARCL Instruments",
+  title: "Civil Testing Standards IS, ASTM & BS Codes | ARCL Instruments",
   description:
-    "Complete testing apparatus, machinery, and equipment checklists for Indian Standards (IS 516 Concrete, IS 2720 Soil CBR, IS 1208 Bitumen Ductility, IS 4031 Cement Vicat, IS 2386 Aggregates), ASTM, BS, and MoRTH specifications. Download instant test BOQ estimates.",
+    "Complete testing apparatus and machinery directory for Indian Standards (IS 516 Concrete, IS 2720 Soil CBR, IS 1208 Bitumen Ductility, IS 4031 Cement Vicat, IS 2386 Aggregates), ASTM, and BS testing codes by ARCL Instruments Private Limited.",
   keywords: [
     "IS 516 concrete testing equipment",
     "IS 2720 soil CBR testing machine",
@@ -20,7 +20,7 @@ export const metadata = {
     canonical: "https://arclinstruments.com/standards",
   },
   openGraph: {
-    title: "Civil Engineering Testing Standards Directory (IS, ASTM, BS Codes) | ARCL Instruments Private Limited",
+    title: "Civil Testing Standards IS, ASTM & BS Codes | ARCL Instruments",
     description:
       "Find complete equipment lists and 1-click BOQ estimates for certified Indian Standards (IS 516, IS 2720, IS 1208, IS 4031) and international civil testing codes.",
     url: "https://arclinstruments.com/standards",
@@ -37,7 +37,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Civil Engineering Testing Standards Hub | ARCL Instruments Private Limited",
+    title: "Civil Testing Standards IS, ASTM & BS Codes | ARCL Instruments",
     description:
       "Access complete equipment checklists and 1-click BOQ quotes for IS 516, IS 2720, IS 1208, and ASTM civil testing standards.",
     images: ["/assets/LOGO.png"],

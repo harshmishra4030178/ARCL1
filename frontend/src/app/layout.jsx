@@ -4,8 +4,8 @@ import ClientLayout from "./ClientLayout";
 export const metadata = {
   metadataBase: new URL("https://arclinstruments.com"),
   title: {
-    default: "ARCL Instruments Private Limited | Civil Engineering & Material Testing Equipment Manufacturer India",
-    template: "%s | ARCL Instruments Private Limited",
+    default: "ARCL Instruments Private Limited | Civil Lab Equipment Manufacturer & Supplier",
+    template: "%s",
   },
   description:
     "ARCL Instruments Private Limited is an ISO 9001:2015 certified leading manufacturer and exporter of precision civil engineering, concrete, soil, bitumen, cement, aggregate, and material testing laboratory instruments in India.",
@@ -82,9 +82,8 @@ const organizationJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Private Limited",
-        "ARCL Instruments Private Limited",
-        "ARCL Material Testing Machines"
+        "ARCL Material Testing Machines",
+        "ARCL Lab Solutions"
       ],
       "url": "https://arclinstruments.com",
       "logo": {
@@ -107,8 +106,11 @@ const organizationJsonLd = {
         "addressCountry": "IN",
       },
       "sameAs": [
-        "https://www.linkedin.com/company/arcl-instruments",
-        "https://www.instagram.com/arcl_instruments",
+        "https://www.linkedin.com/company/arclinstruments/about/",
+        "https://www.instagram.com/arcl_lab/",
+        "https://www.facebook.com/people/ARCL-Instruments-Pvt-Ltd/61580266556551/",
+        "https://www.youtube.com/@ARCLLabSolutions",
+        "https://x.com/ArclPrivate"
       ],
       "contactPoint": [
         {
@@ -134,8 +136,8 @@ const organizationJsonLd = {
       "name": "ARCL Instruments Private Limited",
       "alternateName": [
         "ARCL Instruments",
-        "ARCL Instruments Private Limited",
-        "ARCL Instruments Private Limited"
+        "ARCL Material Testing Machines",
+        "ARCL Lab Solutions"
       ],
       "publisher": {
         "@id": "https://arclinstruments.com/#organization"
