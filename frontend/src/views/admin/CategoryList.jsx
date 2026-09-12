@@ -22,7 +22,7 @@ import Tooltip from "../../components/admin/common/Tooltip.jsx";
 import CategoryDetailsModal from "../../components/admin/category/CategoryDetailsModal.jsx";
 import { toast } from "react-toastify";
 import { Eye } from "lucide-react";
-import { formatTitleCase } from "../../utils/stringUtils.js";
+import { formatTitleCase, formatDateTime } from "../../utils/stringUtils.js";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -231,13 +231,17 @@ const CategoryList = () => {
                   <th className="p-4">Category Name</th>
                   <th className="p-4">Equipment Type</th>
                   <th className="p-4">Dynamic Filters</th>
-                  <th className="p-4">Featured</th>
+                  <th className="p-4 text-center">Added Date & Time</th>
+                  <th className="p-4 text-center">Featured</th>
                   <th className="p-4 text-center">Actions</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-gray-100 text-sm">
-                {paginatedCategories.map((cat) => (
+                {paginatedCategories.map((cat) => {
+                  const createdTime = formatDateTime(cat.createdAt);
+
+                  return (
                   <tr
                     key={cat._id}
                     className="hover:bg-gray-50/80 transition duration-150"
@@ -264,6 +268,22 @@ const CategoryList = () => {
                       <span className="bg-emerald-50 text-emerald-800 px-2.5 py-1 text-xs font-semibold rounded-full border border-emerald-100">
                         {cat.filters?.length || 0} filters defined
                       </span>
+                    </td>
+
+                    {/* ADDED DATE & TIME */}
+                    <td className="p-4 text-center whitespace-nowrap">
+                      {cat.createdAt ? (
+                        <div className="inline-flex flex-col items-center">
+                          <span className="font-semibold text-xs text-gray-800">
+                            {createdTime.date}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-mono">
+                            {createdTime.time}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs italic">—</span>
+                      )}
                     </td>
 
                     {/* FEATURED TOGGLE */}
@@ -339,7 +359,8 @@ const CategoryList = () => {
                     </td>
 
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

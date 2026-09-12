@@ -11,7 +11,7 @@ import {
   FaTag,
 } from "react-icons/fa";
 import { X, CheckCircle2, ShieldCheck, FileText, Cog, QrCode } from "lucide-react";
-import { formatTitleCase } from "../../../utils/stringUtils.js";
+import { formatTitleCase, formatDateTime } from "../../../utils/stringUtils.js";
 
 const ProductDetailsModal = ({ isOpen, onClose, product, onOpenQr }) => {
   if (!isOpen || !product) return null;
@@ -182,13 +182,18 @@ const ProductDetailsModal = ({ isOpen, onClose, product, onOpenQr }) => {
               </p>
 
               {/* Timestamps */}
-              <div className="pt-2 flex items-center gap-4 text-xs text-gray-400 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <FaCalendarAlt size={11} /> Created:{" "}
-                  {new Date(product.createdAt).toLocaleDateString()}
-                </span>
-                <span>•</span>
-                <span>Updated: {new Date(product.updatedAt).toLocaleDateString()}</span>
+              <div className="pt-2 flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                {product.createdAt && (
+                  <span className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200">
+                    <FaCalendarAlt size={11} className="text-gray-400" />
+                    <span>Added: <strong className="text-gray-800">{formatDateTime(product.createdAt).formatted}</strong></span>
+                  </span>
+                )}
+                {product.updatedAt && (
+                  <span className="flex items-center gap-1.5 text-gray-400 text-[11px]">
+                    Updated: {formatDateTime(product.updatedAt).formatted}
+                  </span>
+                )}
               </div>
 
             </div>

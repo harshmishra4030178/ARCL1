@@ -9,7 +9,7 @@ import Tooltip from "../../components/admin/common/Tooltip.jsx";
 import SkeletonLoader from "../../components/admin/common/SkeletonLoader.jsx";
 import useEquipmentType from "../../hooks/useEquipmentType.js";
 import { useEquipmentTypeStore } from "../../store/useEquipmentTypeStore.js";
-import { formatTitleCase } from "../../utils/stringUtils.js";
+import { formatTitleCase, formatDateTime } from "../../utils/stringUtils.js";
 import { toast } from "react-toastify";
 
 const EquipmentTypeList = () => {
@@ -180,6 +180,7 @@ const EquipmentTypeList = () => {
               <tr>
                 <th className="p-4 w-12 text-center">Order</th>
                 <th className="p-4">Equipment Type Name</th>
+                <th className="p-4 text-center">Added Date & Time</th>
                 <th className="p-4 text-center">Featured on Home</th>
                 <th className="p-4 text-center">Actions</th>
               </tr>
@@ -191,6 +192,7 @@ const EquipmentTypeList = () => {
                 const isToggling = togglingFeaturedId === item._id;
                 const isDragging = draggedIndex === index;
                 const isOver = dragOverIndex === index;
+                const createdTime = formatDateTime(item.createdAt);
 
                 return (
                   <tr
@@ -249,6 +251,22 @@ const EquipmentTypeList = () => {
                         <span className="w-2 h-2 rounded-full bg-[#021C57]"></span>
                         <span>{formatTitleCase(item.name)}</span>
                       </div>
+                    </td>
+
+                    {/* ADDED DATE & TIME */}
+                    <td className="p-4 text-center whitespace-nowrap">
+                      {item.createdAt ? (
+                        <div className="inline-flex flex-col items-center">
+                          <span className="font-semibold text-xs text-gray-800">
+                            {createdTime.date}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-mono">
+                            {createdTime.time}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs italic">—</span>
+                      )}
                     </td>
 
                     {/* FEATURED TOGGLE BUTTON */}

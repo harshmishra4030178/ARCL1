@@ -52,3 +52,28 @@ export const capitalizeFirstLetter = (str) => {
   if (!str || typeof str !== "string") return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
+
+/**
+ * Utility to format Date and Time cleanly in Indian Standard Time (IST) format
+ * e.g., "12 Sep 2026, 06:08 PM"
+ */
+export const formatDateTime = (dateStr) => {
+  if (!dateStr) return { date: "—", time: "", formatted: "—" };
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return { date: "—", time: "", formatted: "—" };
+    const date = d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const time = d.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return { date, time, formatted: `${date} at ${time}` };
+  } catch {
+    return { date: "—", time: "", formatted: "—" };
+  }
+};

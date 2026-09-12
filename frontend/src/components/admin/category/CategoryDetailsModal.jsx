@@ -10,7 +10,7 @@ import {
   FaCogs,
 } from "react-icons/fa";
 import { X, CheckCircle2, ShieldCheck, FileText, ArrowRight } from "lucide-react";
-import { formatTitleCase } from "../../../utils/stringUtils.js";
+import { formatTitleCase, formatDateTime } from "../../../utils/stringUtils.js";
 
 const CategoryDetailsModal = ({ isOpen, onClose, category }) => {
   if (!isOpen || !category) return null;
@@ -18,6 +18,9 @@ const CategoryDetailsModal = ({ isOpen, onClose, category }) => {
   const hasHowItWorks = Boolean(
     category.howItWorks || (category.howItWorksSteps && category.howItWorksSteps.length > 0)
   );
+
+  const createdTime = formatDateTime(category.createdAt);
+  const updatedTime = formatDateTime(category.updatedAt);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
@@ -68,9 +71,17 @@ const CategoryDetailsModal = ({ isOpen, onClose, category }) => {
               {formatTitleCase(category.name)}
             </h3>
 
-            <p className="text-xs text-gray-400 font-mono">
-              Slug: <span className="text-blue-600">/categories/{category.slug}</span>
-            </p>
+            <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500 font-mono">
+              <p>
+                Slug: <span className="text-blue-600">/categories/{category.slug}</span>
+              </p>
+              {category.createdAt && (
+                <p className="flex items-center gap-1 text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                  <FaCalendarAlt size={10} className="text-gray-400" />
+                  <span>Added: <strong>{createdTime.formatted}</strong></span>
+                </p>
+              )}
+            </div>
 
             {/* DESCRIPTION */}
             <div className="bg-gray-50 border border-gray-200/80 p-4 rounded-2xl">

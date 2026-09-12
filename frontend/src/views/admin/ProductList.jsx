@@ -25,7 +25,7 @@ import ProductDetailsModal from "../../components/admin/product/ProductDetailsMo
 import ProductQrModal from "../../components/admin/product/ProductQrModal.jsx";
 import { toast } from "react-toastify";
 import { Eye, Layers, QrCode, Sparkles, RefreshCw } from "lucide-react";
-import { formatTitleCase } from "../../utils/stringUtils.js";
+import { formatTitleCase, formatDateTime } from "../../utils/stringUtils.js";
 
 const ProductList = () => {
   const {
@@ -362,6 +362,7 @@ const ProductList = () => {
                   <th className="py-3.5 px-4 font-bold">Product & Equipment Type</th>
                   <th className="py-3.5 px-4 font-bold">Category</th>
                   <th className="py-3.5 px-3 font-bold text-center">Specs</th>
+                  <th className="py-3.5 px-3 font-bold text-center">Added Date & Time</th>
                   <th className="py-3.5 px-3 font-bold text-center">Featured</th>
                   <th className="py-3.5 px-3 font-bold text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold text-center">Actions</th>
@@ -370,6 +371,7 @@ const ProductList = () => {
 
               <tbody className="divide-y divide-gray-100">
                 {paginatedProducts.map((product) => {
+                  const createdTime = formatDateTime(product.createdAt);
                   const eqId =
                     product.category?.equipmentType?._id ||
                     product.category?.equipmentType ||
@@ -443,6 +445,22 @@ const ProductList = () => {
                             : 0}{" "}
                           specs
                         </span>
+                      </td>
+
+                      {/* ADDED DATE & TIME */}
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        {product.createdAt ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="font-semibold text-xs text-gray-800">
+                              {createdTime.date}
+                            </span>
+                            <span className="text-[11px] text-gray-400 font-mono">
+                              {createdTime.time}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">—</span>
+                        )}
                       </td>
 
                       {/* IS FEATURED TOGGLE */}
