@@ -110,7 +110,19 @@ const calibrationRecordSchema = new mongoose.Schema(
       },
       poRaised: {
         type: String,
-        default: "/docs/sample-po.pdf",
+        default: "",
+      },
+      poFileUrl: {
+        type: String,
+        default: "",
+      },
+      poFileName: {
+        type: String,
+        default: "",
+      },
+      poUploadedAt: {
+        type: Date,
+        default: null,
       },
       proformaInvoice: {
         type: String,

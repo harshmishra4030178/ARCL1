@@ -8,6 +8,7 @@ import {
 } from "../services/calibrationReminderScheduler.js";
 import CalibrationRecord from "../models/CalibrationRecord.js";
 import NablLabScope, { defaultArclNablScope } from "../models/NablLabScope.js";
+import cloudinary from "../config/cloudinary.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
@@ -1200,6 +1201,22 @@ export const downloadDocument = async (req, res, next) => {
     } else if (docType === "pi" || docType === "proforma_invoice") {
       customDocData = record?.proformaData && Array.isArray(record.proformaData.items) && record.proformaData.items.length > 0 ? record.proformaData : null;
     } else if (docType === "po") {
+      const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+      if (poUrl && poUrl.trim()) {
+        if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
+          return res.redirect(poUrl);
+        } else if (poUrl.startsWith("data:")) {
+          const parts = poUrl.split(",");
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const contentType = mimeMatch ? mimeMatch[1] : "application/pdf";
+          const buffer = Buffer.from(parts[1], "base64");
+          const filename = `ARCL_PO_${sNo.replace(/[^a-zA-Z0-9_-]/g, "")}.pdf`;
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Content-Disposition", `${download === "true" ? "attachment" : "inline"}; filename="${filename}"`);
+          res.setHeader("Content-Length", buffer.length);
+          return res.status(200).send(buffer);
+        }
+      }
       customDocData = record?.poData && Array.isArray(record.poData.items) && record.poData.items.length > 0 ? record.poData : null;
     }
 
@@ -1963,4 +1980,120 @@ export const resetNablLabScope = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * Helper: Upload file buffer to Cloudinary or Data URI fallback
+ */
+const uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = "po_document.pdf") => {
+  try {
+    const isPdf = mimetype === "application/pdf" || originalname.toLowerCase().endsWith(".pdf");
+    const resourceType = isPdf ? "raw" : "auto";
+    const secureUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "calibration_po",
+          resource_type: resourceType,
+          public_id: `PO_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9.-]/g, "_")}`,
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result.secure_url);
+        }
+      );
+      stream.end(fileBuffer);
+    });
+    return secureUrl;
+  } catch (cloudErr) {
+    console.warn("Cloudinary upload fallback to data URI:", cloudErr.message);
+    const base64 = fileBuffer.toString("base64");
+    return `data:${mimetype || "application/pdf"};base64,${base64}`;
+  }
+};
+
+// 23. Upload Custom PO Document (PDF / Image / Scan from device/gallery)
+export const uploadPoDocument = async (req, res, next) => {
+  try {
+    const { recordId, dcNo, clientCompany, serialNo } = req.body;
+    if (!req.file) {
+      throw new ApiError(400, "Please select a valid PDF or document file to upload");
+    }
+
+    const fileUrl = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname
+    );
+
+    const updatePayload = {
+      "commercialDocs.poRaised": fileUrl,
+      "commercialDocs.poFileUrl": fileUrl,
+      "commercialDocs.poFileName": req.file.originalname,
+      "commercialDocs.poUploadedAt": new Date(),
+    };
+
+    let query = {};
+    if (recordId && isValidMongoId(recordId)) {
+      query = { _id: recordId };
+    } else if (dcNo && clientCompany) {
+      query = { dcNo, clientCompany };
+    } else if (serialNo) {
+      query = { serialNo: serialNo.trim() };
+    } else {
+      throw new ApiError(400, "Valid recordId, serialNo or dcNo/clientCompany is required");
+    }
+
+    // Update all matching records in the batch
+    await CalibrationRecord.updateMany(query, { $set: updatePayload });
+
+    const updatedRecords = await CalibrationRecord.find(query).lean();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          poFileUrl: fileUrl,
+          poFileName: req.file.originalname,
+          updatedCount: updatedRecords.length,
+          records: updatedRecords,
+        },
+        "Purchase Order (PO) document uploaded successfully from gallery/device"
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 24. Delete / Remove Custom PO Document
+export const deletePoDocument = async (req, res, next) => {
+  try {
+    const { recordId, dcNo, clientCompany, serialNo } = req.body;
+    let query = {};
+    if (recordId && isValidMongoId(recordId)) {
+      query = { _id: recordId };
+    } else if (dcNo && clientCompany) {
+      query = { dcNo, clientCompany };
+    } else if (serialNo) {
+      query = { serialNo: serialNo.trim() };
+    } else {
+      throw new ApiError(400, "Valid recordId, serialNo or dcNo/clientCompany is required");
+    }
+
+    const updatePayload = {
+      "commercialDocs.poRaised": "",
+      "commercialDocs.poFileUrl": "",
+      "commercialDocs.poFileName": "",
+      "commercialDocs.poUploadedAt": null,
+    };
+
+    await CalibrationRecord.updateMany(query, { $set: updatePayload });
+
+    return res.status(200).json(
+      new ApiResponse(200, null, "Purchase Order (PO) document removed successfully")
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 

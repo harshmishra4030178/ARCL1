@@ -3,7 +3,7 @@ import multer from "multer";
 // Use memory storage for reliable buffer handling across all platforms
 const storage = multer.memoryStorage();
 
-// File filter (accept images only)
+// File filter (accept images, PDFs, and common documents)
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     "image/jpeg",
@@ -12,12 +12,19 @@ const fileFilter = (req, file, cb) => {
     "image/webp",
     "image/svg+xml",
     "image/gif",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
 
-  if (allowedTypes.includes(file.mimetype) || file.mimetype?.startsWith("image/")) {
+  if (
+    allowedTypes.includes(file.mimetype) ||
+    file.mimetype?.startsWith("image/") ||
+    file.mimetype === "application/pdf"
+  ) {
     cb(null, true);
   } else {
-    cb(new Error("Only valid image files (PNG, JPG, WEBP, JPEG) are allowed"), false);
+    cb(new Error("Only valid image and document files (PDF, PNG, JPG, WEBP, JPEG) are allowed"), false);
   }
 };
 

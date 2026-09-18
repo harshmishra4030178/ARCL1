@@ -41,7 +41,7 @@ import {
   FaInfoCircle,
   FaBell,
   FaCopy,
-  FaUsers,
+  FaUpload,
   FaCheckSquare,
 } from "react-icons/fa";
 import API from "../../api/axios.js";
@@ -72,6 +72,8 @@ import {
   updateNablScopeItemApi,
   deleteNablScopeItemApi,
   resetNablLabScopeApi,
+  uploadPoApi,
+  deletePoApi,
 } from "../../api/calibrationApi.js";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/useAuthStore.js";
@@ -3457,6 +3459,82 @@ export default function CalibrationPageView() {
     }
   };
 
+  // PO Custom Document Upload (From Gallery/Device) Handlers
+  const [uploadingPoId, setUploadingPoId] = useState(null);
+  const poFileInputRef = React.useRef(null);
+  const [activePoUploadTarget, setActivePoUploadTarget] = useState(null);
+
+  const handleTriggerPoUpload = (record) => {
+    setActivePoUploadTarget(record);
+    if (poFileInputRef.current) {
+      poFileInputRef.current.value = "";
+      poFileInputRef.current.click();
+    }
+  };
+
+  const handlePoFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activePoUploadTarget) return;
+
+    const toastId = toast.loading(`Uploading PO "${file.name}" from gallery/device...`);
+    setUploadingPoId(activePoUploadTarget._id);
+    try {
+      const formData = new FormData();
+      formData.append("poFile", file);
+      formData.append("recordId", activePoUploadTarget._id);
+      if (activePoUploadTarget.dcNo) formData.append("dcNo", activePoUploadTarget.dcNo);
+      if (activePoUploadTarget.clientCompany) formData.append("clientCompany", activePoUploadTarget.clientCompany);
+      if (activePoUploadTarget.serialNo) formData.append("serialNo", activePoUploadTarget.serialNo);
+
+      await uploadPoApi(formData);
+      toast.update(toastId, {
+        render: `📄 PO Document "${file.name}" uploaded successfully! ✅`,
+        type: "success",
+        isLoading: false,
+        autoClose: 4000,
+      });
+      fetchData(false);
+    } catch (err) {
+      console.error("PO Upload Error:", err);
+      toast.update(toastId, {
+        render: `Failed to upload PO: ${err.response?.data?.message || err.message}`,
+        type: "error",
+        isLoading: false,
+        autoClose: 5000,
+      });
+    } finally {
+      setUploadingPoId(null);
+      setActivePoUploadTarget(null);
+    }
+  };
+
+  const handleDeletePoFile = async (record) => {
+    if (!window.confirm(`Are you sure you want to remove the uploaded PO document for "${record.clientCompany || "this client"}"?`)) return;
+    const toastId = toast.loading("Removing PO document...");
+    try {
+      await deletePoApi({
+        recordId: record._id,
+        dcNo: record.dcNo,
+        clientCompany: record.clientCompany,
+        serialNo: record.serialNo,
+      });
+      toast.update(toastId, {
+        render: "PO document removed successfully!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000,
+      });
+      fetchData(false);
+    } catch (err) {
+      toast.update(toastId, {
+        render: `Failed to remove PO: ${err.response?.data?.message || err.message}`,
+        type: "error",
+        isLoading: false,
+        autoClose: 4000,
+      });
+    }
+  };
+
   // Quick Toggle Sticker Check
   const handleToggleSticker = async (record) => {
     try {
@@ -3888,6 +3966,15 @@ export default function CalibrationPageView() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Hidden PO Document File Picker */}
+      <input
+        type="file"
+        ref={poFileInputRef}
+        onChange={handlePoFileChange}
+        accept=".pdf,image/*,.doc,.docx"
+        className="hidden"
+      />
+
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#021C57] via-[#0B2A72] to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-blue-900/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -4870,24 +4957,69 @@ export default function CalibrationPageView() {
                             </div>
                           </td>
                           <td className="p-2.5 border-r border-gray-200 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <button
-                                onClick={() => openDocViewer("po", r)}
-                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                                title="View PO PDF"
-                              >
-                                <FaFilePdf className="text-xs" />
-                                <span className="text-[9px] underline font-bold">View</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenSendDocModal("po", r)}
-                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                                title="Send PO Document to Customer"
-                              >
-                                ✉️ Send
-                              </button>
-                            </div>
+                            {Boolean(r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised) ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <a
+                                  href={r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-red-600 hover:text-red-700 flex items-center gap-1 font-bold text-[9px] bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded border border-red-200 transition shadow-2xs cursor-pointer"
+                                  title={`View Uploaded PO (${r.commercialDocs?.poFileName || "Custom PO"})`}
+                                >
+                                  <FaFilePdf className="text-xs" />
+                                  <span>View</span>
+                                </a>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSendDocModal("po", r)}
+                                    className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                    title="Send PO Document to Customer"
+                                  >
+                                    ✉️ Send
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTriggerPoUpload(r)}
+                                    className="p-1 rounded text-[8px] font-bold bg-gray-50 text-gray-600 hover:bg-amber-50 hover:text-amber-700 border border-gray-200 transition cursor-pointer"
+                                    title="Re-upload / Change PO from Gallery"
+                                  >
+                                    <FaUpload className="text-[8px]" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePoFile(r)}
+                                    className="p-1 rounded text-[8px] font-bold bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-700 border border-gray-200 transition cursor-pointer"
+                                    title="Delete uploaded PO document"
+                                  >
+                                    <FaTrash className="text-[8px]" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTriggerPoUpload(r)}
+                                  disabled={uploadingPoId === r._id}
+                                  className="px-2.5 py-1 rounded-lg text-[9px] font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs hover:shadow-md transition flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50"
+                                  title="Upload PO document (PDF/Image) from your Gallery / Computer"
+                                >
+                                  {uploadingPoId === r._id ? (
+                                    <>
+                                      <FaSync className="text-[9px] animate-spin" />
+                                      <span>Uploading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FaUpload className="text-[9px]" />
+                                      <span>Upload PO</span>
+                                    </>
+                                  )}
+                                </button>
+                                <span className="text-[8px] text-gray-400 font-medium">Gallery / PDF</span>
+                              </div>
+                            )}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-1">

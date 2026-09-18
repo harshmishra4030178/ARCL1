@@ -24,9 +24,11 @@ import {
   updateNablLabScope,
   addNablScopeItem,
   updateNablScopeItem,
-  deleteNablScopeItem,
   resetNablLabScope,
+  uploadPoDocument,
+  deletePoDocument,
 } from "../../controllers/calibrationController.js";
+import upload from "../../middlewares/multer.js";
 import { verifyAdmin, checkModulePermission } from "../../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -58,7 +60,8 @@ router.post("/", checkModulePermission("calibration", "create"), createCalibrati
 router.put("/:id", checkModulePermission("calibration", "edit"), updateCalibrationRecord);
 router.delete("/:id", checkModulePermission("calibration", "delete"), deleteCalibrationRecord);
 router.post("/clear-all", checkModulePermission("calibration", "delete"), clearAllCalibrationData);
-router.delete("/clear-all", checkModulePermission("calibration", "delete"), clearAllCalibrationData);
+router.post("/upload-po", checkModulePermission("calibration", "edit"), upload.single("poFile"), uploadPoDocument);
+router.post("/delete-po", checkModulePermission("calibration", "edit"), deletePoDocument);
 router.post("/send-reminder", checkModulePermission("calibration", "dispatch"), sendDueReminder);
 router.post("/auto-dispatch-all", checkModulePermission("calibration", "dispatch"), autoDispatchAllDueReminders);
 router.post("/send-certificate-delivery", checkModulePermission("calibration", "dispatch"), sendCertificateDeliveryNotification);

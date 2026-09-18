@@ -1190,26 +1190,46 @@ export const sendSpecificDocumentEmail = async ({
           };
         }
 
-        const buf = await generateDocumentPdf(d.type, customDocData || {
-          certificateNo: certNo || "ARCL-CAL-2026-001",
-          calibrationDate: calDate,
-          calibrationDueDate: dueDate,
-          challanDate: record?.challanDate || calDate,
-          clientCompany: company,
-          contactPerson: person,
-          clientPhone: clientPhone || "+91 8009559900",
-          clientEmail: toEmail,
-          clientGst: record?.clientGst || record?.clientGstin || "N/A",
-          clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
-          instrument: instName,
-          serialNo: sNo,
-          dcNo: challanNo,
-          sentToLab: record?.sentToLab && !record.sentToLab.includes("Metrology") && !record.sentToLab.includes("Central") ? record.sentToLab : "ARCL Calibration Lab",
-          make: record?.make || "ARCL Instruments",
-          modelNo: record?.modelNo || "-",
-          customNote,
-          instruments: batchInstruments,
-        });
+        let buf = null;
+        if (d.type === "po" && (record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised)) {
+          const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+          if (poUrl.startsWith("data:")) {
+            buf = Buffer.from(poUrl.split(",")[1], "base64");
+          } else if (poUrl.startsWith("http")) {
+            try {
+              const res = await fetch(poUrl);
+              if (res.ok) {
+                const arrayBuf = await res.arrayBuffer();
+                buf = Buffer.from(arrayBuf);
+              }
+            } catch (fetchErr) {
+              console.warn("Could not fetch remote PO file for attachment:", fetchErr.message);
+            }
+          }
+        }
+
+        if (!buf) {
+          buf = await generateDocumentPdf(d.type, customDocData || {
+            certificateNo: certNo || "ARCL-CAL-2026-001",
+            calibrationDate: calDate,
+            calibrationDueDate: dueDate,
+            challanDate: record?.challanDate || calDate,
+            clientCompany: company,
+            contactPerson: person,
+            clientPhone: clientPhone || "+91 8009559900",
+            clientEmail: toEmail,
+            clientGst: record?.clientGst || record?.clientGstin || "N/A",
+            clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+            instrument: instName,
+            serialNo: sNo,
+            dcNo: challanNo,
+            sentToLab: record?.sentToLab && !record.sentToLab.includes("Metrology") && !record.sentToLab.includes("Central") ? record.sentToLab : "ARCL Calibration Lab",
+            make: record?.make || "ARCL Instruments",
+            modelNo: record?.modelNo || "-",
+            customNote,
+            instruments: batchInstruments,
+          });
+        }
 
       if (buf && buf.length > 0) {
         const cleanType = d.type.toUpperCase().replace(/[^a-zA-Z0-9_]/g, "");

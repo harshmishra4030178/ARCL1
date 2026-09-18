@@ -96,4 +96,13 @@ export const deleteNablScopeItemApi = (itemId) =>
 export const resetNablLabScopeApi = () =>
   API.post("/admin/calibration/lab-scope/reset");
 
+export const uploadPoApi = (formData) =>
+  API.post("/admin/calibration/upload-po", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const deletePoApi = (data) =>
+  API.post("/admin/calibration/delete-po", data);
+
+
 
