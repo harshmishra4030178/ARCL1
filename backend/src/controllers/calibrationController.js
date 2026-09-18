@@ -200,6 +200,8 @@ export const createCalibrationRecord = async (req, res, next) => {
       clientContactPerson,
       clientEmail,
       clientPhone,
+      clientGst,
+      clientAddress,
       certificateNo,
       stickerCheck,
       paymentStatus,
@@ -211,6 +213,8 @@ export const createCalibrationRecord = async (req, res, next) => {
     const contact = clientContactPerson?.trim() || "Quality Manager";
     const email = clientEmail?.trim() || "";
     const phone = clientPhone?.trim() || "";
+    const gst = clientGst?.trim() || "";
+    const address = clientAddress?.trim() || "";
     const commonDc = dcNo?.trim() || "DC/25-26/0154";
     const commonChallanDate = challanDate ? new Date(challanDate) : new Date();
     const commonLab = sentToLab?.trim() || "ARCL Metrology Laboratory";
@@ -298,6 +302,8 @@ export const createCalibrationRecord = async (req, res, next) => {
         clientContactPerson: contact,
         clientEmail: email,
         clientPhone: phone,
+        clientGst: (it.clientGst || gst).trim(),
+        clientAddress: (it.clientAddress || address).trim(),
         commercialDocs: {
           paymentStatus: it.paymentStatus || paymentStatus || "Paid",
           quotation: "/docs/sample-quotation.pdf",

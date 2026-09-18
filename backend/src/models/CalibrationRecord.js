@@ -23,6 +23,16 @@ const calibrationRecordSchema = new mongoose.Schema(
       default: "+91 9876543210",
       trim: true,
     },
+    clientGst: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    clientAddress: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     labCode: {
       type: String,
       default: "ARCL-LAB-01",

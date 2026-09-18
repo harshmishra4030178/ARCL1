@@ -1958,6 +1958,8 @@ export default function CalibrationPageView() {
     clientContactPerson: "",
     clientEmail: "",
     clientPhone: "",
+    clientGst: "",
+    clientAddress: "",
     dcNo: "",
     challanDate: new Date().toISOString().slice(0, 10),
     sentToLab: "ARCL Central Metrology Lab",
@@ -6310,8 +6312,8 @@ export default function CalibrationPageView() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="sm:col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div>
                     <label className="font-bold text-gray-700">Client / Company Name *</label>
                     <input
                       type="text"
@@ -6322,7 +6324,7 @@ export default function CalibrationPageView() {
                       className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-gray-900"
                     />
                   </div>
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="font-bold text-gray-700">Contact Person Name</label>
                     <input
                       type="text"
@@ -6330,6 +6332,16 @@ export default function CalibrationPageView() {
                       value={formData.clientContactPerson}
                       onChange={(e) => setFormData({ ...formData, clientContactPerson: e.target.value })}
                       className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 27AAACU0108Q1Z8"
+                      value={formData.clientGst}
+                      onChange={(e) => setFormData({ ...formData, clientGst: e.target.value.toUpperCase() })}
+                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-gray-800 uppercase"
                     />
                   </div>
                 </div>
@@ -6365,6 +6377,17 @@ export default function CalibrationPageView() {
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700">Client Address / Site Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai, Maharashtra - 400708"
+                    value={formData.clientAddress}
+                    onChange={(e) => setFormData({ ...formData, clientAddress: e.target.value })}
+                    className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-gray-800"
+                  />
                 </div>
               </div>
 
@@ -6713,21 +6736,64 @@ export default function CalibrationPageView() {
                   <FaBuilding className="text-blue-600" /> 2. Client &amp; Delivery Challan Information
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
                     <label className="font-bold text-gray-700">Client / Company Name</label>
                     <input
                       type="text"
-                      value={editFormData.clientCompany}
+                      value={editFormData.clientCompany || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientCompany: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700">Contact Person Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh Patel"
+                      value={editFormData.clientContactPerson || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientContactPerson: e.target.value })}
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 27AAACU0108Q1Z8"
+                      value={editFormData.clientGst || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientGst: e.target.value.toUpperCase() })}
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono font-bold text-gray-800 uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-gray-700">Client Email (For Reminders)</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. qa@company.com"
+                      value={editFormData.clientEmail || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientEmail: e.target.value })}
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700">Client Phone / WhatsApp</label>
+                    <input
+                      type="tel"
+                      placeholder="e.g. +91 8009559900"
+                      value={editFormData.clientPhone || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientPhone: e.target.value })}
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-gray-700">DC / Delivery Challan No.</label>
                     <input
                       type="text"
-                      value={editFormData.dcNo}
+                      value={editFormData.dcNo || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, dcNo: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
                     />
@@ -6739,7 +6805,7 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Challan Date</label>
                     <input
                       type="date"
-                      value={editFormData.challanDate}
+                      value={editFormData.challanDate ? editFormData.challanDate.slice(0, 10) : ""}
                       onChange={(e) => setEditFormData({ ...editFormData, challanDate: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono"
                     />
@@ -6748,7 +6814,7 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Assigned Laboratory</label>
                     <input
                       type="text"
-                      value={editFormData.sentToLab}
+                      value={editFormData.sentToLab || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, sentToLab: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
                     />
@@ -6757,11 +6823,22 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Invoice Shared Date</label>
                     <input
                       type="date"
-                      value={editFormData.invoiceSharedDate}
+                      value={editFormData.invoiceSharedDate ? editFormData.invoiceSharedDate.slice(0, 10) : ""}
                       onChange={(e) => setEditFormData({ ...editFormData, invoiceSharedDate: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700">Client Address / Site Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai, Maharashtra - 400708"
+                    value={editFormData.clientAddress || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, clientAddress: e.target.value })}
+                    className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium text-gray-800"
+                  />
                 </div>
               </div>
 
