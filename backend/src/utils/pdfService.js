@@ -209,7 +209,7 @@ const drawOfficialHeader = (doc, title = "Official Document", accentColor = "#b9
     .font("Helvetica")
     .fillColor("#475569")
     .text(
-      "Gala No. 4, Shree Sai Shradha Industrial Park, Kaman, Vasai East, Palghar - 401208 | Phone: +91 8369458583 | Email: arclinstruments@gmail.com",
+      "Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708 | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com",
       115,
       50,
       { width: 445 }
@@ -359,9 +359,9 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
 
     doc.fontSize(12).font("Helvetica-Bold").fillColor("#021C57").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
     doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Gala No. 4, Shree Sai Shradha Industrial Park, Survey No. 44, Hissa No. 5/1,", 110, topY + 14);
-    doc.text("Kaman, Vasai East, Palghar, Maharashtra - 401208", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 | Email: arclinstruments@gmail.com", 110, topY + 32);
+    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
+    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
+    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
 
     doc.rect(430, topY, 135, 38).fillColor("#021C57").fill();
     doc.fontSize(11).font("Helvetica-Bold").fillColor("#ffffff").text("TAX INVOICE", 430, topY + 6, { width: 135, align: "center" });
@@ -653,9 +653,9 @@ export const generateQuotationPdf = async (customData = {}) => {
 
     doc.fontSize(12).font("Helvetica-Bold").fillColor("#2563EB").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
     doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Gala No. 4, Shree Sai Shradha Industrial Park, Survey No. 44, Hissa No. 5/1,", 110, topY + 14);
-    doc.text("Kaman, Vasai East, Palghar, Maharashtra - 401208", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 | Email: arclinstruments@gmail.com", 110, topY + 32);
+    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
+    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
+    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
 
     doc.rect(430, topY, 135, 38).fillColor("#2563EB").fill();
     doc.fontSize(11).font("Helvetica-Bold").fillColor("#ffffff").text("QUOTATION", 430, topY + 6, { width: 135, align: "center" });
@@ -931,9 +931,9 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
 
     doc.fontSize(12).font("Helvetica-Bold").fillColor("#0d9488").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
     doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Gala No. 4, Shree Sai Shradha Industrial Park, Survey No. 44, Hissa No. 5/1,", 110, topY + 14);
-    doc.text("Kaman, Vasai East, Palghar, Maharashtra - 401208", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 | Email: arclinstruments@gmail.com", 110, topY + 32);
+    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
+    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
+    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
 
     doc.rect(430, topY, 135, 38).fillColor("#0d9488").fill();
     doc.fontSize(10.5).font("Helvetica-Bold").fillColor("#ffffff").text("PROFORMA INVOICE", 430, topY + 6, { width: 135, align: "center" });
@@ -1576,7 +1576,7 @@ export const generatePurchaseOrderPdf = async (customData = {}) => {
   const poNo = po.poNo || "4700018501";
   const poDate = po.poDate || "27-07-2026";
   const supplierName = po.supplierName || "ARCL INSTRUMENTS PRIVATE LIMITED";
-  const supplierAddress = po.supplierAddress || "Gala No. 4, Shree Sai Shradha Ind. Park, Kaman, Vasai East, Palghar - 401208";
+  const supplierAddress = po.supplierAddress || "Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708";
   const supplierGstin = po.supplierGstin || "27AATCA7874C1ZB";
 
   let rawItems = po.items && Array.isArray(po.items) && po.items.length > 0 ? po.items : defaultPurchaseOrder19Items;

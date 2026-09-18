@@ -9597,9 +9597,9 @@ export default function CalibrationPageView() {
                         <h2 className="font-black text-black">ARCL INSTRUMENTS PRIVATE LIMITED</h2>
                         <p className="font-bold text-gray-800">GSTIN: 27ABDCA3876F1ZL</p>
                         <p className="font-bold text-gray-800">PAN: ABDCA3876F</p>
-                        <p className="text-gray-700 text-[10px]">Gala No. 4, Ground Floor, Building No. 2, Shree Sai Shradha</p>
-                        <p className="text-gray-700 text-[10px]">Industrial Park, Kaman, Vasai East, Palghar - 401208</p>
-                        <p className="text-gray-700 text-[10px]">Mobile: +91 8009559900, 6205691085</p>
+                        <p className="text-gray-700 text-[10px]">Shop No. 6, Siddivinayak Park CHS, Sector 8A,</p>
+                        <p className="text-gray-700 text-[10px]">Airoli, Navi Mumbai, Maharashtra - 400708</p>
+                        <p className="text-gray-700 text-[10px]">Mobile: +91 8369458583, +91 6205691085</p>
                         <p className="text-gray-700 text-[10px]">Email: arclinstruments@gmail.com</p>
                       </div>
                     </div>
