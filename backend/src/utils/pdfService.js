@@ -1141,8 +1141,8 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   const clientAddress = data.clientAddress || data.customer?.address || "Vasai East, Palghar, Maharashtra - 401208";
   const instrument = data.instrument || data.instrument?.name || "Digital Compression Testing Machine 2000 kN";
   const serialNo = data.serialNo || data.instrument?.serialNumber || "ARCL-CTM-9842";
-  const make = data.make || data.instrument?.manufacturer || "ARCL Instruments";
-  const modelNo = data.modelNo || data.instrument?.model || "ARCL-CTM-2000";
+  const make = data.make || data.instrument?.manufacturer || "-";
+  const modelNo = data.modelNo || data.instrument?.model || "-";
   const instrumentRange = data.instrumentRange || data.instrument?.range || "0 - 2000 kN";
   const leastCount = data.leastCount || data.instrument?.leastCount || "0.1 kN";
   const dcNo = data.dcNo || data.srfNo || "DC/26-27/0188";
@@ -1433,8 +1433,8 @@ export const generateSrfSlipPdf = async (data = {}) => {
         {
           instrument: data.instrument || "Digital Compression Testing Machine 2000 kN",
           serialNo: data.serialNo || "ARCL-CTM-9842",
-          make: data.make || "ARCL",
-          modelNo: data.modelNo || "GEN-01",
+          make: data.make || "",
+          modelNo: data.modelNo || "",
           instrumentRange: data.instrumentRange || "0 - 2000 kN",
           stickerCheck: true,
           remarks: data.remarks || "Standard NABL Calibration Required",
@@ -1499,7 +1499,8 @@ export const generateSrfSlipPdf = async (data = {}) => {
     doc.text(`Scope: ISO/IEC 17025 Calibration`, 65, curY + 12, { width: 170 });
 
     doc.fontSize(7).font("Helvetica").fillColor("#334155");
-    doc.text(`${it.make || "ARCL"} / ${it.modelNo || "-"}`, 240, curY + 6, { width: 85 });
+    const makeModelStr = [it.make, it.modelNo].filter(Boolean).join(" / ") || "-";
+    doc.text(makeModelStr, 240, curY + 6, { width: 85 });
 
     doc.font("Helvetica-Bold").fillColor("#1d4ed8");
     doc.text(it.serialNo || "N/A", 330, curY + 6, { width: 75 });

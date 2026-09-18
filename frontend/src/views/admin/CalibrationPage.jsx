@@ -1349,18 +1349,21 @@ export default function CalibrationPageView() {
           (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
           r._id === rec._id
       );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
-        itemNo: idx + 1,
-        name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
-        subText: `NABL Accredited Metrological Calibration (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-        hsnSac: "998346",
-        taxRate: "18%",
-        qty: 1,
-        qtyUnit: "NOS",
-        rate: 5000,
-        per: "NOS",
-        amount: 5000,
-      }));
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        return {
+          itemNo: idx + 1,
+          name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
+          subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${r.serialNo || "-"})`,
+          hsnSac: "998346",
+          taxRate: "18%",
+          qty: 1,
+          qtyUnit: "NOS",
+          rate: 5000,
+          per: "NOS",
+          amount: 5000,
+        };
+      });
 
       if (rec.taxInvoiceData && rec.taxInvoiceData.items && rec.taxInvoiceData.items.length > 0) {
         setTaxInvoiceForm({
@@ -1399,16 +1402,19 @@ export default function CalibrationPageView() {
           (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
           r._id === rec._id
       );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
-        itemNo: idx + 1,
-        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-        subText: `NABL Proforma Scope (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-        hsnSac: "998346",
-        rate: 1000,
-        qty: 1,
-        qtyUnit: "NOS",
-        amount: 1000,
-      }));
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        return {
+          itemNo: idx + 1,
+          name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+          subText: `NABL Proforma Scope (${makeStr}S/N: ${r.serialNo || "-"})`,
+          hsnSac: "998346",
+          rate: 1000,
+          qty: 1,
+          qtyUnit: "NOS",
+          amount: 1000,
+        };
+      });
 
       if (rec.proformaData && rec.proformaData.items && rec.proformaData.items.length > 0) {
         setProformaForm({
@@ -1444,16 +1450,19 @@ export default function CalibrationPageView() {
           (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
           r._id === rec._id
       );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
-        itemNo: idx + 1,
-        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-        subText: `NABL Traceable Report (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-        hsnSac: "998346",
-        rate: 1000,
-        qty: 1,
-        qtyUnit: "NOS",
-        amount: 1000,
-      }));
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        return {
+          itemNo: idx + 1,
+          name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+          subText: `NABL Traceable Report (${makeStr}S/N: ${r.serialNo || "-"})`,
+          hsnSac: "998346",
+          rate: 1000,
+          qty: 1,
+          qtyUnit: "NOS",
+          amount: 1000,
+        };
+      });
 
       if (rec.quotationData && rec.quotationData.items && rec.quotationData.items.length > 0) {
         setQuotationForm({
@@ -2165,7 +2174,7 @@ export default function CalibrationPageView() {
   const createDefaultInstrumentRow = () => ({
     id: "inst_" + Math.random().toString(36).substring(2, 9),
     instrument: "",
-    make: "ARCL",
+    make: "",
     modelNo: "",
     serialNo: "",
     instrumentRange: "",
@@ -3986,7 +3995,7 @@ export default function CalibrationPageView() {
                         <tr key={r._id} className="hover:bg-blue-50/40 transition">
                           <td className="p-3.5 font-bold text-gray-900">{r.instrument}</td>
                           <td className="p-3.5 text-gray-500">
-                            {r.make} / {r.modelNo}
+                            {[r.make, r.modelNo].filter(Boolean).join(" / ") || "-"}
                           </td>
                           <td className="p-3.5 font-mono text-gray-600 font-bold">{r.serialNo}</td>
                           <td className="p-3.5">
@@ -4499,18 +4508,18 @@ export default function CalibrationPageView() {
                     const isMulti = batch.items.length > 1;
 
                     // Compute clean aggregated displays
-                    const makes = Array.from(new Set(batch.items.map((i) => i.make).filter(Boolean)));
-                    const makeDisplay = makes.length === 1 ? makes[0] : makes.length > 1 ? `${makes[0]} (${makes.length})` : "ARCL";
+                    const makes = Array.from(new Set(batch.items.map((i) => i.make?.trim()).filter(Boolean)));
+                    const makeDisplay = makes.length === 1 ? makes[0] : makes.length > 1 ? `${makes[0]} (${makes.length})` : "";
 
-                    const models = Array.from(new Set(batch.items.map((i) => i.modelNo).filter(Boolean)));
-                    const modelDisplay = models.length === 1 ? models[0] : models.length > 1 ? `${models[0]} (${models.length})` : "-";
+                    const models = Array.from(new Set(batch.items.map((i) => i.modelNo?.trim()).filter(Boolean)));
+                    const modelDisplay = models.length === 1 ? models[0] : models.length > 1 ? `${models[0]} (${models.length})` : "";
 
                     const serialDisplay = isMulti
-                      ? `${batch.items[0]?.serialNo || "N/A"}, ${batch.items[1]?.serialNo || ""}... (${batch.items.length} S/N)`
+                      ? `${batch.items[0]?.serialNo || "-"}, ${batch.items[1]?.serialNo || ""}... (${batch.items.length} S/N)`
                       : batch.items[0]?.serialNo || "-";
 
-                    const ranges = Array.from(new Set(batch.items.map((i) => i.instrumentRange).filter(Boolean)));
-                    const rangeDisplay = ranges.length === 1 ? ranges[0] : ranges.length > 1 ? `Multi-Range (${batch.items.length})` : "0 - 100";
+                    const ranges = Array.from(new Set(batch.items.map((i) => i.instrumentRange?.trim()).filter(Boolean)));
+                    const rangeDisplay = ranges.length === 1 ? ranges[0] : ranges.length > 1 ? `Multi-Range (${batch.items.length})` : (ranges[0] || "");
 
                     return (
                       <React.Fragment key={batch.batchKey || idx}>
@@ -5463,7 +5472,7 @@ export default function CalibrationPageView() {
                                     <td className="p-2.5 text-gray-400">{idx + 1}</td>
                                     <td className="p-2.5 font-sans font-bold text-gray-900">{inst.instrument}</td>
                                     <td className="p-2.5 text-blue-600 font-bold">{inst.serialNo}</td>
-                                    <td className="p-2.5 text-gray-600">{inst.make} / {inst.modelNo}</td>
+                                    <td className="p-2.5 text-gray-600">{[inst.make, inst.modelNo].filter(Boolean).join(" / ") || "-"}</td>
                                     <td className="p-2.5 text-rose-600 font-bold">
                                       {inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}
                                     </td>
@@ -7527,7 +7536,7 @@ export default function CalibrationPageView() {
                                 {inst.instrument || "Measuring Instrument"}
                               </td>
                               <td className="p-2 border border-gray-200">
-                                {inst.make || "ARCL"} / {inst.modelNo || "-"}
+                                {[inst.make, inst.modelNo].filter(Boolean).join(" / ") || "-"}
                               </td>
                               <td className="p-2 border border-gray-200 font-mono text-blue-700 font-bold">
                                 {inst.serialNo || "-"}
@@ -7638,8 +7647,7 @@ export default function CalibrationPageView() {
                     <div>
                       Make / Model:{" "}
                       <strong>
-                        {selectedDoc.record?.make || "ARCL"} /{" "}
-                        {selectedDoc.record?.modelNo || "GEN-01"}
+                        {[selectedDoc.record?.make, selectedDoc.record?.modelNo].filter(Boolean).join(" / ") || "-"}
                       </strong>
                     </div>
                     <div>

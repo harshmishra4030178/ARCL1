@@ -844,8 +844,8 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       itemNo: idx + 1,
       instrument: r.instrument || "Measuring Instrument",
       serialNo: r.serialNo || "-",
-      make: r.make || "ARCL",
-      modelNo: r.modelNo || "-",
+      make: r.make || "",
+      modelNo: r.modelNo || "",
       instrumentRange: r.instrumentRange || "-",
       stickerCheck: r.records?.stickerCheck ?? true,
       remarks: r.remarks || "Standard NABL Calibration Required",
@@ -1029,8 +1029,8 @@ export const downloadDocument = async (req, res, next) => {
       itemNo: idx + 1,
       instrument: r.instrument || "Measuring Instrument",
       serialNo: r.serialNo || "-",
-      make: r.make || "ARCL",
-      modelNo: r.modelNo || "-",
+      make: r.make || "",
+      modelNo: r.modelNo || "",
       instrumentRange: r.instrumentRange || "-",
       stickerCheck: r.records?.stickerCheck ?? true,
       remarks: r.remarks || "Standard NABL Calibration Required",
@@ -1050,8 +1050,8 @@ export const downloadDocument = async (req, res, next) => {
     const dueDate = record?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const challanDate = record?.challanDate || calDate;
     const sentToLab = record?.sentToLab || "ARCL Central Metrology Laboratory";
-    const make = record?.make || "ARCL Instruments";
-    const modelNo = record?.modelNo || "ARCL-CTM-2000";
+    const make = record?.make || "-";
+    const modelNo = record?.modelNo || "-";
 
     if (format === "json") {
       return res.status(200).json(new ApiResponse(200, { record, batchInstruments, docType, title: docType }, "Document data retrieved"));
@@ -1232,16 +1232,19 @@ export const getQuotationData = async (req, res, next) => {
     if (!batchRecords.length && record) {
       batchRecords = [record];
     }
-    const dynamicItems = batchRecords.map((r, idx) => ({
-      itemNo: idx + 1,
-      name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-      subText: `NABL Traceable Report (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-      hsnSac: "998346",
-      rate: 1000,
-      qty: 1,
-      qtyUnit: "NOS",
-      amount: 1000,
-    }));
+    const dynamicItems = batchRecords.map((r, idx) => {
+      const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+      return {
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+        subText: `NABL Traceable Report (${makeStr}S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      };
+    });
 
     const quotationData = record?.quotationData || {
       quotationNo: `ARCL/QTN/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
@@ -1357,18 +1360,21 @@ export const getTaxInvoiceData = async (req, res, next) => {
     if (!batchRecords.length && record) {
       batchRecords = [record];
     }
-    const dynamicItems = batchRecords.map((r, idx) => ({
-      itemNo: idx + 1,
-      name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
-      subText: `NABL Accredited Metrological Calibration (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-      hsnSac: "998346",
-      taxRate: "18%",
-      qty: 1,
-      qtyUnit: "NOS",
-      rate: 5000,
-      per: "NOS",
-      amount: 5000,
-    }));
+    const dynamicItems = batchRecords.map((r, idx) => {
+      const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+      return {
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
+        subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        taxRate: "18%",
+        qty: 1,
+        qtyUnit: "NOS",
+        rate: 5000,
+        per: "NOS",
+        amount: 5000,
+      };
+    });
 
     const taxInvoiceData = record?.taxInvoiceData || {
       invoiceNo: `ARCL/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
@@ -1474,16 +1480,19 @@ export const getProformaData = async (req, res, next) => {
     if (!batchRecords.length && record) {
       batchRecords = [record];
     }
-    const dynamicItems = batchRecords.map((r, idx) => ({
-      itemNo: idx + 1,
-      name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-      subText: `NABL Proforma Scope (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
-      hsnSac: "998346",
-      rate: 1000,
-      qty: 1,
-      qtyUnit: "NOS",
-      amount: 1000,
-    }));
+    const dynamicItems = batchRecords.map((r, idx) => {
+      const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+      return {
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+        subText: `NABL Proforma Scope (${makeStr}S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      };
+    });
 
     const proformaData = record?.proformaData || {
       piNo: `ARCL/PI/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,

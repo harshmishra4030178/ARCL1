@@ -1351,7 +1351,7 @@ function Calibration() {
                   Serial No (Asset ID): <strong className="font-mono text-blue-700">{trackResult.serialNo}</strong>
                 </div>
                 <div>
-                  Make / Model: <strong>{trackResult.make || "ARCL"} / {trackResult.modelNo || "Standard"}</strong>
+                  Make / Model: <strong>{[trackResult.make, trackResult.modelNo].filter(Boolean).join(" / ") || "-"}</strong>
                 </div>
                 <div>
                   Environmental Condition: <strong>Temp: 23°C ± 2°C | RH: 50% ± 10%</strong>

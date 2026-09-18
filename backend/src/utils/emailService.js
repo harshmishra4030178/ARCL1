@@ -685,7 +685,7 @@ export const sendCalibrationDueEmail = async ({
       <tr style="border-bottom: 1px solid #f1f5f9;">
         <td style="padding: 10px 12px; font-weight: 600; color: #1e293b;">${idx + 1}. ${inst.instrument || "Instrument"}</td>
         <td style="padding: 10px 12px; font-family: monospace; color: #0284c7; font-weight: 600;">${inst.serialNo || "N/A"}</td>
-        <td style="padding: 10px 12px; color: #64748b;">${inst.make || "ARCL"} / ${inst.modelNo || "-"}</td>
+        <td style="padding: 10px 12px; color: #64748b;">${[inst.make, inst.modelNo].filter(Boolean).join(" / ") || "-"}</td>
         <td style="padding: 10px 12px; font-family: monospace; font-weight: bold; color: #dc2626;">${inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}</td>
       </tr>`
     )
@@ -1100,18 +1100,21 @@ export const sendSpecificDocumentEmail = async ({
             instruments: batchInstruments,
           };
         } else if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
-          const dynamicInvoiceItems = batchInstruments.map((inst, i) => ({
-            itemNo: i + 1,
-            name: `${inst.instrument} - Calibration & Testing`,
-            subText: `NABL Accredited Metrological Calibration (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
-            hsnSac: "998346",
-            taxRate: "18%",
-            qty: 1,
-            qtyUnit: "NOS",
-            rate: 5000,
-            per: "NOS",
-            amount: 5000,
-          }));
+          const dynamicInvoiceItems = batchInstruments.map((inst, i) => {
+            const makeStr = inst.make?.trim() ? `Make: ${inst.make.trim()} | ` : "";
+            return {
+              itemNo: i + 1,
+              name: `${inst.instrument} - Calibration & Testing`,
+              subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${inst.serialNo || "-"})`,
+              hsnSac: "998346",
+              taxRate: "18%",
+              qty: 1,
+              qtyUnit: "NOS",
+              rate: 5000,
+              per: "NOS",
+              amount: 5000,
+            };
+          });
 
           customDocData = {
             invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
@@ -1124,16 +1127,19 @@ export const sendSpecificDocumentEmail = async ({
             items: dynamicInvoiceItems,
           };
         } else if (!customDocData && d.type === "quotation") {
-          const dynamicQuotationItems = batchInstruments.map((inst, i) => ({
-            itemNo: i + 1,
-            name: `${inst.instrument} - Calibration`,
-            subText: `NABL Traceable Report (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
-            hsnSac: "998346",
-            rate: 1000,
-            qty: 1,
-            qtyUnit: "NOS",
-            amount: 1000,
-          }));
+          const dynamicQuotationItems = batchInstruments.map((inst, i) => {
+            const makeStr = inst.make?.trim() ? `Make: ${inst.make.trim()} | ` : "";
+            return {
+              itemNo: i + 1,
+              name: `${inst.instrument} - Calibration`,
+              subText: `NABL Traceable Report (${makeStr}S/N: ${inst.serialNo || "-"})`,
+              hsnSac: "998346",
+              rate: 1000,
+              qty: 1,
+              qtyUnit: "NOS",
+              amount: 1000,
+            };
+          });
 
           customDocData = {
             quotationNo: `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
@@ -1153,16 +1159,19 @@ export const sendSpecificDocumentEmail = async ({
             sgstRate: 9.0,
           };
         } else if (!customDocData && (d.type === "pi" || d.type === "proforma_invoice")) {
-          const dynamicPiItems = batchInstruments.map((inst, i) => ({
-            itemNo: i + 1,
-            name: `${inst.instrument} - Calibration`,
-            subText: `NABL Proforma Scope (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
-            hsnSac: "998346",
-            rate: 1000,
-            qty: 1,
-            qtyUnit: "NOS",
-            amount: 1000,
-          }));
+          const dynamicPiItems = batchInstruments.map((inst, i) => {
+            const makeStr = inst.make?.trim() ? `Make: ${inst.make.trim()} | ` : "";
+            return {
+              itemNo: i + 1,
+              name: `${inst.instrument} - Calibration`,
+              subText: `NABL Proforma Scope (${makeStr}S/N: ${inst.serialNo || "-"})`,
+              hsnSac: "998346",
+              rate: 1000,
+              qty: 1,
+              qtyUnit: "NOS",
+              amount: 1000,
+            };
+          });
 
           customDocData = {
             piNo: `ARCL/PI/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "088"}`,
