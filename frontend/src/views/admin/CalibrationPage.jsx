@@ -3234,6 +3234,8 @@ export default function CalibrationPageView() {
 
   const [templatePreviewMode, setTemplatePreviewMode] = useState("email"); // 'email', 'whatsapp'
   const [reminderSelectedClient, setReminderSelectedClient] = useState("all");
+  const [dispatchAudienceMode, setDispatchAudienceMode] = useState("single"); // 'single' | 'multiple'
+  const [selectedBatchCompanies, setSelectedBatchCompanies] = useState([]);
   const [customModalSubject, setCustomModalSubject] = useState("");
   const [customModalMessage, setCustomModalMessage] = useState("");
   const [isCustomizingModalMessage, setIsCustomizingModalMessage] = useState(false);
@@ -5197,7 +5199,11 @@ export default function CalibrationPageView() {
           }
         });
 
-        const totalClientsWithDue = recipientGroups.filter((g) => g.dueInstruments.length > 0).length;
+        const dueRecipientGroups = recipientGroups.filter((g) => g.dueInstruments.length > 0);
+        const selectedBatchRecips = recipientGroups.filter((g) => selectedBatchCompanies.includes(g.company));
+        const selectedBatchDueCount = selectedBatchRecips.reduce((acc, r) => acc + (r.dueInstruments.length || 0), 0);
+
+        const totalClientsWithDue = dueRecipientGroups.length;
         const totalClientsUpToDate = recipientGroups.filter((g) => g.dueInstruments.length === 0).length;
         const totalCustomCandidates = recipientGroups.filter((g) => g.isCustom).length;
         const totalInstrumentsDueInSystem = safeRecords.filter((r) => r?.calibrationDueDate && new Date(r.calibrationDueDate) <= cutoffDate).length;
@@ -5249,7 +5255,7 @@ export default function CalibrationPageView() {
                   <FaBolt className="text-amber-500" /> DYNAMIC AUTOMATION STUDIO • ISO/IEC 17025
                 </div>
                 <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                  Automated Calibration Due Mail & Recipients Directory
+                  Automated Calibration Due Mail &amp; Recipients Directory
                 </h2>
                 <p className="text-xs text-gray-500">
                   Manage recipient email addresses, customize notice templates, preview live dispatches, and track audit history.
@@ -5358,18 +5364,197 @@ export default function CalibrationPageView() {
 
             {/* Main 2-Column Studio Grid: Editor (Left) + Live Simulator (Right) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* LEFT COLUMN: DYNAMIC TEMPLATE EDITOR */}
+              {/* LEFT COLUMN: DYNAMIC TEMPLATE & DISPATCH STUDIO */}
               <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-5">
-                <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                    <FaEdit className="text-blue-600" /> Template Configuration & Fields
-                  </h3>
-                  <span className="text-[11px] bg-emerald-50 text-emerald-700 font-mono font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    Live Sync Active
-                  </span>
+                <div className="border-b border-gray-100 pb-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+                      <FaEdit className="text-blue-600" /> Template Configuration &amp; Dispatch
+                    </h3>
+                    <span className="text-[11px] bg-emerald-50 text-emerald-700 font-mono font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Live Sync Active
+                    </span>
+                  </div>
+
+                  {/* Mode Selector Tabs: Single vs Multiple/Batch */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setDispatchAudienceMode("single")}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        dispatchAudienceMode === "single"
+                          ? "bg-white text-[#021C57] shadow-xs border border-gray-200 font-black"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      <span>🎯 Single Client (Ek Ko Bhejo)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchAudienceMode("multiple");
+                        if (selectedBatchCompanies.length === 0) {
+                          setSelectedBatchCompanies(dueRecipientGroups.map((g) => g.company));
+                        }
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        dispatchAudienceMode === "multiple"
+                          ? "bg-[#021C57] text-white shadow-xs font-black"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      <FaUsers className="text-xs" />
+                      <span>👥 Batch / Multi (Ek Sath Bahut Logo Ko)</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
+                  {/* Mode 1: Single Client Target Selector */}
+                  {dispatchAudienceMode === "single" && (
+                    <div className="space-y-3 p-3 bg-slate-50/70 rounded-xl border border-slate-200/80">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">
+                            Due Window (Days):
+                          </label>
+                          <select
+                            value={reminderTemplate.thresholdDays}
+                            onChange={(e) => setReminderTemplate({ ...reminderTemplate, thresholdDays: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                          >
+                            <option value="15">Next 15 Days (Urgent)</option>
+                            <option value="30">Next 30 Days (Standard NABL)</option>
+                            <option value="45">Next 45 Days</option>
+                            <option value="60">Next 60 Days (Advance)</option>
+                            <option value="90">Next 90 Days (Quarterly)</option>
+                            <option value="365">All Active Records (Annual)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">
+                            Target Client / Company:
+                          </label>
+                          <select
+                            value={reminderSelectedClient === "all" ? (uniqueClients[0] || "") : reminderSelectedClient}
+                            onChange={(e) => setReminderSelectedClient(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                          >
+                            {uniqueClients.map((client) => {
+                              const cDue = safeRecords.filter((r) => r?.clientCompany === client && (r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : true)).length;
+                              return (
+                                <option key={client} value={client}>
+                                  {client} ({cDue} due)
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Single Client Quick Info Card */}
+                      <div className="p-2.5 bg-white rounded-lg border border-blue-100 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-blue-950 truncate max-w-[220px]">
+                            🏢 {previewCompany}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 font-mono">
+                            {targetDueRecords.length} Due ({days}d)
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600 font-mono">
+                          <span>👤 {previewPerson}</span>
+                          <span>✉️ {previewEmail}</span>
+                          <span>📞 {previewPhone}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode 2: Multiple / Batch Target Selector (Ek Sath Bahut Logo Ko) */}
+                  {dispatchAudienceMode === "multiple" && (
+                    <div className="space-y-2 p-3 bg-slate-50/70 rounded-xl border border-slate-200/80">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                          <FaCheckSquare className="text-blue-600" /> Select Target Companies ({selectedBatchCompanies.length} selected):
+                        </label>
+                        <div className="flex items-center gap-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBatchCompanies(dueRecipientGroups.map((g) => g.company))}
+                            className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-md border border-blue-200 transition cursor-pointer"
+                          >
+                            All Due ({dueRecipientGroups.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBatchCompanies(uniqueClients)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-md border border-slate-200 transition cursor-pointer"
+                          >
+                            All ({uniqueClients.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBatchCompanies([])}
+                            className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-md border border-gray-200 transition cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Scrollable multi-company selection box */}
+                      <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100 bg-white p-1 text-xs">
+                        {recipientGroups.map((group) => {
+                          const isChecked = selectedBatchCompanies.includes(group.company);
+                          const dueCount = group.dueInstruments.length;
+                          return (
+                            <label
+                              key={group.id}
+                              className={`p-2 flex items-center justify-between rounded-lg transition cursor-pointer ${
+                                isChecked ? "bg-blue-50/80" : "hover:bg-gray-100/70"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      setSelectedBatchCompanies(selectedBatchCompanies.filter((c) => c !== group.company));
+                                    } else {
+                                      setSelectedBatchCompanies([...selectedBatchCompanies, group.company]);
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <div>
+                                  <span className="font-bold text-gray-900 block text-xs">{group.company}</span>
+                                  <span className="text-[10px] text-gray-500 font-mono">{group.email}</span>
+                                </div>
+                              </div>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                                  dueCount > 0
+                                    ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                    : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                }`}
+                              >
+                                {dueCount > 0 ? `🔴 ${dueCount} Due` : "🟢 Valid"}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium pt-1">
+                        <span>Selected {selectedBatchCompanies.length} of {recipientGroups.length} companies</span>
+                        <span className="font-mono font-bold text-rose-700">{selectedBatchDueCount} total due equipments</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Field 1: Email Subject */}
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
@@ -5396,47 +5581,6 @@ export default function CalibrationPageView() {
                           + {tag}
                         </button>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Field 2: Expiration Due Window Threshold */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        Due Window (Days):
-                      </label>
-                      <select
-                        value={reminderTemplate.thresholdDays}
-                        onChange={(e) => setReminderTemplate({ ...reminderTemplate, thresholdDays: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="15">Next 15 Days (Urgent)</option>
-                        <option value="30">Next 30 Days (Standard NABL)</option>
-                        <option value="45">Next 45 Days</option>
-                        <option value="60">Next 60 Days (Advance)</option>
-                        <option value="90">Next 90 Days (Quarterly)</option>
-                        <option value="365">All Active Records (Annual)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        Preview Client / Company:
-                      </label>
-                      <select
-                        value={reminderSelectedClient === "all" ? (uniqueClients[0] || "") : reminderSelectedClient}
-                        onChange={(e) => setReminderSelectedClient(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                      >
-                        {uniqueClients.map((client) => {
-                          const cDue = safeRecords.filter((r) => r?.clientCompany === client && (r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : true)).length;
-                          return (
-                            <option key={client} value={client}>
-                              {client} ({cDue} due)
-                            </option>
-                          );
-                        })}
-                      </select>
                     </div>
                   </div>
 
@@ -5525,19 +5669,230 @@ export default function CalibrationPageView() {
                   </div>
                 </div>
 
-                {/* Quick Action Footer in Editor */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500 font-medium">
-                    Auto-saved locally in browser session
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSingleReminderModal(previewCompany)}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-                  >
-                    <FaPaperPlane /> Send Direct Notice to {previewCompany.slice(0, 16)}...
-                  </button>
-                </div>
+                {/* Quick Action Footer in Editor (Single vs Batch Mode) */}
+                {dispatchAudienceMode === "single" ? (
+                  <div className="pt-3 border-t border-gray-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                        <span>⚡ Dispatch Single Notice:</span>
+                        <span className="text-blue-700 truncate max-w-[140px]">{previewCompany}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSingleReminderModal(previewCompany)}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
+                      >
+                        ⚙️ Full Modal Composer
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetRecip = recipientGroups.find((r) => r.company === previewCompany) || {
+                            company: previewCompany,
+                            contactPerson: previewPerson,
+                            email: previewEmail,
+                            phone: previewPhone,
+                            dueInstruments: targetDueRecords,
+                            allInstruments: companyRecords,
+                          };
+                          handleDirectEmailDispatch(targetRecip);
+                        }}
+                        className="px-2.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                        title="Send instant SMTP reminder email to this client only"
+                      >
+                        <FaEnvelope className="text-xs" /> Send Email
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetRecip = recipientGroups.find((r) => r.company === previewCompany) || {
+                            company: previewCompany,
+                            contactPerson: previewPerson,
+                            email: previewEmail,
+                            phone: previewPhone,
+                            dueInstruments: targetDueRecords,
+                            allInstruments: companyRecords,
+                          };
+                          handleDirectWhatsAppDispatch(targetRecip);
+                        }}
+                        className="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                        title="Open WhatsApp chat with prefilled due notice"
+                      >
+                        <FaWhatsapp className="text-sm" /> WhatsApp
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const targetRecip = recipientGroups.find((r) => r.company === previewCompany) || {
+                            company: previewCompany,
+                            contactPerson: previewPerson,
+                            email: previewEmail,
+                            phone: previewPhone,
+                            dueInstruments: targetDueRecords,
+                            allInstruments: companyRecords,
+                          };
+                          await handleDirectEmailDispatch(targetRecip);
+                          handleDirectWhatsAppDispatch(targetRecip);
+                        }}
+                        className="px-2.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                        title="Send both Email and open WhatsApp"
+                      >
+                        <FaBolt className="text-xs" /> Both
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-3 border-t border-gray-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                        <span>👥 Batch Dispatch to:</span>
+                        <span className="text-blue-900 font-mono font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          {selectedBatchCompanies.length} Companies
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleOpenBatchConfirm}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
+                      >
+                        ⚡ Preview All in Modal
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        disabled={selectedBatchCompanies.length === 0}
+                        onClick={async () => {
+                          const targetRecips = recipientGroups.filter((r) => selectedBatchCompanies.includes(r.company));
+                          if (targetRecips.length === 0) {
+                            toast.warning("Please select at least one company!");
+                            return;
+                          }
+                          const toastId = toast.loading(`Sending batch email to ${targetRecips.length} organizations...`);
+                          let sent = 0;
+                          for (const recip of targetRecips) {
+                            try {
+                              await sendCalibrationReminderApi({
+                                clientEmail: recip.email,
+                                clientCompany: recip.company,
+                                contactPerson: recip.contactPerson,
+                                clientPhone: recip.phone,
+                                instruments: recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments,
+                                customSubject: (reminderTemplate.subject || "Calibration Due Notice for {{company}}").replace(/{{company}}/gi, recip.company),
+                                customMessage: reminderTemplate.introMessage,
+                                labContactPhone: reminderTemplate.labContactPhone,
+                                labContactEmail: reminderTemplate.labContactEmail,
+                                labScopeText: reminderTemplate.labScope,
+                                customFooterText: reminderTemplate.footerNote,
+                              });
+                              recordDispatchLog({
+                                company: recip.company,
+                                contactPerson: recip.contactPerson,
+                                email: recip.email,
+                                phone: recip.phone,
+                                channel: "Email (SMTP Direct)",
+                                subject: (reminderTemplate.subject || "Calibration Due Notice").replace(/{{company}}/gi, recip.company),
+                                instrumentsCount: recip.dueInstruments.length || 1,
+                                status: "Delivered (Batch Dispatch) ✅",
+                              });
+                              sent++;
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }
+                          toast.update(toastId, {
+                            render: `✉️ Successfully sent emails to ${sent} organizations! ✅`,
+                            type: "success",
+                            isLoading: false,
+                            autoClose: 5000,
+                          });
+                        }}
+                        className="px-2.5 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="Send individual emails to all selected companies"
+                      >
+                        <FaEnvelope className="text-xs" /> Batch Email ({selectedBatchCompanies.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={selectedBatchCompanies.length === 0}
+                        onClick={() => {
+                          const targetRecips = recipientGroups.filter((r) => selectedBatchCompanies.includes(r.company));
+                          if (targetRecips.length === 0) {
+                            toast.warning("Please select at least one company!");
+                            return;
+                          }
+                          targetRecips.forEach((r) => handleDirectWhatsAppDispatch(r));
+                        }}
+                        className="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="Open WhatsApp chats for selected companies"
+                      >
+                        <FaWhatsapp className="text-sm" /> Batch WA ({selectedBatchCompanies.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={selectedBatchCompanies.length === 0}
+                        onClick={async () => {
+                          const targetRecips = recipientGroups.filter((r) => selectedBatchCompanies.includes(r.company));
+                          if (targetRecips.length === 0) {
+                            toast.warning("Please select at least one company!");
+                            return;
+                          }
+                          const toastId = toast.loading(`Dispatching Email & WhatsApp for ${targetRecips.length} companies...`);
+                          let sent = 0;
+                          for (const recip of targetRecips) {
+                            try {
+                              await sendCalibrationReminderApi({
+                                clientEmail: recip.email,
+                                clientCompany: recip.company,
+                                contactPerson: recip.contactPerson,
+                                clientPhone: recip.phone,
+                                instruments: recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments,
+                                customSubject: (reminderTemplate.subject || "Calibration Due Notice for {{company}}").replace(/{{company}}/gi, recip.company),
+                                customMessage: reminderTemplate.introMessage,
+                                labContactPhone: reminderTemplate.labContactPhone,
+                                labContactEmail: reminderTemplate.labContactEmail,
+                                labScopeText: reminderTemplate.labScope,
+                                customFooterText: reminderTemplate.footerNote,
+                              });
+                              recordDispatchLog({
+                                company: recip.company,
+                                contactPerson: recip.contactPerson,
+                                email: recip.email,
+                                phone: recip.phone,
+                                channel: "Email (SMTP) + WA",
+                                subject: (reminderTemplate.subject || "Calibration Due Notice").replace(/{{company}}/gi, recip.company),
+                                instrumentsCount: recip.dueInstruments.length || 1,
+                                status: "Delivered (Multi-Channel Batch) ✅",
+                              });
+                              sent++;
+                            } catch (e) {
+                              console.error(e);
+                            }
+                            handleDirectWhatsAppDispatch(recip);
+                          }
+                          toast.update(toastId, {
+                            render: `🚀 Dispatched notices to ${sent} organizations! ✅`,
+                            type: "success",
+                            isLoading: false,
+                            autoClose: 5000,
+                          });
+                        }}
+                        className="px-2.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1 shadow-sm cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="Send both Email and WhatsApp for all selected companies"
+                      >
+                        <FaBolt className="text-xs" /> Both ({selectedBatchCompanies.length})
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* RIGHT COLUMN: REAL-TIME DYNAMIC PREVIEW SIMULATOR */}
