@@ -3583,16 +3583,16 @@ export default function CalibrationPageView() {
 
   // Open Single Client Reminder Modal from Tab 3 or anywhere with dynamic prefilled message
   const handleOpenSingleReminderModal = (clientName = "") => {
-    const target = clientName || (selectedClient !== "all" ? selectedClient : uniqueClients[0] || "Sumeet Industries Pvt. Ltd.");
-    const clientRecord = records.find((r) => r.clientCompany === target);
+    const target = clientName || (reminderSelectedClient && reminderSelectedClient !== "all" ? reminderSelectedClient : uniqueClients[0] || "Sumeet Industries Pvt. Ltd.");
     const customCand = customCandidates.find((c) => c.company === target || c.id === target);
     const clientRecords = records.filter((r) => r.clientCompany === target);
+    const clientRecord = clientRecords[0] || records.find((r) => r.clientCompany === target);
     const person = customCand?.contactPerson || clientRecord?.clientContactPerson || "Quality Manager";
     const company = customCand?.company || target;
     const count = clientRecords.length > 0 ? clientRecords.length : 1;
 
     setSelectedReminderClient(company);
-    setSelectedReminderRecord(clientRecord || null);
+    setSelectedReminderRecord(null); // Clear single instrument focus to send for entire company's due items
     setCustomReminderEmail(customCand?.email || clientRecord?.clientEmail || "harsh.mishra9023@gmail.com");
     setCustomReminderPhone(customCand?.phone || clientRecord?.clientPhone || "+91 9369962486");
 
@@ -3636,12 +3636,12 @@ export default function CalibrationPageView() {
   // 1. Dispatch Email Only (Bus Mail pe bhejo) with Dynamic Custom Subject & Message
   const handleDispatchEmailFromModal = async () => {
     const targetEmail = (customReminderEmail || "harsh.mishra9023@gmail.com").trim();
-    const targetCompany = selectedReminderClient || "Valued Client";
+    const targetCompany = selectedReminderClient || (selectedReminderRecord?.clientCompany) || "Valued Client";
     const activeRec = selectedReminderRecord || records.find((r) => r.clientCompany === targetCompany);
     const contactPerson = activeRec?.clientContactPerson || "Quality Manager";
     const targetInstruments = selectedReminderRecord
       ? [selectedReminderRecord]
-      : (targetCompany && targetCompany !== "all" ? records.filter((r) => r.clientCompany === targetCompany) : records);
+      : records.filter((r) => r.clientCompany === targetCompany);
 
     const toastId = toast.loading(`Sending calibration reminder email to ${targetEmail}...`);
 
@@ -3692,17 +3692,14 @@ export default function CalibrationPageView() {
 
   // 2. Open WhatsApp Only (Bus WhatsApp pe bhejo) with Dynamic Custom Text
   const handleDispatchWhatsAppFromModal = () => {
+    const targetCompany = selectedReminderClient || (selectedReminderRecord?.clientCompany) || (reminderSelectedClient && reminderSelectedClient !== "all" ? reminderSelectedClient : uniqueClients[0]) || "Valued Client";
+    const activeRec = selectedReminderRecord || (records.find((r) => r.clientCompany === targetCompany)) || records[0];
+    const person = activeRec?.clientContactPerson || "Quality Manager";
+    const company = targetCompany;
     const targetInstruments = selectedReminderRecord
       ? [selectedReminderRecord]
-      : (selectedReminderClient && selectedReminderClient !== "all"
-          ? records.filter((r) => r.clientCompany === selectedReminderClient)
-          : (reminderSelectedClient !== "all"
-              ? records.filter((r) => r.clientCompany === reminderSelectedClient)
-              : records));
+      : records.filter((r) => r.clientCompany === company);
 
-    const activeRec = selectedReminderRecord || (records.find((r) => r.clientCompany === (selectedReminderClient || reminderSelectedClient)) || records[0]);
-    const person = activeRec?.clientContactPerson || "Quality Manager";
-    const company = selectedReminderClient || (reminderSelectedClient !== "all" ? reminderSelectedClient : (activeRec?.clientCompany || "Valued Client"));
     const instList = targetInstruments.length > 0 ? targetInstruments : [
       { instrument: "Testing Instrument", serialNo: "N/A", calibrationDueDate: new Date(), make: "ARCL", modelNo: "CTM-2000" }
     ];
@@ -5130,19 +5127,23 @@ export default function CalibrationPageView() {
         const days = parseInt(reminderTemplate.thresholdDays, 10) || 30;
         const cutoffDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
         
-        // Filter real due records based on selected client & threshold
-        const targetDueRecords = safeRecords.filter((r) => {
-          const matchClient = reminderSelectedClient === "all" || r?.clientCompany === reminderSelectedClient;
-          const isDue = r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : true;
-          return matchClient && isDue;
+        // Determine preview client/company strictly so equipment from different companies never get mixed
+        const previewCompany = (reminderSelectedClient && reminderSelectedClient !== "all")
+          ? reminderSelectedClient
+          : (uniqueClients[0] || safeRecords[0]?.clientCompany || "ABC Industries Pvt. Ltd.");
+
+        const companyRecords = safeRecords.filter((r) => r?.clientCompany === previewCompany);
+        const activeClientObj = companyRecords[0] || safeRecords.find((r) => r?.clientCompany === previewCompany) || safeRecords[0];
+
+        // Filter real due records ONLY for the preview company
+        const targetDueRecords = companyRecords.filter((r) => {
+          return r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : true;
         });
 
-        const activeClientObj = safeRecords.find((r) => r?.clientCompany === reminderSelectedClient) || safeRecords[0];
-        const previewCompany = reminderSelectedClient !== "all" ? reminderSelectedClient : (activeClientObj?.clientCompany || "ABC Industries Pvt. Ltd.");
         const previewPerson = activeClientObj?.clientContactPerson || "Quality Manager";
         const previewEmail = activeClientObj?.clientEmail || "qa@abcindustries.com";
         const previewPhone = activeClientObj?.clientPhone || "+91 9876543210";
-        const previewCount = targetDueRecords.length > 0 ? targetDueRecords.length : (safeRecords.length > 0 ? safeRecords.length : 3);
+        const previewCount = targetDueRecords.length;
         
         // Group all registered clients into recipient directories (combining MongoDB records + Custom Added Candidates)
         const recipientGroups = [];
@@ -5420,19 +5421,21 @@ export default function CalibrationPageView() {
 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">
-                        Select Client to Test:
+                        Preview Client / Company:
                       </label>
                       <select
-                        value={reminderSelectedClient}
+                        value={reminderSelectedClient === "all" ? (uniqueClients[0] || "") : reminderSelectedClient}
                         onChange={(e) => setReminderSelectedClient(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
                       >
-                        <option value="all">All Registered Clients</option>
-                        {uniqueClients.map((client) => (
-                          <option key={client} value={client}>
-                            {client}
-                          </option>
-                        ))}
+                        {uniqueClients.map((client) => {
+                          const cDue = safeRecords.filter((r) => r?.clientCompany === client && (r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : true)).length;
+                          return (
+                            <option key={client} value={client}>
+                              {client} ({cDue} due)
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>
@@ -5529,7 +5532,7 @@ export default function CalibrationPageView() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleOpenSingleReminderModal(reminderSelectedClient !== "all" ? reminderSelectedClient : "")}
+                    onClick={() => handleOpenSingleReminderModal(previewCompany)}
                     className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
                   >
                     <FaPaperPlane /> Send Direct Notice to {previewCompany.slice(0, 16)}...
@@ -5546,8 +5549,8 @@ export default function CalibrationPageView() {
                     <h3 className="text-sm font-black text-gray-900">
                       Live Dispatch Preview Simulator
                     </h3>
-                    <span className="text-xs text-gray-400 font-mono font-medium">
-                      ({targetDueRecords.length} due in {days}d)
+                    <span className="text-xs text-blue-700 font-mono font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                      {previewCompany} • ({targetDueRecords.length} due in {days}d)
                     </span>
                   </div>
 
