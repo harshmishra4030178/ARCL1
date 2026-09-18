@@ -2205,7 +2205,7 @@ export default function CalibrationPageView() {
     clientAddress: "",
     dcNo: "",
     challanDate: new Date().toISOString().slice(0, 10),
-    sentToLab: "ARCL Central Metrology Lab",
+    sentToLab: "ARCL Calibration Lab",
     instruments: [createDefaultInstrumentRow()],
   };
 
@@ -2491,7 +2491,7 @@ export default function CalibrationPageView() {
       clientAddress: primary.clientAddress || "",
       dcNo: primary.dcNo || "",
       challanDate: primary.challanDate ? new Date(primary.challanDate).toISOString().slice(0, 10) : "",
-      sentToLab: primary.sentToLab || "ARCL Central Metrology Lab",
+      sentToLab: (primary.sentToLab && !primary.sentToLab.includes("Metrology") && !primary.sentToLab.includes("Central")) ? primary.sentToLab : "ARCL Calibration Lab",
       invoiceSharedDate: primary.invoiceSharedDate ? new Date(primary.invoiceSharedDate).toISOString().slice(0, 10) : "",
       deletedItemIds: [],
       instruments: batchItems.map((it) => ({
@@ -7777,7 +7777,7 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Assigned Laboratory</label>
                     <input
                       type="text"
-                      placeholder="e.g. ARCL Central Metrology Lab"
+                      placeholder="e.g. ARCL Calibration Lab"
                       value={editFormData.sentToLab || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, sentToLab: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
@@ -8181,8 +8181,9 @@ export default function CalibrationPageView() {
                       <div className="col-span-2">
                         Assigned Lab:{" "}
                         <strong className="text-emerald-700 font-bold">
-                          {selectedDoc.record?.sentToLab ||
-                            "ARCL Central Metrology Laboratory"}
+                          {selectedDoc.record?.sentToLab && !selectedDoc.record.sentToLab.includes("Metrology") && !selectedDoc.record.sentToLab.includes("Central")
+                            ? selectedDoc.record.sentToLab
+                            : "ARCL Calibration Lab"}
                         </strong>
                       </div>
                     </div>

@@ -1422,9 +1422,8 @@ export const generateSrfSlipPdf = async (data = {}) => {
   const clientGst = data.clientGst || data.clientGstin || "N/A";
   const clientAddress = data.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708";
   const clientPhone = data.clientPhone || data.phone || "+91 8009559900";
-  const clientEmail = data.clientEmail || data.email || "qa@company.com";
-  const dcNo = data.dcNo || "DC/26-27/0188";
-  const sentToLab = data.sentToLab || "ARCL Central Metrology Laboratory";
+  const rawSentToLab = data.sentToLab || "ARCL Calibration Lab";
+  const sentToLab = rawSentToLab.includes("Metrology") || rawSentToLab.includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
 
   // Dynamic Inward Instruments List
   const rawInstruments = data.instruments && Array.isArray(data.instruments) && data.instruments.length > 0

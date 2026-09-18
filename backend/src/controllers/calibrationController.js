@@ -227,7 +227,7 @@ export const createCalibrationRecord = async (req, res, next) => {
     const address = clientAddress?.trim() || "";
     const commonDc = dcNo?.trim() || "DC/25-26/0154";
     const commonChallanDate = challanDate ? new Date(challanDate) : new Date();
-    const commonLab = sentToLab?.trim() || "ARCL Metrology Laboratory";
+    const commonLab = sentToLab?.trim() || "ARCL Calibration Lab";
 
     // Check if multi-instruments array is provided
     const isBatch = Array.isArray(instruments) && instruments.length > 0;
@@ -409,7 +409,7 @@ export const updateCalibrationBatch = async (req, res, next) => {
     const address = (clientAddress || "").trim();
     const commonDc = (dcNo || "").trim();
     const commonChallanDate = challanDate ? new Date(challanDate) : new Date();
-    const commonLab = (sentToLab || "ARCL Metrology Laboratory").trim();
+    const commonLab = (sentToLab || "ARCL Calibration Lab").trim();
     const commonInvoiceDate = invoiceSharedDate ? new Date(invoiceSharedDate) : new Date();
 
     // 1. Handle Deleted Instruments
@@ -1180,9 +1180,8 @@ export const downloadDocument = async (req, res, next) => {
     const certNo = record?.records?.certificateNo || (certificateNo ? certificateNo.trim().toUpperCase() : "ARCL-CAL-2026-HM01");
     const dcNo = record?.dcNo || "DC/26-27/0188";
     const calDate = record?.calibrationDate || new Date();
-    const dueDate = record?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-    const challanDate = record?.challanDate || calDate;
-    const sentToLab = record?.sentToLab || "ARCL Central Metrology Laboratory";
+    const rawSentToLab = record?.sentToLab || "ARCL Calibration Lab";
+    const sentToLab = rawSentToLab.includes("Metrology") || rawSentToLab.includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
     const make = record?.make || "-";
     const modelNo = record?.modelNo || "-";
 

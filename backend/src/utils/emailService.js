@@ -1096,7 +1096,7 @@ export const sendSpecificDocumentEmail = async ({
             clientGst: record?.clientGst || record?.clientGstin || "N/A",
             clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
             dcNo: challanNo,
-            sentToLab: record?.sentToLab || "ARCL Central Metrology Laboratory",
+            sentToLab: record?.sentToLab && !record.sentToLab.includes("Metrology") && !record.sentToLab.includes("Central") ? record.sentToLab : "ARCL Calibration Lab",
             instruments: batchInstruments,
           };
         } else if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
@@ -1204,7 +1204,7 @@ export const sendSpecificDocumentEmail = async ({
           instrument: instName,
           serialNo: sNo,
           dcNo: challanNo,
-          sentToLab: record?.sentToLab || "ARCL Central Metrology Laboratory",
+          sentToLab: record?.sentToLab && !record.sentToLab.includes("Metrology") && !record.sentToLab.includes("Central") ? record.sentToLab : "ARCL Calibration Lab",
           make: record?.make || "ARCL Instruments",
           modelNo: record?.modelNo || "-",
           customNote,

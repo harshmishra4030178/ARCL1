@@ -241,7 +241,7 @@ function Calibration() {
         calibrationDueDate: new Date("2027-05-15"),
         dcNo: "DC/26-27/0188",
         clientCompany: "Harsh Mishra Technologies Pvt. Ltd.",
-        sentToLab: "ARCL Central Metrology Lab (NABL CC-4313)",
+        sentToLab: "ARCL Calibration Lab (NABL CC-4313)",
         records: {
           certificateNo: "ARCL-CAL-2026-HM01",
           stickerCheck: true,
