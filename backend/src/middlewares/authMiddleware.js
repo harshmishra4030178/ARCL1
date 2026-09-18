@@ -152,25 +152,23 @@ export const checkModulePermission = (moduleName, actionName = null) => {
         });
       }
 
-      // Superadmins bypass all granular restrictions
-      if (isSuperAdminUser(user)) {
+      // Superadmins and Admins bypass all granular restrictions
+      if (isSuperAdminUser(user) || user.role === "admin") {
         return next();
       }
 
       const perms = user.permissions || {};
       const modPerms = perms[moduleName];
 
-      if (modPerms === undefined) {
-        if (user.role === "admin") {
-          return next();
-        }
+      if (modPerms === undefined || modPerms === null) {
         return res.status(403).json({
           success: false,
           message: `Forbidden: You do not have permission for '${moduleName}'.`,
         });
       }
 
-      if (!modPerms) {
+      if (typeof modPerms === "boolean") {
+        if (modPerms) return next();
         return res.status(403).json({
           success: false,
           message: `Forbidden: You do not have permission for '${moduleName}'.`,
@@ -178,12 +176,13 @@ export const checkModulePermission = (moduleName, actionName = null) => {
       }
 
       if (actionName) {
-        if (!modPerms[actionName]) {
-          return res.status(403).json({
-            success: false,
-            message: `Forbidden: You do not have '${actionName}' permission for '${moduleName}'.`,
-          });
+        if (modPerms[actionName] || modPerms.manage || modPerms.edit || modPerms.view || modPerms.create) {
+          return next();
         }
+        return res.status(403).json({
+          success: false,
+          message: `Forbidden: You do not have '${actionName}' permission for '${moduleName}'.`,
+        });
       } else {
         const hasAny = Object.values(modPerms).some((v) => v === true);
         if (!hasAny) {

@@ -47,14 +47,14 @@ router.put("/lab-scope/item/:itemId", checkModulePermission("calibration", "edit
 router.delete("/lab-scope/item/:itemId", checkModulePermission("calibration", "delete"), deleteNablScopeItem);
 router.post("/lab-scope/reset", checkModulePermission("calibration", "edit"), resetNablLabScope);
 router.get("/auto-reminder/status", checkModulePermission("calibration"), getAutoReminderStatusHandler);
-router.post("/auto-reminder/trigger", checkModulePermission("calibration", "dispatch"), triggerAutoReminderScanHandler);
-router.post("/auto-reminder/toggle", checkModulePermission("calibration", "dispatch"), toggleAutoReminderHandler);
+router.post("/auto-reminder/trigger", checkModulePermission("calibration"), triggerAutoReminderScanHandler);
+router.post("/auto-reminder/toggle", checkModulePermission("calibration"), toggleAutoReminderHandler);
 router.get("/quotation", checkModulePermission("calibration"), getQuotationData);
-router.post("/quotation/save", checkModulePermission("calibration", "documents"), saveQuotationData);
+router.post("/quotation/save", checkModulePermission("calibration"), saveQuotationData);
 router.get("/tax-invoice", checkModulePermission("calibration"), getTaxInvoiceData);
-router.post("/tax-invoice/save", checkModulePermission("calibration", "documents"), saveTaxInvoiceData);
+router.post("/tax-invoice/save", checkModulePermission("calibration"), saveTaxInvoiceData);
 router.get("/proforma", checkModulePermission("calibration"), getProformaData);
-router.post("/proforma/save", checkModulePermission("calibration", "documents"), saveProformaData);
+router.post("/proforma/save", checkModulePermission("calibration"), saveProformaData);
 router.post("/upload-po", upload.single("poFile"), uploadPoDocument);
 router.post("/delete-po", deletePoDocument);
 router.put("/batch/update", checkModulePermission("calibration", "edit"), updateCalibrationBatch);
@@ -63,9 +63,9 @@ router.post("/", checkModulePermission("calibration", "create"), createCalibrati
 router.put("/:id", checkModulePermission("calibration", "edit"), updateCalibrationRecord);
 router.delete("/:id", checkModulePermission("calibration", "delete"), deleteCalibrationRecord);
 router.post("/clear-all", checkModulePermission("calibration", "delete"), clearAllCalibrationData);
-router.post("/send-reminder", checkModulePermission("calibration", "dispatch"), sendDueReminder);
-router.post("/auto-dispatch-all", checkModulePermission("calibration", "dispatch"), autoDispatchAllDueReminders);
-router.post("/send-certificate-delivery", checkModulePermission("calibration", "dispatch"), sendCertificateDeliveryNotification);
-router.post("/send-document", checkModulePermission("calibration", "dispatch"), sendSpecificDocumentNotification);
+router.post("/send-reminder", checkModulePermission("calibration"), sendDueReminder);
+router.post("/auto-dispatch-all", checkModulePermission("calibration"), autoDispatchAllDueReminders);
+router.post("/send-certificate-delivery", checkModulePermission("calibration"), sendCertificateDeliveryNotification);
+router.post("/send-document", checkModulePermission("calibration"), sendSpecificDocumentNotification);
 
 export default router;

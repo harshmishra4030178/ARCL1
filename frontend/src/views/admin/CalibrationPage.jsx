@@ -3053,6 +3053,31 @@ export default function CalibrationPageView() {
     }
   };
 
+  // Helper to reliably open WhatsApp in new tab without being blocked by browser popup blockers
+  const triggerWhatsAppOpen = (url) => {
+    if (!url) return;
+    try {
+      const newWin = window.open(url, "_blank", "noopener,noreferrer");
+      if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (e) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   const handleDirectWhatsAppDispatch = (recip) => {
     const instrumentsSummary = targetInstruments
       .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
@@ -3094,7 +3119,7 @@ export default function CalibrationPageView() {
 
     const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
-    window.open(waLink, "_blank");
+    triggerWhatsAppOpen(waLink);
     toast.success(`💬 WhatsApp opened for ${recip.company}! (Message copied to clipboard)`);
   };
 
@@ -3204,22 +3229,75 @@ export default function CalibrationPageView() {
       return;
     }
 
-    const toastId = toast.loading(`Dispatching notice to ${email || phone}...`);
-    try {
-      const res = await sendCalibrationReminderApi({
-        clientEmail: email || "harsh.mishra9023@gmail.com",
-        clientCompany: company || "Registered Organization",
-        contactPerson: contactPerson || "Quality Head",
-        clientPhone: phone || "9369962486",
-        customSubject: (reminderTemplate.subject || "Calibration Due Notice").replace(/{{company}}/gi, company || "Valued Client"),
-        customMessage: reminderTemplate.introMessage,
-        labContactPhone: reminderTemplate.labContactPhone,
-        labContactEmail: reminderTemplate.labContactEmail,
-      });
+    // Prepare WhatsApp payload immediately
+    const clientRecords = records.filter((r) => r.clientCompany === (company || ""));
+    const targetInstruments = clientRecords.length > 0 ? clientRecords : [
+      { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
+    ];
 
-      const waLink = res.data?.data?.whatsappLink;
+    const instrumentsSummary = targetInstruments
+      .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
+      .join("\n");
 
-      if (channel === "email" || channel === "both") {
+    const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
+      .replace(/{{company}}/gi, company || "Valued Client")
+      .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
+      .replace(/{{count}}/gi, String(targetInstruments.length));
+
+    let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+      .replace(/{{company}}/gi, company || "Valued Client")
+      .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
+      .replace(/{{count}}/gi, String(targetInstruments.length));
+
+    if (!resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
+    }
+
+    const rawMessage =
+      `*${resolvedSubj}*\n\n` +
+      `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
+      `${resolvedIntro}\n\n` +
+      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
+      `Please schedule recalibration pickup or book on-site testing:\n` +
+      `https://arclinstruments.com/calibration-services\n\n` +
+      `ARCL Metrology Support Desk:\n` +
+      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
+
+    const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
+    const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
+
+    // Open WhatsApp immediately if requested
+    if (channel === "whatsapp" || channel === "both") {
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(rawMessage);
+        }
+      } catch (e) {}
+
+      const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
+      triggerWhatsAppOpen(waLink);
+      toast.success(`💬 WhatsApp opened for +${formattedPhone}! (Message copied to clipboard)`);
+      if (channel === "whatsapp") {
+        setIsManualModalOpen(false);
+      }
+    }
+
+    // Send Email if requested
+    if (channel === "email" || channel === "both") {
+      const toastId = toast.loading(`Dispatching notice to ${email || phone}...`);
+      try {
+        await sendCalibrationReminderApi({
+          clientEmail: email || "harsh.mishra9023@gmail.com",
+          clientCompany: company || "Registered Organization",
+          contactPerson: contactPerson || "Quality Head",
+          clientPhone: phone || "9369962486",
+          customSubject: (reminderTemplate.subject || "Calibration Due Notice").replace(/{{company}}/gi, company || "Valued Client"),
+          customMessage: reminderTemplate.introMessage,
+          labContactPhone: reminderTemplate.labContactPhone,
+          labContactEmail: reminderTemplate.labContactEmail,
+        });
+
         recordDispatchLog({
           company: company || "Manual Entry",
           contactPerson: contactPerson || "Quality Manager",
@@ -3237,66 +3315,15 @@ export default function CalibrationPageView() {
           isLoading: false,
           autoClose: 5000,
         });
+        setIsManualModalOpen(false);
+      } catch (err) {
+        toast.update(toastId, {
+          render: "Failed to dispatch email notice",
+          type: "error",
+          isLoading: false,
+          autoClose: 5000,
+        });
       }
-
-      if (channel === "whatsapp" || channel === "both") {
-        const clientRecords = records.filter((r) => r.clientCompany === (company || ""));
-        const targetInstruments = clientRecords.length > 0 ? clientRecords : [
-          { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
-        ];
-
-        const instrumentsSummary = targetInstruments
-          .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
-          .join("\n");
-
-        const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
-          .replace(/{{company}}/gi, company || "Valued Client")
-          .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
-          .replace(/{{count}}/gi, String(targetInstruments.length));
-
-        let resolvedSubj = (reminderTemplate.subject || "\uD83D\uDD34 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
-          .replace(/{{company}}/gi, company || "Valued Client")
-          .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
-          .replace(/{{count}}/gi, String(targetInstruments.length));
-
-        if (!resolvedSubj.includes("\uD83D\uDD34") && !resolvedSubj.includes("🔴")) {
-          resolvedSubj = `\uD83D\uDD34 ${resolvedSubj}`;
-        }
-
-        const rawMessage =
-          `*${resolvedSubj}*\n\n` +
-          `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
-          `${resolvedIntro}\n\n` +
-          `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
-          `Please schedule recalibration pickup or book on-site testing:\n` +
-          `https://arclinstruments.com/calibration-services\n\n` +
-          `ARCL Metrology Support Desk:\n` +
-          `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-          `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
-
-        const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
-        const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
-
-        try {
-          if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(rawMessage);
-          }
-        } catch (e) {}
-
-        const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
-
-        window.open(waLink, "_blank");
-        toast.success(`💬 WhatsApp opened for ${phone}! (Message copied to clipboard)`);
-      }
-
-      setIsManualModalOpen(false);
-    } catch (err) {
-      toast.update(toastId, {
-        render: "Failed to dispatch manual notice",
-        type: "error",
-        isLoading: false,
-        autoClose: 5000,
-      });
     }
   };
 
@@ -3416,33 +3443,86 @@ export default function CalibrationPageView() {
     const summaryTitles = activeSelected.map((dt) => docLabelsMap[dt] || dt).join(", ");
     const isMulti = activeSelected.length > 1;
 
-    const toastId = toast.loading(`Dispatching ${activeSelected.length} document(s) to ${company}...`);
+    // Construct WhatsApp message immediately
+    const docsSummaryText = activeSelected.map((dt) => `• *${docLabelsMap[dt] || dt.toUpperCase()}*`).join("\n");
+    const instName = r.instrument || "Precision Instrument";
+    const sNo = r.serialNo || "N/A";
+    const certNo = r.records?.certificateNo || "";
+    const challanNo = r.dcNo || "";
 
-    try {
-      const res = await sendSpecificDocumentApi({
-        recordId: r._id || r.id,
-        docType: activeSelected[0],
-        selectedDocTypes: activeSelected,
-        docTitle: summaryTitles,
-        clientEmail: email,
-        clientPhone: phone,
-        clientCompany: company,
+    const rawWaMessage =
+      `*OFFICIAL DOCUMENTS SHARED - ARCL METROLOGY (NABL CC-4313)*\n\n` +
+      `Dear ${person} (${company}),\n` +
+      `Please find shared the official document(s) for your equipment:\n` +
+      `${docsSummaryText}\n\n` +
+      `• Equipment: *${instName}*\n` +
+      `• Serial No: *${sNo}*\n` +
+      (certNo ? `• Certificate No: *${certNo}*\n` : "") +
+      (challanNo ? `• Challan Ref: *${challanNo}*\n` : "") +
+      (docCustomNote ? `\nNote: ${docCustomNote}\n` : "") +
+      `\n📥 *Direct PDF Download / Print:* \n` +
+      `https://arcl1-1.onrender.com/api/v1/client/calibration/download-document?serialNo=${encodeURIComponent(sNo)}&docType=${activeSelected[0]}&autoPrint=true\n\n` +
+      `🌐 *Online Portal:* \n` +
+      `https://arclinstruments.com/calibration-services?serialNo=${encodeURIComponent(sNo)}\n\n` +
+      `ARCL Metrology Support Desk:\n` +
+      `🔴 Phone: +91 8369458583 / +91 6205691085\n` +
+      `🔴 Email: arclinstruments@gmail.com`;
+
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
+    const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawWaMessage)}`;
+
+    // 1. WhatsApp Send (Trigger immediately on click so popup is never blocked)
+    if (channel === "whatsapp" || channel === "both") {
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(rawWaMessage);
+        }
+      } catch (e) {}
+
+      triggerWhatsAppOpen(waLink);
+      toast.success(`💬 Opened WhatsApp with ${activeSelected.length} document(s) notice for +${formattedPhone}! (Message copied to clipboard)`);
+
+      recordDispatchLog({
+        company,
         contactPerson: person,
-        instrument: r.instrument,
-        serialNo: r.serialNo,
-        certificateNo: r.records?.certificateNo,
-        dcNo: r.dcNo,
-        customNote: docCustomNote,
-        taxInvoiceData: r.taxInvoiceData,
-        quotationData: r.quotationData,
-        proformaData: r.proformaData,
-        poData: r.poData,
+        email,
+        phone,
+        channel: channel === "both" ? "Email (SMTP) + WhatsApp" : "WhatsApp Web",
+        subject: `[${summaryTitles.toUpperCase()}] For ${r.instrument}`,
+        instrumentsCount: activeSelected.length,
+        status: `Dispatched (WhatsApp Link) ✅`,
       });
 
-      const waLink = res.data?.data?.whatsappLink;
+      if (channel === "whatsapp") {
+        setIsSendDocModalOpen(false);
+      }
+    }
 
-      // 1. Email Send Log
-      if (channel === "email" || channel === "both") {
+    // 2. Email Send (SMTP Direct)
+    if (channel === "email" || channel === "both") {
+      const toastId = toast.loading(`Dispatching ${activeSelected.length} document(s) via email to ${email}...`);
+      try {
+        await sendSpecificDocumentApi({
+          recordId: r._id || r.id,
+          docType: activeSelected[0],
+          selectedDocTypes: activeSelected,
+          docTitle: summaryTitles,
+          clientEmail: email,
+          clientPhone: phone,
+          clientCompany: company,
+          contactPerson: person,
+          instrument: r.instrument,
+          serialNo: r.serialNo,
+          certificateNo: r.records?.certificateNo,
+          dcNo: r.dcNo,
+          customNote: docCustomNote,
+          taxInvoiceData: r.taxInvoiceData,
+          quotationData: r.quotationData,
+          proformaData: r.proformaData,
+          poData: r.poData,
+        });
+
         recordDispatchLog({
           company,
           contactPerson: person,
@@ -3462,37 +3542,16 @@ export default function CalibrationPageView() {
           isLoading: false,
           autoClose: 5000,
         });
+        setIsSendDocModalOpen(false);
+      } catch (err) {
+        console.error("Document dispatch error:", err);
+        toast.update(toastId, {
+          render: `Failed to dispatch email: ${err.response?.data?.message || err.message}`,
+          type: "error",
+          isLoading: false,
+          autoClose: 5000,
+        });
       }
-
-      // 2. WhatsApp Send
-      if (channel === "whatsapp" || channel === "both") {
-        if (waLink) {
-          window.open(waLink, "_blank");
-          toast.success(`💬 Opened WhatsApp with ${activeSelected.length} document(s) notice for ${phone}!`);
-        }
-        if (channel === "whatsapp") {
-          recordDispatchLog({
-            company,
-            contactPerson: person,
-            email,
-            phone,
-            channel: "WhatsApp Web",
-            subject: `[${summaryTitles.toUpperCase()}] For ${r.instrument}`,
-            instrumentsCount: activeSelected.length,
-            status: `Dispatched (WhatsApp Link) ✅`,
-          });
-        }
-      }
-
-      setIsSendDocModalOpen(false);
-    } catch (err) {
-      console.error("Document dispatch error:", err);
-      toast.update(toastId, {
-        render: `Failed to dispatch documents: ${err.response?.data?.message || err.message}`,
-        type: "error",
-        isLoading: false,
-        autoClose: 5000,
-      });
     }
   };
 
@@ -3833,7 +3892,7 @@ export default function CalibrationPageView() {
 
       if (waLink) {
         if (window.confirm("Email sent! Would you also like to open WhatsApp to send the certificate link directly to client?")) {
-          window.open(waLink, "_blank");
+          triggerWhatsAppOpen(waLink);
         }
       }
     } catch (err) {
@@ -4004,7 +4063,7 @@ export default function CalibrationPageView() {
   };
 
   // 2. Open WhatsApp Only (Bus WhatsApp pe bhejo) with Dynamic Custom Text
-  const handleDispatchWhatsAppFromModal = () => {
+  const handleDispatchWhatsAppFromModal = (closeModal = true) => {
     const targetCompany = selectedReminderClient || (selectedReminderRecord?.clientCompany) || (reminderSelectedClient && reminderSelectedClient !== "all" ? reminderSelectedClient : uniqueClients[0]) || "Valued Client";
     const activeRec = selectedReminderRecord || (records.find((r) => r.clientCompany === targetCompany)) || records[0];
     const person = activeRec?.clientContactPerson || "Quality Manager";
@@ -4058,15 +4117,18 @@ export default function CalibrationPageView() {
 
     const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
-    window.open(waLink, "_blank");
+    triggerWhatsAppOpen(waLink);
     toast.success(`💬 Opened WhatsApp with pre-filled calibration notice for +${formattedPhone}! (Message copied to clipboard)`);
-    setIsReminderModalOpen(false);
+    if (closeModal) {
+      setIsReminderModalOpen(false);
+    }
   };
 
   // 3. Dispatch Both Email + WhatsApp (Dono pe bhejo)
   const handleDispatchBothFromModal = async () => {
+    // Open WhatsApp immediately so browser doesn't block the popup window
+    handleDispatchWhatsAppFromModal(false);
     await handleDispatchEmailFromModal();
-    handleDispatchWhatsAppFromModal();
   };
 
   // Send Single Client Reminder from Modal
