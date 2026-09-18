@@ -931,6 +931,7 @@ export default function CalibrationPageView() {
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [quotationRecordId, setQuotationRecordId] = useState(null);
   const [quotationSaving, setQuotationSaving] = useState(false);
+  const [expandedBatchKeys, setExpandedBatchKeys] = useState(new Set());
 
   // Delete Management & Multi-Select Cleanup Modal States
   const [isDeleteManagerOpen, setIsDeleteManagerOpen] = useState(false);
@@ -2014,6 +2015,151 @@ export default function CalibrationPageView() {
       return matchesSearch && matchesStage && matchesPayment && matchesClient;
     });
   }, [records, searchTerm, stageFilter, paymentFilter, selectedClient]);
+
+  // Group filtered records by Batch (DC No + Client Company) so multiple products appear in 1 consolidated row
+  const groupedBatches = useMemo(() => {
+    const list = filteredRecords;
+    const batchMap = new Map();
+
+    list.forEach((r) => {
+      const dcClean = (r.dcNo || "").trim();
+      const compClean = (r.clientCompany || "External Client").trim();
+      const key = dcClean
+        ? `${compClean}___${dcClean}`
+        : `${compClean}___${r.challanDate ? new Date(r.challanDate).toISOString().slice(0, 10) : ""}_${r._id || r.id}`;
+
+      if (!batchMap.has(key)) {
+        batchMap.set(key, {
+          batchKey: key,
+          primaryRecord: r,
+          items: [],
+          clientCompany: compClean,
+          clientContactPerson: r.clientContactPerson || "Quality Manager",
+          clientEmail: r.clientEmail || "",
+          clientPhone: r.clientPhone || "",
+          clientGst: r.clientGst || "",
+          clientAddress: r.clientAddress || "",
+          dcNo: r.dcNo || "-",
+          challanDate: r.challanDate,
+          sentToLab: r.sentToLab || "ARCL Laboratory",
+          broughtToCompanyDate: r.broughtToCompanyDate,
+          invoiceSharedDate: r.invoiceSharedDate,
+          calibrationDate: r.calibrationDate,
+          calibrationDueDate: r.calibrationDueDate,
+          commercialDocs: r.commercialDocs || {},
+          stage: r.stage || "Calibration Done",
+          records: r.records || {},
+        });
+      }
+      batchMap.get(key).items.push(r);
+    });
+
+    return Array.from(batchMap.values());
+  }, [filteredRecords]);
+
+  const toggleExpandBatch = (batchKey) => {
+    setExpandedBatchKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(batchKey)) {
+        next.delete(batchKey);
+      } else {
+        next.add(batchKey);
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteBatch = async (batch) => {
+    const itemCount = batch.items.length;
+    const msg = itemCount > 1
+      ? `Are you sure you want to delete all ${itemCount} instruments in batch for "${batch.clientCompany}" (DC: ${batch.dcNo})?`
+      : `Are you sure you want to delete "${batch.items[0]?.instrument || batch.clientCompany}"?`;
+
+    if (!window.confirm(msg)) return;
+
+    try {
+      const deletePromises = batch.items.map((it) => {
+        const id = it._id || it.id;
+        if (id && String(id).length > 5 && !String(id).startsWith("rec-")) {
+          return deleteCalibrationRecordApi(id).catch((e) => console.warn(e));
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(deletePromises);
+      toast.success(`Deleted ${itemCount} instrument(s) from database! 🗑️`);
+      fetchData(false);
+    } catch (err) {
+      console.error("Batch delete error:", err);
+      toast.error("Failed to delete batch records");
+    }
+  };
+
+  const handleAdvanceBatchStage = async (batch) => {
+    const stages = [
+      "Instrument Received",
+      "Under Calibration",
+      "Calibration Done",
+      "Invoice Sent",
+      "Certificate Uploaded",
+    ];
+    const current = batch.stage || "Instrument Received";
+    const currentIdx = stages.indexOf(current);
+    const nextIdx = currentIdx < stages.length - 1 ? currentIdx + 1 : currentIdx;
+    const nextStage = stages[nextIdx];
+
+    try {
+      const updatePromises = batch.items.map((it) => {
+        const id = it._id || it.id;
+        if (id && String(id).length > 5 && !String(id).startsWith("rec-")) {
+          return updateCalibrationRecordApi(id, { stage: nextStage });
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(updatePromises);
+      toast.success(`Batch advanced to: "${nextStage}" 🚀`);
+      fetchData(false);
+    } catch (err) {
+      console.error("Advance batch stage error:", err);
+      toast.error("Failed to advance batch stage");
+    }
+  };
+
+  const handleCycleBatchPayment = async (batch) => {
+    const current = batch.commercialDocs?.paymentStatus || "Paid";
+    const nextStatus = current === "Paid" ? "Pending" : current === "Pending" ? "Partial" : "Paid";
+    try {
+      const updatePromises = batch.items.map((it) => {
+        const id = it._id || it.id;
+        if (id && String(id).length > 5 && !String(id).startsWith("rec-")) {
+          return updateCalibrationRecordApi(id, { "commercialDocs.paymentStatus": nextStatus });
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(updatePromises);
+      toast.success(`Payment status changed to ${nextStatus} for all ${batch.items.length} items`);
+      fetchData(false);
+    } catch (err) {
+      toast.error("Failed to update payment status");
+    }
+  };
+
+  const handleToggleBatchSticker = async (batch) => {
+    try {
+      const newVal = !batch.records?.stickerCheck;
+      const updatePromises = batch.items.map((it) => {
+        const id = it._id || it.id;
+        if (id && String(id).length > 5 && !String(id).startsWith("rec-")) {
+          return updateCalibrationRecordApi(id, { "records.stickerCheck": newVal });
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(updatePromises);
+      toast.success(`Sticker check marked ${newVal ? "Yes ✅" : "No ❌"} for all ${batch.items.length} items`);
+      fetchData(false);
+    } catch (err) {
+      toast.error("Failed to update sticker status");
+    }
+  };
 
   // Row Action Handlers for Add New Instrument / Batch Calibration
   const createDefaultInstrumentRow = () => ({
@@ -4277,7 +4423,7 @@ export default function CalibrationPageView() {
               <thead>
                 <tr className="text-center font-bold text-white uppercase text-[10px] tracking-wider">
                   <th colSpan="6" className="bg-blue-900 border-r border-blue-800 p-2">
-                    1. INSTRUMENT DETAILS
+                    1. CLIENT &amp; INSTRUMENT DETAILS
                   </th>
                   <th colSpan="7" className="bg-emerald-800 border-r border-emerald-700 p-2">
                     2. CALIBRATION DETAILS
@@ -4293,9 +4439,9 @@ export default function CalibrationPageView() {
                   </th>
                 </tr>
                 <tr className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200 text-[10px]">
-                  {/* 1. Instrument Details */}
+                  {/* 1. Client & Instrument Details */}
                   <th className="p-2.5 border-r border-gray-200">Sr. No.</th>
-                  <th className="p-2.5 border-r border-gray-200">Instrument</th>
+                  <th className="p-2.5 border-r border-gray-200">Company / Customer</th>
                   <th className="p-2.5 border-r border-gray-200">Make</th>
                   <th className="p-2.5 border-r border-gray-200">Model No.</th>
                   <th className="p-2.5 border-r border-gray-200">Serial No.</th>
@@ -4325,7 +4471,7 @@ export default function CalibrationPageView() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
-                {filteredRecords.length === 0 ? (
+                {groupedBatches.length === 0 ? (
                   <tr>
                     <td colSpan="22" className="p-12 text-center text-gray-500 bg-slate-50/40">
                       <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto">
@@ -4347,277 +4493,419 @@ export default function CalibrationPageView() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((r, idx) => (
-                  <tr key={r._id} className="hover:bg-blue-50/50 transition">
-                    {/* 1. Instrument Details */}
-                    <td className="p-2.5 font-bold text-center border-r border-gray-200 bg-gray-50/50">
-                      {idx + 1}
-                    </td>
-                    <td className="p-2.5 font-bold text-gray-900 border-r border-gray-200">{r.instrument}</td>
-                    <td className="p-2.5 border-r border-gray-200 text-gray-600">{r.make}</td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">{r.modelNo}</td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-blue-700">
-                      {r.serialNo}
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">{r.instrumentRange}</td>
+                  groupedBatches.map((batch, idx) => {
+                    const r = batch.primaryRecord;
+                    const isExpanded = expandedBatchKeys.has(batch.batchKey);
+                    const isMulti = batch.items.length > 1;
 
-                    {/* 2. Calibration Details */}
-                    <td className="p-2.5 border-r border-gray-200 font-mono">
-                      {r.calibrationDate ? new Date(r.calibrationDate).toLocaleDateString("en-GB") : "-"}
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-emerald-700">
-                      {r.calibrationDueDate ? new Date(r.calibrationDueDate).toLocaleDateString("en-GB") : "-"}
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">
-                      <div className="font-semibold text-slate-800">{r.dcNo || "-"}</div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => openDocViewer("srf", r)}
-                          className="text-amber-700 hover:text-amber-900 flex items-center gap-0.5 cursor-pointer text-[9px] font-bold bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
-                          title="View Inward SRF Slip (Multi-Equipment PDF)"
-                        >
-                          <FaFilePdf className="text-[9px] text-amber-600" />
-                          <span>SRF Slip</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("srf", r)}
-                          className="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                          title="Send SRF Slip to Customer (Email/WhatsApp)"
-                        >
-                          ✉️
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono">
-                      {r.challanDate ? new Date(r.challanDate).toLocaleDateString("en-GB") : "-"}
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-gray-600">{r.sentToLab}</td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono">
-                      {r.broughtToCompanyDate
-                        ? new Date(r.broughtToCompanyDate).toLocaleDateString("en-GB")
-                        : "-"}
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono">
-                      {r.invoiceSharedDate ? new Date(r.invoiceSharedDate).toLocaleDateString("en-GB") : "-"}
-                    </td>
+                    // Compute clean aggregated displays
+                    const makes = Array.from(new Set(batch.items.map((i) => i.make).filter(Boolean)));
+                    const makeDisplay = makes.length === 1 ? makes[0] : makes.length > 1 ? `${makes[0]} (${makes.length})` : "ARCL";
 
-                    {/* 3. Commercial Documents */}
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => openDocViewer("quotation", r)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                          title="View Quotation PDF"
-                        >
-                          <FaFilePdf className="text-xs" />
-                          <span className="text-[9px] underline">View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("quotation", r)}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                          title="Send Quotation PDF to Customer (Mail/WhatsApp)"
-                        >
-                          ✉️ Send
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => openDocViewer("po", r)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                          title="View PO PDF"
-                        >
-                          <FaFilePdf className="text-xs" />
-                          <span className="text-[9px] underline">View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("po", r)}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                          title="Send PO Document to Customer"
-                        >
-                          ✉️ Send
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => openDocViewer("pi", r)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                          title="View Proforma Invoice"
-                        >
-                          <FaFilePdf className="text-xs" />
-                          <span className="text-[9px] underline">View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("pi", r)}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                          title="Send Proforma Invoice to Customer"
-                        >
-                          ✉️ Send
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => openDocViewer("tax_invoice", r)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                          title="View Tax Invoice"
-                        >
-                          <FaFilePdf className="text-xs" />
-                          <span className="text-[9px] underline">View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("tax_invoice", r)}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                          title="Send Tax Invoice PDF to Customer (Mail/WhatsApp)"
-                        >
-                          ✉️ Send
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center font-bold">
-                      <button
-                        type="button"
-                        onClick={() => handleCyclePayment(r)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition shadow-xs cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 mx-auto ${
-                          r.commercialDocs?.paymentStatus === "Paid"
-                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                            : r.commercialDocs?.paymentStatus === "Pending"
-                            ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
-                            : "bg-red-100 text-red-800 hover:bg-red-200 border border-red-300"
-                        }`}
-                        title="Click to toggle Payment Status (Paid ↔ Pending ↔ Partial)"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                        {r.commercialDocs?.paymentStatus || "Paid"}
-                      </button>
-                    </td>
+                    const models = Array.from(new Set(batch.items.map((i) => i.modelNo).filter(Boolean)));
+                    const modelDisplay = models.length === 1 ? models[0] : models.length > 1 ? `${models[0]} (${models.length})` : "-";
 
-                    {/* 4. Records */}
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => openDocViewer("certificate", r)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                          title="View Official Calibration Certificate"
-                        >
-                          <FaFilePdf className="text-xs text-red-600" />
-                          <span className="text-[9px] underline font-bold">View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSendDocModal("certificate", r)}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
-                          title="Send NABL Certificate PDF to Customer"
-                        >
-                          🚀 Send
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <button
-                        onClick={handleExportExcel}
-                        className="text-emerald-600 hover:text-emerald-800 flex flex-col items-center mx-auto"
-                        title="Download Calibration Readings Excel"
-                      >
-                        <FaFileExcel className="text-base text-emerald-600" />
-                        <span className="text-[9px] underline font-bold">View</span>
-                      </button>
-                    </td>
-                    <td className="p-2.5 border-r border-gray-200 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSticker(r)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto shadow-2xs hover:scale-105 active:scale-95 ${
-                          r.records?.stickerCheck !== false
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100"
-                            : "bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100"
-                        }`}
-                        title="Click to toggle sticker compliance (Yes / No)"
-                      >
-                        {r.records?.stickerCheck !== false ? (
-                          <>
-                            <FaCheckCircle className="text-emerald-600" />
-                            <span>Yes</span>
-                          </>
-                        ) : (
-                          <>
-                            <FaTimesCircle className="text-rose-600" />
-                            <span>No</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
+                    const serialDisplay = isMulti
+                      ? `${batch.items[0]?.serialNo || "N/A"}, ${batch.items[1]?.serialNo || ""}... (${batch.items.length} S/N)`
+                      : batch.items[0]?.serialNo || "-";
 
-                    {/* Action */}
-                    <td className="p-2.5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {canEdit && (
-                          <>
+                    const ranges = Array.from(new Set(batch.items.map((i) => i.instrumentRange).filter(Boolean)));
+                    const rangeDisplay = ranges.length === 1 ? ranges[0] : ranges.length > 1 ? `Multi-Range (${batch.items.length})` : "0 - 100";
+
+                    return (
+                      <React.Fragment key={batch.batchKey || idx}>
+                        <tr className="hover:bg-blue-50/50 transition">
+                          {/* 1. Client & Instrument Details */}
+                          <td className="p-2.5 font-bold text-center border-r border-gray-200 bg-gray-50/50">
+                            {idx + 1}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-gray-950 text-xs">
+                                  {batch.clientCompany}
+                                </span>
+                                {isMulti && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 font-mono">
+                                    {batch.items.length} Products
+                                  </span>
+                                )}
+                              </div>
+                              {isMulti ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpandBatch(batch.batchKey)}
+                                  className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1 cursor-pointer text-left mt-0.5"
+                                >
+                                  {isExpanded ? "▲ Hide Equipments" : `▼ View ${batch.items.length} Equipments List`}
+                                </button>
+                              ) : (
+                                <p className="text-[10px] text-gray-500 font-medium truncate max-w-[200px]">
+                                  {batch.items[0]?.instrument || "Precision Equipment"}
+                                </p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-gray-600">{makeDisplay}</td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">{modelDisplay}</td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-blue-700">
+                            {serialDisplay}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">{rangeDisplay}</td>
+
+                          {/* 2. Calibration Details */}
+                          <td className="p-2.5 border-r border-gray-200 font-mono">
+                            {batch.calibrationDate ? new Date(batch.calibrationDate).toLocaleDateString("en-GB") : "-"}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-emerald-700">
+                            {batch.calibrationDueDate ? new Date(batch.calibrationDueDate).toLocaleDateString("en-GB") : "-"}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">
+                            <div className="font-semibold text-slate-800">{batch.dcNo || "-"}</div>
+                            <div className="flex items-center gap-1 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => openDocViewer("srf", r)}
+                                className="text-amber-700 hover:text-amber-900 flex items-center gap-0.5 cursor-pointer text-[9px] font-bold bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
+                                title={`View Inward SRF Slip (${batch.items.length} Equipments PDF)`}
+                              >
+                                <FaFilePdf className="text-[9px] text-amber-600" />
+                                <span>SRF Slip</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("srf", r)}
+                                className="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                title="Send SRF Slip to Customer (Email/WhatsApp)"
+                              >
+                                ✉️
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono">
+                            {batch.challanDate ? new Date(batch.challanDate).toLocaleDateString("en-GB") : "-"}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-gray-600">{batch.sentToLab}</td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono">
+                            {batch.broughtToCompanyDate
+                              ? new Date(batch.broughtToCompanyDate).toLocaleDateString("en-GB")
+                              : "-"}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 font-mono">
+                            {batch.invoiceSharedDate ? new Date(batch.invoiceSharedDate).toLocaleDateString("en-GB") : "-"}
+                          </td>
+
+                          {/* 3. Commercial Documents */}
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => openDocViewer("quotation", r)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                                title={`View Quotation PDF (${batch.items.length} Equipments)`}
+                              >
+                                <FaFilePdf className="text-xs" />
+                                <span className="text-[9px] underline font-bold">View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("quotation", r)}
+                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                title="Send Quotation PDF to Customer (Mail/WhatsApp)"
+                              >
+                                ✉️ Send
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => openDocViewer("po", r)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                                title="View PO PDF"
+                              >
+                                <FaFilePdf className="text-xs" />
+                                <span className="text-[9px] underline font-bold">View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("po", r)}
+                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                title="Send PO Document to Customer"
+                              >
+                                ✉️ Send
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => openDocViewer("pi", r)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                                title="View Proforma Invoice"
+                              >
+                                <FaFilePdf className="text-xs" />
+                                <span className="text-[9px] underline font-bold">View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("pi", r)}
+                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                title="Send Proforma Invoice to Customer"
+                              >
+                                ✉️ Send
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => openDocViewer("tax_invoice", r)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                                title="View Tax Invoice"
+                              >
+                                <FaFilePdf className="text-xs" />
+                                <span className="text-[9px] underline font-bold">View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("tax_invoice", r)}
+                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                title="Send Tax Invoice PDF to Customer (Mail/WhatsApp)"
+                              >
+                                ✉️ Send
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center font-bold">
                             <button
                               type="button"
-                              onClick={() => handleOpenSendDocModal("all", r)}
-                              className="p-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-lg transition shadow-2xs cursor-pointer"
-                              title="Send All SRF & Calibration Documents to Customer (Mail/WhatsApp)"
+                              onClick={() => handleCycleBatchPayment(batch)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition shadow-xs cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 mx-auto ${
+                                batch.commercialDocs?.paymentStatus === "Paid"
+                                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
+                                  : batch.commercialDocs?.paymentStatus === "Pending"
+                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
+                                  : "bg-red-100 text-red-800 hover:bg-red-200 border border-red-300"
+                              }`}
+                              title="Click to toggle Payment Status for this Batch"
                             >
-                              <FaPaperPlane className="text-xs" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                              {batch.commercialDocs?.paymentStatus || "Paid"}
                             </button>
+                          </td>
+
+                          {/* 4. Records */}
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => openDocViewer("certificate", r)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
+                                title="View Official Calibration Certificate"
+                              >
+                                <FaFilePdf className="text-xs text-red-600" />
+                                <span className="text-[9px] underline font-bold">View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("certificate", r)}
+                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
+                                title="Send NABL Certificate PDF to Customer"
+                              >
+                                🚀 Send
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <button
+                              onClick={handleExportExcel}
+                              className="text-emerald-600 hover:text-emerald-800 flex flex-col items-center mx-auto"
+                              title="Download Calibration Readings Excel"
+                            >
+                              <FaFileExcel className="text-base text-emerald-600" />
+                              <span className="text-[9px] underline font-bold">View</span>
+                            </button>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
                             <button
                               type="button"
-                              onClick={() => handleOpenEdit(r)}
-                              className="p-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 rounded-lg transition shadow-2xs cursor-pointer"
-                              title="Edit Full Instrument & Commercial Record"
+                              onClick={() => handleToggleBatchSticker(batch)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto shadow-2xs hover:scale-105 active:scale-95 ${
+                                batch.records?.stickerCheck !== false
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100"
+                                  : "bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100"
+                              }`}
+                              title="Click to toggle sticker compliance for this batch"
                             >
-                              <FaEdit className="text-xs" />
+                              {batch.records?.stickerCheck !== false ? (
+                                <>
+                                  <FaCheckCircle className="text-emerald-600" />
+                                  <span>Yes</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FaTimesCircle className="text-rose-600" />
+                                  <span>No</span>
+                                </>
+                              )}
                             </button>
-                          </>
-                        )}
+                          </td>
 
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => handleSendInstrumentReminder(r)}
-                            className="p-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 rounded-lg transition shadow-2xs cursor-pointer"
-                            title="Send Calibration Due Reminder (Email + WhatsApp) to this client"
-                          >
-                            <FaBell className="text-xs" />
-                          </button>
-                        )}
+                          {/* Action */}
+                          <td className="p-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {canEdit && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSendDocModal("all", r)}
+                                    className="p-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-lg transition shadow-2xs cursor-pointer"
+                                    title="Send All SRF & Calibration Documents to Customer (Mail/WhatsApp)"
+                                  >
+                                    <FaPaperPlane className="text-xs" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(r)}
+                                    className="p-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 rounded-lg transition shadow-2xs cursor-pointer"
+                                    title="Edit Inward Batch / Instrument Details"
+                                  >
+                                    <FaEdit className="text-xs" />
+                                  </button>
+                                </>
+                              )}
 
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => handleAdvanceStage(r)}
-                            className="p-1.5 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-700 rounded-lg transition shadow-2xs cursor-pointer"
-                            title="Advance Next Stage"
-                          >
-                            <FaSlidersH className="text-xs" />
-                          </button>
-                        )}
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendInstrumentReminder(r, batch.items)}
+                                  className="p-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 rounded-lg transition shadow-2xs cursor-pointer"
+                                  title="Send Calibration Due Reminder (Email + WhatsApp) to this client"
+                                >
+                                  <FaBell className="text-xs" />
+                                </button>
+                              )}
 
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRecord(r._id, r.instrument)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg transition shadow-2xs cursor-pointer"
-                            title="Delete Record"
-                          >
-                            <FaTrashAlt className="text-xs" />
-                          </button>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAdvanceBatchStage(batch)}
+                                  className="p-1.5 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-700 rounded-lg transition shadow-2xs cursor-pointer"
+                                  title="Advance Next Stage for Batch"
+                                >
+                                  <FaSlidersH className="text-xs" />
+                                </button>
+                              )}
+
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBatch(batch)}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg transition shadow-2xs cursor-pointer"
+                                  title={`Delete Batch (${batch.items.length} Instruments)`}
+                                >
+                                  <FaTrashAlt className="text-xs" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expandable Sub-Row with Breakdown of All Individual Equipments in this Batch */}
+                        {isExpanded && (
+                          <tr className="bg-slate-50/90 border-b-2 border-blue-300 animate-fadeIn">
+                            <td colSpan={22} className="p-4">
+                              <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-sm space-y-3">
+                                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                                      📦
+                                    </div>
+                                    <span className="font-extrabold text-gray-900 text-xs">
+                                      All {batch.items.length} Equipments for "{batch.clientCompany}" (DC: {batch.dcNo})
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandBatch(batch.batchKey)}
+                                    className="text-xs text-gray-500 hover:text-gray-800 font-semibold underline cursor-pointer"
+                                  >
+                                    ✕ Close List
+                                  </button>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs border border-gray-200 rounded-xl overflow-hidden">
+                                    <thead className="bg-slate-800 text-white text-[10px] uppercase font-bold">
+                                      <tr>
+                                        <th className="p-2 text-center w-8">#</th>
+                                        <th className="p-2">Equipment Name</th>
+                                        <th className="p-2">Make</th>
+                                        <th className="p-2">Model No.</th>
+                                        <th className="p-2">Serial No.</th>
+                                        <th className="p-2">Range / Capacity</th>
+                                        <th className="p-2">Calibration Date</th>
+                                        <th className="p-2">Due Date</th>
+                                        <th className="p-2">Stage</th>
+                                        <th className="p-2 text-center">Sticker</th>
+                                        <th className="p-2 text-right">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                                      {batch.items.map((item, iIdx) => (
+                                        <tr key={item._id || iIdx} className="hover:bg-blue-50/40">
+                                          <td className="p-2 text-center text-gray-400 font-bold">{iIdx + 1}</td>
+                                          <td className="p-2 font-bold text-gray-900">{item.instrument}</td>
+                                          <td className="p-2 text-gray-600">{item.make}</td>
+                                          <td className="p-2 font-mono text-gray-600">{item.modelNo}</td>
+                                          <td className="p-2 font-mono font-bold text-blue-700">{item.serialNo}</td>
+                                          <td className="p-2 text-gray-600">{item.instrumentRange}</td>
+                                          <td className="p-2 font-mono">
+                                            {item.calibrationDate ? new Date(item.calibrationDate).toLocaleDateString("en-GB") : "-"}
+                                          </td>
+                                          <td className="p-2 font-mono font-bold text-emerald-700">
+                                            {item.calibrationDueDate ? new Date(item.calibrationDueDate).toLocaleDateString("en-GB") : "-"}
+                                          </td>
+                                          <td className="p-2">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                              {item.stage}
+                                            </span>
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            {item.records?.stickerCheck !== false ? "✅ Yes" : "❌ No"}
+                                          </td>
+                                          <td className="p-2 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenEdit(item)}
+                                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                title="Edit this item"
+                                              >
+                                                <FaEdit className="text-xs" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteRecord(item._id, item.instrument)}
+                                                className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                                                title="Delete this item"
+                                              >
+                                                <FaTrashAlt className="text-xs" />
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                )))}
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
