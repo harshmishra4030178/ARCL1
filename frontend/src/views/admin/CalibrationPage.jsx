@@ -3016,27 +3016,36 @@ export default function CalibrationPageView() {
   const handleDirectWhatsAppDispatch = (recip) => {
     const targetInstruments = recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments;
     const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
-    const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality notice from ARCL Calibration Lab.")
+    const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
       .replace(/{{company}}/gi, recip.company)
       .replace(/{{contactPerson}}/gi, recip.contactPerson)
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
+    let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+      .replace(/{{company}}/gi, recip.company)
+      .replace(/{{contactPerson}}/gi, recip.contactPerson)
+      .replace(/{{count}}/gi, String(targetInstruments.length));
+
+    if (!resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
+    }
+
     const waText = encodeURIComponent(
-      `*${(reminderTemplate.subject || "URGENT: Calibration Due Notice - ARCL Lab CC-4313").replace(/{{company}}/gi, recip.company)}*\n\n` +
+      `*${resolvedSubj}*\n\n` +
       `Dear ${recip.contactPerson} (${recip.company}),\n` +
       `${resolvedIntro}\n\n` +
       `${instrumentsSummary}\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arcl-1.vercel.app/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `📞 Phone: ${reminderTemplate.labContactPhone || "+91 8009559900"}\n` +
+      `📞 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
       `✉️ Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
     );
 
-    const cleanPhone = (recip.phone || "8009559900").replace(/[^0-9]/g, "");
+    const cleanPhone = (recip.phone || "8369458583").replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
     const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
 
@@ -3192,18 +3201,22 @@ export default function CalibrationPageView() {
         ];
 
         const instrumentsSummary = targetInstruments
-          .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+          .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
           .join("\n");
 
-        const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date.")
+        const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
           .replace(/{{company}}/gi, company || "Valued Client")
           .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
           .replace(/{{count}}/gi, String(targetInstruments.length));
 
-        const resolvedSubj = (reminderTemplate.subject || "[URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+        let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
           .replace(/{{company}}/gi, company || "Valued Client")
           .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
           .replace(/{{count}}/gi, String(targetInstruments.length));
+
+        if (!resolvedSubj.includes("🔴")) {
+          resolvedSubj = `🔴 ${resolvedSubj}`;
+        }
 
         const waText = encodeURIComponent(
           `*${resolvedSubj}*\n\n` +
@@ -3240,7 +3253,7 @@ export default function CalibrationPageView() {
   // DYNAMIC AUTOMATED DUE REMINDER TEMPLATE STATE
   // ==========================================
   const defaultReminderTemplate = {
-    subject: "[URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313",
+    subject: "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313",
     salutation: "Dear {{contactPerson}} ({{company}}),",
     introMessage: "This is an automated quality compliance notice to inform you that {{count}} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:",
     thresholdDays: "30",
@@ -3257,10 +3270,13 @@ export default function CalibrationPageView() {
         const saved = localStorage.getItem("arcl_calibration_reminder_template");
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.labContactPhone && parsed.labContactPhone.includes("8009559900")) {
-            parsed.labContactPhone = parsed.labContactPhone.replace("8009559900", "8369458583");
+          if (parsed.labContactPhone && (parsed.labContactPhone.includes("8009559900") || !parsed.labContactPhone)) {
+            parsed.labContactPhone = "+91 6205691085 / +91 8369458583";
           }
-          return parsed;
+          if (parsed.subject && !parsed.subject.includes("🔴")) {
+            parsed.subject = `🔴 ${parsed.subject.replace(/^[🔴\s*]+/, "")}`;
+          }
+          return { ...defaultReminderTemplate, ...parsed };
         }
       } catch (e) {}
     }
@@ -3742,24 +3758,36 @@ export default function CalibrationPageView() {
     ];
 
     const instrumentsSummary = instList
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
-    const resolvedIntro = customModalMessage || reminderTemplate.introMessage || `This is an automated calibration due alert for your equipment:`;
+    const resolvedIntro = (customModalMessage || reminderTemplate.introMessage || `This is an automated calibration due alert for your equipment:`)
+      .replace(/{{company}}/gi, company)
+      .replace(/{{contactPerson}}/gi, person)
+      .replace(/{{count}}/gi, String(instList.length));
+
+    let resolvedSubj = (customModalSubject || reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+      .replace(/{{company}}/gi, company)
+      .replace(/{{contactPerson}}/gi, person)
+      .replace(/{{count}}/gi, String(instList.length));
+
+    if (!resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
+    }
 
     const waText = encodeURIComponent(
-      `*${customModalSubject || reminderTemplate.subject || "URGENT: Calibration Due Notice - ARCL Instruments Metrology Laboratory (NABL CC-4313)"}*\n\n` +
+      `*${resolvedSubj}*\n\n` +
       `Dear ${person} (${company}),\n` +
       `${resolvedIntro}\n\n` +
       `${instrumentsSummary}\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arcl-1.vercel.app/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `📞 Phone: ${reminderTemplate.labContactPhone || "+91 8009559900"}\n` +
+      `📞 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
       `✉️ Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
     );
 
-    const targetPhone = customReminderPhone || activeRec?.clientPhone || "8009559900";
+    const targetPhone = customReminderPhone || activeRec?.clientPhone || "8369458583";
     const cleanPhone = targetPhone.replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
     const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
