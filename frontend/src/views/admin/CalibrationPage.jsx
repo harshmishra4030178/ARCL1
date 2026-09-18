@@ -6464,39 +6464,48 @@ export default function CalibrationPageView() {
                     </div>
 
                     {/* WhatsApp Green Speech Bubble */}
-                    <div className="bg-[#DCF8C6] text-gray-900 rounded-2xl rounded-tr-none p-4 max-w-lg ml-auto shadow-sm border border-emerald-200 space-y-2 text-xs leading-relaxed">
-                      <p className="font-bold text-emerald-900 text-xs">
+                    <div className="bg-[#DCF8C6] text-gray-900 rounded-3xl rounded-tr-none p-5 max-w-xl ml-auto shadow-md border border-emerald-300/80 space-y-3.5 text-xs sm:text-[13px] leading-relaxed">
+                      <p className="font-extrabold text-[#064e3b] text-xs sm:text-sm tracking-tight">
                         *{resolvedSubject}*
                       </p>
-                      <p>
+                      <p className="font-medium text-gray-900">
                         Dear {previewPerson} ({previewCompany}),
                       </p>
-                      <p className="text-gray-800 whitespace-pre-line">
+                      <p className="text-gray-800 whitespace-pre-line leading-relaxed">
                         {resolvedIntro}
                       </p>
 
-                      <div className="bg-white/80 rounded-xl p-2.5 space-y-1 font-mono text-[11px] border border-emerald-300/50">
+                      {/* Pure White Background Container Card for Instruments */}
+                      <div className="bg-white rounded-2xl p-4 sm:p-5 space-y-2.5 border border-emerald-300/70 shadow-xs text-xs sm:text-[12.5px]">
                         {targetDueRecords.length > 0 ? (
                           targetDueRecords.map((inst, idx) => (
-                            <p key={inst._id || idx} className="text-gray-800">
-                              • *{inst.instrument}* (S/N: {inst.serialNo}) ➔ Due: 🔴 <span className="text-rose-600 font-bold font-mono">*{inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*</span>
+                            <p key={inst._id || idx} className="text-gray-900 leading-relaxed">
+                              • <strong className="font-bold">*{inst.instrument}*</strong>{" "}
+                              <span className="font-mono text-gray-700">({inst.serialNo && inst.serialNo !== "-" ? `S/N: ${inst.serialNo}` : "ID: Verified"})</span>{" "}
+                              ➔ Due: 🔴{" "}
+                              <span className="text-rose-600 font-bold font-mono">
+                                *{toSafeLocaleDate(inst.calibrationDueDate, "Due Soon")}*
+                              </span>
                             </p>
                           ))
                         ) : (
-                          <p className="text-gray-500 font-sans italic">
-                            • Digital Compression Testing Machine 2000 kN (S/N: ARCL-CTM-9842) ➔ Due: 🔴 <span className="text-rose-600 font-bold font-mono">*15/05/2027*</span>
+                          <p className="text-gray-500 italic leading-relaxed">
+                            • <strong className="font-bold">*Digital Compression Testing Machine 2000 kN*</strong>{" "}
+                            <span className="font-mono text-gray-700">(S/N: ARCL-CTM-9842)</span>{" "}
+                            ➔ Due: 🔴{" "}
+                            <span className="text-rose-600 font-bold font-mono">*15/05/2027*</span>
                           </p>
                         )}
                       </div>
 
-                      <p className="text-[11px] text-gray-700">
+                      <p className="text-xs text-gray-700 pt-1">
                         Please schedule recalibration pickup or book on-site testing:
                         <br />
-                        <span className="text-blue-700 underline font-mono">https://arclinstruments.com/calibration-services</span>
+                        <span className="text-blue-700 underline font-mono font-medium">https://arclinstruments.com/calibration-services</span>
                       </p>
 
-                      <div className="pt-1.5 border-t border-emerald-300/60 text-[10px] text-gray-700 flex flex-col gap-0.5">
-                        <p className="font-bold text-gray-800">ARCL Metrology Support Desk:</p>
+                      <div className="pt-2 border-t border-emerald-300/70 text-[11px] text-gray-700 flex flex-col gap-0.5">
+                        <p className="font-bold text-gray-900">ARCL Metrology Support Desk:</p>
                         <p>🔴 Phone: {reminderTemplate.labContactPhone}</p>
                         <p>🔴 Email: {reminderTemplate.labContactEmail}</p>
                       </div>
