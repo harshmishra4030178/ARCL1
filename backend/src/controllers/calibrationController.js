@@ -650,7 +650,7 @@ export const sendDueReminder = async (req, res, next) => {
 
     // Build WhatsApp Message Link
     const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("%0A");
 
     const customWaIntro = customMessage
@@ -663,7 +663,7 @@ export const sendDueReminder = async (req, res, next) => {
       : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`;
 
     const waText = encodeURIComponent(
-      `*🔴 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`}\n\n${targetInstruments.map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arcl-1.vercel.app/calibration-services\n\nARCL Metrology Support Desk:\n📞 Phone: ${phone}\n✉️ Email: ${labContactEmail || "arclinstruments@gmail.com"}`
+      `*\uD83D\uDD34 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`}\n\n${targetInstruments.map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arcl-1.vercel.app/calibration-services\n\nARCL Metrology Support Desk:\n\uD83D\uDCDE Phone: ${phone}\n\u2709\uFE0F Email: ${labContactEmail || "arclinstruments@gmail.com"}`
     );
 
     const targetPhone = (targetInstruments[0]?.clientPhone || req.body.clientPhone || "8009559900").replace(/[^0-9]/g, "");
