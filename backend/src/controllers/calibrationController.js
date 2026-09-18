@@ -1201,7 +1201,33 @@ export const downloadDocument = async (req, res, next) => {
     } else if (docType === "pi" || docType === "proforma_invoice") {
       customDocData = record?.proformaData && Array.isArray(record.proformaData.items) && record.proformaData.items.length > 0 ? record.proformaData : null;
     } else if (docType === "po") {
-      const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+      let poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+      if (!poUrl && record?.dcNo && record?.clientCompany) {
+        const siblingWithPo = await CalibrationRecord.findOne({
+          dcNo: record.dcNo,
+          clientCompany: record.clientCompany,
+          $or: [
+            { "commercialDocs.poFileUrl": { $exists: true, $ne: "" } },
+            { "commercialDocs.poRaised": { $exists: true, $ne: "" } },
+          ],
+        }).lean();
+        if (siblingWithPo) {
+          poUrl = siblingWithPo.commercialDocs?.poFileUrl || siblingWithPo.commercialDocs?.poRaised;
+        }
+      }
+      if (!poUrl && record?.clientCompany) {
+        const clientWithPo = await CalibrationRecord.findOne({
+          clientCompany: record.clientCompany,
+          $or: [
+            { "commercialDocs.poFileUrl": { $exists: true, $ne: "" } },
+            { "commercialDocs.poRaised": { $exists: true, $ne: "" } },
+          ],
+        }).sort({ updatedAt: -1 }).lean();
+        if (clientWithPo) {
+          poUrl = clientWithPo.commercialDocs?.poFileUrl || clientWithPo.commercialDocs?.poRaised;
+        }
+      }
+
       if (poUrl && poUrl.trim()) {
         if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
           try {
@@ -1233,7 +1259,10 @@ export const downloadDocument = async (req, res, next) => {
           return res.status(200).send(buffer);
         }
       }
-      customDocData = record?.poData && Array.isArray(record.poData.items) && record.poData.items.length > 0 ? record.poData : null;
+      
+      return res.status(404).send(
+        `<!DOCTYPE html><html><body style="font-family: sans-serif; text-align: center; padding: 50px;"><h2>⚠️ No PO Uploaded Yet</h2><p>Aapne is equipment ke liye abhi custom PO document upload nahi kiya hai. Kripya Admin Panel se <strong>"Upload PO"</strong> button par click karke gallery se PDF/Image upload karein.</p></body></html>`
+      );
     }
 
     if (docType === "srf") {
@@ -2052,16 +2081,21 @@ export const uploadPoDocument = async (req, res, next) => {
       "commercialDocs.poUploadedAt": new Date(),
     };
 
-    let query = {};
+    let queryConditions = [];
     if (recordId && isValidMongoId(recordId)) {
-      query = { _id: recordId };
-    } else if (dcNo && clientCompany) {
-      query = { dcNo, clientCompany };
-    } else if (serialNo) {
-      query = { serialNo: serialNo.trim() };
-    } else {
-      throw new ApiError(400, "Valid recordId, serialNo or dcNo/clientCompany is required");
+      queryConditions.push({ _id: recordId });
     }
+    if (dcNo && dcNo !== "-" && clientCompany) {
+      queryConditions.push({ dcNo, clientCompany });
+    }
+    if (serialNo) {
+      queryConditions.push({ serialNo: serialNo.trim() });
+    }
+    if (clientCompany && (!dcNo || dcNo === "-")) {
+      queryConditions.push({ clientCompany });
+    }
+
+    const query = queryConditions.length > 0 ? { $or: queryConditions } : { _id: recordId };
 
     // Update all matching records in the batch
     await CalibrationRecord.updateMany(query, { $set: updatePayload });

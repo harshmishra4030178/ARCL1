@@ -2080,7 +2080,20 @@ export default function CalibrationPageView() {
           records: r.records || {},
         });
       }
-      batchMap.get(key).items.push(r);
+      const existingBatch = batchMap.get(key);
+      existingBatch.items.push(r);
+      if (
+        !existingBatch.commercialDocs?.poFileUrl &&
+        (r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised)
+      ) {
+        existingBatch.commercialDocs = {
+          ...existingBatch.commercialDocs,
+          ...r.commercialDocs,
+          poFileUrl: r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised,
+          poRaised: r.commercialDocs?.poRaised || r.commercialDocs?.poFileUrl,
+        };
+        existingBatch.primaryRecord.commercialDocs = existingBatch.commercialDocs;
+      }
     });
 
     return Array.from(batchMap.values());
