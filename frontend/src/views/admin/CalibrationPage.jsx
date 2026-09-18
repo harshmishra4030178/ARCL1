@@ -3039,10 +3039,10 @@ export default function CalibrationPageView() {
       `${resolvedIntro}\n\n` +
       `${instrumentsSummary}\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
-      `https://arcl-1.vercel.app/calibration-services\n\n` +
+      `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `\uD83D\uDCDE Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `\u2709\uFE0F Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+      `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
     );
 
     const cleanPhone = (recip.phone || "8369458583").replace(/[^0-9]/g, "");
@@ -3224,10 +3224,10 @@ export default function CalibrationPageView() {
           `${resolvedIntro}\n\n` +
           `${instrumentsSummary}\n\n` +
           `Please schedule recalibration pickup or book on-site testing:\n` +
-          `https://arcl-1.vercel.app/calibration-services\n\n` +
+          `https://arclinstruments.com/calibration-services\n\n` +
           `ARCL Metrology Support Desk:\n` +
-          `\uD83D\uDCDE Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-          `\u2709\uFE0F Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+          `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+          `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
         );
 
         const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
@@ -3781,10 +3781,10 @@ export default function CalibrationPageView() {
       `${resolvedIntro}\n\n` +
       `${instrumentsSummary}\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
-      `https://arcl-1.vercel.app/calibration-services\n\n` +
+      `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `\uD83D\uDCDE Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `\u2709\uFE0F Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+      `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
     );
 
     const targetPhone = customReminderPhone || activeRec?.clientPhone || "8369458583";
@@ -6159,12 +6159,13 @@ export default function CalibrationPageView() {
                       <p className="text-[11px] text-gray-700">
                         Please schedule recalibration pickup or book on-site testing:
                         <br />
-                        <span className="text-blue-700 underline font-mono">https://arcl-1.vercel.app/calibration-services</span>
+                        <span className="text-blue-700 underline font-mono">https://arclinstruments.com/calibration-services</span>
                       </p>
 
-                      <div className="pt-1.5 border-t border-emerald-300/60 text-[10px] text-gray-600 flex justify-between items-center">
-                        <span>📞 Desk: {reminderTemplate.labContactPhone}</span>
-                        <span className="text-[9px] text-gray-400 font-mono">10:30 AM ✓✓</span>
+                      <div className="pt-1.5 border-t border-emerald-300/60 text-[10px] text-gray-700 flex flex-col gap-0.5">
+                        <p className="font-bold text-gray-800">ARCL Metrology Support Desk:</p>
+                        <p>🔴 Phone: {reminderTemplate.labContactPhone}</p>
+                        <p>🔴 Email: {reminderTemplate.labContactEmail}</p>
                       </div>
                     </div>
 

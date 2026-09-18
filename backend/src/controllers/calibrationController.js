@@ -663,7 +663,7 @@ export const sendDueReminder = async (req, res, next) => {
       : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`;
 
     const waText = encodeURIComponent(
-      `*\uD83D\uDD34 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`}\n\n${targetInstruments.map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arcl-1.vercel.app/calibration-services\n\nARCL Metrology Support Desk:\n\uD83D\uDCDE Phone: ${phone}\n\u2709\uFE0F Email: ${labContactEmail || "arclinstruments@gmail.com"}`
+      `*\uD83D\uDD34 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`}\n\n${targetInstruments.map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arclinstruments.com/calibration-services\n\nARCL Metrology Support Desk:\n\uD83D\uDD34 Phone: ${phone}\n\uD83D\uDD34 Email: ${labContactEmail || "arclinstruments@gmail.com"}`
     );
 
     const targetPhone = (targetInstruments[0]?.clientPhone || req.body.clientPhone || "8009559900").replace(/[^0-9]/g, "");
@@ -879,13 +879,13 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
       `Your instrument *${instName}* (Serial No: ${sNo}) has been calibrated in accordance with ISO/IEC 17025:2017.\n\n` +
       `• *Certificate No:* ${certNo}\n` +
       `• *Calibration Date:* ${new Date(calDate).toLocaleDateString("en-GB")}\n` +
-      `• *Valid Due Date:* 🔴 *${new Date(dueDate).toLocaleDateString("en-GB")}*\n` +
+      `• *Valid Due Date:* \uD83D\uDD34 *${new Date(dueDate).toLocaleDateString("en-GB")}*\n` +
       `• *Sticker Pasted:* Verified on Body ✅\n\n` +
       `📥 *View / Download Digital Certificate PDF:*\n` +
-      `https://arcl-1.vercel.app/calibration-services\n\n` +
+      `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `📞 Phone: +91 6205691085 / +91 8369458583\n` +
-      `✉️ Email: arclinstruments@gmail.com`
+      `\uD83D\uDD34 Phone: +91 6205691085 / +91 8369458583\n` +
+      `\uD83D\uDD34 Email: arclinstruments@gmail.com`
     );
 
     const phone = (targetRecord?.clientPhone || req.body.clientPhone || "9369962486").replace(/[^0-9]/g, "");
@@ -1066,10 +1066,10 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       `\n📥 *Direct PDF Download / Print:* \n` +
       `https://arcl1-1.onrender.com/api/v1/client/calibration/download-document?serialNo=${encodeURIComponent(sNo)}&docType=${activeDocs[0]}&autoPrint=true\n\n` +
       `🌐 *Online Portal:* \n` +
-      `https://arcl-1.vercel.app/calibration-services?serialNo=${encodeURIComponent(sNo)}\n\n` +
+      `https://arclinstruments.com/calibration-services?serialNo=${encodeURIComponent(sNo)}\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `📞 Phone: +91 8369458583 / +91 6205691085\n` +
-      `✉️ Email: arclinstruments@gmail.com`
+      `\uD83D\uDD34 Phone: +91 8369458583 / +91 6205691085\n` +
+      `\uD83D\uDD34 Email: arclinstruments@gmail.com`
     );
 
     const cleanPhone = phoneNum.replace(/[^0-9]/g, "");

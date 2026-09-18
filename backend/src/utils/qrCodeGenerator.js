@@ -4,7 +4,7 @@ import QRCode from "qrcode";
  * Get the base frontend URL for product redirects.
  */
 export const getFrontendBaseUrl = () => {
-  let url = process.env.FRONTEND_URL || process.env.CLIENT_URL || "https://arcl-1.vercel.app";
+  let url = process.env.FRONTEND_URL || process.env.CLIENT_URL || "https://arclinstruments.com";
   return url.replace(/\/+$/, ""); // strip trailing slash
 };
 

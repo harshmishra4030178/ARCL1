@@ -61,7 +61,7 @@ const getBackendUrl = () => {
 };
 
 const getFrontendUrl = () => {
-  return process.env.FRONTEND_URL || "https://arcl-1.vercel.app";
+  return process.env.FRONTEND_URL || "https://arclinstruments.com";
 };
 
 const getLogoAttachment = () => {

@@ -20,7 +20,7 @@ I am interested in requesting a price quotation & technical specifications for:
 ${product.productCode ? `*SKU Code:* ${product.productCode}` : ""}
 *Category:* ${product.category?.name || "Civil Testing Equipment"}
 *Standard:* ${standard}
-*Link:* https://arcl-1.vercel.app/products/${product.slug || product._id}
+*Link:* https://arclinstruments.com/products/${product.slug || product._id}
 
 ${customer.name ? `*Client Name:* ${customer.name}` : ""}
 ${customer.company ? `*Company/Lab:* ${customer.company}` : ""}
@@ -53,7 +53,7 @@ I would like to request an official formal quotation for the following equipment
   if (customer.phone) message += `\n*Phone:* ${customer.phone}`;
   if (customer.email) message += `\n*Email:* ${customer.email}`;
 
-  message += `\n\n*Reference:* https://arcl-1.vercel.app/products\nPlease share the formal proforma estimate with GST & freight details.`;
+  message += `\n\n*Reference:* https://arclinstruments.com/products\nPlease share the formal proforma estimate with GST & freight details.`;
 
   const url = `https://wa.me/${ARCL_SALES_WHATSAPP}?text=${encodeURIComponent(message)}`;
   window.open(url, "_blank");

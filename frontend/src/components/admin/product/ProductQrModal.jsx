@@ -29,7 +29,7 @@ const ProductQrModal = ({ isOpen, onClose, product }) => {
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
-      : "https://arcl-1.vercel.app";
+      : "https://arclinstruments.com";
   const productUrl = `${origin}/products/${product.slug || product._id}`;
   const qrImage = product.qrCode || "";
 
