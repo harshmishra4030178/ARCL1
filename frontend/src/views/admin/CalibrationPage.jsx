@@ -3507,7 +3507,33 @@ export default function CalibrationPageView() {
       if (activePoUploadTarget.clientCompany) formData.append("clientCompany", activePoUploadTarget.clientCompany);
       if (activePoUploadTarget.serialNo) formData.append("serialNo", activePoUploadTarget.serialNo);
 
-      await uploadPoApi(formData);
+      const res = await uploadPoApi(formData);
+      const uploadedUrl = res.data?.data?.poFileUrl;
+      const uploadedName = res.data?.data?.poFileName || file.name;
+
+      // Instantly update local React state so UI turns GREEN and View button works immediately
+      setRecords((prev) =>
+        prev.map((rec) => {
+          const isTarget =
+            rec._id === activePoUploadTarget._id ||
+            (activePoUploadTarget.dcNo && rec.dcNo === activePoUploadTarget.dcNo && rec.clientCompany === activePoUploadTarget.clientCompany) ||
+            rec.serialNo === activePoUploadTarget.serialNo;
+          if (isTarget) {
+            return {
+              ...rec,
+              commercialDocs: {
+                ...rec.commercialDocs,
+                poFileUrl: uploadedUrl,
+                poRaised: uploadedUrl,
+                poFileName: uploadedName,
+                poUploadedAt: new Date().toISOString(),
+              },
+            };
+          }
+          return rec;
+        })
+      );
+
       toast.update(toastId, {
         render: `📄 PO Document "${file.name}" uploaded successfully! ✅`,
         type: "success",
@@ -3539,6 +3565,30 @@ export default function CalibrationPageView() {
         clientCompany: record.clientCompany,
         serialNo: record.serialNo,
       });
+
+      // Instantly clear local state
+      setRecords((prev) =>
+        prev.map((rec) => {
+          const isTarget =
+            rec._id === record._id ||
+            (record.dcNo && rec.dcNo === record.dcNo && rec.clientCompany === record.clientCompany) ||
+            rec.serialNo === record.serialNo;
+          if (isTarget) {
+            return {
+              ...rec,
+              commercialDocs: {
+                ...rec.commercialDocs,
+                poFileUrl: "",
+                poRaised: "",
+                poFileName: "",
+                poUploadedAt: null,
+              },
+            };
+          }
+          return rec;
+        })
+      );
+
       toast.update(toastId, {
         render: "PO document removed successfully!",
         type: "success",
@@ -3558,19 +3608,21 @@ export default function CalibrationPageView() {
 
   // Safe Universal Interactive Viewer for Uploaded PO Document (Handles In-App Preview, Blob, Data URI & Remote)
   const handleViewPoDocument = (record) => {
-    const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+    let poUrl =
+      record?.commercialDocs?.poFileUrl ||
+      record?.commercialDocs?.poRaised ||
+      record?.items?.find((i) => i.commercialDocs?.poFileUrl)?.commercialDocs?.poFileUrl;
+
     if (!poUrl) {
       toast.info("No custom PO document uploaded yet for this equipment.");
       return;
     }
 
-    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-    const sNo = record?.serialNo || "";
-    const recId = record?._id || "";
-    const backendStreamUrl = `${base}/client/calibration/download-document?docType=po&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`;
-    const backendDownloadUrl = `${base}/client/calibration/download-document?docType=po&download=true&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`;
+    const fileName =
+      record?.commercialDocs?.poFileName ||
+      record?.items?.find((i) => i.commercialDocs?.poFileName)?.commercialDocs?.poFileName ||
+      `PO_${record?.serialNo || "Document"}.pdf`;
 
-    const fileName = record?.commercialDocs?.poFileName || `PO_${record?.serialNo || "Document"}.pdf`;
     let fileType = "pdf";
     if (
       poUrl.startsWith("data:image/") ||
@@ -3580,7 +3632,7 @@ export default function CalibrationPageView() {
       fileType = "image";
     }
 
-    let previewUrl = backendStreamUrl;
+    let previewUrl = poUrl;
     if (poUrl.startsWith("data:")) {
       try {
         const parts = poUrl.split(",");
@@ -3595,16 +3647,16 @@ export default function CalibrationPageView() {
         const blob = new Blob([byteArray], { type: mime });
         previewUrl = URL.createObjectURL(blob);
       } catch (err) {
-        console.warn("Blob creation fallback, using backend stream URL:", err);
-        previewUrl = backendStreamUrl;
+        console.warn("Blob creation fallback, using raw URI:", err);
+        previewUrl = poUrl;
       }
+    } else if (poUrl.includes("cloudinary.com") && poUrl.includes("/raw/upload/")) {
+      previewUrl = poUrl.replace("/raw/upload/", "/raw/upload/fl_inline/");
     }
 
     setPoPreviewData({
       url: previewUrl,
       directUrl: poUrl,
-      streamUrl: backendStreamUrl,
-      downloadUrl: backendDownloadUrl,
       fileName,
       record,
       fileType,
@@ -3613,29 +3665,24 @@ export default function CalibrationPageView() {
   };
 
   const handleDownloadActivePo = () => {
-    if (poPreviewData.downloadUrl) {
-      window.open(poPreviewData.downloadUrl, "_blank");
-      toast.success(`Downloading "${poPreviewData.fileName || "PO_Document"}" 📥`);
-      return;
-    }
-    const targetUrl = poPreviewData.url || poPreviewData.directUrl;
+    const targetUrl = poPreviewData.directUrl || poPreviewData.url;
     if (!targetUrl) return;
     try {
       const link = document.createElement("a");
       link.href = targetUrl;
       link.download = poPreviewData.fileName || "PO_Document.pdf";
+      link.target = "_blank";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       toast.success(`Downloading "${poPreviewData.fileName || "PO_Document"}" 📥`);
     } catch (err) {
-      console.error("Download PO error:", err);
       window.open(targetUrl, "_blank");
     }
   };
 
   const handleOpenActivePoNewTab = () => {
-    const targetUrl = poPreviewData.streamUrl || poPreviewData.url || poPreviewData.directUrl;
+    const targetUrl = poPreviewData.directUrl || poPreviewData.url;
     if (targetUrl) {
       window.open(targetUrl, "_blank");
     }
@@ -11996,7 +12043,7 @@ export default function CalibrationPageView() {
               {poPreviewData.fileType === "image" ? (
                 <div className="w-full h-[75vh] flex items-center justify-center bg-slate-900 rounded-2xl border border-slate-800 p-4 overflow-auto">
                   <img
-                    src={poPreviewData.url || poPreviewData.streamUrl || poPreviewData.directUrl}
+                    src={poPreviewData.url || poPreviewData.directUrl}
                     alt={poPreviewData.fileName || "Uploaded PO"}
                     className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
                   />
@@ -12004,7 +12051,7 @@ export default function CalibrationPageView() {
               ) : (
                 <div className="w-full h-[75vh] rounded-2xl border border-slate-700 overflow-hidden bg-white shadow-2xl flex flex-col">
                   <iframe
-                    src={poPreviewData.url || poPreviewData.streamUrl}
+                    src={poPreviewData.url || poPreviewData.directUrl}
                     title="PO Preview"
                     className="w-full h-full border-0 bg-white"
                   />
