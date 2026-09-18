@@ -3610,11 +3610,11 @@ export default function CalibrationPageView() {
   const handleViewPoDocument = (record) => {
     let poUrl =
       record?.commercialDocs?.poFileUrl ||
-      record?.commercialDocs?.poRaised ||
-      record?.items?.find((i) => i.commercialDocs?.poFileUrl)?.commercialDocs?.poFileUrl;
+      record?.items?.find((i) => i.commercialDocs?.poFileUrl)?.commercialDocs?.poFileUrl ||
+      record?.commercialDocs?.poRaised;
 
-    if (!poUrl) {
-      toast.info("No custom PO document uploaded yet for this equipment.");
+    if (!poUrl || poUrl === "/docs/sample-po.pdf" || poUrl.trim() === "") {
+      toast.info("No custom PO document uploaded yet for this equipment. Please click 'Upload PO'.");
       return;
     }
 
@@ -3650,8 +3650,9 @@ export default function CalibrationPageView() {
         console.warn("Blob creation fallback, using raw URI:", err);
         previewUrl = poUrl;
       }
-    } else if (poUrl.includes("cloudinary.com") && poUrl.includes("/raw/upload/")) {
-      previewUrl = poUrl.replace("/raw/upload/", "/raw/upload/fl_inline/");
+    } else if (fileType === "pdf" && (poUrl.startsWith("http://") || poUrl.startsWith("https://"))) {
+      // Universal embedded PDF viewer prevents Chrome/Edge "Failed to load PDF document" on cross-origin cloud assets
+      previewUrl = `https://docs.google.com/gview?url=${encodeURIComponent(poUrl)}&embedded=true`;
     }
 
     setPoPreviewData({
@@ -5110,11 +5111,19 @@ export default function CalibrationPageView() {
                             </div>
                           </td>
                           <td className={`p-2.5 border-r border-gray-200 text-center transition-colors duration-300 ${
-                            Boolean(r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised)
+                            Boolean(
+                              r.commercialDocs?.poFileUrl &&
+                              r.commercialDocs.poFileUrl.trim() !== "" &&
+                              r.commercialDocs.poFileUrl !== "/docs/sample-po.pdf"
+                            )
                               ? "bg-emerald-50/80 border-emerald-300"
                               : "bg-slate-50/30"
                           }`}>
-                            {Boolean(r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised) ? (
+                            {Boolean(
+                              r.commercialDocs?.poFileUrl &&
+                              r.commercialDocs.poFileUrl.trim() !== "" &&
+                              r.commercialDocs.poFileUrl !== "/docs/sample-po.pdf"
+                            ) ? (
                               <div className="flex flex-col items-center gap-1">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                                   <FaCheckCircle className="text-emerald-600 text-[10px]" />
