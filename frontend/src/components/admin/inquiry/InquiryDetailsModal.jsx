@@ -174,7 +174,7 @@ const InquiryDetailsModal = ({ inquiry, onClose }) => {
                               )}
                               {item.productCode && (
                                 <span className="font-mono text-gray-500 font-bold text-[10px]">
-                                  {item.productCode.toUpperCase()}
+                                  {String(item.productCode).toUpperCase()}
                                 </span>
                               )}
                             </div>

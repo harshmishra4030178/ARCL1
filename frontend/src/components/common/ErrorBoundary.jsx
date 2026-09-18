@@ -61,10 +61,32 @@ export class ErrorBoundary extends React.Component {
               </p>
             </div>
 
-            {process.env.NODE_ENV === "development" && this.state.error && (
-              <pre className="text-left text-[11px] font-mono bg-slate-900 text-red-300 p-3 rounded-xl overflow-x-auto max-h-32">
-                {this.state.error.toString()}
-              </pre>
+            {this.state.error && (
+              <div className="text-left space-y-2 mt-2">
+                <div className="bg-slate-900 text-red-300 p-3.5 rounded-xl font-mono text-[11px] overflow-x-auto max-h-48 border border-red-900/50 shadow-inner">
+                  <div className="font-bold text-red-400 mb-1">
+                    {this.state.error.name || "Error"}: {this.state.error.message || String(this.state.error)}
+                  </div>
+                  {this.state.errorInfo?.componentStack && (
+                    <div className="text-slate-400 text-[10px] mt-2 whitespace-pre-wrap border-t border-slate-800 pt-1.5">
+                      Component: {this.state.errorInfo.componentStack.split("\n")[1] || "Unknown"}
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = `${this.state.error?.toString()}\n\nStack:\n${this.state.error?.stack || ""}\n\nComponent Stack:\n${this.state.errorInfo?.componentStack || ""}`;
+                      navigator.clipboard?.writeText(text);
+                      alert("Error details copied to clipboard!");
+                    }}
+                    className="text-[10px] text-slate-500 hover:text-slate-700 underline font-medium cursor-pointer"
+                  >
+                    📋 Copy Technical Error
+                  </button>
+                </div>
+              </div>
             )}
 
             <div className="flex items-center justify-center gap-2 pt-2">

@@ -79,6 +79,29 @@ import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { hasModuleAccess, isSuperAdmin } from "../../utils/rbac.js";
 
+// Safe Date formatting helper utilities to avoid any RangeError / runtime exception
+const toSafeIsoDate = (d, fallback = "") => {
+  if (!d) return fallback;
+  try {
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return fallback;
+    return parsed.toISOString().slice(0, 10);
+  } catch (e) {
+    return fallback;
+  }
+};
+
+const toSafeLocaleDate = (d, fallback = "-", locale = "en-GB", options) => {
+  if (!d) return fallback;
+  try {
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return fallback;
+    return parsed.toLocaleDateString(locale, options);
+  } catch (e) {
+    return fallback;
+  }
+};
+
 // ==========================================
 // SCIENTIFIC & ENGINEERING CALCULATORS COMPONENT
 // ==========================================
@@ -1363,11 +1386,12 @@ export default function CalibrationPageView() {
           r._id === rec._id
       );
       const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
-        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        const makeTrim = String(r?.make || "").trim();
+        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
         return {
           itemNo: idx + 1,
-          name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
-          subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${r.serialNo || "-"})`,
+          name: `${r?.instrument || "Calibration Equipment"} - Calibration & Testing`,
+          subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           taxRate: "18%",
           qty: 1,
@@ -1388,13 +1412,9 @@ export default function CalibrationPageView() {
       } else {
         setTaxInvoiceForm((prev) => ({
           ...prev,
-          invoiceNo: `ARCL/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
-          invoiceDate: rec.calibrationDate
-            ? new Date(rec.calibrationDate).toLocaleDateString("en-GB")
-            : new Date().toLocaleDateString("en-GB"),
-          dueDate: rec.calibrationDueDate
-            ? new Date(rec.calibrationDueDate).toLocaleDateString("en-GB")
-            : new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-GB"),
+          invoiceNo: `ARCL/26-27/${String(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+          invoiceDate: toSafeLocaleDate(rec.calibrationDate, toSafeLocaleDate(new Date())),
+          dueDate: toSafeLocaleDate(rec.calibrationDueDate, toSafeLocaleDate(Date.now() + 30 * 86400000)),
           clientCompany: rec.clientCompany || prev.clientCompany,
           clientAddress: rec.clientAddress || prev.clientAddress,
           clientGstin: rec.clientGst || prev.clientGstin,
@@ -1416,11 +1436,12 @@ export default function CalibrationPageView() {
           r._id === rec._id
       );
       const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
-        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        const makeTrim = String(r?.make || "").trim();
+        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
         return {
           itemNo: idx + 1,
-          name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-          subText: `NABL Proforma Scope (${makeStr}S/N: ${r.serialNo || "-"})`,
+          name: `${r?.instrument || "Calibration Instrument"} - Calibration`,
+          subText: `NABL Proforma Scope (${makeStr}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           rate: 1000,
           qty: 1,
@@ -1439,10 +1460,8 @@ export default function CalibrationPageView() {
       } else {
         setProformaForm((prev) => ({
           ...prev,
-          piNo: `ARCL/PI/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
-          piDate: rec.calibrationDate
-            ? new Date(rec.calibrationDate).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0],
+          piNo: `ARCL/PI/26-27/${String(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+          piDate: toSafeIsoDate(rec.calibrationDate, toSafeIsoDate(new Date())),
           buyerCompany: rec.clientCompany || prev.buyerCompany,
           buyerAddress: rec.clientAddress || prev.buyerAddress,
           buyerGstin: rec.clientGst || prev.buyerGstin,
@@ -1464,11 +1483,12 @@ export default function CalibrationPageView() {
           r._id === rec._id
       );
       const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
-        const makeStr = r.make?.trim() ? `Make: ${r.make.trim()} | ` : "";
+        const makeTrim = String(r?.make || "").trim();
+        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
         return {
           itemNo: idx + 1,
-          name: `${r.instrument || "Calibration Instrument"} - Calibration`,
-          subText: `NABL Traceable Report (${makeStr}S/N: ${r.serialNo || "-"})`,
+          name: `${r?.instrument || "Calibration Instrument"} - Calibration`,
+          subText: `NABL Traceable Report (${makeStr}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           rate: 1000,
           qty: 1,
@@ -1491,13 +1511,9 @@ export default function CalibrationPageView() {
         });
       } else {
         setQuotationForm({
-          quotationNo: `ARCL/QTN/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
-          quotationDate: rec.calibrationDate
-            ? new Date(rec.calibrationDate).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0],
-          validityDate: rec.calibrationDueDate
-            ? new Date(rec.calibrationDueDate).toISOString().split("T")[0]
-            : new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+          quotationNo: `ARCL/QTN/26-27/${String(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+          quotationDate: toSafeIsoDate(rec.calibrationDate, toSafeIsoDate(new Date())),
+          validityDate: toSafeIsoDate(rec.calibrationDueDate, toSafeIsoDate(Date.now() + 30 * 86400000)),
           placeOfSupply: "27-MAHARASHTRA",
           billTo: {
             companyName: rec.clientCompany || "",
@@ -2016,21 +2032,21 @@ export default function CalibrationPageView() {
   const filteredRecords = useMemo(() => {
     const list = Array.isArray(records) ? records : [];
     return list.filter((r) => {
-      const q = (searchTerm || "").toLowerCase();
+      const q = String(searchTerm || "").toLowerCase().trim();
       const matchesSearch =
-        !searchTerm ||
-        (r?.instrument && r.instrument.toLowerCase().includes(q)) ||
-        (r?.serialNo && r.serialNo.toLowerCase().includes(q)) ||
-        (r?.clientCompany && r.clientCompany.toLowerCase().includes(q)) ||
-        (r?.modelNo && r.modelNo.toLowerCase().includes(q)) ||
-        (r?.make && r.make.toLowerCase().includes(q)) ||
-        (r?.dcNo && r.dcNo.toLowerCase().includes(q));
+        !q ||
+        String(r?.instrument || "").toLowerCase().includes(q) ||
+        String(r?.serialNo || "").toLowerCase().includes(q) ||
+        String(r?.clientCompany || "").toLowerCase().includes(q) ||
+        String(r?.modelNo || "").toLowerCase().includes(q) ||
+        String(r?.make || "").toLowerCase().includes(q) ||
+        String(r?.dcNo || "").toLowerCase().includes(q);
 
       const matchesStage = stageFilter === "all" || r?.stage === stageFilter;
 
       const matchesPayment =
         paymentFilter === "all" ||
-        (r?.commercialDocs?.paymentStatus || "Paid").toLowerCase() === paymentFilter.toLowerCase();
+        String(r?.commercialDocs?.paymentStatus || "Paid").toLowerCase() === String(paymentFilter).toLowerCase();
 
       const matchesClient = selectedClient === "all" || r?.clientCompany === selectedClient;
 
@@ -2044,16 +2060,16 @@ export default function CalibrationPageView() {
     const batchMap = new Map();
 
     list.forEach((r) => {
-      const dcClean = (r.dcNo || "").trim();
-      const compClean = (r.clientCompany || "External Client").trim();
+      const dcClean = String(r?.dcNo || "").trim();
+      const compClean = String(r?.clientCompany || "External Client").trim();
       const key =
         dcClean && dcClean !== "-"
           ? `${compClean.toLowerCase()}___${dcClean.toLowerCase()}`
           : `${compClean.toLowerCase()}___${
-              r.challanDate
-                ? new Date(r.challanDate).toLocaleDateString("en-GB")
-                : r.calibrationDate
-                ? new Date(r.calibrationDate).toLocaleDateString("en-GB")
+              r?.challanDate
+                ? toSafeLocaleDate(r.challanDate, "batch-date")
+                : r?.calibrationDate
+                ? toSafeLocaleDate(r.calibrationDate, "batch-date")
                 : "batch"
             }`;
 
@@ -2063,36 +2079,40 @@ export default function CalibrationPageView() {
           primaryRecord: r,
           items: [],
           clientCompany: compClean,
-          clientContactPerson: r.clientContactPerson || "Quality Manager",
-          clientEmail: r.clientEmail || "",
-          clientPhone: r.clientPhone || "",
-          clientGst: r.clientGst || "",
-          clientAddress: r.clientAddress || "",
-          dcNo: r.dcNo || "-",
-          challanDate: r.challanDate,
-          sentToLab: r.sentToLab || "ARCL Laboratory",
-          broughtToCompanyDate: r.broughtToCompanyDate,
-          invoiceSharedDate: r.invoiceSharedDate,
-          calibrationDate: r.calibrationDate,
-          calibrationDueDate: r.calibrationDueDate,
-          commercialDocs: r.commercialDocs || {},
-          stage: r.stage || "Calibration Done",
-          records: r.records || {},
+          clientContactPerson: r?.clientContactPerson || "Quality Manager",
+          clientEmail: r?.clientEmail || "",
+          clientPhone: r?.clientPhone || "",
+          clientGst: r?.clientGst || "",
+          clientAddress: r?.clientAddress || "",
+          dcNo: r?.dcNo || "-",
+          challanDate: r?.challanDate,
+          sentToLab: r?.sentToLab || "ARCL Laboratory",
+          broughtToCompanyDate: r?.broughtToCompanyDate,
+          invoiceSharedDate: r?.invoiceSharedDate,
+          calibrationDate: r?.calibrationDate,
+          calibrationDueDate: r?.calibrationDueDate,
+          commercialDocs: r?.commercialDocs || {},
+          stage: r?.stage || "Calibration Done",
+          records: r?.records || {},
         });
       }
       const existingBatch = batchMap.get(key);
-      existingBatch.items.push(r);
-      if (
-        !existingBatch.commercialDocs?.poFileUrl &&
-        (r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised)
-      ) {
-        existingBatch.commercialDocs = {
-          ...existingBatch.commercialDocs,
-          ...r.commercialDocs,
-          poFileUrl: r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised,
-          poRaised: r.commercialDocs?.poRaised || r.commercialDocs?.poFileUrl,
-        };
-        existingBatch.primaryRecord.commercialDocs = existingBatch.commercialDocs;
+      if (existingBatch) {
+        existingBatch.items.push(r);
+        if (
+          !existingBatch.commercialDocs?.poFileUrl &&
+          (r?.commercialDocs?.poFileUrl || r?.commercialDocs?.poRaised)
+        ) {
+          existingBatch.commercialDocs = {
+            ...existingBatch.commercialDocs,
+            ...r.commercialDocs,
+            poFileUrl: r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised,
+            poRaised: r.commercialDocs?.poRaised || r.commercialDocs?.poFileUrl,
+          };
+          if (existingBatch.primaryRecord) {
+            existingBatch.primaryRecord.commercialDocs = existingBatch.commercialDocs;
+          }
+        }
       }
     });
 
@@ -2513,9 +2533,9 @@ export default function CalibrationPageView() {
       clientGst: primary.clientGst || "",
       clientAddress: primary.clientAddress || "",
       dcNo: primary.dcNo || "",
-      challanDate: primary.challanDate ? new Date(primary.challanDate).toISOString().slice(0, 10) : "",
-      sentToLab: (primary.sentToLab && !primary.sentToLab.includes("Metrology") && !primary.sentToLab.includes("Central")) ? primary.sentToLab : "ARCL Calibration Lab",
-      invoiceSharedDate: primary.invoiceSharedDate ? new Date(primary.invoiceSharedDate).toISOString().slice(0, 10) : "",
+      challanDate: toSafeIsoDate(primary.challanDate, ""),
+      sentToLab: (primary.sentToLab && !String(primary.sentToLab).includes("Metrology") && !String(primary.sentToLab).includes("Central")) ? primary.sentToLab : "ARCL Calibration Lab",
+      invoiceSharedDate: toSafeIsoDate(primary.invoiceSharedDate, ""),
       deletedItemIds: [],
       instruments: batchItems.map((it) => ({
         _id: it._id || it.id,
@@ -2525,12 +2545,8 @@ export default function CalibrationPageView() {
         modelNo: it.modelNo && it.modelNo !== "GEN-01" && it.modelNo !== "ARCL-CTM-2000" ? it.modelNo : "",
         serialNo: it.serialNo || "",
         instrumentRange: it.instrumentRange || "",
-        calibrationDate: it.calibrationDate
-          ? new Date(it.calibrationDate).toISOString().slice(0, 10)
-          : new Date().toISOString().slice(0, 10),
-        calibrationDueDate: it.calibrationDueDate
-          ? new Date(it.calibrationDueDate).toISOString().slice(0, 10)
-          : "",
+        calibrationDate: toSafeIsoDate(it.calibrationDate, toSafeIsoDate(new Date())),
+        calibrationDueDate: toSafeIsoDate(it.calibrationDueDate, ""),
         stage: it.stage || "Instrument Received",
         paymentStatus: it.commercialDocs?.paymentStatus || it.paymentStatus || "Paid",
         stickerCheck:
@@ -4968,19 +4984,19 @@ export default function CalibrationPageView() {
                   </tr>
                 ) : (
                   groupedBatches.map((batch, idx) => {
-                    const r = batch.primaryRecord;
+                    const r = batch?.primaryRecord || batch?.items?.[0] || {};
                     const isExpanded = expandedBatchKeys.has(batch.batchKey);
-                    const isMulti = batch.items.length > 1;
+                    const batchItems = Array.isArray(batch?.items) ? batch.items : [];
+                    const isMulti = batchItems.length > 1;
 
                     // Compute clean aggregated displays
                     const makes = Array.from(
                       new Set(
-                        batch.items
-                          .map((i) =>
-                            i.make && i.make !== "ARCL" && i.make !== "ARCL Instruments"
-                              ? i.make.trim()
-                              : ""
-                          )
+                        batchItems
+                          .map((i) => {
+                            const m = String(i?.make || "").trim();
+                            return m && m !== "ARCL" && m !== "ARCL Instruments" ? m : "";
+                          })
                           .filter(Boolean)
                       )
                     );
@@ -4988,23 +5004,22 @@ export default function CalibrationPageView() {
 
                     const models = Array.from(
                       new Set(
-                        batch.items
-                          .map((i) =>
-                            i.modelNo && i.modelNo !== "GEN-01" && i.modelNo !== "ARCL-CTM-2000"
-                              ? i.modelNo.trim()
-                              : ""
-                          )
+                        batchItems
+                          .map((i) => {
+                            const mod = String(i?.modelNo || "").trim();
+                            return mod && mod !== "GEN-01" && mod !== "ARCL-CTM-2000" ? mod : "";
+                          })
                           .filter(Boolean)
                       )
                     );
                     const modelDisplay = models.length === 1 ? models[0] : models.length > 1 ? `${models[0]} (${models.length})` : "";
 
                     const serialDisplay = isMulti
-                      ? `${batch.items[0]?.serialNo || "-"}, ${batch.items[1]?.serialNo || ""}... (${batch.items.length} S/N)`
-                      : batch.items[0]?.serialNo || "-";
+                      ? `${batchItems[0]?.serialNo || "-"}, ${batchItems[1]?.serialNo || ""}... (${batchItems.length} S/N)`
+                      : batchItems[0]?.serialNo || "-";
 
-                    const ranges = Array.from(new Set(batch.items.map((i) => i.instrumentRange?.trim()).filter(Boolean)));
-                    const rangeDisplay = ranges.length === 1 ? ranges[0] : ranges.length > 1 ? `Multi-Range (${batch.items.length})` : (ranges[0] || "");
+                    const ranges = Array.from(new Set(batchItems.map((i) => String(i?.instrumentRange || "").trim()).filter(Boolean)));
+                    const rangeDisplay = ranges.length === 1 ? ranges[0] : ranges.length > 1 ? `Multi-Range (${batchItems.length})` : (ranges[0] || "");
 
                     return (
                       <React.Fragment key={batch.batchKey || idx}>
@@ -5021,7 +5036,7 @@ export default function CalibrationPageView() {
                                 </span>
                                 {isMulti && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 font-mono">
-                                    {batch.items.length} Products
+                                    {batchItems.length} Products
                                   </span>
                                 )}
                               </div>
@@ -5031,11 +5046,11 @@ export default function CalibrationPageView() {
                                   onClick={() => toggleExpandBatch(batch.batchKey)}
                                   className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1 cursor-pointer text-left mt-0.5"
                                 >
-                                  {isExpanded ? "▲ Hide Equipments" : `▼ View ${batch.items.length} Equipments List`}
+                                  {isExpanded ? "▲ Hide Equipments" : `▼ View ${batchItems.length} Equipments List`}
                                 </button>
                               ) : (
                                 <p className="text-[10px] text-gray-500 font-medium truncate max-w-[200px]">
-                                  {batch.items[0]?.instrument || "Precision Equipment"}
+                                  {batchItems[0]?.instrument || "Precision Equipment"}
                                 </p>
                               )}
                             </div>
@@ -5049,10 +5064,10 @@ export default function CalibrationPageView() {
 
                           {/* 2. Calibration Details */}
                           <td className="p-2.5 border-r border-gray-200 font-mono">
-                            {batch.calibrationDate ? new Date(batch.calibrationDate).toLocaleDateString("en-GB") : "-"}
+                            {toSafeLocaleDate(batch.calibrationDate, "-")}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-emerald-700">
-                            {batch.calibrationDueDate ? new Date(batch.calibrationDueDate).toLocaleDateString("en-GB") : "-"}
+                            {toSafeLocaleDate(batch.calibrationDueDate, "-")}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">
                             <div className="font-semibold text-slate-800">{batch.dcNo || "-"}</div>
@@ -5061,7 +5076,7 @@ export default function CalibrationPageView() {
                                 type="button"
                                 onClick={() => openDocViewer("srf", r)}
                                 className="text-amber-700 hover:text-amber-900 flex items-center gap-0.5 cursor-pointer text-[9px] font-bold bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
-                                title={`View Inward SRF Slip (${batch.items.length} Equipments PDF)`}
+                                title={`View Inward SRF Slip (${batchItems.length} Equipments PDF)`}
                               >
                                 <FaFilePdf className="text-[9px] text-amber-600" />
                                 <span>SRF Slip</span>
@@ -5077,16 +5092,14 @@ export default function CalibrationPageView() {
                             </div>
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono">
-                            {batch.challanDate ? new Date(batch.challanDate).toLocaleDateString("en-GB") : "-"}
+                            {toSafeLocaleDate(batch.challanDate, "-")}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 text-gray-600">{batch.sentToLab}</td>
                           <td className="p-2.5 border-r border-gray-200 font-mono">
-                            {batch.broughtToCompanyDate
-                              ? new Date(batch.broughtToCompanyDate).toLocaleDateString("en-GB")
-                              : "-"}
+                            {toSafeLocaleDate(batch.broughtToCompanyDate, "-")}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono">
-                            {batch.invoiceSharedDate ? new Date(batch.invoiceSharedDate).toLocaleDateString("en-GB") : "-"}
+                            {toSafeLocaleDate(batch.invoiceSharedDate, "-")}
                           </td>
 
                           {/* 3. Commercial Documents */}
@@ -8426,7 +8439,7 @@ export default function CalibrationPageView() {
                         SRF Job Number:{" "}
                         <strong className="font-mono text-amber-800">
                           {selectedDoc.record?.srfNo ||
-                            `SRF/2026/${(selectedDoc.record?.serialNo || "0842")
+                            `SRF/2026/${String(selectedDoc.record?.serialNo || "0842")
                               .replace(/[^0-9]/g, "")
                               .slice(-4) || "0842"}`}
                         </strong>
@@ -8434,11 +8447,7 @@ export default function CalibrationPageView() {
                       <div>
                         Inward Date:{" "}
                         <strong>
-                          {selectedDoc.record?.calibrationDate
-                            ? new Date(
-                                selectedDoc.record.calibrationDate
-                              ).toLocaleDateString("en-GB")
-                            : new Date().toLocaleDateString("en-GB")}
+                          {toSafeLocaleDate(selectedDoc.record?.calibrationDate, toSafeLocaleDate(new Date()))}
                         </strong>
                       </div>
                       <div>
@@ -8464,11 +8473,7 @@ export default function CalibrationPageView() {
                         DC / Challan:{" "}
                         <strong className="font-mono">
                           {selectedDoc.record?.dcNo || "N/A"} (Dt:{" "}
-                          {selectedDoc.record?.challanDate
-                            ? new Date(
-                                selectedDoc.record.challanDate
-                              ).toLocaleDateString("en-GB")
-                            : "-"}
+                          {toSafeLocaleDate(selectedDoc.record?.challanDate, "-")}
                           )
                         </strong>
                       </div>
@@ -8482,7 +8487,7 @@ export default function CalibrationPageView() {
                       <div className="col-span-2">
                         Assigned Lab:{" "}
                         <strong className="text-emerald-700 font-bold">
-                          {selectedDoc.record?.sentToLab && !selectedDoc.record.sentToLab.includes("Metrology") && !selectedDoc.record.sentToLab.includes("Central")
+                          {selectedDoc.record?.sentToLab && !String(selectedDoc.record.sentToLab).includes("Metrology") && !String(selectedDoc.record.sentToLab).includes("Central")
                             ? selectedDoc.record.sentToLab
                             : "ARCL Calibration Lab"}
                         </strong>
@@ -8598,27 +8603,19 @@ export default function CalibrationPageView() {
                     <div>
                       Calibration Date:{" "}
                       <strong>
-                        {selectedDoc.record?.calibrationDate
-                          ? new Date(
-                              selectedDoc.record.calibrationDate
-                            ).toLocaleDateString("en-GB")
-                          : new Date().toLocaleDateString("en-GB")}
+                        {toSafeLocaleDate(selectedDoc.record?.calibrationDate, toSafeLocaleDate(new Date()))}
                       </strong>
                     </div>
                     <div>
                       Client:{" "}
-                      <strong>
+                      <strong className="text-gray-900">
                         {selectedDoc.record?.clientCompany || "Valued Client"}
                       </strong>
                     </div>
                     <div>
                       Suggested Due Date:{" "}
                       <strong className="text-emerald-700">
-                        {selectedDoc.record?.calibrationDueDate
-                          ? new Date(
-                              selectedDoc.record.calibrationDueDate
-                            ).toLocaleDateString("en-GB")
-                          : "1 Year (365 Days)"}
+                        {toSafeLocaleDate(selectedDoc.record?.calibrationDueDate, "1 Year (365 Days)")}
                       </strong>
                     </div>
                     <div>

@@ -376,7 +376,7 @@ const InquiryPage = () => {
                         {item.phone && (
                           <Tooltip text="Chat on WhatsApp">
                             <a
-                              href={`https://wa.me/${item.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
+                              href={`https://wa.me/${String(item.phone || "").replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(
                                 item.customerName || "Customer"
                               )},%20thank%20you%20for%20your%20inquiry%20on%20${encodeURIComponent(
                                 item.productName || "ARCL Instrument"

@@ -1184,7 +1184,7 @@ export const downloadDocument = async (req, res, next) => {
     const dueDate = record?.calibrationDueDate || record?.dueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const challanDate = record?.challanDate || record?.inwardDate || calDate;
     const rawSentToLab = record?.sentToLab || "ARCL Calibration Lab";
-    const sentToLab = rawSentToLab.includes("Metrology") || rawSentToLab.includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
+    const sentToLab = String(rawSentToLab).includes("Metrology") || String(rawSentToLab).includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
     const make = record?.make || "-";
     const modelNo = record?.modelNo || "-";
 
@@ -1267,7 +1267,7 @@ export const downloadDocument = async (req, res, next) => {
 
     if (docType === "srf") {
       customDocData = {
-        srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${sNo.replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
+        srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${String(sNo || "").replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
         calibrationDate: calDate,
         challanDate: challanDate,
         clientCompany: comp,
