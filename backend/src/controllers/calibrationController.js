@@ -359,7 +359,7 @@ export const createCalibrationRecord = async (req, res, next) => {
   }
 };
 
-// 4. Update Calibration Record
+// 4. Update Calibration Record (Single)
 export const updateCalibrationRecord = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -378,6 +378,122 @@ export const updateCalibrationRecord = async (req, res, next) => {
     return res
       .status(200)
       .json(new ApiResponse(200, updated, "Calibration record updated successfully"));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 4B. Update Full Batch / Multi-Equipment Inward Record
+export const updateCalibrationBatch = async (req, res, next) => {
+  try {
+    const {
+      clientCompany,
+      clientContactPerson,
+      clientEmail,
+      clientPhone,
+      clientGst,
+      clientAddress,
+      dcNo,
+      challanDate,
+      sentToLab,
+      invoiceSharedDate,
+      instruments = [],
+      deletedItemIds = [],
+    } = req.body;
+
+    const comp = (clientCompany || "").trim();
+    const contact = (clientContactPerson || "").trim();
+    const email = (clientEmail || "").trim();
+    const phone = (clientPhone || "").trim();
+    const gst = (clientGst || "").trim();
+    const address = (clientAddress || "").trim();
+    const commonDc = (dcNo || "").trim();
+    const commonChallanDate = challanDate ? new Date(challanDate) : new Date();
+    const commonLab = (sentToLab || "ARCL Metrology Laboratory").trim();
+    const commonInvoiceDate = invoiceSharedDate ? new Date(invoiceSharedDate) : new Date();
+
+    // 1. Handle Deleted Instruments
+    if (Array.isArray(deletedItemIds) && deletedItemIds.length > 0) {
+      const validDeleteIds = deletedItemIds.filter((id) => isValidMongoId(id));
+      if (validDeleteIds.length > 0) {
+        await CalibrationRecord.deleteMany({ _id: { $in: validDeleteIds } });
+      }
+    }
+
+    // 2. Process all instruments (Update existing or Insert new)
+    const results = [];
+    const currentCount = await CalibrationRecord.countDocuments();
+
+    for (let i = 0; i < instruments.length; i++) {
+      const it = instruments[i];
+      const instName = (it.instrument || "").trim();
+      const sNo = (it.serialNo || "").trim();
+      if (!instName || !sNo) continue;
+
+      const calibDate = it.calibrationDate ? new Date(it.calibrationDate) : new Date();
+      const dueDate = it.calibrationDueDate
+        ? new Date(it.calibrationDueDate)
+        : new Date(calibDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+      const updateData = {
+        instrument: instName,
+        make: it.make !== undefined ? String(it.make).trim() : "",
+        modelNo: it.modelNo !== undefined ? String(it.modelNo).trim() : "",
+        serialNo: sNo,
+        instrumentRange: it.instrumentRange !== undefined ? String(it.instrumentRange).trim() : "",
+        calibrationDate: calibDate,
+        calibrationDueDate: dueDate,
+        dcNo: (it.dcNo || commonDc).trim(),
+        challanDate: it.challanDate ? new Date(it.challanDate) : commonChallanDate,
+        sentToLab: (it.sentToLab || commonLab).trim(),
+        invoiceSharedDate: it.invoiceSharedDate ? new Date(it.invoiceSharedDate) : commonInvoiceDate,
+        clientCompany: comp || it.clientCompany,
+        clientContactPerson: contact || it.clientContactPerson,
+        clientEmail: email || it.clientEmail,
+        clientPhone: phone || it.clientPhone,
+        clientGst: gst || it.clientGst,
+        clientAddress: address || it.clientAddress,
+        stage: it.stage || "Instrument Received",
+        remarks: it.remarks || "",
+        "commercialDocs.paymentStatus": it.paymentStatus || it.commercialDocs?.paymentStatus || "Paid",
+        "records.stickerCheck": it.stickerCheck !== undefined ? Boolean(it.stickerCheck) : true,
+        "records.certificateNo": it.certificateNo?.trim() || it.records?.certificateNo || `ARCL-CAL-2026-${String(currentCount + i + 1).padStart(3, "0")}`,
+      };
+
+      if (it._id && isValidMongoId(it._id)) {
+        const updated = await CalibrationRecord.findByIdAndUpdate(
+          it._id,
+          { $set: updateData },
+          { new: true }
+        );
+        if (updated) results.push(updated);
+      } else {
+        // New item added during batch edit
+        const newRecord = await CalibrationRecord.create({
+          srNo: currentCount + i + 1,
+          ...updateData,
+          commercialDocs: {
+            paymentStatus: it.paymentStatus || "Paid",
+            quotation: "/docs/sample-quotation.pdf",
+            poRaised: "/docs/sample-po.pdf",
+            proformaInvoice: "/docs/sample-pi.pdf",
+            taxInvoice: "/docs/sample-tax-invoice.pdf",
+          },
+          records: {
+            certificate: "/docs/sample-calibration-certificate.pdf",
+            certificateNo: updateData["records.certificateNo"],
+            recordExcel: "/docs/calibration-records.xlsx",
+            stickerCheck: updateData["records.stickerCheck"],
+          },
+          draftStatus: "Approved",
+        });
+        results.push(newRecord);
+      }
+    }
+
+    return res.status(200).json(
+      new ApiResponse(200, results, `Successfully updated ${results.length} instruments in batch for ${comp}`)
+    );
   } catch (err) {
     next(err);
   }

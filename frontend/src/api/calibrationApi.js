@@ -16,6 +16,9 @@ export const createCalibrationRecordApi = (data) =>
 export const updateCalibrationRecordApi = (id, data) =>
   API.put(`/admin/calibration/${id}`, data);
 
+export const updateCalibrationBatchApi = (data) =>
+  API.put("/admin/calibration/batch/update", data);
+
 export const deleteCalibrationRecordApi = (id) =>
   API.delete(`/admin/calibration/${id}`);
 

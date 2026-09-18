@@ -48,6 +48,7 @@ import {
   getAdminCalibrationStats,
   createCalibrationRecordApi,
   updateCalibrationRecordApi,
+  updateCalibrationBatchApi,
   deleteCalibrationRecordApi,
   clearAllCalibrationRecordsApi,
   sendCalibrationReminderApi,
@@ -2316,16 +2317,100 @@ export default function CalibrationPageView() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editFormData || !editFormData._id) return;
+    if (!editFormData) return;
+    if (!editFormData.clientCompany?.trim()) {
+      toast.error("Please enter Client / Company Name");
+      return;
+    }
+
+    const items = editFormData.instruments || [];
+    if (items.length === 0) {
+      toast.error("At least one equipment item is required in the batch");
+      return;
+    }
+
+    // Validate all items
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].instrument?.trim()) {
+        toast.error(`Equipment Name is required for Row #${i + 1}`);
+        return;
+      }
+      if (!items[i].serialNo?.trim()) {
+        toast.error(`Serial Number is required for Row #${i + 1} (${items[i].instrument})`);
+        return;
+      }
+    }
+
     try {
-      await updateCalibrationRecordApi(editFormData._id, editFormData);
-      toast.success("Instrument & Commercial details updated successfully! ✅");
+      await updateCalibrationBatchApi(editFormData);
+      toast.success(
+        `Successfully saved all changes for ${items.length} equipment(s) under "${editFormData.clientCompany}"! ✅`
+      );
       setIsEditModalOpen(false);
       fetchData(false);
     } catch (err) {
       console.error("Edit error:", err);
-      toast.error(err.response?.data?.message || "Failed to update instrument record");
+      toast.error(err.response?.data?.message || "Failed to update instrument records");
     }
+  };
+
+  const handleEditInstrumentFieldChange = (index, field, value) => {
+    setEditFormData((prev) => {
+      const updated = [...prev.instruments];
+      const item = { ...updated[index], [field]: value };
+      if (field === "calibrationDate" && value) {
+        try {
+          const d = new Date(value);
+          if (!isNaN(d.getTime())) {
+            const nextYear = new Date(d.getTime() + 365 * 24 * 60 * 60 * 1000);
+            item.calibrationDueDate = nextYear.toISOString().slice(0, 10);
+          }
+        } catch (e) {}
+      }
+      updated[index] = item;
+      return { ...prev, instruments: updated };
+    });
+  };
+
+  const handleAddEditInstrumentRow = () => {
+    setEditFormData((prev) => ({
+      ...prev,
+      instruments: [...prev.instruments, createDefaultInstrumentRow()],
+    }));
+    toast.info("Added new equipment row in batch!");
+  };
+
+  const handleDuplicateEditInstrumentRow = (index) => {
+    setEditFormData((prev) => {
+      const currentList = [...prev.instruments];
+      const source = currentList[index];
+      if (!source) return prev;
+      const clone = {
+        ...source,
+        _id: undefined,
+        id: "inst_" + Math.random().toString(36).substring(2, 9),
+        serialNo: source.serialNo ? `${source.serialNo}-COPY` : "",
+      };
+      currentList.splice(index + 1, 0, clone);
+      return { ...prev, instruments: currentList };
+    });
+    toast.success("Equipment row duplicated!");
+  };
+
+  const handleRemoveEditInstrumentRow = (index) => {
+    setEditFormData((prev) => {
+      if (prev.instruments.length <= 1) {
+        toast.warning("At least one equipment row is required in the batch!");
+        return prev;
+      }
+      const itemToRemove = prev.instruments[index];
+      const newDeletedIds = [...(prev.deletedItemIds || [])];
+      if (itemToRemove._id) {
+        newDeletedIds.push(itemToRemove._id);
+      }
+      const updated = prev.instruments.filter((_, i) => i !== index);
+      return { ...prev, instruments: updated, deletedItemIds: newDeletedIds };
+    });
   };
 
   // Selected Client specific records
@@ -2376,8 +2461,63 @@ export default function CalibrationPageView() {
       percentage,
     };
   }, [displayedClientRecords]);
-  const handleOpenEdit = (record) => {
-    setEditFormData({ ...record });
+  const handleOpenEdit = (target) => {
+    if (!target) return;
+
+    let batchItems = [];
+    let primary = target.primaryRecord || target;
+
+    if (target.items && Array.isArray(target.items) && target.items.length > 0) {
+      batchItems = target.items;
+      primary = target.primaryRecord || target.items[0];
+    } else {
+      const matching = records.filter(
+        (r) =>
+          (target.dcNo && r.dcNo && r.dcNo === target.dcNo && r.clientCompany === target.clientCompany) ||
+          r._id === target._id
+      );
+      batchItems = matching.length > 0 ? matching : [target];
+      primary = batchItems[0] || target;
+    }
+
+    setEditFormData({
+      clientCompany: primary.clientCompany || "",
+      clientContactPerson: primary.clientContactPerson || "",
+      clientEmail: primary.clientEmail || "",
+      clientPhone: primary.clientPhone || "",
+      clientGst: primary.clientGst || "",
+      clientAddress: primary.clientAddress || "",
+      dcNo: primary.dcNo || "",
+      challanDate: primary.challanDate ? new Date(primary.challanDate).toISOString().slice(0, 10) : "",
+      sentToLab: primary.sentToLab || "ARCL Central Metrology Lab",
+      invoiceSharedDate: primary.invoiceSharedDate ? new Date(primary.invoiceSharedDate).toISOString().slice(0, 10) : "",
+      deletedItemIds: [],
+      instruments: batchItems.map((it) => ({
+        _id: it._id || it.id,
+        id: it._id || it.id || "inst_" + Math.random().toString(36).slice(2, 9),
+        instrument: it.instrument || "",
+        make: it.make && it.make !== "ARCL" && it.make !== "ARCL Instruments" ? it.make : "",
+        modelNo: it.modelNo && it.modelNo !== "GEN-01" && it.modelNo !== "ARCL-CTM-2000" ? it.modelNo : "",
+        serialNo: it.serialNo || "",
+        instrumentRange: it.instrumentRange || "",
+        calibrationDate: it.calibrationDate
+          ? new Date(it.calibrationDate).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
+        calibrationDueDate: it.calibrationDueDate
+          ? new Date(it.calibrationDueDate).toISOString().slice(0, 10)
+          : "",
+        stage: it.stage || "Instrument Received",
+        paymentStatus: it.commercialDocs?.paymentStatus || it.paymentStatus || "Paid",
+        stickerCheck:
+          it.records?.stickerCheck !== undefined
+            ? it.records.stickerCheck
+            : it.stickerCheck !== undefined
+            ? it.stickerCheck
+            : true,
+        certificateNo: it.records?.certificateNo || it.certificateNo || "",
+        remarks: it.remarks || "",
+      })),
+    });
     setIsEditModalOpen(true);
   };
 
@@ -7074,121 +7214,71 @@ export default function CalibrationPageView() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 1B: EDIT CALIBRATION INSTRUMENT & COMMERCIAL RECORD */}
+      {/* MODAL 1B: EDIT CALIBRATION INWARD ENTRY (MULTI-EQUIPMENT / BATCH INWARD) */}
       {/* ========================================================================= */}
       {isEditModalOpen && editFormData && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 max-w-3xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-5xl w-full shadow-2xl border border-gray-100 max-h-[94vh] overflow-y-auto space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
-                  <FaEdit className="text-lg" />
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-blue-100 text-blue-700 shadow-sm">
+                  <FaEdit className="text-xl" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-gray-900">
-                    Edit Instrument &amp; Commercial Record
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg sm:text-xl font-black text-gray-900">
+                      Edit Calibration Inward &amp; Equipments
+                    </h3>
+                    <span className="text-[11px] font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full border border-blue-300 font-mono">
+                      {editFormData.instruments?.length || 1} Equipment{(editFormData.instruments?.length || 1) > 1 ? "s" : ""}
+                    </span>
+                  </div>
                   <p className="text-xs text-gray-500">
-                    Modify technical specifications, calibration validity, billing, and lab compliance data.
+                    Modify client company, delivery challan, or edit/add/delete any equipment in this batch.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition"
+                className="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition cursor-pointer"
               >
-                <FaTimes className="text-base" />
+                <FaTimes className="text-lg" />
               </button>
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
-              {/* Section 1: Instrument & Equipment Info */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <FaTools className="text-blue-600" /> 1. Equipment &amp; Technical Details
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-gray-700">Instrument Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={editFormData.instrument}
-                      onChange={(e) => setEditFormData({ ...editFormData, instrument: e.target.value })}
-                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-gray-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-gray-700">Serial No. (Unique Asset ID) *</label>
-                    <input
-                      type="text"
-                      required
-                      value={editFormData.serialNo}
-                      onChange={(e) => setEditFormData({ ...editFormData, serialNo: e.target.value })}
-                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700"
-                    />
-                  </div>
+              {/* Block 1: Client & Inward Challan Details */}
+              <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <FaBuilding className="text-blue-600" /> 1. Client Company &amp; Inward Details (Shared for this Batch)
+                  </p>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100/90 px-2.5 py-0.5 rounded-full">
+                    ⚡ Auto Synced with Invoices &amp; Certificates
+                  </span>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="font-bold text-gray-700">Make / Manufacturer</label>
-                    <input
-                      type="text"
-                      placeholder="Optional (Make / Brand)"
-                      value={editFormData.make || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, make: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-gray-700">Model No.</label>
-                    <input
-                      type="text"
-                      placeholder="Optional (Model No.)"
-                      value={editFormData.modelNo || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, modelNo: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-gray-700">Measuring Range / Capacity</label>
-                    <input
-                      type="text"
-                      value={editFormData.instrumentRange}
-                      onChange={(e) => setEditFormData({ ...editFormData, instrumentRange: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Client & Inward Challan */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <FaBuilding className="text-blue-600" /> 2. Client &amp; Delivery Challan Information
-                </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-gray-700">Client / Company Name</label>
+                    <label className="font-bold text-gray-700">Client / Company Name *</label>
                     <input
                       type="text"
+                      required
+                      placeholder="e.g. Tata Projects Ltd. / L&T / Walk-in Client"
                       value={editFormData.clientCompany || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientCompany: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
+                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-gray-900"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-gray-700">Contact Person Name</label>
                     <input
                       type="text"
-                      placeholder="e.g. Ramesh Patel"
+                      placeholder="e.g. Ramesh Patel (QA Lead)"
                       value={editFormData.clientContactPerson || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientContactPerson: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
+                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
                     />
                   </div>
                   <div>
@@ -7198,20 +7288,20 @@ export default function CalibrationPageView() {
                       placeholder="e.g. 27AAACU0108Q1Z8"
                       value={editFormData.clientGst || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientGst: e.target.value.toUpperCase() })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono font-bold text-gray-800 uppercase"
+                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-gray-800 uppercase"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-gray-700">Client Email (For Reminders)</label>
+                    <label className="font-bold text-gray-700">Client Email (For Auto Reminders)</label>
                     <input
                       type="email"
                       placeholder="e.g. qa@company.com"
                       value={editFormData.clientEmail || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientEmail: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono text-gray-800"
                     />
                   </div>
                   <div>
@@ -7221,13 +7311,14 @@ export default function CalibrationPageView() {
                       placeholder="e.g. +91 8009559900"
                       value={editFormData.clientPhone || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, clientPhone: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
+                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono text-gray-800"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-gray-700">DC / Delivery Challan No.</label>
+                    <label className="font-bold text-gray-700">Inward DC / Challan No.</label>
                     <input
                       type="text"
+                      placeholder="e.g. DC/26-27/089"
                       value={editFormData.dcNo || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, dcNo: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono text-gray-800"
@@ -7249,6 +7340,7 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Assigned Laboratory</label>
                     <input
                       type="text"
+                      placeholder="e.g. ARCL Central Metrology Lab"
                       value={editFormData.sentToLab || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, sentToLab: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
@@ -7272,127 +7364,252 @@ export default function CalibrationPageView() {
                     placeholder="e.g. Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai, Maharashtra - 400708"
                     value={editFormData.clientAddress || ""}
                     onChange={(e) => setEditFormData({ ...editFormData, clientAddress: e.target.value })}
-                    className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium text-gray-800"
+                    className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-gray-800"
                   />
                 </div>
               </div>
 
-              {/* Section 3: Calibration Dates & Pipeline Status */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <FaCertificate className="text-blue-600" /> 3. Calibration Dates, Validity &amp; Stage
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="font-bold text-gray-700">Calibration Date</label>
-                    <input
-                      type="date"
-                      value={editFormData.calibrationDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, calibrationDate: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono font-bold"
-                    />
+              {/* Block 2: Dynamic Multi-Equipment List */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2">
+                    <FaTools className="text-blue-600 text-sm" />
+                    <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                      2. Calibration Equipment List ({editFormData.instruments?.length || 0} Item{(editFormData.instruments?.length || 0) > 1 ? "s" : ""})
+                    </h4>
                   </div>
-                  <div>
-                    <label className="font-bold text-gray-700">Next Recalibration Due Date</label>
-                    <input
-                      type="date"
-                      value={editFormData.calibrationDueDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, calibrationDueDate: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono font-bold text-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-gray-700">Certificate Number</label>
-                    <input
-                      type="text"
-                      value={editFormData.certificateNo}
-                      onChange={(e) => setEditFormData({ ...editFormData, certificateNo: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono font-bold text-blue-700"
-                    />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateEditInstrumentRow(editFormData.instruments.length - 1)}
+                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 transition text-[11px] cursor-pointer"
+                      title="Clone last equipment details"
+                    >
+                      <FaCopy /> Duplicate Last
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddEditInstrumentRow}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition text-[11px] cursor-pointer"
+                    >
+                      <FaPlus /> + Add Another Equipment
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="font-bold text-gray-700">Current Pipeline Stage</label>
-                    <select
-                      value={editFormData.stage}
-                      onChange={(e) => setEditFormData({ ...editFormData, stage: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-bold text-blue-900"
+                {/* List of Equipment Cards */}
+                <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1">
+                  {(editFormData.instruments || []).map((inst, index) => (
+                    <div
+                      key={inst.id || inst._id || index}
+                      className="p-3.5 bg-white rounded-2xl border border-gray-200 hover:border-blue-300 transition shadow-xs space-y-3 relative"
                     >
-                      <option value="Instrument Received">1. Instrument Received</option>
-                      <option value="Under Calibration">2. Under Calibration</option>
-                      <option value="Calibration Done">3. Calibration Done</option>
-                      <option value="Invoice Sent">4. Invoice Sent</option>
-                      <option value="Certificate Uploaded">5. Certificate Uploaded</option>
-                    </select>
-                  </div>
+                      {/* Equipment Card Header */}
+                      <div className="flex items-center justify-between bg-slate-100/70 -mx-3.5 -mt-3.5 px-3.5 py-2 rounded-t-2xl border-b border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-[11px] flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="font-black text-gray-800 text-xs">
+                            {inst.instrument ? inst.instrument : `Equipment #${index + 1}`}
+                          </span>
+                          {inst.serialNo && (
+                            <span className="font-mono text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                              S/N: {inst.serialNo}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateEditInstrumentRow(index)}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs cursor-pointer"
+                            title="Duplicate this equipment row"
+                          >
+                            <FaCopy />
+                          </button>
+                          {editFormData.instruments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEditInstrumentRow(index)}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs cursor-pointer"
+                              title="Remove this equipment row"
+                            >
+                              <FaTrashAlt />
+                            </button>
+                          )}
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="font-bold text-gray-700">Commercial Payment Status</label>
-                    <select
-                      value={editFormData.paymentStatus}
-                      onChange={(e) => setEditFormData({ ...editFormData, paymentStatus: e.target.value })}
-                      className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-bold"
-                    >
-                      <option value="Paid">Paid 🟢</option>
-                      <option value="Pending">Pending 🟡</option>
-                      <option value="Partial">Partial 🔴</option>
-                    </select>
-                  </div>
+                      {/* Row 1: Name & Serial No */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="font-bold text-gray-700 flex items-center justify-between">
+                            <span>Instrument / Equipment Name *</span>
+                            <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Compression Testing Machine 2000 kN / Vernier Caliper"
+                            value={inst.instrument || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "instrument", e.target.value)}
+                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700 flex items-center justify-between">
+                            <span>Serial No. (Unique Asset Tag) *</span>
+                            <span className="text-[10px] text-blue-600 font-mono">Unique ID</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. CTM-2026-998 / VC-348"
+                            value={inst.serialNo || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "serialNo", e.target.value)}
+                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700"
+                          />
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="font-bold text-gray-700">Sticker Pasted Compliance</label>
-                    <div className="mt-2 flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer font-bold">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.stickerCheck}
-                          onChange={(e) => setEditFormData({ ...editFormData, stickerCheck: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                        />
-                        <span>Physical Calibration Sticker Pasted</span>
-                      </label>
+                      {/* Row 2: Make, Model, Range */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="font-bold text-gray-700">Make / Brand</label>
+                          <input
+                            type="text"
+                            placeholder="Optional (Make / Brand)"
+                            value={inst.make || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "make", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700">Model No.</label>
+                          <input
+                            type="text"
+                            placeholder="Optional (Model No.)"
+                            value={inst.modelNo || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "modelNo", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700">Measuring Range / Capacity</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 0 - 2000 kN / 0 - 300 mm"
+                            value={inst.instrumentRange || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "instrumentRange", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Row 3: Calib Date, Due Date, Stage, Payment */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                          <label className="font-bold text-gray-700">Calibration Date</label>
+                          <input
+                            type="date"
+                            value={inst.calibrationDate || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "calibrationDate", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700">Due Date (+1 Year)</label>
+                          <input
+                            type="date"
+                            value={inst.calibrationDueDate || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "calibrationDueDate", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-mono font-bold text-emerald-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700">Pipeline Stage</label>
+                          <select
+                            value={inst.stage || "Instrument Received"}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "stage", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-bold text-blue-900"
+                          >
+                            <option value="Instrument Received">1. Inward Received &amp; Inspected</option>
+                            <option value="Under Calibration">2. Under Calibration in Lab</option>
+                            <option value="Calibration Done">3. Calibrated &amp; Sticker Pasted</option>
+                            <option value="Invoice Sent">4. Invoice Sent</option>
+                            <option value="Certificate Uploaded">5. Certificate Uploaded / Dispatched</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="font-bold text-gray-700">Payment Status</label>
+                          <select
+                            value={inst.paymentStatus || "Paid"}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "paymentStatus", e.target.value)}
+                            className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-bold"
+                          >
+                            <option value="Paid">Paid 🟢</option>
+                            <option value="Pending">Pending 🟡</option>
+                            <option value="Partial">Partial 🔴</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Row 4: Sticker & Remarks */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-gray-100 items-center">
+                        <div>
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={inst.stickerCheck !== false}
+                              onChange={(e) => handleEditInstrumentFieldChange(index, "stickerCheck", e.target.checked)}
+                              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Physical Sticker Pasted</span>
+                          </label>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <input
+                            type="text"
+                            placeholder="Remarks / Lab Notes (e.g. Master Standard NPL/ERTL Traceable)"
+                            value={inst.remarks || ""}
+                            onChange={(e) => handleEditInstrumentFieldChange(index, "remarks", e.target.value)}
+                            className="w-full p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-medium"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
 
-                <div>
-                  <label className="font-bold text-gray-700">Remarks / Lab Notes</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Master standard calibrated at NPL with uncertainty +-0.02%"
-                    value={editFormData.remarks}
-                    onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
-                    className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Form Buttons */}
-              <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                {/* Quick Add Button below list */}
                 <button
                   type="button"
-                  onClick={() => handleDeleteRecord(editFormData._id, editFormData.instrument)}
-                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl font-bold border border-rose-200 flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleAddEditInstrumentRow}
+                  className="w-full py-2.5 border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50 text-blue-700 rounded-2xl font-black flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  <FaTrashAlt /> Delete Instrument
+                  <FaPlus /> + Add Another Equipment Row in Batch
                 </button>
+              </div>
 
-                <div className="flex gap-2">
+              {/* Form Action Buttons */}
+              <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-gray-600 font-medium">
+                  Ready to update <strong className="text-blue-700 font-black">{editFormData.instruments?.length || 0} equipment item{(editFormData.instruments?.length || 0) > 1 ? "s" : ""}</strong> for <strong className="text-gray-900">{editFormData.clientCompany || "Client"}</strong>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold cursor-pointer"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold cursor-pointer transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-md cursor-pointer flex items-center gap-2"
+                    className="px-6 py-2.5 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl font-bold shadow-md cursor-pointer transition flex items-center gap-2"
                   >
-                    <FaCheck /> Save All Changes
+                    <FaCheck /> Save All {editFormData.instruments?.length || 0} Equipment Changes
                   </button>
                 </div>
               </div>

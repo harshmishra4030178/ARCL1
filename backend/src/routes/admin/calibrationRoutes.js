@@ -4,6 +4,7 @@ import {
   getCalibrationStats,
   createCalibrationRecord,
   updateCalibrationRecord,
+  updateCalibrationBatch,
   deleteCalibrationRecord,
   sendDueReminder,
   autoDispatchAllDueReminders,
@@ -51,6 +52,8 @@ router.get("/tax-invoice", checkModulePermission("calibration"), getTaxInvoiceDa
 router.post("/tax-invoice/save", checkModulePermission("calibration", "documents"), saveTaxInvoiceData);
 router.get("/proforma", checkModulePermission("calibration"), getProformaData);
 router.post("/proforma/save", checkModulePermission("calibration", "documents"), saveProformaData);
+router.put("/batch/update", checkModulePermission("calibration", "edit"), updateCalibrationBatch);
+router.post("/batch/update", checkModulePermission("calibration", "edit"), updateCalibrationBatch);
 router.post("/", checkModulePermission("calibration", "create"), createCalibrationRecord);
 router.put("/:id", checkModulePermission("calibration", "edit"), updateCalibrationRecord);
 router.delete("/:id", checkModulePermission("calibration", "delete"), deleteCalibrationRecord);
