@@ -874,7 +874,18 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
 
     // Build WhatsApp Message Link
     const waText = encodeURIComponent(
-      `*OFFICIAL NABL CALIBRATION CERTIFICATE ISSUED (CC-4313)*%0A%0ADear ${person} (${company}),%0AYour instrument *${instName}* (Serial No: ${sNo}) has been calibrated in accordance with ISO/IEC 17025:2017.%0A%0A*Certificate No:* ${certNo}%0A*Calibration Date:* ${new Date(calDate).toLocaleDateString("en-GB")}%0A*Valid Due Date:* ${new Date(dueDate).toLocaleDateString("en-GB")}%0A*Sticker Pasted:* Verified on Body ✅%0A%0A*View / Download Digital Certificate PDF:*%0Ahttps://arcl-1.vercel.app/calibration-services%0A%0AARCL Calibration Desk: +91 8009559900`
+      `*OFFICIAL NABL CALIBRATION CERTIFICATE ISSUED (CC-4313)*\n\n` +
+      `Dear ${person} (${company}),\n` +
+      `Your instrument *${instName}* (Serial No: ${sNo}) has been calibrated in accordance with ISO/IEC 17025:2017.\n\n` +
+      `• *Certificate No:* ${certNo}\n` +
+      `• *Calibration Date:* ${new Date(calDate).toLocaleDateString("en-GB")}\n` +
+      `• *Valid Due Date:* 🔴 *${new Date(dueDate).toLocaleDateString("en-GB")}*\n` +
+      `• *Sticker Pasted:* Verified on Body ✅\n\n` +
+      `📥 *View / Download Digital Certificate PDF:*\n` +
+      `https://arcl-1.vercel.app/calibration-services\n\n` +
+      `ARCL Metrology Support Desk:\n` +
+      `📞 Phone: +91 6205691085 / +91 8369458583\n` +
+      `✉️ Email: arclinstruments@gmail.com`
     );
 
     const phone = (targetRecord?.clientPhone || req.body.clientPhone || "9369962486").replace(/[^0-9]/g, "");

@@ -3186,10 +3186,43 @@ export default function CalibrationPageView() {
       }
 
       if (channel === "whatsapp" || channel === "both") {
-        if (waLink) {
-          window.open(waLink, "_blank");
-          toast.success(`💬 WhatsApp opened for ${phone}!`);
-        }
+        const clientRecords = records.filter((r) => r.clientCompany === (company || ""));
+        const targetInstruments = clientRecords.length > 0 ? clientRecords : [
+          { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
+        ];
+
+        const instrumentsSummary = targetInstruments
+          .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+          .join("\n");
+
+        const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date.")
+          .replace(/{{company}}/gi, company || "Valued Client")
+          .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
+          .replace(/{{count}}/gi, String(targetInstruments.length));
+
+        const resolvedSubj = (reminderTemplate.subject || "[URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+          .replace(/{{company}}/gi, company || "Valued Client")
+          .replace(/{{contactPerson}}/gi, contactPerson || "Quality Head")
+          .replace(/{{count}}/gi, String(targetInstruments.length));
+
+        const waText = encodeURIComponent(
+          `*${resolvedSubj}*\n\n` +
+          `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
+          `${resolvedIntro}\n\n` +
+          `${instrumentsSummary}\n\n` +
+          `Please schedule recalibration pickup or book on-site testing:\n` +
+          `https://arcl-1.vercel.app/calibration-services\n\n` +
+          `ARCL Metrology Support Desk:\n` +
+          `📞 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+          `✉️ Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+        );
+
+        const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
+        const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
+        const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
+
+        window.open(waLink, "_blank");
+        toast.success(`💬 WhatsApp opened for ${phone}!`);
       }
 
       setIsManualModalOpen(false);
@@ -3746,22 +3779,19 @@ export default function CalibrationPageView() {
   const handleSendSingleClientReminder = async (viaWhatsApp = false) => {
     const clientRecords = records.filter((r) => r.clientCompany === selectedReminderClient);
     try {
-      const res = await sendCalibrationReminderApi({
+      await sendCalibrationReminderApi({
         clientEmail: customReminderEmail,
         clientCompany: selectedReminderClient,
         clientPhone: customReminderPhone,
         instruments: clientRecords.length > 0 ? clientRecords : undefined,
       });
 
-      const waLink = res.data?.data?.whatsappLink;
-
-      if (viaWhatsApp && waLink) {
-        window.open(waLink, "_blank");
-        toast.success("Opened WhatsApp with pre-filled calibration due notice!");
+      if (viaWhatsApp) {
+        handleDispatchWhatsAppFromModal();
       } else {
         toast.success(`Due reminder email dispatched to ${customReminderEmail} (${selectedReminderClient})!`);
-        if (waLink && window.confirm("Email sent! Would you like to also open WhatsApp to send notice to client?")) {
-          window.open(waLink, "_blank");
+        if (window.confirm("Email sent! Would you like to also open WhatsApp to send notice to client?")) {
+          handleDispatchWhatsAppFromModal();
         }
       }
       setIsReminderModalOpen(false);
