@@ -1410,66 +1410,149 @@ export const generateObservationSheetPdf = async (data = {}) => {
 export const generateSrfSlipPdf = async (data = {}) => {
   const doc = new PDFDocument({ size: "A4", margin: 25, bufferPages: true });
 
-  const srfNo = data.srfNumber || data.srfNo || "SRF/2026/0842";
-  const calDate = data.calibrationDate ? new Date(data.calibrationDate).toLocaleDateString("en-GB") : "15/05/2026";
-  const clientCompany = data.clientCompany || data.customer?.name || "Harsh Mishra Technologies Pvt. Ltd.";
+  const srfNo = data.srfNo || data.srfNumber || "SRF/2026/0842";
+  const calDate = data.calibrationDate
+    ? (data.calibrationDate instanceof Date ? data.calibrationDate.toLocaleDateString("en-GB") : String(data.calibrationDate).slice(0, 10))
+    : new Date().toLocaleDateString("en-GB");
+  const challanDate = data.challanDate
+    ? (data.challanDate instanceof Date ? data.challanDate.toLocaleDateString("en-GB") : String(data.challanDate).slice(0, 10))
+    : calDate;
+  const clientCompany = data.clientCompany || data.customer?.name || "Tata Projects Ltd. / Valued Client";
+  const contactPerson = data.clientContactPerson || data.contactPerson || "Quality Lead";
+  const clientGst = data.clientGst || data.clientGstin || "N/A";
+  const clientAddress = data.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708";
+  const clientPhone = data.clientPhone || data.phone || "+91 8009559900";
+  const clientEmail = data.clientEmail || data.email || "qa@company.com";
   const dcNo = data.dcNo || "DC/26-27/0188";
-  const instrument = data.instrument || "Digital Compression Testing Machine 2000 kN";
-  const serialNo = data.serialNo || "ARCL-CTM-9842";
+  const sentToLab = data.sentToLab || "ARCL Central Metrology Laboratory";
 
-  let checks = data.items || data.checks || [
-    { param: "Physical Appearance & Body Condition", obs: "Clean, no structural damage or hydraulic leakages", status: "Passed ✓" },
-    { param: "Display & Zero Tare Verification", obs: "Display zeroes accurately without deadband", status: "Passed ✓" },
-    { param: "Requested Metrological Scope", obs: "ISO/IEC 17025 NABL Calibration & Calibration Sticker", status: "Approved ✓" },
-  ];
+  // Dynamic Inward Instruments List
+  const rawInstruments = data.instruments && Array.isArray(data.instruments) && data.instruments.length > 0
+    ? data.instruments
+    : [
+        {
+          instrument: data.instrument || "Digital Compression Testing Machine 2000 kN",
+          serialNo: data.serialNo || "ARCL-CTM-9842",
+          make: data.make || "ARCL",
+          modelNo: data.modelNo || "GEN-01",
+          instrumentRange: data.instrumentRange || "0 - 2000 kN",
+          stickerCheck: true,
+          remarks: data.remarks || "Standard NABL Calibration Required",
+        }
+      ];
 
-  let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Job Slip)", "#b45309");
+  let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Metrology Job Slip)", "#b45309");
 
-  const infoH = 75;
+  // Client & Inward Metadata Card
+  const infoH = 88;
   doc.rect(35, curY, 525, infoH).fillColor("#fffbeb").strokeColor("#fde68a").lineWidth(0.8).fillAndStroke();
-  doc.fontSize(8).font("Helvetica-Bold").fillColor("#b45309");
+
+  doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#b45309");
   doc.text(`SRF Job Number: ${srfNo}`, 45, curY + 8);
   doc.text(`Inward Date: ${calDate}`, 320, curY + 8);
 
   doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-  doc.text(`Client Name: `, 45, curY + 25).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 125, curY + 25);
-  doc.font("Helvetica").fillColor("#334155").text(`Challan Ref: `, 320, curY + 25).font("Helvetica-Bold").fillColor("#0f172a").text(dcNo, 390, curY + 25);
+  doc.text(`Client Company: `, 45, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 125, curY + 23);
+  doc.font("Helvetica").fillColor("#334155").text(`Contact Person: `, 320, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, 395, curY + 23);
 
-  doc.font("Helvetica").fillColor("#334155").text(`Instrument Inward: `, 45, curY + 45).font("Helvetica-Bold").fillColor("#0f172a").text(`${instrument} (S/N: ${serialNo})`, 125, curY + 45);
+  doc.font("Helvetica").fillColor("#334155").text(`GST No. (GSTIN): `, 45, curY + 38).font("Helvetica-Bold").fillColor("#0f172a").text(clientGst, 125, curY + 38);
+  doc.font("Helvetica").fillColor("#334155").text(`Inward DC / Challan: `, 320, curY + 38).font("Helvetica-Bold").fillColor("#0f172a").text(`${dcNo} (Dt: ${challanDate})`, 410, curY + 38);
 
-  curY += infoH + 12;
+  doc.font("Helvetica").fillColor("#334155").text(`Site / Address: `, 45, curY + 53).font("Helvetica-Bold").fillColor("#0f172a").text(clientAddress, 125, curY + 53, { width: 390 });
+  doc.font("Helvetica").fillColor("#334155").text(`Assigned Lab: `, 45, curY + 70).font("Helvetica-Bold").fillColor("#059669").text(sentToLab, 125, curY + 70);
 
+  curY += infoH + 10;
+
+  // Draw Table Header
   const drawSrfHeader = (yPos) => {
     doc.rect(35, yPos, 525, 18).fillColor("#b45309").strokeColor("#b45309").fillAndStroke();
-    doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#ffffff");
-    doc.text("Inspection Parameter", 45, yPos + 5);
-    doc.text("Observation", 240, yPos + 5);
-    doc.text("Inward Status", 460, yPos + 5);
+    doc.fontSize(7).font("Helvetica-Bold").fillColor("#ffffff");
+    doc.text("Sr.", 40, yPos + 5, { width: 20, align: "center" });
+    doc.text("Equipment / Instrument Description", 65, yPos + 5, { width: 170 });
+    doc.text("Make / Model", 240, yPos + 5, { width: 85 });
+    doc.text("Serial No / ID", 330, yPos + 5, { width: 75 });
+    doc.text("Range / Capacity", 410, yPos + 5, { width: 75 });
+    doc.text("Inward Status", 490, yPos + 5, { width: 65, align: "center" });
     return yPos + 18;
   };
 
   curY = drawSrfHeader(curY);
 
   const rowH = 22;
-  checks.forEach((c) => {
-    const param = c.param || c.description || c[0] || "Inspection Check";
-    const obs = c.obs || c.condition || c[1] || "Satisfactory";
-    const stat = c.status || c.calLocation || c[2] || "Passed ✓";
+  rawInstruments.forEach((it, idx) => {
+    if (curY + rowH > 680) {
+      drawOfficialFooter(doc, 725);
+      doc.addPage({ size: "A4", margin: 25 });
+      curY = drawOfficialHeader(doc, "Service Request Form - Continued Equipments", "#b45309");
+      curY = drawSrfHeader(curY);
+    }
 
-    doc.rect(35, curY, 525, rowH).fillColor("#ffffff").strokeColor("#e2e8f0").lineWidth(0.5).fillAndStroke();
-    doc.fontSize(7.5).font("Helvetica").fillColor("#1e293b");
-    doc.text(param, 45, curY + 6);
-    doc.text(obs, 240, curY + 6);
-    doc.font("Helvetica-Bold").fillColor("#059669").text(stat, 460, curY + 6);
+    const bg = idx % 2 === 0 ? "#ffffff" : "#fffdfa";
+    doc.rect(35, curY, 525, rowH).fillColor(bg).strokeColor("#e2e8f0").lineWidth(0.5).fillAndStroke();
+
+    doc.fontSize(7).font("Helvetica-Bold").fillColor("#475569");
+    doc.text(String(idx + 1), 40, curY + 6, { width: 20, align: "center" });
+
+    doc.font("Helvetica-Bold").fillColor("#0f172a");
+    doc.text(it.instrument || "Testing Equipment", 65, curY + 4, { width: 170 });
+    doc.font("Helvetica").fontSize(6.5).fillColor("#64748b");
+    doc.text(`Scope: ISO/IEC 17025 Calibration`, 65, curY + 12, { width: 170 });
+
+    doc.fontSize(7).font("Helvetica").fillColor("#334155");
+    doc.text(`${it.make || "ARCL"} / ${it.modelNo || "-"}`, 240, curY + 6, { width: 85 });
+
+    doc.font("Helvetica-Bold").fillColor("#1d4ed8");
+    doc.text(it.serialNo || "N/A", 330, curY + 6, { width: 75 });
+
+    doc.font("Helvetica").fillColor("#334155");
+    doc.text(it.instrumentRange || "Standard Range", 410, curY + 6, { width: 75 });
+
+    doc.font("Helvetica-Bold").fillColor("#059669");
+    doc.text("Received ✓", 490, curY + 6, { width: 65, align: "center" });
+
     curY += rowH;
   });
+
+  // Technical Receiving Checklist
+  if (curY + 75 > 680) {
+    drawOfficialFooter(doc, 725);
+    doc.addPage({ size: "A4", margin: 25 });
+    curY = drawOfficialHeader(doc, "Service Request Form - Inward Technical Signoff", "#b45309");
+  }
+
+  curY += 8;
+  doc.rect(35, curY, 525, 52).fillColor("#f8fafc").strokeColor("#cbd5e1").lineWidth(0.5).fillAndStroke();
+  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#0f172a").text("Inward Quality & Technical Acceptance Review:", 45, curY + 6);
+
+  doc.fontSize(7).font("Helvetica").fillColor("#334155");
+  doc.text(`• Total Inward Equipments: ${rawInstruments.length} Item(s) Verified & Logged in Pipeline.`, 45, curY + 18);
+  doc.text("• Physical Condition: No structural cracks, zero mechanical damage, cables & sensors intact.", 45, curY + 28);
+  doc.text("• Metrological Traceability: National Physical Laboratory (NPL, New Delhi) & ERTL standards.", 45, curY + 38);
+  doc.text("• Calibration Sticker: Physical holographic compliance sticker approved for application post calibration.", 300, curY + 18, { width: 250 });
+
+  curY += 60;
+
+  // Signatures
+  if (curY + 50 > 710) {
+    drawOfficialFooter(doc, 725);
+    doc.addPage({ size: "A4", margin: 25 });
+    curY = 30;
+  }
+
+  doc.rect(35, curY, 255, 45).strokeColor("#cbd5e1").lineWidth(0.5).stroke();
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#334155").text("Handed Over By (Customer / Logistics Rep):", 40, curY + 5);
+  doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(`Name: ${contactPerson} (${clientCompany})`, 40, curY + 30);
+
+  doc.rect(305, curY, 255, 45).strokeColor("#cbd5e1").lineWidth(0.5).stroke();
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#334155").text("Received & Accepted By (ARCL Metrology Incharge):", 310, curY + 5);
+  doc.fontSize(6.5).font("Helvetica").fillColor("#059669").text("Authorized Quality Acceptance • CC-4313", 310, curY + 30);
 
   const range = doc.bufferedPageRange();
   for (let p = 0; p < range.count; p++) {
     doc.switchToPage(p);
     drawOfficialFooter(doc, 725);
     doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(
-      `Page ${p + 1} of ${range.count}  •  SRF Ref: ${srfNo}`,
+      `Page ${p + 1} of ${range.count}  •  SRF Ref: ${srfNo}  •  Inward Challan: ${dcNo}`,
       35,
       785,
       { width: 525, align: "center" }

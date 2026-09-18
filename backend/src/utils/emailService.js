@@ -1062,45 +1062,145 @@ export const sendSpecificDocumentEmail = async ({
   }
 
   // Generate Real Binary PDF Attachments matching dashboard PDF logic exactly
-  const attachments = [];
-  for (const d of docsList) {
-    try {
-      let customDocData = null;
-      if (d.type === "quotation" && record?.quotationData) customDocData = record.quotationData;
-      else if ((d.type === "tax_invoice" || d.type === "invoice") && record?.taxInvoiceData) customDocData = record.taxInvoiceData;
-      else if ((d.type === "pi" || d.type === "proforma_invoice") && record?.proformaData) customDocData = record.proformaData;
-      else if (d.type === "po" && record?.poData) customDocData = record.poData;
+    const batchInstruments = Array.isArray(record?.instruments) && record.instruments.length > 0
+      ? record.instruments
+      : [
+          {
+            itemNo: 1,
+            instrument: instName,
+            serialNo: sNo,
+            make: record?.make || "ARCL Instruments",
+            modelNo: record?.modelNo || "-",
+            instrumentRange: record?.instrumentRange || "-",
+            remarks: "Standard NABL Calibration",
+          }
+        ];
 
-      if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
-        customDocData = {
-          invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
-          invoiceDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
-          dueDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
-          placeOfSupply: "27-MAHARASHTRA",
+    for (const d of docsList) {
+      try {
+        let customDocData = null;
+        if (d.type === "quotation" && record?.quotationData) customDocData = record.quotationData;
+        else if ((d.type === "tax_invoice" || d.type === "invoice") && record?.taxInvoiceData) customDocData = record.taxInvoiceData;
+        else if ((d.type === "pi" || d.type === "proforma_invoice") && record?.proformaData) customDocData = record.proformaData;
+        else if (d.type === "po" && record?.poData) customDocData = record.poData;
+
+        if (d.type === "srf") {
+          customDocData = {
+            srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${sNo.replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
+            calibrationDate: calDate,
+            challanDate: record?.challanDate || calDate,
+            clientCompany: company,
+            clientContactPerson: person,
+            clientPhone: clientPhone || "+91 8009559900",
+            clientEmail: toEmail,
+            clientGst: record?.clientGst || record?.clientGstin || "N/A",
+            clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+            dcNo: challanNo,
+            sentToLab: record?.sentToLab || "ARCL Central Metrology Laboratory",
+            instruments: batchInstruments,
+          };
+        } else if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
+          const dynamicInvoiceItems = batchInstruments.map((inst, i) => ({
+            itemNo: i + 1,
+            name: `${inst.instrument} - Calibration & Testing`,
+            subText: `NABL Accredited Metrological Calibration (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
+            hsnSac: "998346",
+            taxRate: "18%",
+            qty: 1,
+            qtyUnit: "NOS",
+            rate: 5000,
+            per: "NOS",
+            amount: 5000,
+          }));
+
+          customDocData = {
+            invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+            invoiceDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+            dueDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
+            placeOfSupply: "27-MAHARASHTRA",
+            clientCompany: company,
+            clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+            clientGstin: record?.clientGst || record?.clientGstin || "27AAOCR3275P1ZH",
+            items: dynamicInvoiceItems,
+          };
+        } else if (!customDocData && d.type === "quotation") {
+          const dynamicQuotationItems = batchInstruments.map((inst, i) => ({
+            itemNo: i + 1,
+            name: `${inst.instrument} - Calibration`,
+            subText: `NABL Traceable Report (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
+            hsnSac: "998346",
+            rate: 1000,
+            qty: 1,
+            qtyUnit: "NOS",
+            amount: 1000,
+          }));
+
+          customDocData = {
+            quotationNo: `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+            quotationDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+            validityDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
+            placeOfSupply: "27-MAHARASHTRA",
+            billTo: {
+              companyName: company,
+              gstin: record?.clientGst || record?.clientGstin || "27AAOCR3275P1ZH",
+              address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+              cityStatePin: "Thane, MAHARASHTRA, 421503",
+              phone: clientPhone || "+91 8009559900",
+              email: toEmail,
+            },
+            items: dynamicQuotationItems,
+            cgstRate: 9.0,
+            sgstRate: 9.0,
+          };
+        } else if (!customDocData && (d.type === "pi" || d.type === "proforma_invoice")) {
+          const dynamicPiItems = batchInstruments.map((inst, i) => ({
+            itemNo: i + 1,
+            name: `${inst.instrument} - Calibration`,
+            subText: `NABL Proforma Scope (Make: ${inst.make || "ARCL"} | S/N: ${inst.serialNo || "-"})`,
+            hsnSac: "998346",
+            rate: 1000,
+            qty: 1,
+            qtyUnit: "NOS",
+            amount: 1000,
+          }));
+
+          customDocData = {
+            piNo: `ARCL/PI/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+            piDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+            placeOfSupply: "27-MAHARASHTRA",
+            billTo: {
+              companyName: company,
+              gstin: record?.clientGst || record?.clientGstin || "27AAOCR3275P1ZH",
+              address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+              phone: clientPhone || "+91 8009559900",
+              email: toEmail,
+            },
+            items: dynamicPiItems,
+            cgstRate: 9.0,
+            sgstRate: 9.0,
+          };
+        }
+
+        const buf = await generateDocumentPdf(d.type, customDocData || {
+          certificateNo: certNo || "ARCL-CAL-2026-001",
+          calibrationDate: calDate,
+          calibrationDueDate: dueDate,
+          challanDate: record?.challanDate || calDate,
           clientCompany: company,
-          clientAddress: "Gala No. 4, Shree Sai Shradha Industrial Park, Kaman, Vasai East, Palghar",
-          clientGstin: "27AAOCR3275P1ZH",
-          items: [
-            { itemNo: 1, name: `${instName} - Calibration & Testing`, subText: `NABL Accredited Metrological Calibration (S/N: ${sNo})`, hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 5000, per: "NOS", amount: 5000 }
-          ]
-        };
-      }
-
-      const buf = await generateDocumentPdf(d.type, customDocData || {
-        certificateNo: certNo || "ARCL-CAL-2026-001",
-        calibrationDate: calDate,
-        calibrationDueDate: dueDate,
-        clientCompany: company,
-        contactPerson: person,
-        clientPhone: clientPhone || "+91 8009559900",
-        clientEmail: toEmail,
-        instrument: instName,
-        serialNo: sNo,
-        dcNo: challanNo,
-        make: record?.make || "ARCL Instruments",
-        modelNo: record?.modelNo || "-",
-        customNote,
-      });
+          contactPerson: person,
+          clientPhone: clientPhone || "+91 8009559900",
+          clientEmail: toEmail,
+          clientGst: record?.clientGst || record?.clientGstin || "N/A",
+          clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+          instrument: instName,
+          serialNo: sNo,
+          dcNo: challanNo,
+          sentToLab: record?.sentToLab || "ARCL Central Metrology Laboratory",
+          make: record?.make || "ARCL Instruments",
+          modelNo: record?.modelNo || "-",
+          customNote,
+          instruments: batchInstruments,
+        });
 
       if (buf && buf.length > 0) {
         const cleanType = d.type.toUpperCase().replace(/[^a-zA-Z0-9_]/g, "");

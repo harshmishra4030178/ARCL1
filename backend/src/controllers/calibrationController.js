@@ -11,6 +11,10 @@ import NablLabScope, { defaultArclNablScope } from "../models/NablLabScope.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
+const isValidMongoId = (id) => {
+  return Boolean(id && typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id);
+};
+
 // No automatic sample seeding - Admin adds genuine records
 export const seedInitialCalibrationData = async () => {};
 
@@ -825,6 +829,28 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       targetRecord = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
     }
 
+    // Query all batch instruments for this DC No / Client
+    let notifBatchRecords = [];
+    if (targetRecord?.dcNo && targetRecord?.clientCompany) {
+      notifBatchRecords = await CalibrationRecord.find({
+        dcNo: targetRecord.dcNo,
+        clientCompany: targetRecord.clientCompany,
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (!notifBatchRecords.length && targetRecord) {
+      notifBatchRecords = [targetRecord];
+    }
+    const notifBatchInstruments = notifBatchRecords.map((r, idx) => ({
+      itemNo: idx + 1,
+      instrument: r.instrument || "Measuring Instrument",
+      serialNo: r.serialNo || "-",
+      make: r.make || "ARCL",
+      modelNo: r.modelNo || "-",
+      instrumentRange: r.instrumentRange || "-",
+      stickerCheck: r.records?.stickerCheck ?? true,
+      remarks: r.remarks || "Standard NABL Calibration Required",
+    }));
+
     // Merge any real-time doc form data passed directly from frontend editor
     if (req.body.taxInvoiceData) {
       targetRecord = targetRecord ? { ...targetRecord } : {};
@@ -842,6 +868,11 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       targetRecord = targetRecord ? { ...targetRecord } : {};
       targetRecord.poData = { ...(targetRecord.poData || {}), ...req.body.poData };
     }
+
+    targetRecord = {
+      ...targetRecord,
+      instruments: notifBatchInstruments,
+    };
 
     const email = clientEmail || targetRecord?.clientEmail || "harsh.mishra9023@gmail.com";
     const phoneNum = clientPhone || targetRecord?.clientPhone || "9369962486";
@@ -933,7 +964,6 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
 };
 
 // 10. Public Document Downloader / PDF Viewer Endpoint
-// 10. Public Document Downloader / PDF Viewer Endpoint
 export const downloadDocument = async (req, res, next) => {
   try {
     const { id, recordId, serialNo, certificateNo, invoiceNo, quotationNo, proformaNo, poNo, docType = "certificate", format, download } = req.query;
@@ -983,21 +1013,48 @@ export const downloadDocument = async (req, res, next) => {
       record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
     }
 
+    // Fetch all batch records sharing the same DC No & Client Company (or single record)
+    let batchRecords = [];
+    if (record?.dcNo && record?.clientCompany) {
+      batchRecords = await CalibrationRecord.find({
+        dcNo: record.dcNo,
+        clientCompany: record.clientCompany,
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (!batchRecords.length && record) {
+      batchRecords = [record];
+    }
+
+    const batchInstruments = batchRecords.map((r, idx) => ({
+      itemNo: idx + 1,
+      instrument: r.instrument || "Measuring Instrument",
+      serialNo: r.serialNo || "-",
+      make: r.make || "ARCL",
+      modelNo: r.modelNo || "-",
+      instrumentRange: r.instrumentRange || "-",
+      stickerCheck: r.records?.stickerCheck ?? true,
+      remarks: r.remarks || "Standard NABL Calibration Required",
+    }));
+
     const instName = record?.instrument || "Digital Compression Testing Machine 2000 kN";
     const sNo = record?.serialNo || (serialNo ? serialNo.trim().toUpperCase() : "ARCL-CTM-9842");
     const comp = record?.clientCompany || "Harsh Mishra Technologies Pvt. Ltd.";
     const person = record?.clientContactPerson || "Harsh Mishra";
     const phone = record?.clientPhone || "+91 9369962486";
     const email = record?.clientEmail || "harsh.mishra9023@gmail.com";
+    const clientGst = record?.clientGst || record?.clientGstin || "27AAOCR3275P1ZH";
+    const clientAddress = record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708";
     const certNo = record?.records?.certificateNo || (certificateNo ? certificateNo.trim().toUpperCase() : "ARCL-CAL-2026-HM01");
     const dcNo = record?.dcNo || "DC/26-27/0188";
     const calDate = record?.calibrationDate || new Date();
     const dueDate = record?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const challanDate = record?.challanDate || calDate;
+    const sentToLab = record?.sentToLab || "ARCL Central Metrology Laboratory";
     const make = record?.make || "ARCL Instruments";
     const modelNo = record?.modelNo || "ARCL-CTM-2000";
 
     if (format === "json") {
-      return res.status(200).json(new ApiResponse(200, { record, docType, title: docType }, "Document data retrieved"));
+      return res.status(200).json(new ApiResponse(200, { record, batchInstruments, docType, title: docType }, "Document data retrieved"));
     }
 
     // Generate Official Real Binary PDF Buffer
@@ -1012,18 +1069,100 @@ export const downloadDocument = async (req, res, next) => {
       customDocData = record?.poData || (await CalibrationRecord.findOne({ poData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean())?.poData;
     }
 
-    if (!customDocData && (docType === "tax_invoice" || docType === "invoice")) {
+    if (docType === "srf") {
+      customDocData = {
+        srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${sNo.replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
+        calibrationDate: calDate,
+        challanDate: challanDate,
+        clientCompany: comp,
+        clientContactPerson: person,
+        clientPhone: phone,
+        clientEmail: email,
+        clientGst: clientGst,
+        clientAddress: clientAddress,
+        dcNo: dcNo,
+        sentToLab: sentToLab,
+        instruments: batchInstruments,
+      };
+    } else if (!customDocData && (docType === "tax_invoice" || docType === "invoice")) {
+      const dynamicInvoiceItems = batchInstruments.map((inst, i) => ({
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration & Testing`,
+        subText: `NABL Accredited Metrological Calibration (Make: ${inst.make} | S/N: ${inst.serialNo})`,
+        hsnSac: "998346",
+        taxRate: "18%",
+        qty: 1,
+        qtyUnit: "NOS",
+        rate: 5000,
+        per: "NOS",
+        amount: 5000,
+      }));
+
       customDocData = {
         invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
         invoiceDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
         dueDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
         placeOfSupply: "27-MAHARASHTRA",
         clientCompany: comp,
-        clientAddress: "Gala No. 4, Shree Sai Shradha Industrial Park, Kaman, Vasai East, Palghar",
-        clientGstin: "27AAOCR3275P1ZH",
-        items: [
-          { itemNo: 1, name: `${instName} - Calibration & Testing`, subText: `NABL Accredited Metrological Calibration (S/N: ${sNo})`, hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 5000, per: "NOS", amount: 5000 }
-        ]
+        clientAddress: clientAddress,
+        clientGstin: clientGst,
+        items: dynamicInvoiceItems,
+      };
+    } else if (!customDocData && docType === "quotation") {
+      const dynamicQuotationItems = batchInstruments.map((inst, i) => ({
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration`,
+        subText: `NABL Traceable Report (Make: ${inst.make} | S/N: ${inst.serialNo})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      }));
+
+      customDocData = {
+        quotationNo: `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+        quotationDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+        validityDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
+        placeOfSupply: "27-MAHARASHTRA",
+        billTo: {
+          companyName: comp,
+          gstin: clientGst,
+          address: clientAddress,
+          cityStatePin: "Thane, MAHARASHTRA, 421503",
+          phone: phone,
+          email: email,
+        },
+        items: dynamicQuotationItems,
+        cgstRate: 9.0,
+        sgstRate: 9.0,
+      };
+    } else if (!customDocData && (docType === "pi" || docType === "proforma_invoice")) {
+      const dynamicPiItems = batchInstruments.map((inst, i) => ({
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration`,
+        subText: `NABL Proforma Scope (Make: ${inst.make} | S/N: ${inst.serialNo})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      }));
+
+      customDocData = {
+        piNo: `ARCL/PI/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+        piDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+        placeOfSupply: "27-MAHARASHTRA",
+        billTo: {
+          companyName: comp,
+          gstin: clientGst,
+          address: clientAddress,
+          phone: phone,
+          email: email,
+        },
+        items: dynamicPiItems,
+        cgstRate: 9.0,
+        sgstRate: 9.0,
       };
     }
 
@@ -1031,15 +1170,20 @@ export const downloadDocument = async (req, res, next) => {
       certificateNo: certNo,
       calibrationDate: calDate,
       calibrationDueDate: dueDate,
+      challanDate: challanDate,
       clientCompany: comp,
       contactPerson: person,
       clientPhone: phone,
       clientEmail: email,
+      clientGst: clientGst,
+      clientAddress: clientAddress,
       instrument: instName,
       serialNo: sNo,
       dcNo: dcNo,
+      sentToLab: sentToLab,
       make: make,
       modelNo: modelNo,
+      instruments: batchInstruments,
     });
 
     const sanitizedDocType = (docType || "certificate").replace(/[^a-zA-Z0-9_-]/g, "");
@@ -1102,10 +1246,6 @@ export const getQuotationData = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-};
-
-const isValidMongoId = (id) => {
-  return id && typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id;
 };
 
 // 12. Save Quotation Data

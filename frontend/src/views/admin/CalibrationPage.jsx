@@ -4284,7 +4284,28 @@ export default function CalibrationPageView() {
                     <td className="p-2.5 border-r border-gray-200 font-mono font-bold text-emerald-700">
                       {r.calibrationDueDate ? new Date(r.calibrationDueDate).toLocaleDateString("en-GB") : "-"}
                     </td>
-                    <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">{r.dcNo}</td>
+                    <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">
+                      <div className="font-semibold text-slate-800">{r.dcNo || "-"}</div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => openDocViewer("srf", r)}
+                          className="text-amber-700 hover:text-amber-900 flex items-center gap-0.5 cursor-pointer text-[9px] font-bold bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
+                          title="View Inward SRF Slip (Multi-Equipment PDF)"
+                        >
+                          <FaFilePdf className="text-[9px] text-amber-600" />
+                          <span>SRF Slip</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSendDocModal("srf", r)}
+                          className="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                          title="Send SRF Slip to Customer (Email/WhatsApp)"
+                        >
+                          ✉️
+                        </button>
+                      </div>
+                    </td>
                     <td className="p-2.5 border-r border-gray-200 font-mono">
                       {r.challanDate ? new Date(r.challanDate).toLocaleDateString("en-GB") : "-"}
                     </td>
@@ -6982,6 +7003,8 @@ export default function CalibrationPageView() {
                     ? "Commercial Quotation Sheet"
                     : selectedDoc.type === "po"
                     ? "Purchase Order (PO)"
+                    : selectedDoc.type === "srf"
+                    ? "Service Request Form (SRF Inward & Job Slip)"
                     : "Tax Invoice Document"}
                 </span>
               </div>
@@ -7133,7 +7156,7 @@ export default function CalibrationPageView() {
                   <FaPrint /> Print Certificate
                 </button>
                 <a
-                  href={`http://localhost:5000/api/v1/client/calibration/download-document?docType=${selectedDoc.type || "certificate"}&download=true&serialNo=${encodeURIComponent(selectedDoc.record?.serialNo || "")}`}
+                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=${selectedDoc.type || "certificate"}&download=true&serialNo=${encodeURIComponent(selectedDoc.record?.serialNo || "")}&id=${selectedDoc.record?._id || ""}`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
