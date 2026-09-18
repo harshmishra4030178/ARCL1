@@ -1467,16 +1467,23 @@ export const generateSrfSlipPdf = async (data = {}) => {
 
   doc.moveTo(leftMargin + 6, curY + 23).lineTo(leftMargin + contentWidth - 6, curY + 23).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
-  // Row 2: Customer Name | Contact Person | GSTIN (Full width to guarantee zero wrapping)
+  // Row 2: Customer Name | Contact Person | Phone No | GSTIN (4 Separate Distinct Columns)
   const r2Y = curY + 28;
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Customer:", leftMargin + 10, r2Y, { width: 50 });
-  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, leftMargin + 62, r2Y - 0.5, { width: 165, lineBreak: false });
+  // Col 1: Customer
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Customer:", leftMargin + 10, r2Y, { width: 45 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, leftMargin + 55, r2Y - 0.5, { width: 110, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Contact:", leftMargin + 235, r2Y, { width: 38 });
-  doc.fontSize(6.8).font("Helvetica").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, leftMargin + 275, r2Y, { width: 135, lineBreak: false });
+  // Col 2: Contact Person (Name)
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Contact Person:", leftMargin + 170, r2Y, { width: 58 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(contactPerson, leftMargin + 230, r2Y - 0.5, { width: 68, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("GSTIN:", leftMargin + 418, r2Y, { width: 30 });
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, leftMargin + 452, r2Y, { width: 80, lineBreak: false });
+  // Col 3: Phone No (Number)
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Phone No:", leftMargin + 302, r2Y, { width: 42 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(clientPhone, leftMargin + 345, r2Y - 0.5, { width: 75, lineBreak: false });
+
+  // Col 4: GSTIN
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("GSTIN:", leftMargin + 424, r2Y, { width: 30 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, leftMargin + 456, r2Y - 0.5, { width: 75, lineBreak: false });
 
   doc.moveTo(leftMargin + 6, curY + 44).lineTo(leftMargin + contentWidth - 6, curY + 44).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
