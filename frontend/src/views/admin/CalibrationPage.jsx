@@ -3535,6 +3535,48 @@ export default function CalibrationPageView() {
     }
   };
 
+  // Safe Universal Viewer for Uploaded PO Document (Handles Blob, Data URI, Remote URL & Backend Stream)
+  const handleViewPoDocument = (record) => {
+    const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
+    if (!poUrl) {
+      toast.info("No custom PO document uploaded yet for this equipment.");
+      return;
+    }
+
+    if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
+      window.open(poUrl, "_blank");
+      return;
+    }
+
+    if (poUrl.startsWith("data:")) {
+      try {
+        const parts = poUrl.split(",");
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+        const byteCharacters = atob(parts[1]);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+        return;
+      } catch (err) {
+        console.warn("Failed to open Data URI Blob, falling back to server download:", err);
+      }
+    }
+
+    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+    const sNo = record?.serialNo || "";
+    const recId = record?._id || "";
+    window.open(
+      `${base}/client/calibration/download-document?docType=po&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`,
+      "_blank"
+    );
+  };
+
   // Quick Toggle Sticker Check
   const handleToggleSticker = async (record) => {
     try {
@@ -4956,40 +4998,47 @@ export default function CalibrationPageView() {
                               </button>
                             </div>
                           </td>
-                          <td className="p-2.5 border-r border-gray-200 text-center">
+                          <td className={`p-2.5 border-r border-gray-200 text-center transition-colors duration-300 ${
+                            Boolean(r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised)
+                              ? "bg-emerald-50/80 border-emerald-300"
+                              : "bg-slate-50/30"
+                          }`}>
                             {Boolean(r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised) ? (
                               <div className="flex flex-col items-center gap-1">
-                                <a
-                                  href={r.commercialDocs?.poFileUrl || r.commercialDocs?.poRaised}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-red-600 hover:text-red-700 flex items-center gap-1 font-bold text-[9px] bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded border border-red-200 transition shadow-2xs cursor-pointer"
-                                  title={`View Uploaded PO (${r.commercialDocs?.poFileName || "Custom PO"})`}
-                                >
-                                  <FaFilePdf className="text-xs" />
-                                  <span>View</span>
-                                </a>
-                                <div className="flex items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                  <FaCheckCircle className="text-emerald-600 text-[10px]" />
+                                  <span>PO Attached</span>
+                                </span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewPoDocument(r)}
+                                    className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition flex items-center gap-1 cursor-pointer active:scale-95"
+                                    title={`Open & View Uploaded PO (${r.commercialDocs?.poFileName || "Custom PO"})`}
+                                  >
+                                    <FaFilePdf className="text-xs" />
+                                    <span>View</span>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => handleOpenSendDocModal("po", r)}
                                     className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
-                                    title="Send PO Document to Customer"
+                                    title="Send Uploaded PO to Customer via Email/WhatsApp"
                                   >
                                     ✉️ Send
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleTriggerPoUpload(r)}
-                                    className="p-1 rounded text-[8px] font-bold bg-gray-50 text-gray-600 hover:bg-amber-50 hover:text-amber-700 border border-gray-200 transition cursor-pointer"
-                                    title="Re-upload / Change PO from Gallery"
+                                    className="p-1 rounded text-[8px] font-bold bg-white text-gray-700 hover:bg-amber-50 hover:text-amber-700 border border-gray-300 transition cursor-pointer"
+                                    title="Change / Re-upload PO from Gallery"
                                   >
                                     <FaUpload className="text-[8px]" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDeletePoFile(r)}
-                                    className="p-1 rounded text-[8px] font-bold bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-700 border border-gray-200 transition cursor-pointer"
+                                    className="p-1 rounded text-[8px] font-bold bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700 border border-gray-300 transition cursor-pointer"
                                     title="Delete uploaded PO document"
                                   >
                                     <FaTrash className="text-[8px]" />
@@ -5017,7 +5066,7 @@ export default function CalibrationPageView() {
                                     </>
                                   )}
                                 </button>
-                                <span className="text-[8px] text-gray-400 font-medium">Gallery / PDF</span>
+                                <span className="text-[8px] text-amber-600 font-bold">⚠️ No PO Attached</span>
                               </div>
                             )}
                           </td>
