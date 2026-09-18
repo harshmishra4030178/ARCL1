@@ -1180,6 +1180,8 @@ export const downloadDocument = async (req, res, next) => {
     const certNo = record?.records?.certificateNo || (certificateNo ? certificateNo.trim().toUpperCase() : "ARCL-CAL-2026-HM01");
     const dcNo = record?.dcNo || "DC/26-27/0188";
     const calDate = record?.calibrationDate || new Date();
+    const dueDate = record?.calibrationDueDate || record?.dueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const challanDate = record?.challanDate || record?.inwardDate || calDate;
     const rawSentToLab = record?.sentToLab || "ARCL Calibration Lab";
     const sentToLab = rawSentToLab.includes("Metrology") || rawSentToLab.includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
     const make = record?.make || "-";

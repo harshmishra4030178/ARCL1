@@ -29,6 +29,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { fuzzyMatch } from "../utils/fuzzySearch.js";
+import API from "../api/axios.js";
 import { trackInstrumentApi } from "../api/calibrationApi.js";
 import { FaCertificate, FaFilePdf, FaCheckCircle, FaQrcode, FaDownload, FaPrint, FaSearch, FaTimes, FaShieldAlt, FaWhatsapp } from "react-icons/fa";
 
@@ -1425,7 +1426,8 @@ function Calibration() {
                   type="button"
                   onClick={() => {
                     const sNo = trackResult.serialNo || trackResult.records?.certificateNo || "";
-                    window.open(`http://localhost:5000/api/v1/client/calibration/download-document?docType=${selectedDocType || "certificate"}&download=true&serialNo=${encodeURIComponent(sNo)}`, "_blank");
+                    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+                    window.open(`${base}/client/calibration/download-document?docType=${selectedDocType || "certificate"}&download=true&serialNo=${encodeURIComponent(sNo)}`, "_blank");
                   }}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
                   title="Download and save this official PDF document"
