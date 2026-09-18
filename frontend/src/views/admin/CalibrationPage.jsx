@@ -3016,7 +3016,7 @@ export default function CalibrationPageView() {
   const handleDirectWhatsAppDispatch = (recip) => {
     const targetInstruments = recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments;
     const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
     const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
@@ -3024,16 +3024,16 @@ export default function CalibrationPageView() {
       .replace(/{{contactPerson}}/gi, recip.contactPerson)
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
-    let resolvedSubj = (reminderTemplate.subject || "\uD83D\uDD34 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+    let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
       .replace(/{{company}}/gi, recip.company)
       .replace(/{{contactPerson}}/gi, recip.contactPerson)
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
-    if (!resolvedSubj.includes("\uD83D\uDD34") && !resolvedSubj.includes("🔴")) {
-      resolvedSubj = `\uD83D\uDD34 ${resolvedSubj}`;
+    if (!resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
     }
 
-    const waText = encodeURIComponent(
+    const rawMessage =
       `*${resolvedSubj}*\n\n` +
       `Dear ${recip.contactPerson} (${recip.company}),\n` +
       `${resolvedIntro}\n\n` +
@@ -3041,16 +3041,22 @@ export default function CalibrationPageView() {
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
-    );
+      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
 
     const cleanPhone = (recip.phone || "8369458583").replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
-    const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawMessage);
+      }
+    } catch (e) {}
+
+    const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
     window.open(waLink, "_blank");
-    toast.success(`💬 WhatsApp opened with pre-filled notice for ${recip.company}!`);
+    toast.success(`💬 WhatsApp opened for ${recip.company}! (Message copied to clipboard)`);
   };
 
   const handleBulkDispatchSelected = async (recipientGroups, channel = "email") => {
@@ -3218,7 +3224,7 @@ export default function CalibrationPageView() {
           resolvedSubj = `\uD83D\uDD34 ${resolvedSubj}`;
         }
 
-        const waText = encodeURIComponent(
+        const rawMessage =
           `*${resolvedSubj}*\n\n` +
           `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
           `${resolvedIntro}\n\n` +
@@ -3226,16 +3232,22 @@ export default function CalibrationPageView() {
           `Please schedule recalibration pickup or book on-site testing:\n` +
           `https://arclinstruments.com/calibration-services\n\n` +
           `ARCL Metrology Support Desk:\n` +
-          `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-          `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
-        );
+          `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+          `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
 
         const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
         const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
-        const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
+
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(rawMessage);
+          }
+        } catch (e) {}
+
+        const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
         window.open(waLink, "_blank");
-        toast.success(`💬 WhatsApp opened for ${phone}!`);
+        toast.success(`💬 WhatsApp opened for ${phone}! (Message copied to clipboard)`);
       }
 
       setIsManualModalOpen(false);
@@ -3758,7 +3770,7 @@ export default function CalibrationPageView() {
     ];
 
     const instrumentsSummary = instList
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
     const resolvedIntro = (customModalMessage || reminderTemplate.introMessage || `This is an automated calibration due alert for your equipment:`)
@@ -3766,16 +3778,16 @@ export default function CalibrationPageView() {
       .replace(/{{contactPerson}}/gi, person)
       .replace(/{{count}}/gi, String(instList.length));
 
-    let resolvedSubj = (customModalSubject || reminderTemplate.subject || "\uD83D\uDD34 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
+    let resolvedSubj = (customModalSubject || reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
       .replace(/{{company}}/gi, company)
       .replace(/{{contactPerson}}/gi, person)
       .replace(/{{count}}/gi, String(instList.length));
 
-    if (!resolvedSubj.includes("\uD83D\uDD34") && !resolvedSubj.includes("🔴")) {
-      resolvedSubj = `\uD83D\uDD34 ${resolvedSubj}`;
+    if (!resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
     }
 
-    const waText = encodeURIComponent(
+    const rawMessage =
       `*${resolvedSubj}*\n\n` +
       `Dear ${person} (${company}),\n` +
       `${resolvedIntro}\n\n` +
@@ -3783,17 +3795,23 @@ export default function CalibrationPageView() {
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `\uD83D\uDD34 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `\uD83D\uDD34 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
-    );
+      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
 
     const targetPhone = customReminderPhone || activeRec?.clientPhone || "8369458583";
     const cleanPhone = targetPhone.replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
-    const waLink = `https://wa.me/${formattedPhone}?text=${waText}`;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawMessage);
+      }
+    } catch (e) {}
+
+    const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
     window.open(waLink, "_blank");
-    toast.success(`💬 Opened WhatsApp with pre-filled calibration notice for +${formattedPhone}!`);
+    toast.success(`💬 Opened WhatsApp with pre-filled calibration notice for +${formattedPhone}! (Message copied to clipboard)`);
     setIsReminderModalOpen(false);
   };
 
