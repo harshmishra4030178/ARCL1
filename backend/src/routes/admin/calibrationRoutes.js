@@ -24,6 +24,7 @@ import {
   updateNablLabScope,
   addNablScopeItem,
   updateNablScopeItem,
+  deleteNablScopeItem,
   resetNablLabScope,
   uploadPoDocument,
   deletePoDocument,
@@ -54,14 +55,14 @@ router.get("/tax-invoice", checkModulePermission("calibration"), getTaxInvoiceDa
 router.post("/tax-invoice/save", checkModulePermission("calibration", "documents"), saveTaxInvoiceData);
 router.get("/proforma", checkModulePermission("calibration"), getProformaData);
 router.post("/proforma/save", checkModulePermission("calibration", "documents"), saveProformaData);
+router.post("/upload-po", upload.single("poFile"), uploadPoDocument);
+router.post("/delete-po", deletePoDocument);
 router.put("/batch/update", checkModulePermission("calibration", "edit"), updateCalibrationBatch);
 router.post("/batch/update", checkModulePermission("calibration", "edit"), updateCalibrationBatch);
 router.post("/", checkModulePermission("calibration", "create"), createCalibrationRecord);
 router.put("/:id", checkModulePermission("calibration", "edit"), updateCalibrationRecord);
 router.delete("/:id", checkModulePermission("calibration", "delete"), deleteCalibrationRecord);
 router.post("/clear-all", checkModulePermission("calibration", "delete"), clearAllCalibrationData);
-router.post("/upload-po", checkModulePermission("calibration", "edit"), upload.single("poFile"), uploadPoDocument);
-router.post("/delete-po", checkModulePermission("calibration", "edit"), deletePoDocument);
 router.post("/send-reminder", checkModulePermission("calibration", "dispatch"), sendDueReminder);
 router.post("/auto-dispatch-all", checkModulePermission("calibration", "dispatch"), autoDispatchAllDueReminders);
 router.post("/send-certificate-delivery", checkModulePermission("calibration", "dispatch"), sendCertificateDeliveryNotification);
