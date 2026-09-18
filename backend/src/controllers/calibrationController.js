@@ -1060,13 +1060,13 @@ export const downloadDocument = async (req, res, next) => {
     // Generate Official Real Binary PDF Buffer
     let customDocData = null;
     if (docType === "quotation") {
-      customDocData = record?.quotationData || (await CalibrationRecord.findOne({ quotationData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean())?.quotationData;
+      customDocData = record?.quotationData && Array.isArray(record.quotationData.items) && record.quotationData.items.length > 0 ? record.quotationData : null;
     } else if (docType === "tax_invoice" || docType === "invoice") {
-      customDocData = record?.taxInvoiceData || (await CalibrationRecord.findOne({ taxInvoiceData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean())?.taxInvoiceData;
+      customDocData = record?.taxInvoiceData && Array.isArray(record.taxInvoiceData.items) && record.taxInvoiceData.items.length > 0 ? record.taxInvoiceData : null;
     } else if (docType === "pi" || docType === "proforma_invoice") {
-      customDocData = record?.proformaData || (await CalibrationRecord.findOne({ proformaData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean())?.proformaData;
+      customDocData = record?.proformaData && Array.isArray(record.proformaData.items) && record.proformaData.items.length > 0 ? record.proformaData : null;
     } else if (docType === "po") {
-      customDocData = record?.poData || (await CalibrationRecord.findOne({ poData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean())?.poData;
+      customDocData = record?.poData && Array.isArray(record.poData.items) && record.poData.items.length > 0 ? record.poData : null;
     }
 
     if (docType === "srf") {
@@ -1216,26 +1216,47 @@ export const getQuotationData = async (req, res, next) => {
 
     let record = null;
     if (Object.keys(query).length > 0) {
-      record = await CalibrationRecord.findOne(query);
+      record = await CalibrationRecord.findOne(query).lean();
     }
     if (!record) {
-      record = await CalibrationRecord.findOne().sort({ createdAt: -1 });
+      record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
     }
 
+    let batchRecords = [];
+    if (record?.dcNo && record?.clientCompany) {
+      batchRecords = await CalibrationRecord.find({
+        dcNo: record.dcNo,
+        clientCompany: record.clientCompany,
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (!batchRecords.length && record) {
+      batchRecords = [record];
+    }
+    const dynamicItems = batchRecords.map((r, idx) => ({
+      itemNo: idx + 1,
+      name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+      subText: `NABL Traceable Report (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+      hsnSac: "998346",
+      rate: 1000,
+      qty: 1,
+      qtyUnit: "NOS",
+      amount: 1000,
+    }));
+
     const quotationData = record?.quotationData || {
-      quotationNo: "ARCL/QTN/26-27/47",
-      quotationDate: new Date("2026-04-22"),
-      validityDate: new Date("2026-04-29"),
+      quotationNo: `ARCL/QTN/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+      quotationDate: record?.calibrationDate || new Date(),
+      validityDate: record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
       placeOfSupply: "27-MAHARASHTRA",
       billTo: {
-        companyName: record?.clientCompany || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED",
-        gstin: "27AAOCR3275P1ZH",
-        address: "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS\nBELAVALI, Ambarnath",
+        companyName: record?.clientCompany || "Valued Client",
+        gstin: record?.clientGst || "27AAOCR3275P1ZH",
+        address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
         cityStatePin: "Thane, MAHARASHTRA, 421503",
-        phone: record?.clientPhone || "+91 8369458583",
+        phone: record?.clientPhone || "+91 8009559900",
         email: record?.clientEmail || "arclinstruments@gmail.com",
       },
-      items: null, // will use default 37 items in editor
+      items: dynamicItems,
       cgstRate: 9.0,
       sgstRate: 9.0,
     };
@@ -1309,7 +1330,7 @@ export const getTaxInvoiceData = async (req, res, next) => {
     let record = null;
 
     if (isValidMongoId(targetId)) {
-      record = await CalibrationRecord.findById(targetId);
+      record = await CalibrationRecord.findById(targetId).lean();
     }
 
     if (!record) {
@@ -1320,13 +1341,46 @@ export const getTaxInvoiceData = async (req, res, next) => {
             { serialNo: { $regex: `^${searchSn}$`, $options: "i" } },
             { "taxInvoiceData.invoiceNo": { $regex: `^${searchSn}$`, $options: "i" } },
           ],
-        });
+        }).lean();
       }
     }
 
-    if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 });
+    if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
 
-    const taxInvoiceData = record?.taxInvoiceData || null;
+    let batchRecords = [];
+    if (record?.dcNo && record?.clientCompany) {
+      batchRecords = await CalibrationRecord.find({
+        dcNo: record.dcNo,
+        clientCompany: record.clientCompany,
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (!batchRecords.length && record) {
+      batchRecords = [record];
+    }
+    const dynamicItems = batchRecords.map((r, idx) => ({
+      itemNo: idx + 1,
+      name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
+      subText: `NABL Accredited Metrological Calibration (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+      hsnSac: "998346",
+      taxRate: "18%",
+      qty: 1,
+      qtyUnit: "NOS",
+      rate: 5000,
+      per: "NOS",
+      amount: 5000,
+    }));
+
+    const taxInvoiceData = record?.taxInvoiceData || {
+      invoiceNo: `ARCL/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+      invoiceDate: record?.calibrationDate || new Date(),
+      dueDate: record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
+      placeOfSupply: "27-MAHARASHTRA",
+      clientCompany: record?.clientCompany || "Valued Client",
+      clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+      clientGstin: record?.clientGst || "27AAOCR3275P1ZH",
+      items: dynamicItems,
+    };
+
     return res.status(200).json(
       new ApiResponse(200, { taxInvoiceData, recordId: record?._id, serialNo: record?.serialNo }, "Tax invoice data retrieved successfully")
     );
@@ -1393,7 +1447,7 @@ export const getProformaData = async (req, res, next) => {
     let record = null;
 
     if (isValidMongoId(targetId)) {
-      record = await CalibrationRecord.findById(targetId);
+      record = await CalibrationRecord.findById(targetId).lean();
     }
 
     if (!record) {
@@ -1404,13 +1458,49 @@ export const getProformaData = async (req, res, next) => {
             { serialNo: { $regex: `^${searchSn}$`, $options: "i" } },
             { "proformaData.piNo": { $regex: `^${searchSn}$`, $options: "i" } },
           ],
-        });
+        }).lean();
       }
     }
 
-    if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 });
+    if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
 
-    const proformaData = record?.proformaData || null;
+    let batchRecords = [];
+    if (record?.dcNo && record?.clientCompany) {
+      batchRecords = await CalibrationRecord.find({
+        dcNo: record.dcNo,
+        clientCompany: record.clientCompany,
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (!batchRecords.length && record) {
+      batchRecords = [record];
+    }
+    const dynamicItems = batchRecords.map((r, idx) => ({
+      itemNo: idx + 1,
+      name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+      subText: `NABL Proforma Scope (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+      hsnSac: "998346",
+      rate: 1000,
+      qty: 1,
+      qtyUnit: "NOS",
+      amount: 1000,
+    }));
+
+    const proformaData = record?.proformaData || {
+      piNo: `ARCL/PI/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+      piDate: record?.calibrationDate || new Date(),
+      placeOfSupply: "27-MAHARASHTRA",
+      billTo: {
+        companyName: record?.clientCompany || "Valued Client",
+        gstin: record?.clientGst || "27AAOCR3275P1ZH",
+        address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+        phone: record?.clientPhone || "+91 8009559900",
+        email: record?.clientEmail || "arclinstruments@gmail.com",
+      },
+      items: dynamicItems,
+      cgstRate: 9.0,
+      sgstRate: 9.0,
+    };
+
     return res.status(200).json(
       new ApiResponse(200, { proformaData, recordId: record?._id, serialNo: record?.serialNo }, "Proforma data retrieved successfully")
     );

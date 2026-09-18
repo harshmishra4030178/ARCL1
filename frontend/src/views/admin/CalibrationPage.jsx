@@ -1342,39 +1342,95 @@ export default function CalibrationPageView() {
 
   const handleOpenTaxInvoiceEditor = (rec = null) => {
     setTaxInvoiceRecordId(rec?._id || rec?.id || null);
-    if (rec && rec.taxInvoiceData) {
-      setTaxInvoiceForm({
-        ...rec.taxInvoiceData,
-        items: rec.taxInvoiceData.items && rec.taxInvoiceData.items.length > 0 ? rec.taxInvoiceData.items : defaultTaxInvoice26Items,
-      });
-    } else if (rec) {
-      setTaxInvoiceForm(prev => ({
-        ...prev,
-        clientCompany: rec.clientCompany || prev.clientCompany,
-        clientAddress: rec.clientAddress || prev.clientAddress,
-        items: defaultTaxInvoice26Items,
+    if (rec) {
+      const batchList = records.filter(
+        (r) =>
+          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
+          r._id === rec._id
+      );
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Equipment"} - Calibration & Testing`,
+        subText: `NABL Accredited Metrological Calibration (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        taxRate: "18%",
+        qty: 1,
+        qtyUnit: "NOS",
+        rate: 5000,
+        per: "NOS",
+        amount: 5000,
       }));
+
+      if (rec.taxInvoiceData && rec.taxInvoiceData.items && rec.taxInvoiceData.items.length > 0) {
+        setTaxInvoiceForm({
+          ...rec.taxInvoiceData,
+          clientCompany: rec.taxInvoiceData.clientCompany || rec.clientCompany || "",
+          clientAddress: rec.taxInvoiceData.clientAddress || rec.clientAddress || "",
+          clientGstin: rec.taxInvoiceData.clientGstin || rec.clientGst || "",
+        });
+      } else {
+        setTaxInvoiceForm((prev) => ({
+          ...prev,
+          invoiceNo: `ARCL/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+          invoiceDate: rec.calibrationDate
+            ? new Date(rec.calibrationDate).toLocaleDateString("en-GB")
+            : new Date().toLocaleDateString("en-GB"),
+          dueDate: rec.calibrationDueDate
+            ? new Date(rec.calibrationDueDate).toLocaleDateString("en-GB")
+            : new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-GB"),
+          clientCompany: rec.clientCompany || prev.clientCompany,
+          clientAddress: rec.clientAddress || prev.clientAddress,
+          clientGstin: rec.clientGst || prev.clientGstin,
+          items: dynamicItems,
+        }));
+      }
     } else {
-      setTaxInvoiceForm(prev => ({ ...prev, items: defaultTaxInvoice26Items }));
+      setTaxInvoiceForm((prev) => ({ ...prev, items: defaultTaxInvoice26Items }));
     }
     setIsTaxInvoiceModalOpen(true);
   };
 
   const handleOpenProformaEditor = (rec = null) => {
     setProformaRecordId(rec?._id || rec?.id || null);
-    if (rec && rec.proformaData) {
-      setProformaForm({
-        ...rec.proformaData,
-        items: rec.proformaData.items && rec.proformaData.items.length > 0 ? rec.proformaData.items : defaultProforma26Items,
-      });
-    } else if (rec) {
-      setProformaForm(prev => ({
-        ...prev,
-        buyerCompany: rec.clientCompany || prev.buyerCompany,
-        items: defaultProforma26Items,
+    if (rec) {
+      const batchList = records.filter(
+        (r) =>
+          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
+          r._id === rec._id
+      );
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+        subText: `NABL Proforma Scope (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
       }));
+
+      if (rec.proformaData && rec.proformaData.items && rec.proformaData.items.length > 0) {
+        setProformaForm({
+          ...rec.proformaData,
+          buyerCompany: rec.proformaData.buyerCompany || rec.clientCompany || "",
+          buyerAddress: rec.proformaData.buyerAddress || rec.clientAddress || "",
+          buyerGstin: rec.proformaData.buyerGstin || rec.clientGst || "",
+        });
+      } else {
+        setProformaForm((prev) => ({
+          ...prev,
+          piNo: `ARCL/PI/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+          piDate: rec.calibrationDate
+            ? new Date(rec.calibrationDate).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+          buyerCompany: rec.clientCompany || prev.buyerCompany,
+          buyerAddress: rec.clientAddress || prev.buyerAddress,
+          buyerGstin: rec.clientGst || prev.buyerGstin,
+          items: dynamicItems,
+        }));
+      }
     } else {
-      setProformaForm(prev => ({ ...prev, items: defaultProforma26Items }));
+      setProformaForm((prev) => ({ ...prev, items: defaultProforma26Items }));
     }
     setIsProformaInvoiceModalOpen(true);
   };
@@ -1382,34 +1438,56 @@ export default function CalibrationPageView() {
   const handleOpenQuotationEditor = (rec = null) => {
     if (rec) {
       setQuotationRecordId(rec._id || rec.id);
-      if (rec.quotationData) {
+      const batchList = records.filter(
+        (r) =>
+          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
+          r._id === rec._id
+      );
+      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => ({
+        itemNo: idx + 1,
+        name: `${r.instrument || "Calibration Instrument"} - Calibration`,
+        subText: `NABL Traceable Report (Make: ${r.make || "ARCL"} | S/N: ${r.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      }));
+
+      if (rec.quotationData && rec.quotationData.items && rec.quotationData.items.length > 0) {
         setQuotationForm({
-          quotationNo: rec.quotationData.quotationNo || "ARCL/QTN/26-27/47",
-          quotationDate: rec.quotationData.quotationDate ? new Date(rec.quotationData.quotationDate).toISOString().split('T')[0] : "2026-04-22",
-          validityDate: rec.quotationData.validityDate ? new Date(rec.quotationData.validityDate).toISOString().split('T')[0] : "2026-04-29",
-          placeOfSupply: rec.quotationData.placeOfSupply || "27-MAHARASHTRA",
+          ...rec.quotationData,
           billTo: {
-            companyName: rec.quotationData.billTo?.companyName || rec.clientCompany || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED",
-            gstin: rec.quotationData.billTo?.gstin || "27AAOCR3275P1ZH",
-            address: rec.quotationData.billTo?.address || "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS\nBELAVALI, Ambarnath",
-            cityStatePin: rec.quotationData.billTo?.cityStatePin || "Thane, MAHARASHTRA, 421503",
-            phone: rec.quotationData.billTo?.phone || rec.clientPhone || "+91 8369458583",
-            email: rec.quotationData.billTo?.email || rec.clientEmail || "arclinstruments@gmail.com",
+            ...rec.quotationData.billTo,
+            companyName: rec.quotationData.billTo?.companyName || rec.clientCompany || "",
+            gstin: rec.quotationData.billTo?.gstin || rec.clientGst || "",
+            address: rec.quotationData.billTo?.address || rec.clientAddress || "",
+            phone: rec.quotationData.billTo?.phone || rec.clientPhone || "",
+            email: rec.quotationData.billTo?.email || rec.clientEmail || "",
           },
-          items: rec.quotationData.items && rec.quotationData.items.length > 0 ? rec.quotationData.items : defaultStandard37Items,
-          cgstRate: rec.quotationData.cgstRate !== undefined ? rec.quotationData.cgstRate : 9.0,
-          sgstRate: rec.quotationData.sgstRate !== undefined ? rec.quotationData.sgstRate : 9.0,
         });
       } else {
-        setQuotationForm(prev => ({
-          ...prev,
+        setQuotationForm({
+          quotationNo: `ARCL/QTN/26-27/${(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+          quotationDate: rec.calibrationDate
+            ? new Date(rec.calibrationDate).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+          validityDate: rec.calibrationDueDate
+            ? new Date(rec.calibrationDueDate).toISOString().split("T")[0]
+            : new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+          placeOfSupply: "27-MAHARASHTRA",
           billTo: {
-            ...prev.billTo,
-            companyName: rec.clientCompany || prev.billTo.companyName,
-            phone: rec.clientPhone || prev.billTo.phone,
-            email: rec.clientEmail || prev.billTo.email,
-          }
-        }));
+            companyName: rec.clientCompany || "",
+            gstin: rec.clientGst || "27AAOCR3275P1ZH",
+            address: rec.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+            cityStatePin: "Thane, MAHARASHTRA, 421503",
+            phone: rec.clientPhone || "+91 8009559900",
+            email: rec.clientEmail || "arclinstruments@gmail.com",
+          },
+          items: dynamicItems,
+          cgstRate: 9.0,
+          sgstRate: 9.0,
+        });
       }
     } else {
       setQuotationRecordId(null);
@@ -7016,104 +7094,324 @@ export default function CalibrationPageView() {
               </button>
             </div>
 
-            {/* Certificate Paper Simulation */}
-            <div className="border-4 border-double border-blue-900/40 rounded-2xl p-6 bg-amber-50/15 space-y-4 text-xs font-sans shadow-inner">
-              {/* Certificate Header */}
-              <div className="text-center border-b-2 border-blue-900 pb-3 space-y-1">
-                <p className="text-[10px] font-black tracking-widest text-blue-900 uppercase font-mono">
-                  NABL ACCREDITED CALIBRATION LABORATORY (CC-4313)
-                </p>
-                <h2 className="text-xl font-black text-[#021C57]">ARCL INSTRUMENTS PRIVATE LIMITED</h2>
-                <p className="text-[11px] text-gray-600">
-                  Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
-                </p>
-                <p className="text-[10px] font-mono text-emerald-700 font-bold">
-                  ISO/IEC 17025:2017 Traceable to National Physical Laboratory (NPL)
-                </p>
-              </div>
+            {/* Dynamic Document Simulation (SRF Inward vs Certificate) */}
+            {(() => {
+              const docBatchInstruments = selectedDoc.record
+                ? records.filter(
+                    (r) =>
+                      (selectedDoc.record.dcNo &&
+                        r.dcNo === selectedDoc.record.dcNo &&
+                        r.clientCompany === selectedDoc.record.clientCompany) ||
+                      r._id === selectedDoc.record._id
+                  )
+                : [];
+              const instrumentsList =
+                docBatchInstruments.length > 0
+                  ? docBatchInstruments
+                  : [selectedDoc.record || {}];
 
-              {/* Certificate Metadata */}
-              <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 text-gray-800">
-                <div>
-                  Certificate No: <strong className="font-mono text-blue-700">{selectedDoc.record?.records?.certificateNo || "ARCL-CAL-2026-001"}</strong>
-                </div>
-                <div>
-                  Calibration Date: <strong>{new Date().toLocaleDateString("en-GB")}</strong>
-                </div>
-                <div>
-                  Client: <strong>{selectedDoc.record?.clientCompany || "Sumeet Industries Pvt. Ltd."}</strong>
-                </div>
-                <div>
-                  Suggested Due Date: <strong className="text-emerald-700">1 Year (365 Days)</strong>
-                </div>
-                <div>
-                  Instrument: <strong className="text-gray-900">{selectedDoc.record?.instrument || "Digital CTM"}</strong>
-                </div>
-                <div>
-                  Serial No: <strong className="font-mono">{selectedDoc.record?.serialNo || "SCK346"}</strong>
-                </div>
-                <div>
-                  Make / Model: <strong>{selectedDoc.record?.make} / {selectedDoc.record?.modelNo}</strong>
-                </div>
-                <div>
-                  Environmental Condition: <strong>Temp: 23°C ± 2°C | RH: 50% ± 10%</strong>
-                </div>
-              </div>
+              if (selectedDoc.type === "srf") {
+                return (
+                  <div className="border-4 border-double border-amber-800/40 rounded-2xl p-6 bg-amber-50/25 space-y-4 text-xs font-sans shadow-inner">
+                    {/* SRF Header */}
+                    <div className="text-center border-b-2 border-amber-800 pb-3 space-y-1">
+                      <p className="text-[10px] font-black tracking-widest text-amber-800 uppercase font-mono">
+                        SERVICE REQUEST FORM (SRF INWARD &amp; JOB SLIP)
+                      </p>
+                      <h2 className="text-xl font-black text-[#021C57]">
+                        ARCL INSTRUMENTS PRIVATE LIMITED
+                      </h2>
+                      <p className="text-[11px] text-gray-600">
+                        NABL ISO/IEC 17025 Accredited Calibration Laboratory (CC-4313)
+                      </p>
+                      <p className="text-[10px] font-mono text-emerald-700 font-bold">
+                        Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
+                      </p>
+                    </div>
 
-              {/* Calibration Readings Sample Table */}
-              <div className="space-y-1">
-                <p className="font-bold text-gray-900">Calibration Readings & Expanded Uncertainty (k=2):</p>
-                <table className="w-full text-left text-[11px] border border-gray-200 rounded bg-white">
-                  <thead className="bg-gray-100 text-gray-700 text-[10px] font-bold">
-                    <tr>
-                      <th className="p-2 border">Nominal Load / Set Value</th>
-                      <th className="p-2 border">Observed Reading</th>
-                      <th className="p-2 border">Error of Indication</th>
-                      <th className="p-2 border">Expanded Uncertainty</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-mono divide-y divide-gray-200 text-gray-700">
-                    <tr>
-                      <td className="p-2 border">200.0 kN</td>
-                      <td className="p-2 border">199.8 kN</td>
-                      <td className="p-2 border text-emerald-600">-0.2 kN (-0.10%)</td>
-                      <td className="p-2 border">± 0.25%</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 border">500.0 kN</td>
-                      <td className="p-2 border">500.1 kN</td>
-                      <td className="p-2 border text-emerald-600">+0.1 kN (+0.02%)</td>
-                      <td className="p-2 border">± 0.25%</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 border">1000.0 kN</td>
-                      <td className="p-2 border">1000.4 kN</td>
-                      <td className="p-2 border text-emerald-600">+0.4 kN (+0.04%)</td>
-                      <td className="p-2 border">± 0.25%</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    {/* SRF Inward Card */}
+                    <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-amber-200 text-gray-800 shadow-2xs">
+                      <div>
+                        SRF Job Number:{" "}
+                        <strong className="font-mono text-amber-800">
+                          {selectedDoc.record?.srfNo ||
+                            `SRF/2026/${(selectedDoc.record?.serialNo || "0842")
+                              .replace(/[^0-9]/g, "")
+                              .slice(-4) || "0842"}`}
+                        </strong>
+                      </div>
+                      <div>
+                        Inward Date:{" "}
+                        <strong>
+                          {selectedDoc.record?.calibrationDate
+                            ? new Date(
+                                selectedDoc.record.calibrationDate
+                              ).toLocaleDateString("en-GB")
+                            : new Date().toLocaleDateString("en-GB")}
+                        </strong>
+                      </div>
+                      <div>
+                        Client Company:{" "}
+                        <strong className="text-gray-900">
+                          {selectedDoc.record?.clientCompany || "Valued Client"}
+                        </strong>
+                      </div>
+                      <div>
+                        Contact Person:{" "}
+                        <strong>
+                          {selectedDoc.record?.clientContactPerson || "Quality Lead"}{" "}
+                          ({selectedDoc.record?.clientPhone || "-"})
+                        </strong>
+                      </div>
+                      <div>
+                        GST No. (GSTIN):{" "}
+                        <strong className="font-mono text-blue-700">
+                          {selectedDoc.record?.clientGst || "N/A"}
+                        </strong>
+                      </div>
+                      <div>
+                        DC / Challan:{" "}
+                        <strong className="font-mono">
+                          {selectedDoc.record?.dcNo || "N/A"} (Dt:{" "}
+                          {selectedDoc.record?.challanDate
+                            ? new Date(
+                                selectedDoc.record.challanDate
+                              ).toLocaleDateString("en-GB")
+                            : "-"}
+                          )
+                        </strong>
+                      </div>
+                      <div className="col-span-2">
+                        Site / Delivery Address:{" "}
+                        <strong className="text-gray-700">
+                          {selectedDoc.record?.clientAddress ||
+                            "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708"}
+                        </strong>
+                      </div>
+                      <div className="col-span-2">
+                        Assigned Lab:{" "}
+                        <strong className="text-emerald-700 font-bold">
+                          {selectedDoc.record?.sentToLab ||
+                            "ARCL Central Metrology Laboratory"}
+                        </strong>
+                      </div>
+                    </div>
 
-              {/* Signatures & QR Code */}
-              <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 bg-slate-900 text-white rounded flex items-center justify-center text-xs">
-                    <FaQrcode className="text-3xl" />
+                    {/* Dynamic Inward Equipment Table */}
+                    <div className="space-y-1">
+                      <p className="font-bold text-gray-900 flex items-center justify-between">
+                        <span>
+                          Inward Equipment List ({instrumentsList.length} Item
+                          {instrumentsList.length > 1 ? "s" : ""}):
+                        </span>
+                        <span className="text-[10px] text-amber-800 font-mono font-bold bg-amber-100 px-2 py-0.5 rounded">
+                          All Added Equipments in this Batch
+                        </span>
+                      </p>
+                      <table className="w-full text-left text-[11px] border border-amber-300 rounded bg-white overflow-hidden shadow-2xs">
+                        <thead className="bg-amber-700 text-white text-[10px] font-bold">
+                          <tr>
+                            <th className="p-2 border border-amber-600 text-center w-8">#</th>
+                            <th className="p-2 border border-amber-600">
+                              Equipment / Instrument Name
+                            </th>
+                            <th className="p-2 border border-amber-600">Make / Model</th>
+                            <th className="p-2 border border-amber-600">Serial No / ID</th>
+                            <th className="p-2 border border-amber-600">Range / Capacity</th>
+                            <th className="p-2 border border-amber-600 text-center">
+                              Inward Status
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
+                          {instrumentsList.map((inst, idx) => (
+                            <tr key={idx} className="hover:bg-amber-50/50 transition">
+                              <td className="p-2 border border-gray-200 text-center font-bold text-gray-500">
+                                {idx + 1}
+                              </td>
+                              <td className="p-2 border border-gray-200 font-bold text-slate-900">
+                                {inst.instrument || "Measuring Instrument"}
+                              </td>
+                              <td className="p-2 border border-gray-200">
+                                {inst.make || "ARCL"} / {inst.modelNo || "-"}
+                              </td>
+                              <td className="p-2 border border-gray-200 font-mono text-blue-700 font-bold">
+                                {inst.serialNo || "-"}
+                              </td>
+                              <td className="p-2 border border-gray-200">
+                                {inst.instrumentRange || "-"}
+                              </td>
+                              <td className="p-2 border border-gray-200 text-center">
+                                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                                  Received ✓
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Signatures & Verification */}
+                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="w-28 border-b border-gray-400"></div>
+                        <p className="font-bold text-gray-900 text-[10px]">
+                          Customer / Carrier Signature
+                        </p>
+                        <p className="text-[9px] text-gray-500">Handed over in good condition</p>
+                      </div>
+
+                      <div className="text-right space-y-1">
+                        <div className="w-32 border-b border-gray-400 mx-auto"></div>
+                        <p className="font-bold text-gray-900 text-[10px]">
+                          For ARCL INSTRUMENTS PVT LTD
+                        </p>
+                        <p className="text-[9px] text-emerald-700 font-bold">
+                          Authorized Lab Inward Signatory
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-gray-500 font-mono">
-                    <p className="font-bold text-gray-900">SCAN TO VERIFY</p>
-                    <p>ISO 17025 Seal</p>
+                );
+              }
+
+              // Otherwise Certificate View
+              return (
+                <div className="border-4 border-double border-blue-900/40 rounded-2xl p-6 bg-amber-50/15 space-y-4 text-xs font-sans shadow-inner">
+                  {/* Certificate Header */}
+                  <div className="text-center border-b-2 border-blue-900 pb-3 space-y-1">
+                    <p className="text-[10px] font-black tracking-widest text-blue-900 uppercase font-mono">
+                      NABL ACCREDITED CALIBRATION LABORATORY (CC-4313)
+                    </p>
+                    <h2 className="text-xl font-black text-[#021C57]">
+                      ARCL INSTRUMENTS PRIVATE LIMITED
+                    </h2>
+                    <p className="text-[11px] text-gray-600">
+                      Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
+                    </p>
+                    <p className="text-[10px] font-mono text-emerald-700 font-bold">
+                      ISO/IEC 17025:2017 Traceable to National Physical Laboratory (NPL)
+                    </p>
+                  </div>
+
+                  {/* Certificate Metadata */}
+                  <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 text-gray-800">
+                    <div>
+                      Certificate No:{" "}
+                      <strong className="font-mono text-blue-700">
+                        {selectedDoc.record?.records?.certificateNo || "ARCL-CAL-2026-001"}
+                      </strong>
+                    </div>
+                    <div>
+                      Calibration Date:{" "}
+                      <strong>
+                        {selectedDoc.record?.calibrationDate
+                          ? new Date(
+                              selectedDoc.record.calibrationDate
+                            ).toLocaleDateString("en-GB")
+                          : new Date().toLocaleDateString("en-GB")}
+                      </strong>
+                    </div>
+                    <div>
+                      Client:{" "}
+                      <strong>
+                        {selectedDoc.record?.clientCompany || "Valued Client"}
+                      </strong>
+                    </div>
+                    <div>
+                      Suggested Due Date:{" "}
+                      <strong className="text-emerald-700">
+                        {selectedDoc.record?.calibrationDueDate
+                          ? new Date(
+                              selectedDoc.record.calibrationDueDate
+                            ).toLocaleDateString("en-GB")
+                          : "1 Year (365 Days)"}
+                      </strong>
+                    </div>
+                    <div>
+                      Instrument:{" "}
+                      <strong className="text-gray-900">
+                        {selectedDoc.record?.instrument || "Digital Compression Testing Machine"}
+                      </strong>
+                    </div>
+                    <div>
+                      Serial No:{" "}
+                      <strong className="font-mono">
+                        {selectedDoc.record?.serialNo || "-"}
+                      </strong>
+                    </div>
+                    <div>
+                      Make / Model:{" "}
+                      <strong>
+                        {selectedDoc.record?.make || "ARCL"} /{" "}
+                        {selectedDoc.record?.modelNo || "GEN-01"}
+                      </strong>
+                    </div>
+                    <div>
+                      Range / Capacity:{" "}
+                      <strong>{selectedDoc.record?.instrumentRange || "0 - 2000 kN"}</strong>
+                    </div>
+                  </div>
+
+                  {/* Calibration Readings Sample Table */}
+                  <div className="space-y-1">
+                    <p className="font-bold text-gray-900">
+                      Calibration Readings &amp; Metrological Traceability:
+                    </p>
+                    <table className="w-full text-left text-[11px] border border-gray-200 rounded bg-white">
+                      <thead className="bg-gray-100 text-gray-700 text-[10px] font-bold">
+                        <tr>
+                          <th className="p-2 border">Nominal Set Value</th>
+                          <th className="p-2 border">Observed Reading</th>
+                          <th className="p-2 border">Error of Indication</th>
+                          <th className="p-2 border">Expanded Uncertainty (k=2)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-mono divide-y divide-gray-200 text-gray-700">
+                        <tr>
+                          <td className="p-2 border">20.0% F.S.</td>
+                          <td className="p-2 border">19.98 F.S.</td>
+                          <td className="p-2 border text-emerald-600">-0.10%</td>
+                          <td className="p-2 border">± 0.25%</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border">50.0% F.S.</td>
+                          <td className="p-2 border">50.01 F.S.</td>
+                          <td className="p-2 border text-emerald-600">+0.02%</td>
+                          <td className="p-2 border">± 0.25%</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border">100.0% F.S.</td>
+                          <td className="p-2 border">100.04 F.S.</td>
+                          <td className="p-2 border text-emerald-600">+0.04%</td>
+                          <td className="p-2 border">± 0.25%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Signatures & QR Code */}
+                  <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-slate-900 text-white rounded flex items-center justify-center text-xs">
+                        <FaQrcode className="text-3xl" />
+                      </div>
+                      <div className="text-[10px] text-gray-500 font-mono">
+                        <p className="font-bold text-gray-900">SCAN TO VERIFY</p>
+                        <p>ISO 17025 Seal</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right space-y-1">
+                      <div className="w-32 border-b border-gray-400 mx-auto"></div>
+                      <p className="font-bold text-gray-900 text-[11px]">Authorized Signatory</p>
+                      <p className="text-[10px] text-gray-500">Quality Manager, ARCL Instruments</p>
+                    </div>
                   </div>
                 </div>
-
-                <div className="text-right space-y-1">
-                  <div className="w-32 border-b border-gray-400 mx-auto"></div>
-                  <p className="font-bold text-gray-900 text-[11px]">Authorized Signatory</p>
-                  <p className="text-[10px] text-gray-500">Quality Manager, ARCL Instruments</p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <div className="flex justify-between items-center pt-2 flex-wrap gap-2">
               <div className="flex items-center gap-2">
