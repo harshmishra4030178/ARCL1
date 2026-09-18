@@ -3664,7 +3664,7 @@ export default function CalibrationPageView() {
       `[URGENT] Calibration Due Notice for ${record.instrument} (${record.serialNo}) - ARCL Lab CC-4313`
     );
     setCustomModalMessage(
-      `This is an automated quality notice from ARCL Calibration Laboratory (NABL CC-4313). Your instrument ${record.instrument} (Model: ${record.modelNo || "-"}, S/N: ${record.serialNo}) is due for annual recalibration on ${record.calibrationDueDate ? new Date(record.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}. Please arrange for pickup or on-site testing.`
+      `This is an automated quality notice from ARCL Calibration Laboratory (NABL CC-4313). Your instrument *${record.instrument}* (Model: ${record.modelNo || "-"}, S/N: ${record.serialNo}) is due for annual recalibration on 🔴 *${record.calibrationDueDate ? new Date(record.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*. Please arrange for pickup or on-site testing.`
     );
     setIsCustomizingModalMessage(false);
     setIsReminderModalOpen(true);
