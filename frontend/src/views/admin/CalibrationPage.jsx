@@ -3054,9 +3054,8 @@ export default function CalibrationPageView() {
   };
 
   const handleDirectWhatsAppDispatch = (recip) => {
-    const targetInstruments = recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments;
     const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
       .join("\n");
 
     const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
@@ -3077,7 +3076,7 @@ export default function CalibrationPageView() {
       `*${resolvedSubj}*\n\n` +
       `Dear ${recip.contactPerson} (${recip.company}),\n` +
       `${resolvedIntro}\n\n` +
-      `${instrumentsSummary}\n\n` +
+      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
@@ -3247,7 +3246,7 @@ export default function CalibrationPageView() {
         ];
 
         const instrumentsSummary = targetInstruments
-          .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+          .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
           .join("\n");
 
         const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
@@ -3268,7 +3267,7 @@ export default function CalibrationPageView() {
           `*${resolvedSubj}*\n\n` +
           `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
           `${resolvedIntro}\n\n` +
-          `${instrumentsSummary}\n\n` +
+          `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
           `Please schedule recalibration pickup or book on-site testing:\n` +
           `https://arclinstruments.com/calibration-services\n\n` +
           `ARCL Metrology Support Desk:\n` +
@@ -4019,7 +4018,7 @@ export default function CalibrationPageView() {
     ];
 
     const instrumentsSummary = instList
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ 🔴 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
+      .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
       .join("\n");
 
     const resolvedIntro = (customModalMessage || reminderTemplate.introMessage || `This is an automated calibration due alert for your equipment:`)
@@ -4040,7 +4039,7 @@ export default function CalibrationPageView() {
       `*${resolvedSubj}*\n\n` +
       `Dear ${person} (${company}),\n` +
       `${resolvedIntro}\n\n` +
-      `${instrumentsSummary}\n\n` +
+      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
       `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
