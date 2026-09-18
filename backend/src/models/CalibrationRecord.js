@@ -51,12 +51,12 @@ const calibrationRecordSchema = new mongoose.Schema(
     },
     make: {
       type: String,
-      default: "ARCL",
+      default: "",
       trim: true,
     },
     modelNo: {
       type: String,
-      default: "GEN-01",
+      default: "",
       trim: true,
     },
     serialNo: {
@@ -68,7 +68,7 @@ const calibrationRecordSchema = new mongoose.Schema(
     },
     instrumentRange: {
       type: String,
-      default: "0 - 100",
+      default: "",
       trim: true,
     },
     calibrationDate: {

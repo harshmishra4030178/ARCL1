@@ -293,10 +293,10 @@ export const createCalibrationRecord = async (req, res, next) => {
       return {
         srNo: idxCount,
         instrument: it.instrument.trim(),
-        make: it.make?.trim() || "ARCL",
-        modelNo: it.modelNo?.trim() || "GEN-01",
+        make: it.make !== undefined ? it.make.trim() : "",
+        modelNo: it.modelNo !== undefined ? it.modelNo.trim() : "",
         serialNo: it.serialNo.trim(),
-        instrumentRange: it.instrumentRange?.trim() || "0 - 100",
+        instrumentRange: it.instrumentRange !== undefined ? it.instrumentRange.trim() : "",
         calibrationDate: calibDate,
         calibrationDueDate: dueDate,
         dcNo: (it.dcNo || commonDc).trim(),
