@@ -3551,6 +3551,12 @@ export default function CalibrationPageView() {
       return;
     }
 
+    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+    const sNo = record?.serialNo || "";
+    const recId = record?._id || "";
+    const backendStreamUrl = `${base}/client/calibration/download-document?docType=po&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`;
+    const backendDownloadUrl = `${base}/client/calibration/download-document?docType=po&download=true&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`;
+
     const fileName = record?.commercialDocs?.poFileName || `PO_${record?.serialNo || "Document"}.pdf`;
     let fileType = "pdf";
     if (
@@ -3561,7 +3567,7 @@ export default function CalibrationPageView() {
       fileType = "image";
     }
 
-    let previewUrl = poUrl;
+    let previewUrl = backendStreamUrl;
     if (poUrl.startsWith("data:")) {
       try {
         const parts = poUrl.split(",");
@@ -3576,14 +3582,16 @@ export default function CalibrationPageView() {
         const blob = new Blob([byteArray], { type: mime });
         previewUrl = URL.createObjectURL(blob);
       } catch (err) {
-        console.warn("Blob creation fallback, using raw data URI:", err);
-        previewUrl = poUrl;
+        console.warn("Blob creation fallback, using backend stream URL:", err);
+        previewUrl = backendStreamUrl;
       }
     }
 
     setPoPreviewData({
       url: previewUrl,
       directUrl: poUrl,
+      streamUrl: backendStreamUrl,
+      downloadUrl: backendDownloadUrl,
       fileName,
       record,
       fileType,
@@ -3592,10 +3600,16 @@ export default function CalibrationPageView() {
   };
 
   const handleDownloadActivePo = () => {
-    if (!poPreviewData.url && !poPreviewData.directUrl) return;
+    if (poPreviewData.downloadUrl) {
+      window.open(poPreviewData.downloadUrl, "_blank");
+      toast.success(`Downloading "${poPreviewData.fileName || "PO_Document"}" 📥`);
+      return;
+    }
+    const targetUrl = poPreviewData.url || poPreviewData.directUrl;
+    if (!targetUrl) return;
     try {
       const link = document.createElement("a");
-      link.href = poPreviewData.url || poPreviewData.directUrl;
+      link.href = targetUrl;
       link.download = poPreviewData.fileName || "PO_Document.pdf";
       document.body.appendChild(link);
       link.click();
@@ -3603,16 +3617,13 @@ export default function CalibrationPageView() {
       toast.success(`Downloading "${poPreviewData.fileName || "PO_Document"}" 📥`);
     } catch (err) {
       console.error("Download PO error:", err);
-      window.open(poPreviewData.url || poPreviewData.directUrl, "_blank");
+      window.open(targetUrl, "_blank");
     }
   };
 
   const handleOpenActivePoNewTab = () => {
-    const targetUrl = poPreviewData.url || poPreviewData.directUrl;
-    if (!targetUrl) return;
-    if (poPreviewData.directUrl && (poPreviewData.directUrl.startsWith("http://") || poPreviewData.directUrl.startsWith("https://"))) {
-      window.open(poPreviewData.directUrl, "_blank");
-    } else {
+    const targetUrl = poPreviewData.streamUrl || poPreviewData.url || poPreviewData.directUrl;
+    if (targetUrl) {
       window.open(targetUrl, "_blank");
     }
   };
@@ -11972,7 +11983,7 @@ export default function CalibrationPageView() {
               {poPreviewData.fileType === "image" ? (
                 <div className="w-full h-[75vh] flex items-center justify-center bg-slate-900 rounded-2xl border border-slate-800 p-4 overflow-auto">
                   <img
-                    src={poPreviewData.url || poPreviewData.directUrl}
+                    src={poPreviewData.url || poPreviewData.streamUrl || poPreviewData.directUrl}
                     alt={poPreviewData.fileName || "Uploaded PO"}
                     className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
                   />
@@ -11980,7 +11991,7 @@ export default function CalibrationPageView() {
               ) : (
                 <div className="w-full h-[75vh] rounded-2xl border border-slate-700 overflow-hidden bg-white shadow-2xl flex flex-col">
                   <iframe
-                    src={poPreviewData.url || poPreviewData.directUrl}
+                    src={poPreviewData.url || poPreviewData.streamUrl}
                     title="PO Preview"
                     className="w-full h-full border-0 bg-white"
                   />

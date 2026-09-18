@@ -1204,13 +1204,29 @@ export const downloadDocument = async (req, res, next) => {
       const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
       if (poUrl && poUrl.trim()) {
         if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
-          return res.redirect(poUrl);
+          try {
+            const resp = await fetch(poUrl);
+            if (resp.ok) {
+              const arrayBuf = await resp.arrayBuffer();
+              const buffer = Buffer.from(arrayBuf);
+              const isImage = /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(poUrl);
+              const contentType = isImage ? (poUrl.includes(".png") ? "image/png" : "image/jpeg") : "application/pdf";
+              const filename = `ARCL_PO_${sNo.replace(/[^a-zA-Z0-9_-]/g, "") || "DOCUMENT"}.${isImage ? "png" : "pdf"}`;
+              res.setHeader("Content-Type", contentType);
+              res.setHeader("Content-Disposition", `${download === "true" ? "attachment" : "inline"}; filename="${filename}"`);
+              res.setHeader("Content-Length", buffer.length);
+              return res.status(200).send(buffer);
+            }
+          } catch (fetchErr) {
+            console.warn("Failed to proxy remote PO document, redirecting:", fetchErr.message);
+            return res.redirect(poUrl);
+          }
         } else if (poUrl.startsWith("data:")) {
           const parts = poUrl.split(",");
           const mimeMatch = parts[0].match(/:(.*?);/);
           const contentType = mimeMatch ? mimeMatch[1] : "application/pdf";
           const buffer = Buffer.from(parts[1], "base64");
-          const filename = `ARCL_PO_${sNo.replace(/[^a-zA-Z0-9_-]/g, "")}.pdf`;
+          const filename = `ARCL_PO_${sNo.replace(/[^a-zA-Z0-9_-]/g, "") || "DOCUMENT"}.${contentType.includes("image") ? "png" : "pdf"}`;
           res.setHeader("Content-Type", contentType);
           res.setHeader("Content-Disposition", `${download === "true" ? "attachment" : "inline"}; filename="${filename}"`);
           res.setHeader("Content-Length", buffer.length);
@@ -1987,14 +2003,19 @@ export const resetNablLabScope = async (req, res, next) => {
 const uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = "po_document.pdf") => {
   try {
     const isPdf = mimetype === "application/pdf" || originalname.toLowerCase().endsWith(".pdf");
-    const resourceType = isPdf ? "raw" : "auto";
+    const cleanPublicId = `PO_${Date.now()}_${originalname.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const uploadOptions = {
+      folder: "calibration_po",
+      resource_type: isPdf ? "auto" : "auto",
+      public_id: cleanPublicId,
+    };
+    if (isPdf) {
+      uploadOptions.format = "pdf";
+    }
+
     const secureUrl = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: "calibration_po",
-          resource_type: resourceType,
-          public_id: `PO_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9.-]/g, "_")}`,
-        },
+        uploadOptions,
         (error, result) => {
           if (error) return reject(error);
           resolve(result.secure_url);
