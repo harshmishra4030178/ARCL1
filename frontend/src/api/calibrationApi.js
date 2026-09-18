@@ -5,7 +5,7 @@ import API from "./axios";
 // =========================
 
 export const getAdminCalibrationRecords = (params = {}) =>
-  API.get("/admin/calibration", { params });
+  API.get("/admin/calibration", { params: { limit: 10000, ...params } });
 
 export const getAdminCalibrationStats = () =>
   API.get("/admin/calibration/stats");

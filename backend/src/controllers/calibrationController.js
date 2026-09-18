@@ -46,7 +46,7 @@ export const getCalibrationRecords = async (req, res, next) => {
       startDate,
       endDate,
       page = 1,
-      limit = 20,
+      limit = 10000,
     } = req.query;
 
     const query = {};

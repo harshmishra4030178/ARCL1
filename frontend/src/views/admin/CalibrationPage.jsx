@@ -2033,9 +2033,16 @@ export default function CalibrationPageView() {
     list.forEach((r) => {
       const dcClean = (r.dcNo || "").trim();
       const compClean = (r.clientCompany || "External Client").trim();
-      const key = dcClean
-        ? `${compClean}___${dcClean}`
-        : `${compClean}___${r.challanDate ? new Date(r.challanDate).toISOString().slice(0, 10) : ""}_${r._id || r.id}`;
+      const key =
+        dcClean && dcClean !== "-"
+          ? `${compClean.toLowerCase()}___${dcClean.toLowerCase()}`
+          : `${compClean.toLowerCase()}___${
+              r.challanDate
+                ? new Date(r.challanDate).toLocaleDateString("en-GB")
+                : r.calibrationDate
+                ? new Date(r.calibrationDate).toLocaleDateString("en-GB")
+                : "batch"
+            }`;
 
       if (!batchMap.has(key)) {
         batchMap.set(key, {
