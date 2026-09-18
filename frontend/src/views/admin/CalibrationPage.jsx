@@ -3079,18 +3079,29 @@ export default function CalibrationPageView() {
   };
 
   const handleDirectWhatsAppDispatch = (recip) => {
+    if (!recip) return;
+    const recipDue = recip.dueInstruments && recip.dueInstruments.length > 0
+      ? recip.dueInstruments
+      : (recip.allInstruments && recip.allInstruments.length > 0
+          ? recip.allInstruments
+          : records.filter((r) => r.clientCompany === recip.company));
+
+    const targetInstruments = recipDue && recipDue.length > 0 ? recipDue : [
+      { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
+    ];
+
     const instrumentsSummary = targetInstruments
       .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
       .join("\n");
 
     const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
-      .replace(/{{company}}/gi, recip.company)
-      .replace(/{{contactPerson}}/gi, recip.contactPerson)
+      .replace(/{{company}}/gi, recip.company || "Valued Client")
+      .replace(/{{contactPerson}}/gi, recip.contactPerson || "Quality Manager")
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
     let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
-      .replace(/{{company}}/gi, recip.company)
-      .replace(/{{contactPerson}}/gi, recip.contactPerson)
+      .replace(/{{company}}/gi, recip.company || "Valued Client")
+      .replace(/{{contactPerson}}/gi, recip.contactPerson || "Quality Manager")
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
     if (!resolvedSubj.includes("🔴")) {
@@ -3099,7 +3110,7 @@ export default function CalibrationPageView() {
 
     const rawMessage =
       `*${resolvedSubj}*\n\n` +
-      `Dear ${recip.contactPerson} (${recip.company}),\n` +
+      `Dear ${recip.contactPerson || "Quality Manager"} (${recip.company || "Valued Client"}),\n` +
       `${resolvedIntro}\n\n` +
       `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
       `Please schedule recalibration pickup or book on-site testing:\n` +
@@ -3120,7 +3131,7 @@ export default function CalibrationPageView() {
     const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
 
     triggerWhatsAppOpen(waLink);
-    toast.success(`💬 WhatsApp opened for ${recip.company}! (Message copied to clipboard)`);
+    toast.success(`💬 WhatsApp opened for ${recip.company || "Client"}! (Message copied to clipboard)`);
   };
 
   const handleBulkDispatchSelected = async (recipientGroups, channel = "email") => {
@@ -6190,8 +6201,8 @@ export default function CalibrationPageView() {
                             dueInstruments: targetDueRecords,
                             allInstruments: companyRecords,
                           };
-                          await handleDirectEmailDispatch(targetRecip);
                           handleDirectWhatsAppDispatch(targetRecip);
+                          await handleDirectEmailDispatch(targetRecip);
                         }}
                         className="px-2.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1 shadow-sm cursor-pointer active:scale-95"
                         title="Send both Email and open WhatsApp"
