@@ -1449,59 +1449,56 @@ export const generateSrfSlipPdf = async (data = {}) => {
   // 1. OFFICIAL ARCL HEADER
   let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Calibration Job Slip)", "#9a3412");
 
-  // 2. CLIENT & INWARD DETAILS CARD (Clean 2-Column Split Box, 66pt Height)
-  const infoH = 66;
+  // 2. CLIENT & INWARD DETAILS CARD (3-Row Full Width Stacking: Zero Overlap)
+  doc.fontSize(6.2).font("Helvetica");
+  const maxAddrH = 26; // max 2-3 full lines of 455pt width
+  const rawAddrH = doc.heightOfString(clientAddress, { width: contentWidth - 78 });
+  const actualAddrH = Math.min(maxAddrH, Math.max(12, rawAddrH));
+  
+  const infoH = 50 + actualAddrH;
+  
+  // Background Box
   doc.rect(leftMargin, curY, contentWidth, infoH).fillColor("#f8fafc").strokeColor("#cbd5e1").lineWidth(0.8).fillAndStroke();
-  // Accent Left Bar
-  doc.rect(leftMargin, curY, 4, infoH).fillColor("#d97706").fill();
-  // Vertical Middle Divider
-  doc.moveTo(leftMargin + 265, curY).lineTo(leftMargin + 265, curY + infoH).lineWidth(0.8).strokeColor("#cbd5e1").stroke();
+  doc.rect(leftMargin, curY, 4, infoH).fillColor("#d97706").fill(); // Left Amber accent bar
 
-  // Left Column (Customer Details)
-  const c1LabelX = leftMargin + 10;
-  const c1ValX = leftMargin + 62;
-  const c1ValW = 195;
+  // Row 1: Key Inward Specification Bar (SRF No | Date | DC Challan | Assigned Lab)
+  const r1Y = curY + 6;
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("SRF Job No:", leftMargin + 10, r1Y, { width: 55 });
+  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#b45309").text(srfNo, leftMargin + 65, r1Y - 0.5, { width: 110, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#b45309").text("CUSTOMER / INWARD CLIENT DETAILS", c1LabelX, curY + 5);
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward Date:", leftMargin + 180, r1Y, { width: 55 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(calDate, leftMargin + 235, r1Y, { width: 75, lineBreak: false });
 
-  // Line 1: Company
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("Customer:", c1LabelX, curY + 17);
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, c1ValX, curY + 17, { width: c1ValW, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward DC:", leftMargin + 315, r1Y, { width: 50 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(`${dcNo} (Dt: ${challanDate})`, leftMargin + 365, r1Y, { width: 100, lineBreak: false });
 
-  // Line 2: Address
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("Address:", c1LabelX, curY + 29);
-  doc.fontSize(6.2).font("Helvetica").fillColor("#334155").text(clientAddress, c1ValX, curY + 29, { width: c1ValW, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Lab:", leftMargin + 470, r1Y, { width: 22 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#059669").text(sentToLab, leftMargin + 492, r1Y, { width: 72, lineBreak: false });
 
-  // Line 3: Contact Person
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("Contact:", c1LabelX, curY + 41);
-  doc.fontSize(6.5).font("Helvetica").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, c1ValX, curY + 41, { width: c1ValW, lineBreak: false });
+  doc.moveTo(leftMargin + 6, curY + 22).lineTo(leftMargin + contentWidth - 6, curY + 22).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
-  // Line 4: GSTIN
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("GSTIN:", c1LabelX, curY + 53);
-  doc.fontSize(6.8).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, c1ValX, curY + 53, { width: c1ValW, lineBreak: false });
+  // Row 2: Customer Name | Contact | GSTIN
+  const r2Y = curY + 26;
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Customer:", leftMargin + 10, r2Y, { width: 55 });
+  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, leftMargin + 65, r2Y - 0.5, { width: 175, lineBreak: false });
 
-  // Right Column (Inward / Challan Details)
-  const c2LabelX = leftMargin + 275;
-  const c2ValX = leftMargin + 342;
-  const c2ValW = 185;
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Contact:", leftMargin + 250, r2Y, { width: 40 });
+  doc.fontSize(7).font("Helvetica").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, leftMargin + 292, r2Y, { width: 140, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#b45309").text("INWARD & JOB SPECIFICATIONS", c2LabelX, curY + 5);
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("GSTIN:", leftMargin + 438, r2Y, { width: 32 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, leftMargin + 472, r2Y, { width: 90, lineBreak: false });
 
-  // Line 1: SRF Job Number
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("SRF No:", c2LabelX, curY + 17);
-  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#b45309").text(srfNo, c2ValX, curY + 16.5, { width: c2ValW, lineBreak: false });
+  doc.moveTo(leftMargin + 6, curY + 42).lineTo(leftMargin + contentWidth - 6, curY + 42).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
-  // Line 2: Inward Date
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("Inward Date:", c2LabelX, curY + 29);
-  doc.fontSize(6.8).font("Helvetica-Bold").fillColor("#0f172a").text(calDate, c2ValX, curY + 29, { width: c2ValW, lineBreak: false });
-
-  // Line 3: DC / Challan
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("DC / Challan:", c2LabelX, curY + 41);
-  doc.fontSize(6.8).font("Helvetica-Bold").fillColor("#021C57").text(`${dcNo} (Dt: ${challanDate})`, c2ValX, curY + 41, { width: c2ValW, lineBreak: false });
-
-  // Line 4: Assigned Lab
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#475569").text("Assigned Lab:", c2LabelX, curY + 53);
-  doc.fontSize(6.8).font("Helvetica-Bold").fillColor("#059669").text(sentToLab, c2ValX, curY + 53, { width: c2ValW, lineBreak: false });
+  // Row 3: Site / Project Address (Full 455pt width row!)
+  const r3Y = curY + 46;
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Site / Address:", leftMargin + 10, r3Y, { width: 60 });
+  doc.fontSize(6.2).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 72, r3Y, {
+    width: contentWidth - 78,
+    height: actualAddrH + 2,
+    lineGap: 1.2,
+    ellipsis: true
+  });
 
   curY += infoH + 8;
 
