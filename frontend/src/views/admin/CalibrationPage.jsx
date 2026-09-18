@@ -3016,7 +3016,7 @@ export default function CalibrationPageView() {
   const handleDirectWhatsAppDispatch = (recip) => {
     const targetInstruments = recip.dueInstruments.length > 0 ? recip.dueInstruments : recip.allInstruments;
     const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) - Due: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Soon"}`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
     const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality notice from ARCL Calibration Lab.")
@@ -3709,7 +3709,7 @@ export default function CalibrationPageView() {
     ];
 
     const instrumentsSummary = instList
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) - Due: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Soon"}`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("\n");
 
     const resolvedIntro = customModalMessage || reminderTemplate.introMessage || `This is an automated calibration due alert for your equipment:`;
@@ -6088,12 +6088,12 @@ export default function CalibrationPageView() {
                         {targetDueRecords.length > 0 ? (
                           targetDueRecords.map((inst, idx) => (
                             <p key={inst._id || idx} className="text-gray-800">
-                              • *{inst.instrument}* (S/N: {inst.serialNo}) - Due: <span className="text-rose-600 font-bold">{inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Soon"}</span>
+                              • *{inst.instrument}* (S/N: {inst.serialNo}) ➔ Due: 🔴 <span className="text-rose-600 font-bold font-mono">*{inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*</span>
                             </p>
                           ))
                         ) : (
                           <p className="text-gray-500 font-sans italic">
-                            • Digital Compression Testing Machine 2000 kN (S/N: ARCL-CTM-9842) - Due: 15/05/2027
+                            • Digital Compression Testing Machine 2000 kN (S/N: ARCL-CTM-9842) ➔ Due: 🔴 <span className="text-rose-600 font-bold font-mono">*15/05/2027*</span>
                           </p>
                         )}
                       </div>

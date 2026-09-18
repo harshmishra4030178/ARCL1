@@ -650,7 +650,7 @@ export const sendDueReminder = async (req, res, next) => {
 
     // Build WhatsApp Message Link
     const instrumentsSummary = targetInstruments
-      .map((i) => `• ${i.instrument} (S/N: ${i.serialNo}) - Due: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Soon"}`)
+      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
       .join("%0A");
 
     const customWaIntro = customMessage
@@ -663,7 +663,7 @@ export const sendDueReminder = async (req, res, next) => {
       : `This is an automated notice that your ${targetInstruments.length} instrument(s) are due for recalibration:`;
 
     const waText = encodeURIComponent(
-      `*URGENT: Calibration Due Notice - ARCL Instruments Laboratory (CC-4313)*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality notice that your ${targetInstruments.length} instrument(s) are due for recalibration:`}\n\n${targetInstruments.map((i) => `• ${i.instrument} (S/N: ${i.serialNo}) - Due: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Soon"}`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arcl-1.vercel.app/calibration-services\n\nARCL Calibration Desk: ${phone}`
+      `*URGENT: Calibration Due Notice - ARCL Instruments Laboratory (CC-4313)*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality notice that your ${targetInstruments.length} instrument(s) are due for recalibration:`}\n\n${targetInstruments.map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) ➔ Due: 🔴 *${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`).join("\n")}\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arcl-1.vercel.app/calibration-services\n\nARCL Calibration Desk: ${phone}`
     );
 
     const targetPhone = (targetInstruments[0]?.clientPhone || req.body.clientPhone || "8009559900").replace(/[^0-9]/g, "");
