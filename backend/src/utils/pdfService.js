@@ -1449,42 +1449,42 @@ export const generateSrfSlipPdf = async (data = {}) => {
   // 1. OFFICIAL ARCL HEADER
   let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Calibration Job Slip)", "#9a3412");
 
-  // 2. CLIENT & INWARD DETAILS CARD (3-Row Full Width Stacking: Zero Overlap)
-  const infoH = 68;
+  // 2. CLIENT & INWARD DETAILS CARD (Polished, Perfectly Proportioned Layout)
+  const infoH = 70;
   doc.rect(leftMargin, curY, contentWidth, infoH).fillColor("#f8fafc").strokeColor("#cbd5e1").lineWidth(0.8).fillAndStroke();
   doc.rect(leftMargin, curY, 4, infoH).fillColor("#d97706").fill(); // Left Amber accent bar
 
-  // Row 1: Key Inward Specification Bar (SRF No | Inward Date | Inward DC / Challan)
+  // Row 1: SRF Job No | Inward Date | Inward DC / Challan
   const r1Y = curY + 6;
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("SRF Job No:", leftMargin + 10, r1Y, { width: 55 });
-  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#b45309").text(srfNo, leftMargin + 65, r1Y - 0.5, { width: 105, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("SRF Job No:", leftMargin + 10, r1Y, { width: 50 });
+  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#b45309").text(srfNo, leftMargin + 62, r1Y - 0.5, { width: 105, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward Date:", leftMargin + 180, r1Y, { width: 55 });
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(calDate, leftMargin + 235, r1Y, { width: 75, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward Date:", leftMargin + 175, r1Y, { width: 50 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text(calDate, leftMargin + 228, r1Y, { width: 75, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward DC / Challan:", leftMargin + 325, r1Y, { width: 75 });
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(`${dcNo} (Dt: ${challanDate})`, leftMargin + 402, r1Y, { width: 125, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Inward DC / Challan:", leftMargin + 310, r1Y, { width: 75 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(`${dcNo} (Dt: ${challanDate})`, leftMargin + 388, r1Y, { width: 142, lineBreak: false });
 
-  doc.moveTo(leftMargin + 6, curY + 22).lineTo(leftMargin + contentWidth - 6, curY + 22).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
+  doc.moveTo(leftMargin + 6, curY + 23).lineTo(leftMargin + contentWidth - 6, curY + 23).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
-  // Row 2: Customer Name | Contact Person | GSTIN
-  const r2Y = curY + 26;
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Customer:", leftMargin + 10, r2Y, { width: 55 });
-  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, leftMargin + 65, r2Y - 0.5, { width: 175, lineBreak: false });
+  // Row 2: Customer Name | Contact Person | GSTIN (Full width to guarantee zero wrapping)
+  const r2Y = curY + 28;
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Customer:", leftMargin + 10, r2Y, { width: 50 });
+  doc.fontSize(7.5).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, leftMargin + 62, r2Y - 0.5, { width: 165, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Contact:", leftMargin + 250, r2Y, { width: 40 });
-  doc.fontSize(6.8).font("Helvetica").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, leftMargin + 292, r2Y, { width: 140, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Contact:", leftMargin + 235, r2Y, { width: 38 });
+  doc.fontSize(6.8).font("Helvetica").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, leftMargin + 275, r2Y, { width: 135, lineBreak: false });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("GSTIN:", leftMargin + 438, r2Y, { width: 32 });
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, leftMargin + 472, r2Y, { width: 60, lineBreak: false });
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("GSTIN:", leftMargin + 418, r2Y, { width: 30 });
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#021C57").text(clientGst, leftMargin + 452, r2Y, { width: 80, lineBreak: false });
 
-  doc.moveTo(leftMargin + 6, curY + 42).lineTo(leftMargin + contentWidth - 6, curY + 42).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
+  doc.moveTo(leftMargin + 6, curY + 44).lineTo(leftMargin + contentWidth - 6, curY + 44).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
 
-  // Row 3: Site / Address (Full Width 450pt with 2 clean lines)
-  const r3Y = curY + 46;
+  // Row 3: Site / Address (Spanning full 455pt width)
+  const r3Y = curY + 49;
   doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#64748b").text("Site / Address:", leftMargin + 10, r3Y, { width: 60 });
-  doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 72, r3Y, {
-    width: contentWidth - 80,
+  doc.fontSize(6.2).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 72, r3Y, {
+    width: contentWidth - 78,
     height: 18,
     lineGap: 1.2,
     ellipsis: true
