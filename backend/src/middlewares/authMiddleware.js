@@ -160,6 +160,16 @@ export const checkModulePermission = (moduleName, actionName = null) => {
       const perms = user.permissions || {};
       const modPerms = perms[moduleName];
 
+      if (modPerms === undefined) {
+        if (user.role === "admin") {
+          return next();
+        }
+        return res.status(403).json({
+          success: false,
+          message: `Forbidden: You do not have permission for '${moduleName}'.`,
+        });
+      }
+
       if (!modPerms) {
         return res.status(403).json({
           success: false,

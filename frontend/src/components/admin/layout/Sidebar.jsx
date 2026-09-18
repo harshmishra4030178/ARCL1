@@ -14,6 +14,7 @@ import {
   FaBell,
   FaBookOpen,
   FaShieldAlt,
+  FaCertificate,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -22,6 +23,7 @@ const allMenuItems = [
   { name: "Equipment Types", path: "/admin/equipment-types", icon: <FaLayerGroup />, module: "equipmentTypes" },
   { name: "Categories", path: "/admin/categories", icon: <FaThList />, module: "categories" },
   { name: "Products", path: "/admin/products", icon: <FaBox />, module: "products" },
+  { name: "Calibration Portal", path: "/admin/calibration", icon: <FaCertificate />, module: "calibration" },
   { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen />, module: "blogs" },
   { name: "Users & Roles", path: "/admin/users", icon: <FaUsers />, module: "users", action: "manage" },
   { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope />, module: "inquiries" },

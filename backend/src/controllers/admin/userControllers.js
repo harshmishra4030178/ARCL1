@@ -2,6 +2,7 @@ import User from "../../models/userModel.js";
 import ApiError from "../../utils/ApiError.js";
 import ApiResponse from "../../utils/ApiResponse.js";
 import asyncHandler from "../../utils/asyncHandler.js";
+import { isSuperAdminUser } from "../../middlewares/authMiddleware.js";
 
 /**
  * @desc    Get All Registered Users (Admin)
@@ -96,12 +97,7 @@ export const updateUserRole = asyncHandler(async (req, res) => {
   }
 
   // Safety: Prevent changing Super Admin role
-  const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  const isSuper =
-    user.role === "superadmin" ||
-    user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
-    user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === envAdminEmail;
+  const isSuper = isSuperAdminUser(user);
 
   if (isSuper) {
     throw new ApiError(
@@ -143,12 +139,7 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
   }
 
   // Safety: Prevent deactivating Super Admin
-  const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  const isSuper =
-    user.role === "superadmin" ||
-    user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
-    user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === envAdminEmail;
+  const isSuper = isSuperAdminUser(user);
 
   if (isSuper) {
     throw new ApiError(
@@ -184,12 +175,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
   }
 
   // Safety: Prevent deleting Super Admin
-  const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  const isSuper =
-    user.role === "superadmin" ||
-    user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
-    user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === envAdminEmail;
+  const isSuper = isSuperAdminUser(user);
 
   if (isSuper) {
     throw new ApiError(
@@ -220,12 +206,7 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
   }
 
   // Safety: Prevent modifying Super Admin permissions
-  const envAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  const isSuper =
-    user.role === "superadmin" ||
-    user.email.toLowerCase() === "abhinav@arclinstruments.com" ||
-    user.email.toLowerCase() === "abhinavtripathi32@gmail.com" ||
-    user.email.toLowerCase() === envAdminEmail;
+  const isSuper = isSuperAdminUser(user);
 
   if (isSuper) {
     throw new ApiError(
@@ -278,14 +259,15 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
   }
 
   const defaultPermissions = {
-    products: { create: true, edit: true, delete: true },
-    categories: { create: true, edit: true, delete: true },
-    equipmentTypes: { create: true, edit: true, delete: true },
-    blogs: { create: true, edit: true, delete: true },
-    inquiries: { view: true, delete: true },
-    contacts: { view: true, delete: true },
-    subscribers: { view: true, delete: true },
-    users: { manage: role === "admin" || role === "superadmin" },
+    products: { create: true, edit: true, delete: true }, // 3
+    calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
+    categories: { create: true, edit: true, delete: true }, // 3
+    equipmentTypes: { create: true, delete: true }, // 2
+    blogs: { create: true, edit: true, delete: true }, // 3
+    inquiries: { view: true, edit: true, delete: true }, // 3
+    contacts: { view: true, delete: true }, // 2
+    subscribers: { view: true, edit: true, delete: true }, // 3
+    users: { manage: role === "admin" || role === "superadmin", delete: role === "superadmin" }, // 2
   };
 
   const finalPermissions = permissions ? { ...defaultPermissions, ...permissions } : defaultPermissions;

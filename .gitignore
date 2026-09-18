@@ -66,3 +66,8 @@ Thumbs.db
 # Optional
 # =========================
 uploads/
+scratch_*.png
+backend/temp_test_pdfs/
+backend/test_*.pdf
+backend/public/sample_quotation_test.pdf
+backend/public/test_q.pdf

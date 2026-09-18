@@ -16,7 +16,10 @@ export const hasModuleAccess = (user, moduleName, actionName = null) => {
 
   const perms = user.permissions || {};
   const modPerms = perms[moduleName];
-  if (!modPerms) return false;
+  if (modPerms === undefined) {
+    // If admin has role "admin", grant access by default to newly added modules
+    return user.role === "admin";
+  }
 
   if (actionName) {
     return modPerms[actionName] === true;
@@ -30,6 +33,7 @@ export const ROUTE_PERMISSIONS = [
   { prefix: "/admin/products", module: "products" },
   { prefix: "/admin/categories", module: "categories" },
   { prefix: "/admin/equipment-types", module: "equipmentTypes" },
+  { prefix: "/admin/calibration", module: "calibration" },
   { prefix: "/admin/blogs", module: "blogs" },
   { prefix: "/admin/inquiry", module: "inquiries" },
   { prefix: "/admin/contact-messages", module: "contacts" },

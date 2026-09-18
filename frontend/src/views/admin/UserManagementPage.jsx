@@ -31,6 +31,7 @@ import {
   FaBookOpen,
   FaLock,
   FaCrown,
+  FaCertificate,
   FaPen,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
@@ -90,46 +91,57 @@ const formatWhatsAppLastSeen = (dateStr) => {
   return `${dateString} at ${timeString}`;
 };
 
+const TOTAL_PERMS_COUNT = 26;
+
 const DEFAULT_FULL_PERMISSIONS = {
-  products: { create: true, edit: true, delete: true },
-  categories: { create: true, edit: true, delete: true },
-  equipmentTypes: { create: true, edit: true, delete: true },
-  blogs: { create: true, edit: true, delete: true },
-  inquiries: { view: true, delete: true },
-  contacts: { view: true, delete: true },
-  subscribers: { view: true, delete: true },
-  users: { manage: true },
+  products: { create: true, edit: true, delete: true }, // 3
+  calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
+  categories: { create: true, edit: true, delete: true }, // 3
+  equipmentTypes: { create: true, delete: true }, // 2
+  blogs: { create: true, edit: true, delete: true }, // 3
+  inquiries: { view: true, edit: true, delete: true }, // 3
+  contacts: { view: true, delete: true }, // 2
+  subscribers: { view: true, edit: true, delete: true }, // 3
+  users: { manage: true, delete: true }, // 2
 };
 
 const PRESETS = {
   superadmin: {
-    name: "Super Administrator (All Access)",
+    name: "Super Administrator (All Access 26/26)",
     icon: <FaCrown className="text-amber-500" />,
     role: "admin",
+    permissions: DEFAULT_FULL_PERMISSIONS,
+  },
+  calibration_lead: {
+    name: "Calibration & Metrology Lead (NABL QA & 4 Docs)",
+    icon: <FaCertificate className="text-indigo-500" />,
+    role: "admin",
     permissions: {
-      products: { create: true, edit: true, delete: true },
-      categories: { create: true, edit: true, delete: true },
-      equipmentTypes: { create: true, edit: true, delete: true },
-      blogs: { create: true, edit: true, delete: true },
-      inquiries: { view: true, delete: true },
-      contacts: { view: true, delete: true },
-      subscribers: { view: true, delete: true },
-      users: { manage: true },
+      products: { create: false, edit: false, delete: false },
+      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true },
+      categories: { create: false, edit: false, delete: false },
+      equipmentTypes: { create: false, delete: false },
+      blogs: { create: false, edit: false, delete: false },
+      inquiries: { view: true, edit: false, delete: false },
+      contacts: { view: false, delete: false },
+      subscribers: { view: false, edit: false, delete: false },
+      users: { manage: false, delete: false },
     },
   },
   product_manager: {
-    name: "Product & Catalog Manager (Add / Edit Products)",
+    name: "Product & Catalog Manager (Products, Categories & Types)",
     icon: <FaBox className="text-blue-500" />,
     role: "admin",
     permissions: {
       products: { create: true, edit: true, delete: false },
+      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
       categories: { create: true, edit: true, delete: false },
-      equipmentTypes: { create: true, edit: true, delete: false },
+      equipmentTypes: { create: true, delete: false },
       blogs: { create: false, edit: false, delete: false },
-      inquiries: { view: true, delete: false },
+      inquiries: { view: true, edit: false, delete: false },
       contacts: { view: false, delete: false },
-      subscribers: { view: false, delete: false },
-      users: { manage: false },
+      subscribers: { view: false, edit: false, delete: false },
+      users: { manage: false, delete: false },
     },
   },
   content_editor: {
@@ -138,30 +150,44 @@ const PRESETS = {
     role: "admin",
     permissions: {
       products: { create: false, edit: false, delete: false },
+      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
       categories: { create: false, edit: false, delete: false },
-      equipmentTypes: { create: false, edit: false, delete: false },
+      equipmentTypes: { create: false, delete: false },
       blogs: { create: true, edit: true, delete: false },
-      inquiries: { view: false, delete: false },
+      inquiries: { view: false, edit: false, delete: false },
       contacts: { view: false, delete: false },
-      subscribers: { view: false, delete: false },
-      users: { manage: false },
+      subscribers: { view: false, edit: false, delete: false },
+      users: { manage: false, delete: false },
     },
   },
   support_lead: {
-    name: "Customer Support (Inquiries & Contacts)",
+    name: "Customer Support (Inquiries, Contacts & Subscribers)",
     icon: <FaEnvelope className="text-purple-500" />,
     role: "admin",
     permissions: {
       products: { create: false, edit: false, delete: false },
+      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
       categories: { create: false, edit: false, delete: false },
-      equipmentTypes: { create: false, edit: false, delete: false },
+      equipmentTypes: { create: false, delete: false },
       blogs: { create: false, edit: false, delete: false },
-      inquiries: { view: true, delete: true },
+      inquiries: { view: true, edit: true, delete: true },
       contacts: { view: true, delete: true },
-      subscribers: { view: true, delete: true },
-      users: { manage: false },
+      subscribers: { view: true, edit: true, delete: true },
+      users: { manage: false, delete: false },
     },
   },
+};
+
+const SUPER_ADMIN_EMAILS_LIST = [
+  "abhinav@arclinstruments.com",
+  "abhinavtripathi32@gmail.com",
+];
+
+const isSuperAdmin = (u) => {
+  if (!u) return false;
+  if (u.role === "superadmin") return true;
+  if (SUPER_ADMIN_EMAILS_LIST.includes(u.email?.toLowerCase())) return true;
+  return false;
 };
 
 const UserManagementPage = () => {
@@ -196,13 +222,14 @@ const UserManagementPage = () => {
 
   const canManageUsers = useMemo(() => {
     if (!currentAdminUser) return false;
-    if (currentAdminUser.role === "superadmin") return true;
     if (
-      currentAdminUser.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-      currentAdminUser.email?.toLowerCase() === "abhinavtripathi32@gmail.com"
-    )
+      currentAdminUser.role === "superadmin" ||
+      currentAdminUser.role === "admin" ||
+      isSuperAdmin(currentAdminUser) ||
+      currentAdminUser.permissions?.users?.manage === true
+    ) {
       return true;
-    if (currentAdminUser.permissions?.users?.manage === true) return true;
+    }
     return false;
   }, [currentAdminUser]);
 
@@ -313,13 +340,14 @@ const UserManagementPage = () => {
     const userPerms = user.permissions || DEFAULT_FULL_PERMISSIONS;
     setModalPermissions({
       products: { create: true, edit: true, delete: true, ...(userPerms.products || {}) },
+      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true, ...(userPerms.calibration || {}) },
       categories: { create: true, edit: true, delete: true, ...(userPerms.categories || {}) },
-      equipmentTypes: { create: true, edit: true, delete: true, ...(userPerms.equipmentTypes || {}) },
+      equipmentTypes: { create: true, delete: true, ...(userPerms.equipmentTypes || {}) },
       blogs: { create: true, edit: true, delete: true, ...(userPerms.blogs || {}) },
-      inquiries: { view: true, delete: true, ...(userPerms.inquiries || {}) },
+      inquiries: { view: true, edit: true, delete: true, ...(userPerms.inquiries || {}) },
       contacts: { view: true, delete: true, ...(userPerms.contacts || {}) },
-      subscribers: { view: true, delete: true, ...(userPerms.subscribers || {}) },
-      users: { manage: true, ...(userPerms.users || {}) },
+      subscribers: { view: true, edit: true, delete: true, ...(userPerms.subscribers || {}) },
+      users: { manage: true, delete: true, ...(userPerms.users || {}) },
     });
   };
 
@@ -450,18 +478,31 @@ const UserManagementPage = () => {
     }
   };
 
-  // Count enabled permissions for badge
+  // Count enabled permissions for badge (Total: 26)
   const getEnabledCount = (permissions) => {
-    if (!permissions) return 8;
+    if (!permissions) return TOTAL_PERMS_COUNT;
     let count = 0;
-    Object.values(permissions).forEach((mod) => {
-      if (typeof mod === "object") {
-        Object.values(mod).forEach((val) => {
-          if (val) count++;
-        });
-      }
+    const modules = [
+      ["products", ["create", "edit", "delete"]], // 3
+      ["calibration", ["create", "edit", "documents", "dispatch", "delete"]], // 5
+      ["categories", ["create", "edit", "delete"]], // 3
+      ["equipmentTypes", ["create", "delete"]], // 2
+      ["blogs", ["create", "edit", "delete"]], // 3
+      ["inquiries", ["view", "edit", "delete"]], // 3
+      ["contacts", ["view", "delete"]], // 2
+      ["subscribers", ["view", "edit", "delete"]], // 3
+      ["users", ["manage", "delete"]], // 2
+    ];
+
+    modules.forEach(([mod, actions]) => {
+      actions.forEach((act) => {
+        if (permissions[mod] && permissions[mod][act] === true) {
+          count++;
+        }
+      });
     });
-    return count;
+
+    return Math.min(count, TOTAL_PERMS_COUNT);
   };
 
   if (!canManageUsers) {
@@ -586,10 +627,10 @@ const UserManagementPage = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              {/* Products */}
+              {/* 1. Products */}
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                 <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaBox className="text-amber-400" /> Products Management
+                  <FaBox className="text-amber-400" /> Products Management (3)
                 </span>
                 <div className="space-y-1.5 pl-2 text-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -622,10 +663,64 @@ const UserManagementPage = () => {
                 </div>
               </div>
 
-              {/* Categories & Equipment Types */}
+              {/* 2. Calibration & QA Lab (ISO 17025) */}
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                 <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaLayerGroup className="text-amber-400" /> Categories &amp; Types
+                  <FaCertificate className="text-amber-400" /> Calibration &amp; QA Lab (5)
+                </span>
+                <div className="space-y-1.5 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.create ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "create")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Add Inward Instruments / SRF</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.edit ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "edit")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Edit Records, Due &amp; Stages</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.documents ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "documents")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Commercial Docs Editor (PI/Tax/PO)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.dispatch ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "dispatch")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Dispatch &amp; Mail/WhatsApp PDFs</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.delete ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete Calibration Records</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 3. Categories */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <FaLayerGroup className="text-amber-400" /> Categories (3)
                 </span>
                 <div className="space-y-1.5 pl-2 text-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -635,16 +730,16 @@ const UserManagementPage = () => {
                       onChange={() => toggleGrantPerm("categories", "create")}
                       className="rounded text-amber-500 focus:ring-amber-400"
                     />
-                    <span>Create &amp; Edit Categories</span>
+                    <span>Create Categories</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={grantPermissions.equipmentTypes?.create ?? true}
-                      onChange={() => toggleGrantPerm("equipmentTypes", "create")}
+                      checked={grantPermissions.categories?.edit ?? true}
+                      onChange={() => toggleGrantPerm("categories", "edit")}
                       className="rounded text-amber-500 focus:ring-amber-400"
                     />
-                    <span>Manage Equipment Types</span>
+                    <span>Edit Categories</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -653,15 +748,42 @@ const UserManagementPage = () => {
                       onChange={() => toggleGrantPerm("categories", "delete")}
                       className="rounded text-rose-500 focus:ring-rose-400"
                     />
-                    <span className="text-rose-300">Delete Categories/Types</span>
+                    <span className="text-rose-300">Delete Categories</span>
                   </label>
                 </div>
               </div>
 
-              {/* Blogs */}
+              {/* 4. Equipment Types */}
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                 <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaBookOpen className="text-amber-400" /> Blog Articles
+                  <FaLayerGroup className="text-amber-400" /> Equipment Types (2)
+                </span>
+                <div className="space-y-1.5 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.equipmentTypes?.create ?? true}
+                      onChange={() => toggleGrantPerm("equipmentTypes", "create")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Create &amp; Manage Equipment Types</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.equipmentTypes?.delete ?? true}
+                      onChange={() => toggleGrantPerm("equipmentTypes", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete Equipment Types</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 5. Blogs */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <FaBookOpen className="text-amber-400" /> Blog Articles (3)
                 </span>
                 <div className="space-y-1.5 pl-2 text-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -694,10 +816,10 @@ const UserManagementPage = () => {
                 </div>
               </div>
 
-              {/* Inquiries & Contacts */}
+              {/* 6. Inquiries */}
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                 <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaEnvelope className="text-amber-400" /> Inquiries &amp; Messages
+                  <FaEnvelope className="text-amber-400" /> RFQ Inquiries (3)
                 </span>
                 <div className="space-y-1.5 pl-2 text-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -712,11 +834,11 @@ const UserManagementPage = () => {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={grantPermissions.contacts?.view ?? true}
-                      onChange={() => toggleGrantPerm("contacts", "view")}
+                      checked={grantPermissions.inquiries?.edit ?? true}
+                      onChange={() => toggleGrantPerm("inquiries", "edit")}
                       className="rounded text-amber-500 focus:ring-amber-400"
                     />
-                    <span>View Contact Messages</span>
+                    <span>Update Status / Followup</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -730,10 +852,73 @@ const UserManagementPage = () => {
                 </div>
               </div>
 
-              {/* Users & Admin Control */}
+              {/* 7. Contact Messages */}
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                 <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaUserShield className="text-amber-400" /> Admin &amp; Role Access
+                  <FaEnvelope className="text-amber-400" /> Contact Messages (2)
+                </span>
+                <div className="space-y-1.5 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.contacts?.view ?? true}
+                      onChange={() => toggleGrantPerm("contacts", "view")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>View Contact Messages</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.contacts?.delete ?? true}
+                      onChange={() => toggleGrantPerm("contacts", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete Contact Messages</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 8. Newsletter Subscribers */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <FaEnvelope className="text-amber-400" /> Newsletter Subscribers (3)
+                </span>
+                <div className="space-y-1.5 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.subscribers?.view ?? true}
+                      onChange={() => toggleGrantPerm("subscribers", "view")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>View Subscribers List</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.subscribers?.edit ?? true}
+                      onChange={() => toggleGrantPerm("subscribers", "edit")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Export / Manage Subscribers</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.subscribers?.delete ?? true}
+                      onChange={() => toggleGrantPerm("subscribers", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete Subscribers</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 9. Users & Admin Control */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <FaUserShield className="text-amber-400" /> Admin &amp; Role Access (2)
                 </span>
                 <div className="space-y-1.5 pl-2 text-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -744,6 +929,15 @@ const UserManagementPage = () => {
                       className="rounded text-amber-500 focus:ring-amber-400"
                     />
                     <span>Manage User Roles &amp; Permissions</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.users?.delete ?? true}
+                      onChange={() => toggleGrantPerm("users", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete / Suspend Users</span>
                   </label>
                 </div>
               </div>
@@ -982,9 +1176,7 @@ const UserManagementPage = () => {
 
                       {/* ROLE SELECTOR (INSTANT UPDATE) */}
                       <td className="p-4">
-                        {user.role === "superadmin" ||
-                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
+                        {isSuperAdmin(user) ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-800 border border-amber-400/50 text-xs font-black tracking-wide shadow-2xs">
                             <FaCrown className="text-amber-600 text-xs" /> SUPER ADMIN
                           </span>
@@ -997,11 +1189,14 @@ const UserManagementPage = () => {
                                 handleRoleChange(user._id, e.target.value)
                               }
                               className={`border rounded-xl px-3 py-1.5 text-xs font-bold cursor-pointer outline-none transition shadow-2xs ${
-                                isAdmin
+                                user.role === "superadmin"
+                                  ? "bg-amber-50 text-amber-900 border-amber-300"
+                                  : isAdmin
                                   ? "bg-purple-50 text-purple-800 border-purple-300 focus:ring-2 focus:ring-purple-200"
                                   : "bg-gray-50 text-gray-700 border-gray-300 focus:ring-2 focus:ring-gray-200"
                               }`}
                             >
+                              <option value="superadmin">Super Admin (All Access)</option>
                               <option value="admin">Admin (Privileged)</option>
                               <option value="user">User (No Admin Access)</option>
                             </select>
@@ -1017,27 +1212,31 @@ const UserManagementPage = () => {
 
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}
                       <td className="p-4">
-                        {user.role === "superadmin" ||
-                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
+                        {isSuperAdmin(user) ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-xs border border-slate-800">
-                            <FaShieldAlt className="text-amber-400" /> Full Access (19/19)
+                            <FaShieldAlt className="text-amber-400" /> Full Access (26/26)
                           </span>
                         ) : isAdmin ? (
                           <button
                             type="button"
                             onClick={() => handleOpenPermissionsModal(user)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300 transition cursor-pointer"
-                            title="Edit granular module permissions"
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
+                              permCount >= 26
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                                : "bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100"
+                            }`}
+                            title="Click to view & edit granular module permissions"
                           >
-                            <FaSlidersH className="text-amber-600" />
-                            <span>Permissions</span>
-                            <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded-full text-[10px] font-black">
-                              {permCount}
+                            <FaSlidersH className={permCount >= 26 ? "text-emerald-600" : "text-blue-600"} />
+                            <span>Permissions ({permCount}/26)</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                              permCount >= 26 ? "bg-emerald-500 text-white" : "bg-blue-600 text-white"
+                            }`}>
+                              {permCount >= 26 ? "Full" : "Custom"}
                             </span>
                           </button>
                         ) : (
-                          <span className="text-xs text-gray-400 italic">None (Standard User)</span>
+                          <span className="text-xs text-gray-400 italic">0/26 (Standard User)</span>
                         )}
                       </td>
 
@@ -1045,21 +1244,16 @@ const UserManagementPage = () => {
                       <td className="p-4">
                         <div className="flex items-center gap-2">
                           <Toggle
-                            checked={user.isActive}
+                            checked={user.isActive !== false}
                             onChange={() => handleToggleStatus(user._id)}
-                            disabled={
-                              updatingId === user._id ||
-                              user.role === "superadmin" ||
-                              user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                              user.email?.toLowerCase() === "abhinavtripathi32@gmail.com"
-                            }
+                            disabled={updatingId === user._id || isSuperAdmin(user)}
                           />
                           <span
                             className={`text-xs font-medium ${
-                              user.isActive ? "text-emerald-600 font-bold" : "text-rose-500"
+                              user.isActive !== false ? "text-emerald-600 font-bold" : "text-rose-500"
                             }`}
                           >
-                            {user.isActive ? "Enabled" : "Suspended"}
+                            {user.isActive !== false ? "Enabled" : "Suspended"}
                           </span>
                         </div>
                       </td>
@@ -1067,7 +1261,7 @@ const UserManagementPage = () => {
                       {/* REGISTERED DATE & ACTIVITY */}
                       <td className="p-4 text-xs text-gray-500">
                         <div>
-                          {new Date(user.createdAt).toLocaleDateString("en-IN", {
+                          {new Date(user.createdAt || Date.now()).toLocaleDateString("en-IN", {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
@@ -1086,9 +1280,7 @@ const UserManagementPage = () => {
 
                       {/* ACTIONS */}
                       <td className="p-4 text-center">
-                        {user.role === "superadmin" ||
-                        user.email?.toLowerCase() === "abhinav@arclinstruments.com" ||
-                        user.email?.toLowerCase() === "abhinavtripathi32@gmail.com" ? (
+                        {isSuperAdmin(user) ? (
                           <span className="text-[10px] text-slate-400 font-semibold italic">Protected</span>
                         ) : (
                           <button
@@ -1182,10 +1374,10 @@ const UserManagementPage = () => {
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {/* Products */}
+                {/* 1. Products (3) */}
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <FaBox className="text-amber-600" /> Products Management
+                    <FaBox className="text-amber-600" /> Products Management (3)
                   </span>
                   <div className="space-y-1.5 pl-2 text-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1218,10 +1410,64 @@ const UserManagementPage = () => {
                   </div>
                 </div>
 
-                {/* Categories & Types */}
+                {/* 2. Calibration & QA Lab (5) */}
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <FaLayerGroup className="text-amber-600" /> Categories &amp; Equipment Types
+                    <FaCertificate className="text-amber-600" /> Calibration &amp; QA Lab (5)
+                  </span>
+                  <div className="space-y-1.5 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.create ?? true}
+                        onChange={() => toggleModalPerm("calibration", "create")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Add Inward Instruments / SRF</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.edit ?? true}
+                        onChange={() => toggleModalPerm("calibration", "edit")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Edit Records, Due &amp; Stages</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.documents ?? true}
+                        onChange={() => toggleModalPerm("calibration", "documents")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Commercial Docs Editor (PI/Tax/PO)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.dispatch ?? true}
+                        onChange={() => toggleModalPerm("calibration", "dispatch")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Dispatch &amp; Mail/WhatsApp PDFs</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.delete ?? true}
+                        onChange={() => toggleModalPerm("calibration", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete Calibration Records</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 3. Categories (3) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FaLayerGroup className="text-amber-600" /> Product Categories (3)
                   </span>
                   <div className="space-y-1.5 pl-2 text-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1231,16 +1477,16 @@ const UserManagementPage = () => {
                         onChange={() => toggleModalPerm("categories", "create")}
                         className="rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span>Create &amp; Edit Categories</span>
+                      <span>Create Categories</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={modalPermissions.equipmentTypes?.create ?? true}
-                        onChange={() => toggleModalPerm("equipmentTypes", "create")}
+                        checked={modalPermissions.categories?.edit ?? true}
+                        onChange={() => toggleModalPerm("categories", "edit")}
                         className="rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span>Manage Equipment Types</span>
+                      <span>Edit Categories</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1249,15 +1495,42 @@ const UserManagementPage = () => {
                         onChange={() => toggleModalPerm("categories", "delete")}
                         className="rounded text-rose-500 focus:ring-rose-400"
                       />
-                      <span className="text-rose-600 font-semibold">Delete Categories/Types</span>
+                      <span className="text-rose-600 font-semibold">Delete Categories</span>
                     </label>
                   </div>
                 </div>
 
-                {/* Blogs */}
+                {/* 4. Equipment Types (2) */}
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <FaBookOpen className="text-amber-600" /> Blog &amp; Testing Guides
+                    <FaLayerGroup className="text-amber-600" /> Equipment Types (2)
+                  </span>
+                  <div className="space-y-1.5 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.equipmentTypes?.create ?? true}
+                        onChange={() => toggleModalPerm("equipmentTypes", "create")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Create &amp; Manage Equipment Types</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.equipmentTypes?.delete ?? true}
+                        onChange={() => toggleModalPerm("equipmentTypes", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete Equipment Types</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 5. Blogs (3) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FaBookOpen className="text-amber-600" /> Blog Articles (3)
                   </span>
                   <div className="space-y-1.5 pl-2 text-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1290,10 +1563,10 @@ const UserManagementPage = () => {
                   </div>
                 </div>
 
-                {/* Inquiries & Users */}
+                {/* 6. Inquiries (3) */}
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <FaEnvelope className="text-amber-600" /> Leads &amp; Administration
+                    <FaEnvelope className="text-amber-600" /> RFQ Inquiries (3)
                   </span>
                   <div className="space-y-1.5 pl-2 text-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1303,7 +1576,16 @@ const UserManagementPage = () => {
                         onChange={() => toggleModalPerm("inquiries", "view")}
                         className="rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span>View RFQ Inquiries &amp; Messages</span>
+                      <span>View RFQ &amp; Inquiries</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.inquiries?.edit ?? true}
+                        onChange={() => toggleModalPerm("inquiries", "edit")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Update Status / Followup</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1314,6 +1596,78 @@ const UserManagementPage = () => {
                       />
                       <span className="text-rose-600 font-semibold">Delete Inquiries</span>
                     </label>
+                  </div>
+                </div>
+
+                {/* 7. Contact Messages (2) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FaEnvelope className="text-amber-600" /> Contact Messages (2)
+                  </span>
+                  <div className="space-y-1.5 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.contacts?.view ?? true}
+                        onChange={() => toggleModalPerm("contacts", "view")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>View Contact Messages</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.contacts?.delete ?? true}
+                        onChange={() => toggleModalPerm("contacts", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete Contact Messages</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 8. Newsletter Subscribers (3) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FaEnvelope className="text-amber-600" /> Newsletter Subscribers (3)
+                  </span>
+                  <div className="space-y-1.5 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.subscribers?.view ?? true}
+                        onChange={() => toggleModalPerm("subscribers", "view")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>View Subscribers List</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.subscribers?.edit ?? true}
+                        onChange={() => toggleModalPerm("subscribers", "edit")}
+                        className="rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <span>Export / Manage Subscribers</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.subscribers?.delete ?? true}
+                        onChange={() => toggleModalPerm("subscribers", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete Subscribers</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 9. Admin & Role Access (2) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 sm:col-span-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FaUserShield className="text-amber-600" /> Admin &amp; Role Access (2)
+                  </span>
+                  <div className="space-y-1.5 pl-2 text-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1321,7 +1675,16 @@ const UserManagementPage = () => {
                         onChange={() => toggleModalPerm("users", "manage")}
                         className="rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span className="font-bold text-slate-900">Manage Users &amp; Permissions</span>
+                      <span className="font-bold text-slate-900">Manage User Roles &amp; Permissions</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.users?.delete ?? true}
+                        onChange={() => toggleModalPerm("users", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete / Suspend Users</span>
                     </label>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+import { generateDocumentPdf, generateCalibrationCertificatePdf } from "./pdfService.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -7,6 +8,7 @@ import Subscriber from "../models/subscriberModel.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOGO_PATH = path.resolve(__dirname, "../../public/assets/LOGO.png");
+const STAMP_PATH = path.resolve(__dirname, "../../public/assets/arcl_stamp.png");
 
 /**
  * Creates and returns a Nodemailer transporter.
@@ -54,6 +56,10 @@ const getFromAddress = () => {
   return `"${getFromName()}" <${getFromEmail()}>`;
 };
 
+const getBackendUrl = () => {
+  return process.env.BACKEND_URL || "https://arcl1-1.onrender.com";
+};
+
 const getFrontendUrl = () => {
   return process.env.FRONTEND_URL || "https://arcl-1.vercel.app";
 };
@@ -64,6 +70,17 @@ const getLogoAttachment = () => {
       filename: "logo.png",
       path: LOGO_PATH,
       cid: "arclCompanyLogo",
+    };
+  }
+  return null;
+};
+
+const getStampAttachment = () => {
+  if (fs.existsSync(STAMP_PATH)) {
+    return {
+      filename: "arcl_stamp.png",
+      path: STAMP_PATH,
+      cid: "arcl_stamp",
     };
   }
   return null;
@@ -613,3 +630,635 @@ export const sendBulkBroadcastEmail = async ({
   };
 };
 
+
+
+/**
+ * Send Automated NABL Calibration Expiration & Due Date Reminder Email
+ */
+export const sendCalibrationDueEmail = async ({
+  toEmail,
+  clientCompany,
+  contactPerson,
+  instruments = [],
+  customSubject,
+  customMessage,
+  labContactPhone,
+  labContactEmail,
+  labScopeText,
+  customFooterText,
+  actionButtonText,
+  actionButtonUrl,
+}) => {
+  const transporter = getTransporter();
+  const fromAddress = getFromAddress();
+  const fromEmail = getFromEmail();
+  const frontendUrl = getFrontendUrl();
+
+  const company = clientCompany || "Valued Client";
+  const person = contactPerson || "Quality Manager";
+  const count = instruments.length || 1;
+
+  const phoneDisplay = labContactPhone || "+91 8009559900 / +91 6205691085";
+  const emailDisplay = labContactEmail || "arclinstruments@gmail.com";
+  const scopeDisplay = labScopeText || "NABL ACCREDITED LABORATORY (CC-4313) • ISO/IEC 17025";
+  const btnText = actionButtonText || "Schedule Calibration Online →";
+  const btnUrl = actionButtonUrl || `${frontendUrl}/calibration-services`;
+
+  const subjectLine = customSubject
+    ? customSubject
+        .replace(/\{\{company\}\}/gi, company)
+        .replace(/\{\{contactPerson\}\}/gi, person)
+        .replace(/\{\{count\}\}/gi, String(count))
+    : `[Calibration Due Notice] ${company} - ARCL Lab CC-4313`;
+
+  const introParagraph = customMessage
+    ? customMessage
+        .replace(/\{\{company\}\}/gi, company)
+        .replace(/\{\{contactPerson\}\}/gi, person)
+        .replace(/\{\{count\}\}/gi, String(count))
+        .replace(/\n/g, "<br/>")
+    : `The following <strong>${count} instrument(s)</strong> registered with ARCL Calibration Laboratory are approaching their calibration due date.`;
+
+  const instrumentsHtml = instruments
+    .map(
+      (inst, idx) => `
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 10px 12px; font-weight: 600; color: #1e293b;">${idx + 1}. ${inst.instrument || "Instrument"}</td>
+        <td style="padding: 10px 12px; font-family: monospace; color: #0284c7; font-weight: 600;">${inst.serialNo || "N/A"}</td>
+        <td style="padding: 10px 12px; color: #64748b;">${inst.make || "ARCL"} / ${inst.modelNo || "-"}</td>
+        <td style="padding: 10px 12px; font-family: monospace; font-weight: bold; color: #dc2626;">${inst.calibrationDueDate ? new Date(inst.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}</td>
+      </tr>`
+    )
+    .join("");
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Calibration Due Notice - ARCL Instruments</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px 12px; color: #1e293b;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        <!-- Header -->
+        <tr style="background: #021C57;">
+          <td style="padding: 20px 24px; text-align: left;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td>
+                  <h1 style="margin: 0; font-size: 17px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px;">
+                    ARCL <span style="color: #38bdf8;">INSTRUMENTS</span>
+                  </h1>
+                  <p style="margin: 2px 0 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 0.5px;">
+                    ${scopeDisplay}
+                  </p>
+                </td>
+                <td style="text-align: right;">
+                  <span style="display: inline-block; background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    Due Reminder
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding: 24px;">
+            <p style="font-size: 14px; margin: 0 0 8px 0; color: #1e293b;">
+              Dear <strong>${person}</strong> (${company}),
+            </p>
+            <p style="font-size: 13px; line-height: 1.5; color: #475569; margin: 0 0 18px 0;">
+              ${introParagraph}
+            </p>
+
+            <!-- Table -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 12px; text-align: left;">
+                <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                  <tr>
+                    <th style="padding: 10px 12px; color: #475569;">Instrument</th>
+                    <th style="padding: 10px 12px; color: #475569;">Serial No</th>
+                    <th style="padding: 10px 12px; color: #475569;">Make/Model</th>
+                    <th style="padding: 10px 12px; color: #475569;">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${instrumentsHtml}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Action Button -->
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${btnUrl}" target="_blank" style="display: inline-block; background: #021C57; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 24px; border-radius: 8px; box-shadow: 0 2px 6px rgba(2, 28, 87, 0.2);">
+                ${btnText}
+              </a>
+            </div>
+
+            <!-- Contact Support & Official Authorized Signatory Stamp -->
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 14px;">
+              <tr>
+                <td style="vertical-align: middle; text-align: left;">
+                  <p style="margin: 0 0 4px 0; font-size: 11px; color: #475569; line-height: 1.4;">
+                    Need on-site calibration or pickup? Contact Metrology Desk:<br>
+                    📞 <strong>${phoneDisplay}</strong> | ✉️ <a href="mailto:${emailDisplay}" style="color: #0284c7; text-decoration: none;">${emailDisplay}</a>
+                  </p>
+                  <p style="margin: 0; font-size: 10px; color: #059669; font-weight: 700;">
+                    ✓ ISO/IEC 17025:2017 &amp; NABL CC-4313 Accredited Laboratory
+                  </p>
+                </td>
+                <td style="vertical-align: middle; text-align: right; width: 145px;">
+                  <div style="text-align: center; display: inline-block;">
+                    <img src="cid:arcl_stamp" alt="ARCL Stamp &amp; Sign" style="width: 105px; height: auto; max-height: 70px; display: block; margin: 0 auto 3px auto;" />
+                    <span style="font-size: 9px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px;">Authorized Signatory</span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
+          <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const mailAttachments = [];
+  const stampAtt = getStampAttachment();
+  if (stampAtt) mailAttachments.push(stampAtt);
+
+  if (transporter && toEmail) {
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: toEmail,
+        replyTo: fromEmail,
+        subject: subjectLine,
+        html: emailHtml,
+        attachments: mailAttachments,
+      });
+      return { success: true, method: "smtp", subject: subjectLine };
+    } catch (err) {
+      console.warn("SMTP send failed, falling back:", err.message);
+      return { success: true, method: "simulated", warning: err.message, subject: subjectLine };
+    }
+  }
+
+  return { success: true, method: "simulated", subject: subjectLine };
+};
+
+
+/**
+ * Send Digital Calibration Certificate Delivery Email
+ */
+export const sendCertificateDeliveryEmail = async ({
+  toEmail,
+  clientCompany,
+  contactPerson,
+  instrument = "Precision Testing Instrument",
+  serialNo = "N/A",
+  certificateNo = "ARCL-CAL-2026-001",
+  calibrationDate,
+  calibrationDueDate,
+  record = null,
+}) => {
+  const transporter = getTransporter();
+  const fromAddress = getFromAddress();
+  const fromEmail = getFromEmail();
+  const backendUrl = getBackendUrl();
+
+  const company = clientCompany || record?.clientCompany || "Valued Client";
+  const person = contactPerson || record?.clientContactPerson || "Quality Manager";
+  const instName = instrument || record?.instrument || "Precision Testing Instrument";
+  const sNo = serialNo || record?.serialNo || "N/A";
+  const certNo = certificateNo || record?.records?.certificateNo || "ARCL-CAL-2026-001";
+  const calDate = calibrationDate || record?.calibrationDate || new Date();
+  const dueDate = calibrationDueDate || record?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  // Generate Real Binary PDF Certificate Buffer using full record data
+  let certPdfBuffer = null;
+  try {
+    certPdfBuffer = await generateCalibrationCertificatePdf({
+      certificateNo: certNo,
+      calibrationDate: calDate,
+      calibrationDueDate: dueDate,
+      clientCompany: company,
+      contactPerson: person,
+      instrument: instName,
+      serialNo: sNo,
+      make: record?.make || "ARCL Instruments",
+      modelNo: record?.modelNo || "-",
+      records: record?.records || {},
+    });
+  } catch (pdfErr) {
+    console.warn("Failed to generate PDF buffer for certificate:", pdfErr.message);
+  }
+
+  const portalUrl = `${getFrontendUrl()}/calibration-services?serialNo=${encodeURIComponent(sNo)}`;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Calibration Certificate - ${certNo}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px 12px; color: #1e293b;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        <!-- Header -->
+        <tr style="background: #021C57;">
+          <td style="padding: 20px 24px; text-align: left;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td>
+                  <h1 style="margin: 0; font-size: 17px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px;">
+                    ARCL <span style="color: #38bdf8;">INSTRUMENTS</span>
+                  </h1>
+                  <p style="margin: 2px 0 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 0.5px;">
+                    NABL ACCREDITED LABORATORY (CC-4313) • ISO/IEC 17025
+                  </p>
+                </td>
+                <td style="text-align: right;">
+                  <span style="display: inline-block; background: rgba(5, 150, 105, 0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(5, 150, 105, 0.4);">
+                    Certificate Issued ✓
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body Content -->
+        <tr>
+          <td style="padding: 24px;">
+            <p style="font-size: 14px; margin: 0 0 8px 0; color: #1e293b;">
+              Dear <strong>${person}</strong> (${company}),
+            </p>
+            <p style="font-size: 13px; line-height: 1.5; color: #475569; margin: 0 0 16px 0;">
+              Your official <strong>NABL Calibration Certificate</strong> for <strong>${instName}</strong> (S/N: <span style="font-family: monospace; color: #0284c7; font-weight: bold;">${sNo}</span>) is attached directly to this email.
+            </p>
+
+            <!-- Attachment Notice Banner -->
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #065f46;">
+              📎 <strong>PDF Certificate Attached Directly:</strong> Your signed NABL Calibration Certificate PDF is attached to this email. You can download, preview, and print it directly from your email attachment bar.
+            </div>
+
+            <!-- Certificate Download Card -->
+            <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="vertical-align: middle;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 3px;">
+                      📜 Calibration Certificate (${certNo})
+                    </div>
+                    <div style="font-size: 12px; color: #059669; font-weight: 600;">
+                      📎 Official Signed PDF Attached Below
+                    </div>
+                  </td>
+                  <td style="vertical-align: middle; text-align: right; white-space: nowrap;">
+                    <a href="${portalUrl}" target="_blank" style="display: inline-block; background: #021C57; color: #ffffff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(2, 28, 87, 0.2);">
+                      🌐 Open Portal →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Contact Support & Official Authorized Signatory Stamp -->
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 14px;">
+              <tr>
+                <td style="vertical-align: middle; text-align: left;">
+                  <p style="margin: 0 0 4px 0; font-size: 11px; color: #475569; line-height: 1.4;">
+                    Need physical stamped copies or assistance? Contact Metrology Desk:<br>
+                    📞 <strong>+91 8009559900</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
+                  </p>
+                  <p style="margin: 0; font-size: 10px; color: #059669; font-weight: 700;">
+                    ✓ ISO/IEC 17025:2017 &amp; NABL CC-4313 Verified Certificate Attached
+                  </p>
+                </td>
+                <td style="vertical-align: middle; text-align: right; width: 145px;">
+                  <div style="text-align: center; display: inline-block;">
+                    <img src="cid:arcl_stamp" alt="ARCL Stamp &amp; Sign" style="width: 105px; height: auto; max-height: 70px; display: block; margin: 0 auto 3px auto;" />
+                    <span style="font-size: 9px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px;">Authorized Signatory</span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
+          <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const attachments = [];
+  const stampAtt = getStampAttachment();
+  if (stampAtt) attachments.push(stampAtt);
+
+  if (certPdfBuffer) {
+    attachments.push({
+      filename: `ARCL_CERTIFICATE_${sNo.replace(/[^a-zA-Z0-9_-]/g, "")}.pdf`,
+      content: certPdfBuffer,
+      contentType: "application/pdf",
+    });
+  }
+
+  if (transporter && toEmail) {
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: toEmail,
+        replyTo: fromEmail,
+        subject: `[Calibration Certificate] ${instName} (${sNo}) - ARCL Instruments`,
+        html: emailHtml,
+        attachments,
+      });
+      return { success: true, method: "smtp" };
+    } catch (err) {
+      console.warn("SMTP send failed, falling back:", err.message);
+      return { success: true, method: "simulated", warning: err.message };
+    }
+  }
+
+  return { success: true, method: "simulated" };
+};
+
+/**
+ * Send Specific Calibration / Commercial Document Email (Quotation, Invoice, PO, SRF, etc.)
+ */
+export const sendSpecificDocumentEmail = async ({
+  toEmail,
+  clientCompany,
+  contactPerson,
+  clientPhone,
+  docType,
+  selectedDocTypes = [],
+  docTitle,
+  instrument = "Precision Instrument",
+  serialNo = "N/A",
+  certificateNo = "",
+  dcNo = "",
+  customNote = "",
+  record = null,
+}) => {
+  const transporter = getTransporter();
+  const fromAddress = getFromAddress();
+  const fromEmail = getFromEmail();
+  const backendUrl = getBackendUrl();
+
+  const company = clientCompany || record?.clientCompany || "Valued Client";
+  const person = contactPerson || record?.clientContactPerson || "Quality Manager";
+  const sNo = serialNo || record?.serialNo || "N/A";
+  const instName = instrument || record?.instrument || "Precision Instrument";
+  const certNo = certificateNo || record?.records?.certificateNo || "";
+  const challanNo = dcNo || record?.dcNo || "";
+  const calDate = record?.calibrationDate || new Date();
+  const dueDate = record?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  const docTypeLabels = {
+    quotation: "Commercial Quotation",
+    po: "Purchase Order (PO)",
+    pi: "Proforma Invoice",
+    proforma_invoice: "Proforma Invoice",
+    tax_invoice: "Tax Invoice",
+    invoice: "Tax Invoice",
+    certificate: "Calibration Certificate",
+    recordExcel: "Observation Sheet",
+    srf: "Service Request Form (SRF Slip)",
+  };
+
+  // Compile list of documents
+  let docsList = [];
+  if (selectedDocTypes && Array.isArray(selectedDocTypes) && selectedDocTypes.length > 0) {
+    docsList = selectedDocTypes.map((dt) => ({
+      type: dt,
+      title: docTypeLabels[dt] || dt.toUpperCase(),
+    }));
+  } else if (docType) {
+    docsList = [{
+      type: docType,
+      title: docTypeLabels[docType] || docTitle || "Calibration Document",
+    }];
+  } else {
+    docsList = [{
+      type: "certificate",
+      title: "Calibration Certificate",
+    }];
+  }
+
+  // Generate Real Binary PDF Attachments matching dashboard PDF logic exactly
+  const attachments = [];
+  for (const d of docsList) {
+    try {
+      let customDocData = null;
+      if (d.type === "quotation" && record?.quotationData) customDocData = record.quotationData;
+      else if ((d.type === "tax_invoice" || d.type === "invoice") && record?.taxInvoiceData) customDocData = record.taxInvoiceData;
+      else if ((d.type === "pi" || d.type === "proforma_invoice") && record?.proformaData) customDocData = record.proformaData;
+      else if (d.type === "po" && record?.poData) customDocData = record.poData;
+
+      if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
+        customDocData = {
+          invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+          invoiceDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
+          dueDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
+          placeOfSupply: "27-MAHARASHTRA",
+          clientCompany: company,
+          clientAddress: "Gala No. 4, Shree Sai Shradha Industrial Park, Kaman, Vasai East, Palghar",
+          clientGstin: "27AAOCR3275P1ZH",
+          items: [
+            { itemNo: 1, name: `${instName} - Calibration & Testing`, subText: `NABL Accredited Metrological Calibration (S/N: ${sNo})`, hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 5000, per: "NOS", amount: 5000 }
+          ]
+        };
+      }
+
+      const buf = await generateDocumentPdf(d.type, customDocData || {
+        certificateNo: certNo || "ARCL-CAL-2026-001",
+        calibrationDate: calDate,
+        calibrationDueDate: dueDate,
+        clientCompany: company,
+        contactPerson: person,
+        clientPhone: clientPhone || "+91 8009559900",
+        clientEmail: toEmail,
+        instrument: instName,
+        serialNo: sNo,
+        dcNo: challanNo,
+        make: record?.make || "ARCL Instruments",
+        modelNo: record?.modelNo || "-",
+        customNote,
+      });
+
+      if (buf && buf.length > 0) {
+        const cleanType = d.type.toUpperCase().replace(/[^a-zA-Z0-9_]/g, "");
+        const cleanSNo = sNo.replace(/[^a-zA-Z0-9_-]/g, "");
+        attachments.push({
+          filename: `ARCL_${cleanType}_${cleanSNo}.pdf`,
+          content: buf,
+          contentType: "application/pdf",
+        });
+      }
+    } catch (err) {
+      console.warn(`Failed to generate PDF attachment for ${d.type}:`, err.message);
+    }
+  }
+
+  const isMulti = docsList.length > 1;
+  const docNamesString = docsList.map((d) => d.title).join(", ");
+  const mainSubject = isMulti
+    ? `[${docNamesString}] For ${instName} (${sNo}) - ${company}`
+    : `[${docsList[0].title}] For ${instName} (${sNo}) - ${company}`;
+
+  const portalUrl = `${getFrontendUrl()}/calibration-services?serialNo=${encodeURIComponent(sNo)}`;
+
+  const docsCardsHtml = docsList
+    .map((d) => {
+      return `
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="vertical-align: middle;">
+              <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 3px;">
+                📄 ${d.title}
+              </div>
+              <div style="font-size: 12px; color: #059669; font-weight: 600;">
+                📎 Official PDF File Attached Below
+              </div>
+            </td>
+            <td style="vertical-align: middle; text-align: right; white-space: nowrap;">
+              <a href="${portalUrl}" target="_blank" style="display: inline-block; background: #021C57; color: #ffffff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(2, 28, 87, 0.2);">
+                🌐 Open Portal →
+              </a>
+            </td>
+          </tr>
+        </table>
+      </div>`;
+    })
+    .join("");
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${mainSubject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px 12px; color: #1e293b;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        <!-- Header -->
+        <tr style="background: #021C57;">
+          <td style="padding: 20px 24px; text-align: left;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td>
+                  <h1 style="margin: 0; font-size: 17px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px;">
+                    ARCL <span style="color: #38bdf8;">INSTRUMENTS</span>
+                  </h1>
+                  <p style="margin: 2px 0 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 0.5px;">
+                    Calibration & Metrology Division • NABL Accredited (CC-4313)
+                  </p>
+                </td>
+                <td style="text-align: right;">
+                  <span style="display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                    ${docsList.length === 1 ? docsList[0].title : `${docsList.length} PDFs Attached`}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body Content -->
+        <tr>
+          <td style="padding: 24px;">
+            <p style="font-size: 14px; margin: 0 0 8px 0; color: #1e293b;">
+              Dear <strong>${person}</strong> (${company}),
+            </p>
+            <p style="font-size: 13px; line-height: 1.5; color: #475569; margin: 0 0 16px 0;">
+              Please find your official <strong>${docNamesString}</strong> for <strong>${instName}</strong> (S/N: <span style="font-family: monospace; color: #0284c7; font-weight: bold;">${sNo}</span>) attached directly to this email.
+            </p>
+
+            <!-- Attachment Notice Banner -->
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #065f46;">
+              📎 <strong>PDF Document Attached Directly:</strong> The official PDF file is attached to this email. You can download, preview, and print it directly from your email attachment bar.
+            </div>
+
+            ${customNote ? `
+            <div style="background: #f0fdf4; border-left: 3px solid #16a34a; padding: 10px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 12px; color: #166534;">
+              <strong>Note:</strong> ${customNote}
+            </div>` : ""}
+
+            <!-- Attached PDF Document Card(s) -->
+            <div style="margin-bottom: 16px;">
+              ${docsCardsHtml}
+            </div>
+
+            <!-- Contact Support & Official Authorized Signatory Stamp -->
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 14px;">
+              <tr>
+                <td style="vertical-align: middle; text-align: left;">
+                  <p style="margin: 0 0 4px 0; font-size: 11px; color: #475569; line-height: 1.4;">
+                    Need physical stamped copies or assistance? Contact Metrology Desk:<br>
+                    📞 <strong>+91 8009559900</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
+                  </p>
+                  <p style="margin: 0; font-size: 10px; color: #059669; font-weight: 700;">
+                    ✓ ISO/IEC 17025:2017 &amp; NABL CC-4313 Verified Documents Attached
+                  </p>
+                </td>
+                <td style="vertical-align: middle; text-align: right; width: 145px;">
+                  <div style="text-align: center; display: inline-block;">
+                    <img src="cid:arcl_stamp" alt="ARCL Stamp &amp; Sign" style="width: 105px; height: auto; max-height: 70px; display: block; margin: 0 auto 3px auto;" />
+                    <span style="font-size: 9px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px;">Authorized Signatory</span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
+          <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const stampAtt = getStampAttachment();
+  if (stampAtt) attachments.push(stampAtt);
+
+  if (transporter && toEmail) {
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: toEmail,
+        replyTo: fromEmail,
+        subject: mainSubject,
+        html: emailHtml,
+        attachments,
+      });
+      return { success: true, method: "smtp", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
+    } catch (err) {
+      console.warn("SMTP send failed, falling back:", err.message);
+      return { success: true, method: "simulated", warning: err.message, subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
+    }
+  }
+
+  return { success: true, method: "simulated", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
+};

@@ -30,14 +30,15 @@ const userSchema = new mongoose.Schema(
     permissions: {
       type: Object,
       default: {
-        products: { create: true, edit: true, delete: true },
-        categories: { create: true, edit: true, delete: true },
-        equipmentTypes: { create: true, edit: true, delete: true },
-        blogs: { create: true, edit: true, delete: true },
-        inquiries: { view: true, delete: true },
-        contacts: { view: true, delete: true },
-        subscribers: { view: true, delete: true },
-        users: { manage: true },
+        products: { create: true, edit: true, delete: true }, // 3
+        calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
+        categories: { create: true, edit: true, delete: true }, // 3
+        equipmentTypes: { create: true, delete: true }, // 2
+        blogs: { create: true, edit: true, delete: true }, // 3
+        inquiries: { view: true, edit: true, delete: true }, // 3
+        contacts: { view: true, delete: true }, // 2
+        subscribers: { view: true, edit: true, delete: true }, // 3
+        users: { manage: true, delete: true }, // 2
       },
     },
     isActive: {

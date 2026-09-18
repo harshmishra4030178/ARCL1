@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCL Instruments - Complete System & Admin Panel Visual Defense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0B1120; color: #F8FAFC; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .slide { display: none; min-height: calc(100vh - 80px); animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+    .slide.active { display: flex; flex-direction: column; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .glass-card { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; }
+    .gradient-text { background: linear-gradient(135deg, #60A5FA 0%, #A78BFA 50%, #F472B6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .badge-user { background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-admin { background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-tech { background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); }
+  </style>
+</head>
+<body class="bg-[#0B1120] text-slate-100 flex flex-col justify-between min-h-screen selection:bg-blue-500 selection:text-white">
+
+  <!-- Top Header Bar -->
+  <header class="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20">AR</div>
+      <div>
+        <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+          ARCL Instruments <span class="text-xs font-normal px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">System & Admin Panel Defense</span>
+        </h1>
+        <p class="text-[11px] text-slate-400 font-mono">B.Tech / MCA Major Project Defense</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="text-xs mono text-slate-400 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/60">
+        Slide <span id="currentSlideNum" class="text-blue-400 font-bold">1</span> of <span id="totalSlidesNum">18</span>
+      </div>
+      <button onclick="toggleFullscreen()" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Fullscreen (F)">
+        <i class="fa-solid fa-expand"></i>
+      </button>
+      <button onclick="toggleNotes()" class="px-3 py-1.5 text-xs font-medium bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600/50 border border-indigo-500/40 rounded-lg transition flex items-center gap-2">
+        <i class="fa-solid fa-microphone-lines"></i> Speaker Speech Script
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Slide Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 flex flex-col justify-center">
+
+    <!-- SLIDE 1: Title & Project Overview -->
+    <section class="slide active justify-center" data-slide="1">
+      <div class="text-center space-y-6 max-w-4xl mx-auto">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-2">
+          <i class="fa-solid fa-graduation-cap"></i> Major Project Defense & System Demonstration
+        </div>
+        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight">
+          Full-Stack Civil Engineering Platform & <span class="gradient-text">Admin Automation Console</span>
+        </h1>
+        <p class="text-slate-400 text-base max-w-2xl mx-auto font-light leading-relaxed">
+          Detailed Section-by-Section Architecture: Public Storefront vs. Full-Featured Admin Control Center with Live Presence, Drag & Drop Matrix, Dynamic Schema Builder, and Hardware QR Integration.
+        </p>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 text-left">
+          <div class="glass-card p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-500 font-mono">FRONTEND STACK</p>
+            <p class="text-sm font-bold text-white mt-1">Next.js 16 SSR</p>
+            <p class="text-[11px] text-blue-400">React 19, Tailwind, Zustand</p>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-500 font-mono">BACKEND API</p>
+            <p class="text-sm font-bold text-white mt-1">Node.js + Express REST</p>
+            <p class="text-[11px] text-emerald-400">JWT HTTP-Only & RBAC</p>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-500 font-mono">DATABASE & STORAGE</p>
+            <p class="text-sm font-bold text-white mt-1">MongoDB Atlas Cluster</p>
+            <p class="text-[11px] text-purple-400">Cloudinary Multi-CDN</p>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800">
+            <p class="text-xs text-slate-500 font-mono">PRODUCTION STATUS</p>
+            <p class="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 100% Live
+            </p>
+            <p class="text-[11px] text-slate-400">arclinstruments.com</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: 3-Tier Architecture Flow -->
+    <section class="slide" data-slide="2">
+      <div class="space-y-6">
+        <div>
+          <span class="text-xs font-mono text-indigo-400 font-semibold uppercase tracking-wider">Architecture Overview</span>
+          <h2 class="text-3xl font-bold text-white mt-1">Decoupled 3-Tier System Architecture</h2>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="glass-card p-5 space-y-4 border-blue-500/30">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="text-blue-400 font-bold flex items-center gap-2"><i class="fa-solid fa-laptop-code"></i> Client Storefront</span>
+              <span class="badge-tech px-2 py-0.5 rounded text-[11px] font-mono">Next.js 16</span>
+            </div>
+            <ul class="space-y-2 text-xs text-slate-300">
+              <li>• Hybrid SSR & ISR Edge Rendering</li>
+              <li>• 3-Level Semantic Taxonomy Navigation</li>
+              <li>• Compound Fuzzy Search & Filters</li>
+              <li>• 1-Click WhatsApp & jsPDF RFQ Engine</li>
+            </ul>
+          </div>
+
+          <div class="glass-card p-5 space-y-4 border-red-500/30">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="text-red-400 font-bold flex items-center gap-2"><i class="fa-solid fa-user-shield"></i> Admin Console</span>
+              <span class="badge-admin px-2 py-0.5 rounded text-[11px] font-mono">Admin Portal</span>
+            </div>
+            <ul class="space-y-2 text-xs text-slate-300">
+              <li>• Real-Time Presence (30s Polling Heartbeat)</li>
+              <li>• HTML5 Drag-and-Drop Category Reordering</li>
+              <li>• Dynamic Key-Value Schema Builder</li>
+              <li>• Physical Machine Base64 Vector QR Engine</li>
+            </ul>
+          </div>
+
+          <div class="glass-card p-5 space-y-4 border-emerald-500/30">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="text-emerald-400 font-bold flex items-center gap-2"><i class="fa-solid fa-server"></i> Server & Database</span>
+              <span class="badge-tech px-2 py-0.5 rounded text-[11px] font-mono">Express + MongoDB</span>
+            </div>
+            <ul class="space-y-2 text-xs text-slate-300">
+              <li>• JWT Authentication & RBAC Permissions</li>
+              <li>• Compound Text Indexing on MongoDB Atlas</li>
+              <li>• Cloudinary Multi-Region WebP Image CDN</li>
+              <li>• 24/7 Keep-Alive Automated Cron Monitor</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: Admin Section 1 - Secure Login -->
+    <section class="slide" data-slide="3">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 1 • AUTHENTICATION</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Admin Login & Role-Based Access Control (RBAC)</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/login</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <!-- Mockup -->
+          <div class="md:col-span-7 glass-card p-6 rounded-2xl border-red-500/30 bg-slate-950/90 shadow-2xl space-y-4">
+            <div class="text-center space-y-1">
+              <div class="w-10 h-10 rounded-xl bg-red-600/20 text-red-400 flex items-center justify-center font-bold text-lg mx-auto">
+                <i class="fa-solid fa-lock"></i>
+              </div>
+              <h3 class="text-base font-bold text-white">ARCL Admin Console Login</h3>
+              <p class="text-xs text-slate-400">Sign in with SuperAdmin or Admin Credentials</p>
+            </div>
+
+            <div class="space-y-3 text-xs text-left max-w-md mx-auto">
+              <div>
+                <label class="text-slate-300 font-medium">Email Address:</label>
+                <input type="text" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" value="harshmishra4030@gmail.com" disabled>
+              </div>
+              <div>
+                <label class="text-slate-300 font-medium">Password:</label>
+                <input type="password" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" value="••••••••••••••••" disabled>
+              </div>
+              <button class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20">
+                <i class="fa-solid fa-key"></i> Sign In to Admin Console
+              </button>
+              <p class="text-[11px] text-emerald-400 text-center font-mono">✔ Protected by JWT HTTP-Only Cookies & Express Rate Limiter</p>
+            </div>
+          </div>
+
+          <!-- Explanation -->
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i> Dual-Token & bcrypt Authentication
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Password hashes are verified using bcrypt. Express signs an HTTP-Only secure cookie containing the user's role (SuperAdmin/Admin) and user ID.
+              </p>
+            </div>
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-ban text-red-400"></i> Brute-Force Rate Limiting
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Express rate limiter limits failed attempts to 5 per 15 minutes, blocking dictionary and credential stuffing attacks.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: Admin Section 2 - Overview Dashboard & Real-Time Presence -->
+    <section class="slide" data-slide="4">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 2 • TELEMETRY</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Admin Dashboard & Real-Time Presence Monitor</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/dashboard</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <!-- Mockup -->
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3">
+            <div class="grid grid-cols-4 gap-2 text-center text-xs">
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <p class="text-slate-400 text-[10px]">Equip Types</p>
+                <p class="text-base font-bold text-blue-400">6</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <p class="text-slate-400 text-[10px]">Categories</p>
+                <p class="text-base font-bold text-indigo-400">18</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <p class="text-slate-400 text-[10px]">Products</p>
+                <p class="text-base font-bold text-emerald-400">124</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <p class="text-slate-400 text-[10px]">Inquiries</p>
+                <p class="text-base font-bold text-amber-400">48</p>
+              </div>
+            </div>
+
+            <!-- Presence Table -->
+            <div class="bg-slate-900/90 rounded-xl p-3 border border-slate-800 space-y-2 text-left text-xs">
+              <div class="flex justify-between items-center text-slate-400 font-bold text-[11px]">
+                <span>LIVE ACTIVE ADMIN PRESENCE (30s Heartbeat)</span>
+                <span class="text-emerald-400"><i class="fa-solid fa-tower-broadcast"></i> Connected</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded bg-slate-800/60 border border-slate-700/50">
+                <div class="flex items-center gap-2">
+                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                  <span class="font-medium text-white">harshmishra4030@gmail.com (SuperAdmin)</span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-mono">Heartbeat: Just now</span>
+              </div>
+            </div>
+
+            <!-- Recent Inquiries Table -->
+            <div class="bg-slate-900/90 rounded-xl p-3 border border-slate-800 space-y-1 text-left text-[11px]">
+              <p class="text-slate-400 font-bold mb-1">Recent Quotation Requests:</p>
+              <p class="text-slate-300">1. L&T Infrastructure • Digital CTM 2000 kN • <span class="text-blue-400 font-bold">[Quotation Sent]</span></p>
+              <p class="text-slate-300">2. Shapoorji Pallonji • Direct Shear App • <span class="text-amber-400 font-bold">[New Inquiry]</span></p>
+            </div>
+          </div>
+
+          <!-- Explanation -->
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-heartbeat text-red-400"></i> Collision Prevention Heartbeat
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Active admins send a background pulse every 30s. If another admin is editing the catalog, the system warns them, eliminating concurrent overwrite collisions.
+              </p>
+            </div>
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-yellow-400"></i> Auto-Refreshing Telemetry (10s)
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Dashboard polls metrics in the background every 10 seconds without full-page reloads.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Admin Section 3 - Equipment Types Management -->
+    <section class="slide" data-slide="5">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 3 • TAXONOMY ROOT</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Equipment Types Hierarchy Management</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/equipment-types</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="text-xs font-bold text-white">Equipment Types Master Table</span>
+              <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-bold">+ Add Type</button>
+            </div>
+
+            <div class="space-y-2 text-xs">
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+                <div>
+                  <p class="font-bold text-white">1. Civil Engineering Lab Equipment</p>
+                  <p class="text-[10px] text-slate-400 font-mono">Slug: /civil-engineering-lab-equipment | Order: 0</p>
+                </div>
+                <div class="flex gap-2">
+                  <span class="text-blue-400 font-medium">Edit ✏️</span>
+                  <span class="text-red-400 font-medium">Delete 🗑️</span>
+                </div>
+              </div>
+
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+                <div>
+                  <p class="font-bold text-white">2. Highway & Road Testing Equipment</p>
+                  <p class="text-[10px] text-slate-400 font-mono">Slug: /highway-and-road-testing-equipment | Order: 1</p>
+                </div>
+                <div class="flex gap-2">
+                  <span class="text-blue-400 font-medium">Edit ✏️</span>
+                  <span class="text-red-400 font-medium">Delete 🗑️</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-sitemap text-blue-400"></i> Top-Level Root Nodes
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Represents umbrella categories for main website navigation. Deletion is blocked if active child categories exist (Cascade Integrity).
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Admin Section 4 - Categories & Drag-and-Drop Reordering -->
+    <section class="slide" data-slide="6">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 4 • CATEGORIES</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Category Management & Drag-and-Drop Reordering</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/categories</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="text-xs font-bold text-white">Category Priority Reorder (HTML5 DnD)</span>
+              <button class="px-2.5 py-1 bg-purple-600 text-white rounded text-xs font-bold">+ New Category</button>
+            </div>
+
+            <div class="space-y-2 text-xs">
+              <div class="p-2.5 rounded bg-slate-900 border border-blue-500/60 flex justify-between items-center cursor-move">
+                <div>
+                  <p class="font-bold text-white">⠿ 1. Concrete & Cement Testing Equipment (32 Products)</p>
+                  <p class="text-[10px] text-slate-400 font-mono">Created: 09/09/2026, 05:48 PM | Updated: 13/09/2026, 11:22 AM</p>
+                </div>
+                <span class="text-blue-400 font-mono text-[10px]">order: 0</span>
+              </div>
+
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center cursor-move">
+                <div>
+                  <p class="font-bold text-slate-200">⠿ 2. Soil Mechanics & Foundation Testing (28 Products)</p>
+                  <p class="text-[10px] text-slate-400 font-mono">Created: 09/09/2026, 06:12 PM | Updated: 12/09/2026, 04:15 PM</p>
+                </div>
+                <span class="text-slate-400 font-mono text-[10px]">order: 1</span>
+              </div>
+            </div>
+
+            <p class="text-[11px] text-emerald-400 font-medium">✔ Reordering priority updates the live customer catalog in real-time!</p>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-emerald-400"></i> Creation & Update Timestamp Tracking
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Admin tables display precise Date & Time of creation and modifications (IST), visible strictly to administrators.
+              </p>
+            </div>
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-database text-purple-400"></i> Atomic Bulk Writes
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Reordering sends a single batch payload. MongoDB updates all position index integers atomically in one transaction.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Admin Section 5 - Products List & Stock Management -->
+    <section class="slide" data-slide="7">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 5 • INVENTORY</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Products Catalog Table & Stock Toggles</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/products</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="text-xs font-bold text-white">Product Inventory Table (124 Items)</span>
+              <button class="px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-bold">+ New Product</button>
+            </div>
+
+            <div class="space-y-2 text-xs">
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                <div class="flex justify-between">
+                  <span class="font-bold text-white">Digital Compression Testing Machine (2000 kN)</span>
+                  <span class="text-emerald-400 font-bold text-[10px]">IN STOCK 🟢</span>
+                </div>
+                <p class="text-[10px] text-slate-400 font-mono">SKU: ARCL-CTM-2000 | Standard: IS:516, BS:1881</p>
+                <div class="flex gap-2 pt-1">
+                  <span class="text-blue-400 text-[10px] font-bold">Edit ✏️</span>
+                  <span class="text-red-400 text-[10px] font-bold">Delete 🗑️</span>
+                  <span class="text-amber-400 text-[10px] font-bold">Generate Machine QR 📱</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-toggle-on text-emerald-400"></i> Real-Time Stock Availability Toggle
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Admin can switch machine stock status in 1 click without opening the entire product editor form.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Admin Section 6 - Product Creation & Dynamic Specs Builder -->
+    <section class="slide" data-slide="8">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 6 • DYNAMIC SCHEMA</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Product Publishing & Dynamic Specs Builder</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/products/create</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left">
+            <div class="space-y-2 text-xs">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-slate-400 text-[10px]">Product Title:</label>
+                  <input class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-white" value="Digital CTM 2000 kN" disabled>
+                </div>
+                <div>
+                  <label class="text-slate-400 text-[10px]">Testing Standard:</label>
+                  <input class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-white" value="IS:516, BS:1881" disabled>
+                </div>
+              </div>
+
+              <!-- Dynamic Specs Rows -->
+              <p class="text-slate-300 font-bold text-[11px] pt-1">Dynamic Specifications Key-Value Matrix:</p>
+              <div class="space-y-1.5">
+                <div class="grid grid-cols-12 gap-1.5">
+                  <input class="col-span-5 bg-slate-900 border border-slate-700 rounded p-1.5 text-white text-[10px]" value="Capacity" disabled>
+                  <input class="col-span-7 bg-slate-900 border border-slate-700 rounded p-1.5 text-blue-300 text-[10px]" value="2000 kN (200 Tonne)" disabled>
+                </div>
+                <div class="grid grid-cols-12 gap-1.5">
+                  <input class="col-span-5 bg-slate-900 border border-slate-700 rounded p-1.5 text-white text-[10px]" value="Loading Rate Control" disabled>
+                  <input class="col-span-7 bg-slate-900 border border-slate-700 rounded p-1.5 text-blue-300 text-[10px]" value="Automatic (0.5 to 9.9 kN/s)" disabled>
+                </div>
+              </div>
+
+              <button class="w-full py-2 bg-emerald-600 text-white rounded font-bold text-xs mt-2">
+                💾 Save & Publish (Multi-Image Cloudinary Stream)
+              </button>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-purple-400"></i> Zero Rigid Database Schema
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Add unlimited custom technical parameters for any machine without performing MongoDB migrations.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Admin Section 7 - Physical Machine QR Code Generator Modal -->
+    <section class="slide" data-slide="9">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 7 • HARDWARE LINK</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Machine Physical Base64 QR Code Generator Modal</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Modal: <code>Machine Plate QR Generator</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-5 rounded-2xl border-amber-500/30 bg-slate-950/90 shadow-2xl flex items-center gap-6">
+            <div class="p-3 bg-white rounded-xl shadow-xl flex flex-col items-center justify-center space-y-1">
+              <div class="w-28 h-28 bg-slate-900 rounded flex items-center justify-center text-white">
+                <i class="fa-solid fa-qrcode text-5xl text-slate-100"></i>
+              </div>
+              <p class="text-[8px] font-black tracking-wider text-slate-900 font-mono">ARCL INSTRUMENTS</p>
+              <p class="text-[7px] text-slate-500 font-mono">SCAN FOR DIGITAL SPECS</p>
+            </div>
+
+            <div class="flex-1 space-y-2 text-left text-xs">
+              <span class="font-bold text-white">Linked URL:</span>
+              <p class="p-2 rounded bg-slate-900 border border-slate-800 text-[10px] mono text-blue-400 break-all">
+                https://arclinstruments.com/products/digital-ctm-2000kn
+              </p>
+              <div class="flex gap-2 pt-1">
+                <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-[11px] font-bold">Download PNG</button>
+                <button class="px-3 py-1.5 bg-slate-800 text-slate-200 rounded text-[11px] font-medium border border-slate-700">Print Plate</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-industry text-amber-400"></i> Factory Plate Riveting
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Laser-etched onto machine nameplates at the factory. Site engineers scan to view operating manuals, calibration validity, and wiring schematics instantly.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Admin Section 8 - RFQ Inquiries CRM -->
+    <section class="slide" data-slide="10">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 8 • SALES CRM</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Quotation RFQs & Inquiries CRM Management</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/inquiry</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left text-xs">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="font-bold text-white">Quotation RFQ Pipeline</span>
+              <span class="text-emerald-400 text-[10px] font-bold">48 Leads Active</span>
+            </div>
+
+            <div class="space-y-2">
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                <div class="flex justify-between">
+                  <span class="font-bold text-white">L&T Infrastructure (+91 98200...)</span>
+                  <span class="text-blue-400 font-bold text-[10px]">STATUS: QUOTATION SENT</span>
+                </div>
+                <p class="text-slate-300 text-[11px]">Machine: Digital CTM (2000 kN) - Qty: 2</p>
+                <div class="flex justify-between items-center pt-1">
+                  <span class="text-slate-500 text-[10px]">Today, 10:14 AM</span>
+                  <button class="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold">WhatsApp Followup 💬</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-brands fa-whatsapp text-emerald-400"></i> 1-Click WhatsApp Negotiation
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Clicking WhatsApp Followup launches WhatsApp with pre-filled machine details and technical specifications for instant B2B deal closing.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: Admin Section 9 - Technical Articles CMS -->
+    <section class="slide" data-slide="11">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 9 • CONTENT CMS</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Technical Testing Articles & Knowledge Base CMS</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/blogs</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left text-xs">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="font-bold text-white">Articles & Testing Guides</span>
+              <button class="px-2.5 py-1 bg-purple-600 text-white rounded text-[11px] font-bold">+ New Article</button>
+            </div>
+
+            <div class="space-y-2">
+              <div class="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                <span class="font-bold text-white">Step-by-Step IS 516 Compressive Strength Test Protocol</span>
+                <p class="text-slate-400 text-[10px]">Readership: 1,420 Views | Status: 🟢 Published</p>
+                <div class="flex gap-2 pt-1 text-[10px] text-blue-400 font-bold">
+                  <span>Edit Content ✏️</span>
+                  <span>SEO Meta Tags 🌐</span>
+                  <span class="text-red-400">Delete 🗑️</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-pen-nib text-purple-400"></i> Technical Content Authority
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Publish IS testing protocols with calculation formulas to drive organic search rank and funnel visitors directly to quote forms.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: Admin Section 10 - Users & RBAC Management -->
+    <section class="slide" data-slide="12">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 10 • RBAC</span>
+            <h2 class="text-3xl font-bold text-white mt-1">Staff Roles & Permission Access Control</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/users</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left text-xs">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+              <span class="font-bold text-white">Admin Staff Directory</span>
+              <button class="px-2.5 py-1 bg-red-600 text-white rounded text-[11px] font-bold">+ New Staff</button>
+            </div>
+
+            <div class="space-y-2">
+              <div class="p-2.5 rounded bg-slate-900 border border-blue-500/60 space-y-1">
+                <div class="flex justify-between">
+                  <span class="font-bold text-white">Harsh Mishra</span>
+                  <span class="text-blue-400 font-bold text-[10px]">👑 SUPERADMIN</span>
+                </div>
+                <p class="text-slate-400 text-[10px]">harshmishra4030@gmail.com | Active</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-lock text-red-400"></i> Role Hierarchy (SuperAdmin vs Admin)
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                SuperAdmin holds root permissions to promote users, purge logs, and execute system resets.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 13: Admin Section 11 - Error Logs & Diagnostics -->
+    <section class="slide" data-slide="13">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="badge-admin px-2.5 py-1 rounded text-xs font-bold">ADMIN SECTION 11 • DIAGNOSTICS</span>
+            <h2 class="text-3xl font-bold text-white mt-1">System Health & Diagnostic Error Logs</h2>
+          </div>
+          <span class="text-xs font-mono text-slate-400">Route: <code>/admin/error-logs</code></span>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-7 glass-card p-4 rounded-2xl border-slate-700 bg-slate-950/90 shadow-2xl space-y-3 text-left">
+            <div class="p-2 rounded bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 font-bold text-xs">
+              🟢 API GATEWAY: 100% HEALTHY | DB: CONNECTED | KEEP-ALIVE: ACTIVE
+            </div>
+
+            <div class="p-3 bg-black rounded-lg font-mono text-[10px] text-emerald-400 space-y-1">
+              <p>[INFO] [GET /api/v1/client/products] - 200 OK (22ms)</p>
+              <p>[INFO] [POST /api/v1/auth/presence/heartbeat] - 200 OK (8ms)</p>
+              <p>[CRON] Keep-Alive Ping on /api/v1/health - Status: 200 (Zero Sleep)</p>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 space-y-4">
+            <div class="glass-card p-4 space-y-2">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-emerald-400"></i> Real-Time Telemetry & 24/7 Health
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Captures unhandled exceptions and verifies that the 10-minute keep-alive cron is successfully preventing Render cold starts.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 14: User Storefront Homepage -->
+    <section class="slide" data-slide="14">
+      <div class="space-y-6">
+        <div>
+          <span class="badge-user px-2.5 py-1 rounded text-xs font-bold">USER STOREFRONT VIEW</span>
+          <h2 class="text-3xl font-bold text-white mt-1">Homepage & 3-Level Semantic Hierarchy</h2>
+        </div>
+        <p class="text-slate-300 text-sm">Strict Equipment Type -> Category -> Product routing with sub-50ms SSR rendering and mobile field optimization.</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 15: User Storefront Product Detail & PDF Engine -->
+    <section class="slide" data-slide="15">
+      <div class="space-y-6">
+        <div>
+          <span class="badge-user px-2.5 py-1 rounded text-xs font-bold">USER STOREFRONT VIEW</span>
+          <h2 class="text-3xl font-bold text-white mt-1">Product Detail Page & Dynamic PDF RFQ Generator</h2>
+        </div>
+        <p class="text-slate-300 text-sm">Dynamic specs matrix, 1-click WhatsApp quote dispatch, and instant client-rendered technical PDF specification sheets.</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 16: Local SEO & Geo-Landing Hubs -->
+    <section class="slide" data-slide="16">
+      <div class="space-y-6">
+        <div>
+          <span class="badge-user px-2.5 py-1 rounded text-xs font-bold">SEARCH ENGINE OPTIMIZATION</span>
+          <h2 class="text-3xl font-bold text-white mt-1">Programmatic Local SEO Hubs (/mumbai, /navi-mumbai, /thane)</h2>
+        </div>
+        <p class="text-slate-300 text-sm">Embedded JSON-LD LocalBusiness, Product, and FAQPage schemas to dominate organic search results.</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 17: Enterprise Security & Cloud DevOps -->
+    <section class="slide" data-slide="17">
+      <div class="space-y-6">
+        <div>
+          <span class="text-xs font-mono text-emerald-400 font-semibold uppercase tracking-wider">Security & Infrastructure</span>
+          <h2 class="text-3xl font-bold text-white mt-1">Security Architecture & 24/7 Keep-Alive Monitor</h2>
+        </div>
+        <p class="text-slate-300 text-sm">JWT HTTP-Only cookies, RBAC, Helmet, Express rate limiters, and automated 10-minute cron keep-alive on Render.</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 18: Summary & Live Demonstration -->
+    <section class="slide" data-slide="18">
+      <div class="text-center space-y-6 max-w-4xl mx-auto">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <i class="fa-solid fa-circle-check"></i> Project Defense Conclusion
+        </div>
+        <h2 class="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+          System Summary & <span class="gradient-text">Live Demonstration</span>
+        </h2>
+        <p class="text-slate-300 text-sm max-w-2xl mx-auto leading-relaxed">
+          ARCL Instruments bridges heavy civil engineering manufacturing with cutting-edge web architecture, full testing standards compliance, high search visibility, and real-time field hardware integration.
+        </p>
+        <div class="pt-6 flex justify-center gap-4">
+          <a href="https://arclinstruments.com" target="_blank" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Launch Live System Demo
+          </a>
+          <button onclick="showSlide(1)" class="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-sm flex items-center gap-2">
+            <i class="fa-solid fa-rotate-left"></i> Restart Presentation
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation Control Bar -->
+  <footer class="h-16 border-t border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-6 flex items-center justify-between z-30">
+    <div class="flex items-center gap-2">
+      <button onclick="prevSlide()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center gap-2">
+        <i class="fa-solid fa-chevron-left"></i> Previous
+      </button>
+      <button onclick="nextSlide()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition flex items-center gap-2 shadow-lg shadow-blue-600/20">
+        Next <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+
+    <div class="hidden md:flex items-center gap-1.5 overflow-x-auto max-w-2xl py-1" id="dotsContainer"></div>
+
+    <div class="text-xs text-slate-400 font-mono hidden sm:block">
+      ARCL Instruments &copy; 2026
+    </div>
+  </footer>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 18;
+
+    function initDots() {
+      const container = document.getElementById('dotsContainer');
+      container.innerHTML = '';
+      for (let i = 1; i <= totalSlides; i++) {
+        const dot = document.createElement('button');
+        dot.className = `w-6 h-6 rounded text-[10px] font-mono flex items-center justify-center transition ${i === currentSlide ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`;
+        dot.innerText = i;
+        dot.onclick = () => showSlide(i);
+        container.appendChild(dot);
+      }
+    }
+
+    function showSlide(num) {
+      if (num < 1 || num > totalSlides) return;
+      currentSlide = num;
+      
+      document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+      const activeSlide = document.querySelector(`.slide[data-slide="${num}"]`);
+      if (activeSlide) activeSlide.classList.add('active');
+
+      document.getElementById('currentSlideNum').innerText = num;
+      initDots();
+    }
+
+    function nextSlide() { if (currentSlide < totalSlides) showSlide(currentSlide + 1); }
+    function prevSlide() { if (currentSlide > 1) showSlide(currentSlide - 1); }
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else if (document.exitFullscreen) document.exitFullscreen();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      else if (e.key === 'ArrowLeft') prevSlide();
+      else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    });
+
+    showSlide(1);
+  </script>
+</body>
+</html>

@@ -89,10 +89,22 @@ export const googleLogin = async (req, res) => {
       req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
     const userAgent = req.headers["user-agent"] || "";
 
+    // Default permissions setup for superadmin or admin (Total 26)
+    const defaultFullPermissions = {
+      products: { create: true, edit: true, delete: true }, // 3
+      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
+      categories: { create: true, edit: true, delete: true }, // 3
+      equipmentTypes: { create: true, delete: true }, // 2
+      blogs: { create: true, edit: true, delete: true }, // 3
+      inquiries: { view: true, edit: true, delete: true }, // 3
+      contacts: { view: true, delete: true }, // 2
+      subscribers: { view: true, edit: true, delete: true }, // 3
+      users: { manage: true, delete: true }, // 2
+    };
+
     if (!user) {
       // If user does not exist:
-      // If email is in ADMIN_EMAIL -> role is 'admin', otherwise registered with 'user' role
-      const initialRole = isEnvAdmin ? "admin" : "user";
+      const initialRole = isEnvAdmin ? "superadmin" : "user";
 
       user = await User.create({
         name: name || email.split("@")[0],
@@ -100,6 +112,7 @@ export const googleLogin = async (req, res) => {
         picture: picture || "",
         googleId: googleId || "",
         role: initialRole,
+        permissions: isEnvAdmin || initialRole === "admin" ? defaultFullPermissions : defaultFullPermissions,
         isActive: true,
         lastLogin: new Date(),
         lastActiveAt: new Date(),
@@ -108,10 +121,16 @@ export const googleLogin = async (req, res) => {
       });
     } else {
       // User exists in database
-      // If email is admin@arcl.com or in .env ADMIN_EMAIL, ensure role is elevated to 'admin'
       if (isEnvAdmin) {
-        user.role = "admin";
+        user.role = "superadmin";
         user.isActive = true;
+      }
+      if (user.isActive === undefined || user.isActive === null) {
+        user.isActive = true;
+      }
+      if (!user.permissions || Object.keys(user.permissions).length === 0) {
+        user.permissions = defaultFullPermissions;
+        user.markModified("permissions");
       }
 
       if (name) user.name = name;
@@ -124,21 +143,10 @@ export const googleLogin = async (req, res) => {
       await user.save();
     }
 
-    // Default permissions setup for superadmin or admin
-    const defaultFullPermissions = {
-      products: { create: true, edit: true, delete: true },
-      categories: { create: true, edit: true, delete: true },
-      equipmentTypes: { create: true, edit: true, delete: true },
-      blogs: { create: true, edit: true, delete: true },
-      inquiries: { view: true, delete: true },
-      contacts: { view: true, delete: true },
-      subscribers: { view: true, delete: true },
-      users: { manage: true },
-    };
-
-    if (isEnvAdmin ) {
+    if (isEnvAdmin) {
       user.role = "superadmin";
       user.permissions = defaultFullPermissions;
+      user.isActive = true;
       user.markModified("permissions");
       await user.save();
     }
@@ -254,6 +262,7 @@ export const loginWithPassword = async (req, res) => {
       products: { create: true, edit: true, delete: true },
       categories: { create: true, edit: true, delete: true },
       equipmentTypes: { create: true, edit: true, delete: true },
+      calibration: { create: true, edit: true, delete: true },
       blogs: { create: true, edit: true, delete: true },
       inquiries: { view: true, delete: true },
       contacts: { view: true, delete: true },
@@ -340,6 +349,7 @@ export const getMe = async (req, res) => {
       products: { create: true, edit: true, delete: true },
       categories: { create: true, edit: true, delete: true },
       equipmentTypes: { create: true, edit: true, delete: true },
+      calibration: { create: true, edit: true, delete: true },
       blogs: { create: true, edit: true, delete: true },
       inquiries: { view: true, delete: true },
       contacts: { view: true, delete: true },
