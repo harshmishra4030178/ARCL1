@@ -272,7 +272,7 @@ const drawOfficialFooter = (doc, customY = null) => {
     .fontSize(6.5)
     .font("Helvetica")
     .fillColor("#64748b")
-    .text("Quality Manager, ARCL Metrology", 420, y + 48, { width: 130, align: "center" });
+    .text("Quality Manager, ARCL Calibration", 420, y + 48, { width: 130, align: "center" });
 };
 
 /**
@@ -1138,7 +1138,7 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   const calDate = data.calibrationDate ? new Date(data.calibrationDate).toLocaleDateString("en-GB") : "15/05/2026";
   const dueDate = data.calibrationDueDate || data.suggestedDueDate ? new Date(data.calibrationDueDate || data.suggestedDueDate).toLocaleDateString("en-GB") : "14/05/2027";
   const clientCompany = data.clientCompany || data.customer?.name || "Harsh Mishra Technologies Pvt. Ltd.";
-  const clientAddress = data.clientAddress || data.customer?.address || "Vasai East, Palghar, Maharashtra - 401208";
+  const clientAddress = data.clientAddress || data.customer?.address || "Airoli, Navi Mumbai, Maharashtra - 400708";
   const instrument = data.instrument || data.instrument?.name || "Digital Compression Testing Machine 2000 kN";
   const serialNo = data.serialNo || data.instrument?.serialNumber || "ARCL-CTM-9842";
   const make = data.make || data.instrument?.manufacturer || "-";
@@ -1441,10 +1441,13 @@ export const generateSrfSlipPdf = async (data = {}) => {
         }
       ];
 
-  let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Metrology Job Slip)", "#b45309");
+  let curY = drawOfficialHeader(doc, "Service Request Form (SRF Inward & Calibration Job Slip)", "#b45309");
 
-  // Client & Inward Metadata Card
-  const infoH = 88;
+  // Client & Inward Metadata Card (Dynamic Height Calculation to Prevent Any Overlap)
+  doc.fontSize(7.5).font("Helvetica-Bold");
+  const addrH = Math.max(12, doc.heightOfString(clientAddress, { width: 390 }));
+  const infoH = Math.max(88, 56 + addrH + 20);
+
   doc.rect(35, curY, 525, infoH).fillColor("#fffbeb").strokeColor("#fde68a").lineWidth(0.8).fillAndStroke();
 
   doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#b45309");
@@ -1452,16 +1455,20 @@ export const generateSrfSlipPdf = async (data = {}) => {
   doc.text(`Inward Date: ${calDate}`, 320, curY + 8);
 
   doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-  doc.text(`Client Company: `, 45, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 125, curY + 23);
-  doc.font("Helvetica").fillColor("#334155").text(`Contact Person: `, 320, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, 395, curY + 23);
+  doc.text(`Client Company: `, 45, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 125, curY + 23, { width: 185, lineBreak: false });
+  doc.font("Helvetica").fillColor("#334155").text(`Contact Person: `, 320, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(`${contactPerson} (${clientPhone})`, 395, curY + 23, { width: 160, lineBreak: false });
 
   doc.font("Helvetica").fillColor("#334155").text(`GST No. (GSTIN): `, 45, curY + 38).font("Helvetica-Bold").fillColor("#0f172a").text(clientGst, 125, curY + 38);
   doc.font("Helvetica").fillColor("#334155").text(`Inward DC / Challan: `, 320, curY + 38).font("Helvetica-Bold").fillColor("#0f172a").text(`${dcNo} (Dt: ${challanDate})`, 410, curY + 38);
 
-  doc.font("Helvetica").fillColor("#334155").text(`Site / Address: `, 45, curY + 53).font("Helvetica-Bold").fillColor("#0f172a").text(clientAddress, 125, curY + 53, { width: 390 });
-  doc.font("Helvetica").fillColor("#334155").text(`Assigned Lab: `, 45, curY + 70).font("Helvetica-Bold").fillColor("#059669").text(sentToLab, 125, curY + 70);
+  doc.font("Helvetica").fillColor("#334155").text(`Site / Address: `, 45, curY + 53);
+  doc.font("Helvetica-Bold").fillColor("#0f172a").text(clientAddress, 125, curY + 53, { width: 390 });
 
-  curY += infoH + 10;
+  const assignedLabY = curY + 53 + addrH + 4;
+  doc.font("Helvetica").fillColor("#334155").text(`Assigned Lab: `, 45, assignedLabY);
+  doc.font("Helvetica-Bold").fillColor("#059669").text(sentToLab, 125, assignedLabY);
+
+  curY += infoH + 8;
 
   // Draw Table Header
   const drawSrfHeader = (yPos) => {
@@ -1478,8 +1485,12 @@ export const generateSrfSlipPdf = async (data = {}) => {
 
   curY = drawSrfHeader(curY);
 
-  const rowH = 22;
   rawInstruments.forEach((it, idx) => {
+    const instName = it.instrument || "Testing Equipment";
+    doc.fontSize(7).font("Helvetica-Bold");
+    const instH = Math.max(9, doc.heightOfString(instName, { width: 165 }));
+    const rowH = Math.max(24, instH + 15);
+
     if (curY + rowH > 680) {
       drawOfficialFooter(doc, 725);
       doc.addPage({ size: "A4", margin: 25 });
@@ -1494,22 +1505,22 @@ export const generateSrfSlipPdf = async (data = {}) => {
     doc.text(String(idx + 1), 40, curY + 6, { width: 20, align: "center" });
 
     doc.font("Helvetica-Bold").fillColor("#0f172a");
-    doc.text(it.instrument || "Testing Equipment", 65, curY + 4, { width: 170 });
+    doc.text(instName, 65, curY + 4, { width: 165 });
     doc.font("Helvetica").fontSize(6.5).fillColor("#64748b");
-    doc.text(`Scope: ISO/IEC 17025 Calibration`, 65, curY + 12, { width: 170 });
+    doc.text(`Scope: ISO/IEC 17025 Calibration`, 65, curY + 4 + instH + 2, { width: 165 });
 
     doc.fontSize(7).font("Helvetica").fillColor("#334155");
     const makeModelStr = [it.make, it.modelNo].filter(Boolean).join(" / ") || "-";
-    doc.text(makeModelStr, 240, curY + 6, { width: 85 });
+    doc.text(makeModelStr, 240, curY + (rowH / 2) - 4, { width: 85 });
 
     doc.font("Helvetica-Bold").fillColor("#1d4ed8");
-    doc.text(it.serialNo || "N/A", 330, curY + 6, { width: 75 });
+    doc.text(it.serialNo || "N/A", 330, curY + (rowH / 2) - 4, { width: 75 });
 
     doc.font("Helvetica").fillColor("#334155");
-    doc.text(it.instrumentRange || "Standard Range", 410, curY + 6, { width: 75 });
+    doc.text(it.instrumentRange || "Standard Range", 410, curY + (rowH / 2) - 4, { width: 75 });
 
     doc.font("Helvetica-Bold").fillColor("#059669");
-    doc.text("Received ✓", 490, curY + 6, { width: 65, align: "center" });
+    doc.text("Received ✓", 490, curY + (rowH / 2) - 4, { width: 65, align: "center" });
 
     curY += rowH;
   });
@@ -1528,10 +1539,10 @@ export const generateSrfSlipPdf = async (data = {}) => {
   doc.fontSize(7).font("Helvetica").fillColor("#334155");
   doc.text(`• Total Inward Equipments: ${rawInstruments.length} Item(s) Verified & Logged in Pipeline.`, 45, curY + 18);
   doc.text("• Physical Condition: No structural cracks, zero mechanical damage, cables & sensors intact.", 45, curY + 28);
-  doc.text("• Metrological Traceability: National Physical Laboratory (NPL, New Delhi) & ERTL standards.", 45, curY + 38);
+  doc.text("• Calibration Traceability: National Physical Laboratory (NPL, New Delhi) & ERTL standards.", 45, curY + 38);
   doc.text("• Calibration Sticker: Physical holographic compliance sticker approved for application post calibration.", 300, curY + 18, { width: 250 });
 
-  curY += 60;
+  curY += 58;
 
   // Signatures
   if (curY + 50 > 710) {
@@ -1542,10 +1553,10 @@ export const generateSrfSlipPdf = async (data = {}) => {
 
   doc.rect(35, curY, 255, 45).strokeColor("#cbd5e1").lineWidth(0.5).stroke();
   doc.fontSize(7).font("Helvetica-Bold").fillColor("#334155").text("Handed Over By (Customer / Logistics Rep):", 40, curY + 5);
-  doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(`Name: ${contactPerson} (${clientCompany})`, 40, curY + 30);
+  doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(`Name: ${contactPerson} (${clientCompany})`, 40, curY + 30, { width: 245, lineBreak: false });
 
   doc.rect(305, curY, 255, 45).strokeColor("#cbd5e1").lineWidth(0.5).stroke();
-  doc.fontSize(7).font("Helvetica-Bold").fillColor("#334155").text("Received & Accepted By (ARCL Metrology Incharge):", 310, curY + 5);
+  doc.fontSize(7).font("Helvetica-Bold").fillColor("#334155").text("Received & Accepted By (ARCL Calibration Incharge):", 310, curY + 5);
   doc.fontSize(6.5).font("Helvetica").fillColor("#059669").text("Authorized Quality Acceptance • CC-4313", 310, curY + 30);
 
   const range = doc.bufferedPageRange();
