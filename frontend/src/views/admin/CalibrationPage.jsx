@@ -4508,10 +4508,30 @@ export default function CalibrationPageView() {
                     const isMulti = batch.items.length > 1;
 
                     // Compute clean aggregated displays
-                    const makes = Array.from(new Set(batch.items.map((i) => i.make?.trim()).filter(Boolean)));
+                    const makes = Array.from(
+                      new Set(
+                        batch.items
+                          .map((i) =>
+                            i.make && i.make !== "ARCL" && i.make !== "ARCL Instruments"
+                              ? i.make.trim()
+                              : ""
+                          )
+                          .filter(Boolean)
+                      )
+                    );
                     const makeDisplay = makes.length === 1 ? makes[0] : makes.length > 1 ? `${makes[0]} (${makes.length})` : "";
 
-                    const models = Array.from(new Set(batch.items.map((i) => i.modelNo?.trim()).filter(Boolean)));
+                    const models = Array.from(
+                      new Set(
+                        batch.items
+                          .map((i) =>
+                            i.modelNo && i.modelNo !== "GEN-01" && i.modelNo !== "ARCL-CTM-2000"
+                              ? i.modelNo.trim()
+                              : ""
+                          )
+                          .filter(Boolean)
+                      )
+                    );
                     const modelDisplay = models.length === 1 ? models[0] : models.length > 1 ? `${models[0]} (${models.length})` : "";
 
                     const serialDisplay = isMulti
@@ -4864,8 +4884,12 @@ export default function CalibrationPageView() {
                                         <tr key={item._id || iIdx} className="hover:bg-blue-50/40">
                                           <td className="p-2 text-center text-gray-400 font-bold">{iIdx + 1}</td>
                                           <td className="p-2 font-bold text-gray-900">{item.instrument}</td>
-                                          <td className="p-2 text-gray-600">{item.make}</td>
-                                          <td className="p-2 font-mono text-gray-600">{item.modelNo}</td>
+                                           <td className="p-2 text-gray-600">
+                                             {item.make && item.make !== "ARCL" && item.make !== "ARCL Instruments" ? item.make : ""}
+                                           </td>
+                                           <td className="p-2 font-mono text-gray-600">
+                                             {item.modelNo && item.modelNo !== "GEN-01" && item.modelNo !== "ARCL-CTM-2000" ? item.modelNo : ""}
+                                           </td>
                                           <td className="p-2 font-mono font-bold text-blue-700">{item.serialNo}</td>
                                           <td className="p-2 text-gray-600">{item.instrumentRange}</td>
                                           <td className="p-2 font-mono">
@@ -6903,8 +6927,8 @@ export default function CalibrationPageView() {
                           <label className="font-bold text-gray-700">Make / Brand</label>
                           <input
                             type="text"
-                            placeholder="e.g. ARCL / Mitutoyo"
-                            value={inst.make}
+                            placeholder="Optional (Make / Brand)"
+                            value={inst.make || ""}
                             onChange={(e) => handleInstrumentFieldChange(index, "make", e.target.value)}
                             className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-medium"
                           />
@@ -6913,8 +6937,8 @@ export default function CalibrationPageView() {
                           <label className="font-bold text-gray-700">Model No.</label>
                           <input
                             type="text"
-                            placeholder="e.g. ARCL-CTM-2000"
-                            value={inst.modelNo}
+                            placeholder="Optional (Model No.)"
+                            value={inst.modelNo || ""}
                             onChange={(e) => handleInstrumentFieldChange(index, "modelNo", e.target.value)}
                             className="w-full mt-1 p-1.5 bg-gray-50/50 border border-gray-300 rounded-xl font-mono"
                           />
@@ -7106,7 +7130,8 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Make / Manufacturer</label>
                     <input
                       type="text"
-                      value={editFormData.make}
+                      placeholder="Optional (Make / Brand)"
+                      value={editFormData.make || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, make: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-medium"
                     />
@@ -7115,7 +7140,8 @@ export default function CalibrationPageView() {
                     <label className="font-bold text-gray-700">Model No.</label>
                     <input
                       type="text"
-                      value={editFormData.modelNo}
+                      placeholder="Optional (Model No.)"
+                      value={editFormData.modelNo || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, modelNo: e.target.value })}
                       className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-xl font-mono"
                     />

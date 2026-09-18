@@ -92,11 +92,17 @@ export const getCalibrationRecords = async (req, res, next) => {
       CalibrationRecord.countDocuments(query),
     ]);
 
+    const sanitizedRecords = records.map((r) => ({
+      ...r,
+      make: r.make && r.make !== "ARCL" && r.make !== "ARCL Instruments" ? r.make : "",
+      modelNo: r.modelNo && r.modelNo !== "GEN-01" && r.modelNo !== "ARCL-CTM-2000" ? r.modelNo : "",
+    }));
+
     return res.status(200).json(
       new ApiResponse(
         200,
         {
-          records,
+          records: sanitizedRecords,
           pagination: {
             page: pageNum,
             limit: limitNum,
