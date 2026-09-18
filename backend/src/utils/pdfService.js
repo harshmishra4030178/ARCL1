@@ -250,7 +250,7 @@ const drawOfficialFooter = (doc, customY = null) => {
     .font("Helvetica")
     .fillColor("#64748b")
     .text(
-      "This is an authentic computer-generated metrological document issued under the authority of ARCL Instruments Metrology Division. Verified authentic as per NABL guidelines.",
+      "This is an authentic computer-generated metrological document issued under the authority of ARCL Instruments Calibration Division. Verified authentic as per NABL guidelines.",
       175,
       y + 12,
       { width: 220, align: "center" }
