@@ -937,6 +937,14 @@ export default function CalibrationPageView() {
   const [quotationRecordId, setQuotationRecordId] = useState(null);
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [expandedBatchKeys, setExpandedBatchKeys] = useState(new Set());
+  const [isPoPreviewModalOpen, setIsPoPreviewModalOpen] = useState(false);
+  const [poPreviewData, setPoPreviewData] = useState({
+    url: "",
+    directUrl: "",
+    fileName: "",
+    record: null,
+    fileType: "pdf",
+  });
 
   // Delete Management & Multi-Select Cleanup Modal States
   const [isDeleteManagerOpen, setIsDeleteManagerOpen] = useState(false);
@@ -3535,7 +3543,7 @@ export default function CalibrationPageView() {
     }
   };
 
-  // Safe Universal Viewer for Uploaded PO Document (Handles Blob, Data URI, Remote URL & Backend Stream)
+  // Safe Universal Interactive Viewer for Uploaded PO Document (Handles In-App Preview, Blob, Data URI & Remote)
   const handleViewPoDocument = (record) => {
     const poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
     if (!poUrl) {
@@ -3543,16 +3551,22 @@ export default function CalibrationPageView() {
       return;
     }
 
-    if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
-      window.open(poUrl, "_blank");
-      return;
+    const fileName = record?.commercialDocs?.poFileName || `PO_${record?.serialNo || "Document"}.pdf`;
+    let fileType = "pdf";
+    if (
+      poUrl.startsWith("data:image/") ||
+      /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i.test(poUrl) ||
+      /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName)
+    ) {
+      fileType = "image";
     }
 
+    let previewUrl = poUrl;
     if (poUrl.startsWith("data:")) {
       try {
         const parts = poUrl.split(",");
         const mimeMatch = parts[0].match(/:(.*?);/);
-        const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+        const mime = mimeMatch ? mimeMatch[1] : (fileType === "image" ? "image/png" : "application/pdf");
         const byteCharacters = atob(parts[1]);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -3560,21 +3574,47 @@ export default function CalibrationPageView() {
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: mime });
-        const blobUrl = URL.createObjectURL(blob);
-        window.open(blobUrl, "_blank");
-        return;
+        previewUrl = URL.createObjectURL(blob);
       } catch (err) {
-        console.warn("Failed to open Data URI Blob, falling back to server download:", err);
+        console.warn("Blob creation fallback, using raw data URI:", err);
+        previewUrl = poUrl;
       }
     }
 
-    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-    const sNo = record?.serialNo || "";
-    const recId = record?._id || "";
-    window.open(
-      `${base}/client/calibration/download-document?docType=po&serialNo=${encodeURIComponent(sNo)}&id=${recId}&t=${Date.now()}`,
-      "_blank"
-    );
+    setPoPreviewData({
+      url: previewUrl,
+      directUrl: poUrl,
+      fileName,
+      record,
+      fileType,
+    });
+    setIsPoPreviewModalOpen(true);
+  };
+
+  const handleDownloadActivePo = () => {
+    if (!poPreviewData.url && !poPreviewData.directUrl) return;
+    try {
+      const link = document.createElement("a");
+      link.href = poPreviewData.url || poPreviewData.directUrl;
+      link.download = poPreviewData.fileName || "PO_Document.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Downloading "${poPreviewData.fileName || "PO_Document"}" 📥`);
+    } catch (err) {
+      console.error("Download PO error:", err);
+      window.open(poPreviewData.url || poPreviewData.directUrl, "_blank");
+    }
+  };
+
+  const handleOpenActivePoNewTab = () => {
+    const targetUrl = poPreviewData.url || poPreviewData.directUrl;
+    if (!targetUrl) return;
+    if (poPreviewData.directUrl && (poPreviewData.directUrl.startsWith("http://") || poPreviewData.directUrl.startsWith("https://"))) {
+      window.open(poPreviewData.directUrl, "_blank");
+    } else {
+      window.open(targetUrl, "_blank");
+    }
   };
 
   // Quick Toggle Sticker Check
@@ -11838,6 +11878,126 @@ export default function CalibrationPageView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CUSTOM PO PREVIEW & VIEWER MODAL */}
+      {/* ========================================================================= */}
+      {isPoPreviewModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-slate-900 rounded-3xl max-w-6xl w-full shadow-2xl border border-emerald-500/30 max-h-[96vh] flex flex-col overflow-hidden text-gray-100">
+            {/* Top Toolbar */}
+            <div className="p-4 bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-white/10">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/30 text-xl shrink-0">
+                  <FaFilePdf />
+                </div>
+                <div className="truncate">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-white truncate">
+                      Uploaded PO: {poPreviewData.fileName || "Purchase Order"}
+                    </h2>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-[10px] font-mono font-bold shrink-0">
+                      ✅ PO Attached
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-200 truncate">
+                    Client: <strong className="text-white">{poPreviewData.record?.clientCompany || "N/A"}</strong> • Equipment: <strong className="text-white">{poPreviewData.record?.instrument || "N/A"}</strong> (S/N: {poPreviewData.record?.serialNo || "N/A"})
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDownloadActivePo}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                  title="Download PO to your device"
+                >
+                  <FaDownload /> Download PO
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenActivePoNewTab}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                  title="Open in new browser tab"
+                >
+                  <FaEye /> Open in New Tab
+                </button>
+
+                {poPreviewData.record && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPoPreviewModalOpen(false);
+                      handleOpenSendDocModal("po", poPreviewData.record);
+                    }}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                    title="Send PO to customer via Email/WhatsApp"
+                  >
+                    <FaPaperPlane /> Dispatch to Client
+                  </button>
+                )}
+
+                {poPreviewData.record && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPoPreviewModalOpen(false);
+                      handleTriggerPoUpload(poPreviewData.record);
+                    }}
+                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                    title="Replace or re-upload from device gallery"
+                  >
+                    <FaUpload /> Re-upload
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsPoPreviewModalOpen(false)}
+                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                  title="Close viewer"
+                >
+                  <FaTimes className="text-base" />
+                </button>
+              </div>
+            </div>
+
+            {/* Document Display Canvas */}
+            <div className="flex-1 overflow-hidden p-3 sm:p-6 bg-slate-950/80 flex flex-col items-center justify-center">
+              {poPreviewData.fileType === "image" ? (
+                <div className="w-full h-[75vh] flex items-center justify-center bg-slate-900 rounded-2xl border border-slate-800 p-4 overflow-auto">
+                  <img
+                    src={poPreviewData.url || poPreviewData.directUrl}
+                    alt={poPreviewData.fileName || "Uploaded PO"}
+                    className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-[75vh] rounded-2xl border border-slate-700 overflow-hidden bg-white shadow-2xl flex flex-col">
+                  <iframe
+                    src={poPreviewData.url || poPreviewData.directUrl}
+                    title="PO Preview"
+                    className="w-full h-full border-0 bg-white"
+                  />
+                </div>
+              )}
+
+              {/* Bottom Quick Help Bar */}
+              <div className="w-full mt-2.5 px-3 py-2 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                <span className="flex items-center gap-1.5">
+                  <FaInfoCircle className="text-emerald-400" />
+                  <span>Agar preview browser me load na ho ya blank dikhe to <strong>"Download PO"</strong> ya <strong>"Open in New Tab"</strong> par click karein.</span>
+                </span>
+                <span className="font-mono text-[11px] text-emerald-300">
+                  ARCL Calibration Metrology System
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
