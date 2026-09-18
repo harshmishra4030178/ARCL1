@@ -510,7 +510,7 @@ export const sendDueReminder = async (req, res, next) => {
     const email = clientEmail || (targetInstruments[0]?.clientEmail) || "arclinstruments@gmail.com";
     const company = clientCompany || (targetInstruments[0]?.clientCompany) || "Tata Projects Ltd.";
     const person = contactPerson || (targetInstruments[0]?.clientContactPerson) || "QA Manager";
-    const phone = labContactPhone || "+91 6205691085 / +91 8009559900";
+    const phone = labContactPhone || "+91 6205691085 / +91 8369458583";
 
     // Send real email with dynamic options
     const emailResult = await sendCalibrationDueEmail({
@@ -935,7 +935,7 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       `🌐 *Online Portal:* \n` +
       `https://arcl-1.vercel.app/calibration-services?serialNo=${encodeURIComponent(sNo)}\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `📞 Phone: +91 8009559900 / +91 6205691085\n` +
+      `📞 Phone: +91 8369458583 / +91 6205691085\n` +
       `✉️ Email: arclinstruments@gmail.com`
     );
 

@@ -2907,7 +2907,7 @@ export default function CalibrationPageView() {
     salutation: "Dear {{contactPerson}} ({{company}}),",
     introMessage: "This is an automated quality compliance notice to inform you that {{count}} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:",
     thresholdDays: "30",
-    labContactPhone: "+91 6205691085 / +91 8009559900",
+    labContactPhone: "+91 6205691085 / +91 8369458583",
     labContactEmail: "arclinstruments@gmail.com",
     labScope: "NABL ACCREDITED LABORATORY (CC-4313) • ISO/IEC 17025:2017",
     footerNote: "Need on-site calibration or immediate pickup? Contact our Metrology Desk.",
@@ -2918,7 +2918,13 @@ export default function CalibrationPageView() {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("arcl_calibration_reminder_template");
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.labContactPhone && parsed.labContactPhone.includes("8009559900")) {
+            parsed.labContactPhone = parsed.labContactPhone.replace("8009559900", "8369458583");
+          }
+          return parsed;
+        }
       } catch (e) {}
     }
     return defaultReminderTemplate;
@@ -5015,7 +5021,7 @@ export default function CalibrationPageView() {
                         type="text"
                         value={reminderTemplate.labContactPhone}
                         onChange={(e) => setReminderTemplate({ ...reminderTemplate, labContactPhone: e.target.value })}
-                        placeholder="+91 8009559900"
+                        placeholder="+91 8369458583"
                         className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
                       />
                     </div>
@@ -5213,7 +5219,7 @@ export default function CalibrationPageView() {
                       {/* Footer Note */}
                       <div className="text-center text-[10px] text-gray-400 space-y-0.5">
                         <p className="font-bold text-gray-600">ARCL Instruments Pvt. Ltd. — Calibration & QA Division</p>
-                        <p>Airoli, Navi Mumbai - 400708 | NABL Scope CC-4313 | ISO/IEC 17025:2017</p>
+                        <p>Airoli, Navi Mumbai - 400708 | ISO/IEC 17025:2017</p>
                       </div>
                     </div>
                   </div>

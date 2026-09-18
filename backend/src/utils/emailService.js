@@ -658,7 +658,7 @@ export const sendCalibrationDueEmail = async ({
   const person = contactPerson || "Quality Manager";
   const count = instruments.length || 1;
 
-  const phoneDisplay = labContactPhone || "+91 8009559900 / +91 6205691085";
+  const phoneDisplay = labContactPhone || "+91 8369458583 / +91 6205691085";
   const emailDisplay = labContactEmail || "arclinstruments@gmail.com";
   const scopeDisplay = labScopeText || "NABL ACCREDITED LABORATORY (CC-4313) • ISO/IEC 17025";
   const btnText = actionButtonText || "Schedule Calibration Online →";
@@ -783,7 +783,7 @@ export const sendCalibrationDueEmail = async ({
         <!-- Footer -->
         <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
           <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
-            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • ISO/IEC 17025:2017
           </td>
         </tr>
       </table>
@@ -938,7 +938,7 @@ export const sendCertificateDeliveryEmail = async ({
                 <td style="vertical-align: middle; text-align: left;">
                   <p style="margin: 0 0 4px 0; font-size: 11px; color: #475569; line-height: 1.4;">
                     Need physical stamped copies or assistance? Contact Metrology Desk:<br>
-                    📞 <strong>+91 8009559900</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
+                    📞 <strong>+91 8369458583</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
                   </p>
                   <p style="margin: 0; font-size: 10px; color: #059669; font-weight: 700;">
                     ✓ ISO/IEC 17025:2017 &amp; NABL CC-4313 Verified Certificate Attached
@@ -958,7 +958,7 @@ export const sendCertificateDeliveryEmail = async ({
         <!-- Footer -->
         <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
           <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
-            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • ISO/IEC 17025:2017
           </td>
         </tr>
       </table>
@@ -1312,7 +1312,7 @@ export const sendSpecificDocumentEmail = async ({
                 <td style="vertical-align: middle; text-align: left;">
                   <p style="margin: 0 0 4px 0; font-size: 11px; color: #475569; line-height: 1.4;">
                     Need physical stamped copies or assistance? Contact Metrology Desk:<br>
-                    📞 <strong>+91 8009559900</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
+                    📞 <strong>+91 8369458583</strong> | ✉️ <a href="mailto:arclinstruments@gmail.com" style="color: #0284c7; text-decoration: none;">arclinstruments@gmail.com</a>
                   </p>
                   <p style="margin: 0; font-size: 10px; color: #059669; font-weight: 700;">
                     ✓ ISO/IEC 17025:2017 &amp; NABL CC-4313 Verified Documents Attached
@@ -1332,7 +1332,7 @@ export const sendSpecificDocumentEmail = async ({
         <!-- Footer -->
         <tr style="background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center;">
           <td style="padding: 12px 20px; font-size: 10px; color: #94a3b8;">
-            ARCL Instruments Private Limited • Airoli, Navi Mumbai • NABL Scope CC-4313
+            ARCL Instruments Private Limited • Airoli, Navi Mumbai • ISO/IEC 17025:2017
           </td>
         </tr>
       </table>
