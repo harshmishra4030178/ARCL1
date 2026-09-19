@@ -10,46 +10,76 @@ const __dirname = path.dirname(__filename);
 const LOGO_PATH = path.resolve(__dirname, "../../public/assets/LOGO.png");
 const STAMP_PATH = path.resolve(__dirname, "../../public/assets/arcl_stamp.png");
 
-let cachedTransporter = null;
-
 /**
- * Creates and returns a Nodemailer transporter.
- * Supports custom SMTP (Host, Port, User, Pass) or Gmail App Password with connection pooling.
+ * Universal multi-strategy Nodemailer dispatcher with 3-tier automatic fallback:
+ * 1. Built-in Gmail Service
+ * 2. Direct SMTP SSL Port 465 (smtp.gmail.com)
+ * 3. Direct SMTP TLS Port 587 (smtp.gmail.com)
  */
-const getTransporter = () => {
-  if (cachedTransporter) {
-    return cachedTransporter;
-  }
-
+export const sendMailWithFallback = async (mailOptions) => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER || "arclinstruments@gmail.com";
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || "srrczqghmqekrvmk";
 
   if (!user || !pass) {
-    return null;
+    throw new Error("SMTP credentials are unconfigured or missing.");
   }
 
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
-  const secure = process.env.SMTP_SECURE === "false" ? false : port === 465 || host === "smtp.gmail.com";
+  // Strategy 1: Standard Gmail Service (Fastest & Most Reliable for Gmail accounts)
+  try {
+    const t1 = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+    });
+    const info = await t1.sendMail(mailOptions);
+    console.log(`[EmailService] Delivered via Gmail Service to ${mailOptions.to} (ID: ${info.messageId})`);
+    return { success: true, method: "smtp_gmail", messageId: info.messageId };
+  } catch (err1) {
+    console.warn("[EmailService] Gmail service failed, attempting SSL Port 465 fallback:", err1.message);
 
-  cachedTransporter = nodemailer.createTransport({
-    host,
-    port: secure ? 465 : port,
-    secure,
+    // Strategy 2: Direct SMTP SSL Port 465
+    try {
+      const t2 = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: { user, pass },
+        tls: { rejectUnauthorized: false },
+      });
+      const info = await t2.sendMail(mailOptions);
+      console.log(`[EmailService] Delivered via SSL Port 465 to ${mailOptions.to} (ID: ${info.messageId})`);
+      return { success: true, method: "smtp_ssl_465", messageId: info.messageId };
+    } catch (err2) {
+      console.warn("[EmailService] SSL Port 465 failed, attempting TLS Port 587 fallback:", err2.message);
+
+      // Strategy 3: Direct SMTP TLS Port 587
+      try {
+        const t3 = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          auth: { user, pass },
+          tls: { rejectUnauthorized: false },
+        });
+        const info = await t3.sendMail(mailOptions);
+        console.log(`[EmailService] Delivered via TLS Port 587 to ${mailOptions.to} (ID: ${info.messageId})`);
+        return { success: true, method: "smtp_tls_587", messageId: info.messageId };
+      } catch (err3) {
+        console.error("[EmailService Fatal] All SMTP delivery strategies failed:", err3.message);
+        throw new Error(`Email dispatch failed to ${mailOptions.to}: ${err3.message || err1.message}`);
+      }
+    }
+  }
+};
+
+const getTransporter = () => {
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER || "arclinstruments@gmail.com";
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || "srrczqghmqekrvmk";
+  return nodemailer.createTransport({
+    service: "gmail",
     auth: { user, pass },
-    pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-    rateLimit: 10,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-    tls: {
-      rejectUnauthorized: false,
-    },
+    tls: { rejectUnauthorized: false },
   });
-
-  return cachedTransporter;
 };
 
 const getFromEmail = () => {
@@ -807,25 +837,16 @@ export const sendCalibrationDueEmail = async ({
     throw new Error("Recipient email address is required");
   }
 
-  if (!transporter) {
-    throw new Error("SMTP Transporter could not be initialized");
-  }
+  const result = await sendMailWithFallback({
+    from: fromAddress,
+    to: toEmail,
+    replyTo: fromEmail,
+    subject: subjectLine,
+    html: emailHtml,
+    attachments: mailAttachments,
+  });
 
-  try {
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: toEmail,
-      replyTo: fromEmail,
-      subject: subjectLine,
-      html: emailHtml,
-      attachments: mailAttachments,
-    });
-    console.log(`[EmailService] Calibration due notice delivered to ${toEmail} (MessageId: ${info.messageId})`);
-    return { success: true, method: "smtp", subject: subjectLine, messageId: info.messageId };
-  } catch (err) {
-    console.error(`[EmailService Error] SMTP send failed to ${toEmail}:`, err.message);
-    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
-  }
+  return { success: true, method: result.method || "smtp", subject: subjectLine, messageId: result.messageId };
 };
 
 
@@ -995,25 +1016,16 @@ export const sendCertificateDeliveryEmail = async ({
     throw new Error("Recipient email address is required");
   }
 
-  if (!transporter) {
-    throw new Error("SMTP Transporter could not be initialized");
-  }
+  const result = await sendMailWithFallback({
+    from: fromAddress,
+    to: toEmail,
+    replyTo: fromEmail,
+    subject: `[Calibration Certificate] ${instName} (${sNo}) - ARCL Instruments`,
+    html: emailHtml,
+    attachments,
+  });
 
-  try {
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: toEmail,
-      replyTo: fromEmail,
-      subject: `[Calibration Certificate] ${instName} (${sNo}) - ARCL Instruments`,
-      html: emailHtml,
-      attachments,
-    });
-    console.log(`[EmailService] Certificate delivery notice sent to ${toEmail} (MessageId: ${info.messageId})`);
-    return { success: true, method: "smtp", messageId: info.messageId };
-  } catch (err) {
-    console.error(`[EmailService Error] Certificate SMTP send failed to ${toEmail}:`, err.message);
-    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
-  }
+  return { success: true, method: result.method || "smtp", messageId: result.messageId };
 };
 
 /**
@@ -1080,7 +1092,8 @@ export const sendSpecificDocumentEmail = async ({
   }
 
   // Generate Real Binary PDF Attachments matching dashboard PDF logic exactly
-    const batchInstruments = Array.isArray(record?.instruments) && record.instruments.length > 0
+  const attachments = [];
+  const batchInstruments = Array.isArray(record?.instruments) && record.instruments.length > 0
       ? record.instruments
       : [
           {
@@ -1394,23 +1407,14 @@ export const sendSpecificDocumentEmail = async ({
     throw new Error("Recipient email address is required");
   }
 
-  if (!transporter) {
-    throw new Error("SMTP Transporter could not be initialized");
-  }
+  const result = await sendMailWithFallback({
+    from: fromAddress,
+    to: toEmail,
+    replyTo: fromEmail,
+    subject: mainSubject,
+    html: emailHtml,
+    attachments,
+  });
 
-  try {
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: toEmail,
-      replyTo: fromEmail,
-      subject: mainSubject,
-      html: emailHtml,
-      attachments,
-    });
-    console.log(`[EmailService] Document notification delivered to ${toEmail} (MessageId: ${info.messageId})`);
-    return { success: true, method: "smtp", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length, messageId: info.messageId };
-  } catch (err) {
-    console.error(`[EmailService Error] Document SMTP send failed to ${toEmail}:`, err.message);
-    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
-  }
+  return { success: true, method: result.method || "smtp", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length, messageId: result.messageId };
 };

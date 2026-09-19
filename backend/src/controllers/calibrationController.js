@@ -636,18 +636,25 @@ export const sendDueReminder = async (req, res, next) => {
     const phone = labContactPhone || "+91 8369458583 / +91 6205691085";
 
     // Send real email with dynamic options
-    const emailResult = await sendCalibrationDueEmail({
-      toEmail: email,
-      clientCompany: company,
-      contactPerson: person,
-      instruments: targetInstruments,
-      customSubject,
-      customMessage,
-      labContactPhone: phone,
-      labContactEmail,
-      labScopeText,
-      customFooterText,
-    });
+    let emailResult = null;
+    let emailError = null;
+    try {
+      emailResult = await sendCalibrationDueEmail({
+        toEmail: email,
+        clientCompany: company,
+        contactPerson: person,
+        instruments: targetInstruments,
+        customSubject,
+        customMessage,
+        labContactPhone: phone,
+        labContactEmail,
+        labScopeText,
+        customFooterText,
+      });
+    } catch (e) {
+      console.error("[sendDueReminder Email Error]:", e.message);
+      emailError = e.message;
+    }
 
     // Build WhatsApp Message Link
     const instItems = targetInstruments.map((i) => {
@@ -718,14 +725,17 @@ export const sendDueReminder = async (req, res, next) => {
           sentTo: email,
           company,
           instrumentsCount: targetInstruments.length,
-          status: "Dispatched Successfully",
-          subject: emailResult.subject,
-          deliveryMethod: emailResult.method === "smtp" ? "Email (SMTP) + WhatsApp Ready" : "Multi-channel Ready",
+          status: emailResult ? "Dispatched Successfully" : "Email Attempted (WhatsApp Ready)",
+          subject: emailResult?.subject || subjText,
+          deliveryMethod: emailResult ? "Email (SMTP Direct)" : "WhatsApp Ready",
           whatsappLink: waLink,
+          emailError,
           timestamp: new Date().toISOString(),
-          message: `Calibration due reminder dispatched to ${email} (${company}) for ${targetInstruments.length} instrument(s).`,
+          message: emailResult
+            ? `Calibration due reminder dispatched to ${email} (${company}) for ${targetInstruments.length} instrument(s).`
+            : `Notice processed for ${email} (${company}). WhatsApp ready.`,
         },
-        "Reminder dispatched successfully"
+        "Reminder processed successfully"
       )
     );
   } catch (err) {
@@ -750,41 +760,55 @@ export const autoDispatchAllDueReminders = async (req, res, next) => {
       calibrationDueDate: { $lte: thresholdDate },
     }).lean();
 
-    // Group by company
+    // Group strictly by company
     const grouped = {};
     recordsDue.forEach((rec) => {
-      const key = rec.clientEmail || rec.clientCompany || "default";
-      if (!grouped[key]) {
-        grouped[key] = {
-          email: rec.clientEmail || "qa@sumeetindustries.com",
-          company: rec.clientCompany || "Sumeet Industries Pvt. Ltd.",
+      const companyKey = (rec.clientCompany || "Valued Client").trim();
+      if (!grouped[companyKey]) {
+        grouped[companyKey] = {
+          email: rec.clientEmail || "arclinstruments@gmail.com",
+          company: companyKey,
           contactPerson: rec.clientContactPerson || "Quality Manager",
           instruments: [],
         };
       }
-      grouped[key].instruments.push(rec);
+      if (rec.clientEmail && !grouped[companyKey].email.includes("@")) {
+        grouped[companyKey].email = rec.clientEmail;
+      }
+      grouped[companyKey].instruments.push(rec);
     });
 
     const results = [];
     for (const key of Object.keys(grouped)) {
       const group = grouped[key];
-      await sendCalibrationDueEmail({
-        toEmail: group.email,
-        clientCompany: group.company,
-        contactPerson: group.contactPerson,
-        instruments: group.instruments,
-        customSubject,
-        customMessage,
-        labContactPhone,
-        labContactEmail,
-      });
+      try {
+        await sendCalibrationDueEmail({
+          toEmail: group.email,
+          clientCompany: group.company,
+          contactPerson: group.contactPerson,
+          instruments: group.instruments,
+          customSubject,
+          customMessage,
+          labContactPhone,
+          labContactEmail,
+        });
 
-      results.push({
-        company: group.company,
-        email: group.email,
-        instrumentsCount: group.instruments.length,
-        status: "Sent",
-      });
+        results.push({
+          company: group.company,
+          email: group.email,
+          instrumentsCount: group.instruments.length,
+          status: "Sent",
+        });
+      } catch (grpErr) {
+        console.warn(`[sendBulkDueReminders] Failed for ${group.company}:`, grpErr.message);
+        results.push({
+          company: group.company,
+          email: group.email,
+          instrumentsCount: group.instruments.length,
+          status: "Failed",
+          error: grpErr.message,
+        });
+      }
     }
 
     return res.status(200).json(
@@ -902,17 +926,24 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
     const dueDate = calibrationDueDate || targetRecord?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
     // Send Real Email with full record
-    const emailRes = await sendCertificateDeliveryEmail({
-      toEmail: email,
-      clientCompany: company,
-      contactPerson: person,
-      instrument: instName,
-      serialNo: sNo,
-      certificateNo: certNo,
-      calibrationDate: calDate,
-      calibrationDueDate: dueDate,
-      record: targetRecord,
-    });
+    let emailRes = null;
+    let emailError = null;
+    try {
+      emailRes = await sendCertificateDeliveryEmail({
+        toEmail: email,
+        clientCompany: company,
+        contactPerson: person,
+        instrument: instName,
+        serialNo: sNo,
+        certificateNo: certNo,
+        calibrationDate: calDate,
+        calibrationDueDate: dueDate,
+        record: targetRecord,
+      });
+    } catch (e) {
+      console.error("[sendCertificateDeliveryNotification Email Error]:", e.message);
+      emailError = e.message;
+    }
 
     // Build WhatsApp Message Link
     const waText = encodeURIComponent(
@@ -926,11 +957,11 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
       `📥 *View / Download Digital Certificate PDF:*\n` +
       `https://arclinstruments.com/calibration-services\n\n` +
       `ARCL Metrology Support Desk:\n` +
-      `\uD83D\uDD34 Phone: +91 6205691085 / +91 8369458583\n` +
+      `\uD83D\uDD34 Phone: +91 8369458583 / +91 6205691085\n` +
       `\uD83D\uDD34 Email: arclinstruments@gmail.com`
     );
 
-    const phone = (targetRecord?.clientPhone || req.body.clientPhone || "9369962486").replace(/[^0-9]/g, "");
+    const phone = (targetRecord?.clientPhone || req.body.clientPhone || "8369458583").replace(/[^0-9]/g, "");
     const waLink = `https://wa.me/${phone.length === 10 ? "91" + phone : phone}?text=${waText}`;
 
     return res.status(200).json(
@@ -941,10 +972,13 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
           company,
           certificateNo: certNo,
           whatsappLink: waLink,
-          emailStatus: emailRes.method === "smtp" ? "Sent via SMTP" : "Multi-channel Ready",
-          message: `Certificate delivery notification dispatched to ${email} (${company}).`,
+          emailStatus: emailRes ? "Sent via SMTP" : "WhatsApp Ready (Email Notice)",
+          emailError,
+          message: emailRes
+            ? `Certificate delivery notification dispatched to ${email} (${company}).`
+            : `Certificate notification prepared for ${company}. WhatsApp ready.`,
         },
-        "Certificate delivery notice dispatched successfully"
+        "Certificate delivery notice processed successfully"
       )
     );
   } catch (err) {
@@ -1077,21 +1111,28 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
     const docTitlesList = activeDocs.map((dt) => docTypeLabels[dt] || dt.toUpperCase());
 
     // Send Real Email with full record data for 100% exact PDF matching
-    const emailRes = await sendSpecificDocumentEmail({
-      toEmail: email,
-      clientCompany: company,
-      contactPerson: person,
-      clientPhone: phoneNum,
-      docType: activeDocs[0],
-      selectedDocTypes: activeDocs,
-      docTitle: docTitlesList.join(", "),
-      instrument: instName,
-      serialNo: sNo,
-      certificateNo: certNo,
-      dcNo: challanNo,
-      customNote,
-      record: targetRecord,
-    });
+    let emailRes = null;
+    let emailError = null;
+    try {
+      emailRes = await sendSpecificDocumentEmail({
+        toEmail: email,
+        clientCompany: company,
+        contactPerson: person,
+        clientPhone: phoneNum,
+        docType: activeDocs[0],
+        selectedDocTypes: activeDocs,
+        docTitle: docTitlesList.join(", "),
+        instrument: instName,
+        serialNo: sNo,
+        certificateNo: certNo,
+        dcNo: challanNo,
+        customNote,
+        record: targetRecord,
+      });
+    } catch (e) {
+      console.error("[sendSpecificDocumentNotification Email Error]:", e.message);
+      emailError = e.message;
+    }
 
     // Build WhatsApp Message Link
     const docsSummaryText = docTitlesList.map((t) => `• *${t}*`).join("\n");
@@ -1127,10 +1168,13 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
           documentsCount: activeDocs.length,
           documentsList: docTitlesList,
           whatsappLink: waLink,
-          emailStatus: emailRes.method === "smtp" ? "Sent via SMTP" : "Multi-channel Ready",
-          message: `${activeDocs.length} document(s) dispatched to ${email} (${company}) via Email & WhatsApp.`,
+          emailStatus: emailRes ? "Sent via SMTP" : "WhatsApp Ready (Email Notice)",
+          emailError,
+          message: emailRes
+            ? `${activeDocs.length} document(s) dispatched to ${email} (${company}) via Email & WhatsApp.`
+            : `${activeDocs.length} document(s) prepared for ${company}. WhatsApp ready.`,
         },
-        `${activeDocs.length} document(s) dispatched successfully`
+        `${activeDocs.length} document(s) processed successfully`
       )
     );
   } catch (err) {
