@@ -10,38 +10,46 @@ const __dirname = path.dirname(__filename);
 const LOGO_PATH = path.resolve(__dirname, "../../public/assets/LOGO.png");
 const STAMP_PATH = path.resolve(__dirname, "../../public/assets/arcl_stamp.png");
 
+let cachedTransporter = null;
+
 /**
  * Creates and returns a Nodemailer transporter.
- * Supports custom SMTP (Host, Port, User, Pass) or Gmail App Password.
+ * Supports custom SMTP (Host, Port, User, Pass) or Gmail App Password with connection pooling.
  */
 const getTransporter = () => {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+  if (cachedTransporter) {
+    return cachedTransporter;
+  }
+
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
 
   if (!user || !pass) {
     return null;
   }
 
-  if (host) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
+  const secure = process.env.SMTP_SECURE === "false" ? false : port === 465 || host === "smtp.gmail.com";
 
-  // Default to Gmail service if host not specified
-  return nodemailer.createTransport({
-    service: "gmail",
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port: secure ? 465 : port,
+    secure,
     auth: { user, pass },
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    rateLimit: 10,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
+
+  return cachedTransporter;
 };
 
 const getFromEmail = () => {

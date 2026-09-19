@@ -3047,11 +3047,12 @@ export default function CalibrationPageView() {
         autoClose: 5000,
       });
     } catch (err) {
+      const errMsg = err?.response?.data?.message || err?.message || "Please check SMTP connection";
       toast.update(toastId, {
-        render: `Failed to dispatch email to ${recip.email}`,
+        render: `Failed to dispatch email to ${recip.email}: ${errMsg}`,
         type: "error",
         isLoading: false,
-        autoClose: 5000,
+        autoClose: 6000,
       });
     }
   };
@@ -3382,11 +3383,12 @@ export default function CalibrationPageView() {
         });
         setIsManualModalOpen(false);
       } catch (err) {
+        const errMsg = err?.response?.data?.message || err?.message || "Please check SMTP connection";
         toast.update(toastId, {
-          render: "Failed to dispatch email notice",
+          render: `Failed to dispatch email notice: ${errMsg}`,
           type: "error",
           isLoading: false,
-          autoClose: 5000,
+          autoClose: 6000,
         });
       }
     }
