@@ -370,27 +370,42 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
     doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#021C57").stroke();
 
     const boxY = topY + 54;
-    const boxH = 58;
+    
+    // Dynamic height calculation for left (Customer) and right (Details) boxes
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
+    doc.fontSize(6).font("Helvetica");
+    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
+    
+    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
+    const rightRequiredH = 62;
+    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+
     doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
     doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
+    // Draw Left Side (Billed To)
     doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Billed To (Customer):", 36, boxY + 5);
-    doc.font("Helvetica-Bold").text(clientCompany, 36, boxY + 15, { width: 245 });
-    doc.font("Helvetica").fontSize(6).fillColor("#334155").text(clientAddress, 36, boxY + 25, { width: 245, lineGap: 1 });
-    doc.font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, 36, boxY + 46);
+    const compY = boxY + 14;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
+    const addrY = compY + compH + 2;
+    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
+    const gstinY = addrY + addrH + 4;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
 
-    doc.fontSize(6.5).font("Helvetica-Bold").text("Invoice Details:", 296, boxY + 5);
+    // Draw Right Side (Invoice Details)
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Invoice Details:", 296, boxY + 5);
     doc.font("Helvetica").fontSize(6.5);
     doc.text("Invoice No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(invoiceNo, 365, boxY + 16);
-    doc.text("Invoice Date:", 296, boxY + 27);
-    doc.text(invoiceDate, 365, boxY + 27);
+    doc.font("Helvetica-Bold").text(invoiceNo, 365, boxY + 16, { width: 195 });
+    doc.font("Helvetica").text("Invoice Date:", 296, boxY + 27);
+    doc.text(invoiceDate, 365, boxY + 27, { width: 195 });
     doc.text("Due Date:", 296, boxY + 38);
-    doc.text(dueDate, 365, boxY + 38);
+    doc.text(dueDate, 365, boxY + 38, { width: 195 });
     doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48);
+    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
 
-    return boxY + boxH;
+    return boxY + boxH + 6;
   };
 
   // Draw Compact Header for Continuation Pages
@@ -519,7 +534,14 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
 
   for (let i = 0; i < formattedItems.length; i++) {
     const it = formattedItems[i];
-    const itemH = it.subText && it.subText.includes("\n") ? rowH + 8 : rowH;
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const nameH = doc.heightOfString(it.name, { width: 220 });
+    let subH = 0;
+    if (it.subText) {
+      doc.fontSize(5.5).font("Helvetica");
+      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
+    }
+    const itemH = Math.max(rowH, nameH + subH + 8);
 
     if (curY + itemH > 750) {
       doc.addPage({ size: "A4", margin: 25 });
@@ -538,9 +560,9 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
 
-    doc.font("Helvetica-Bold").text(it.name, 52, curY + 3, { width: 220 });
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
     if (it.subText) {
-      doc.font("Helvetica").fontSize(5.5).fillColor("#475569").text(it.subText, 52, curY + 12, { width: 220, lineGap: 1 });
+      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
     }
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
@@ -664,27 +686,42 @@ export const generateQuotationPdf = async (customData = {}) => {
     doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#2563EB").stroke();
 
     const boxY = topY + 54;
-    const boxH = 58;
+    
+    // Dynamic height calculation for left (Customer) and right (Details) boxes
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
+    doc.fontSize(6).font("Helvetica");
+    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
+    
+    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
+    const rightRequiredH = 62;
+    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+
     doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
     doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
+    // Draw Left Side (Quotation To)
     doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Quotation To (Customer):", 36, boxY + 5);
-    doc.font("Helvetica-Bold").text(clientCompany, 36, boxY + 15, { width: 245 });
-    doc.font("Helvetica").fontSize(6).fillColor("#334155").text(clientAddress, 36, boxY + 25, { width: 245, lineGap: 1 });
-    doc.font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, 36, boxY + 46);
+    const compY = boxY + 14;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
+    const addrY = compY + compH + 2;
+    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
+    const gstinY = addrY + addrH + 4;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
 
+    // Draw Right Side (Quotation Details)
     doc.fontSize(6.5).font("Helvetica-Bold").text("Quotation Details:", 296, boxY + 5);
     doc.font("Helvetica").fontSize(6.5);
     doc.text("Quotation No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(qtnNo, 365, boxY + 16);
-    doc.text("Date:", 296, boxY + 27);
-    doc.text(qtnDate, 365, boxY + 27);
+    doc.font("Helvetica-Bold").text(qtnNo, 365, boxY + 16, { width: 195 });
+    doc.font("Helvetica").text("Date:", 296, boxY + 27);
+    doc.text(qtnDate, 365, boxY + 27, { width: 195 });
     doc.text("Valid Till:", 296, boxY + 38);
-    doc.text(validityDate, 365, boxY + 38);
+    doc.text(validityDate, 365, boxY + 38, { width: 195 });
     doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48);
+    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
 
-    return boxY + boxH;
+    return boxY + boxH + 6;
   };
 
   const drawCompactQtnHeader = (doc) => {
@@ -807,7 +844,14 @@ export const generateQuotationPdf = async (customData = {}) => {
 
   for (let i = 0; i < formattedItems.length; i++) {
     const it = formattedItems[i];
-    const itemH = it.subText && it.subText.includes("\n") ? rowH + 8 : rowH;
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const nameH = doc.heightOfString(it.name, { width: 220 });
+    let subH = 0;
+    if (it.subText) {
+      doc.fontSize(5.5).font("Helvetica");
+      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
+    }
+    const itemH = Math.max(rowH, nameH + subH + 8);
 
     if (curY + itemH > 750) {
       doc.addPage({ size: "A4", margin: 25 });
@@ -825,9 +869,9 @@ export const generateQuotationPdf = async (customData = {}) => {
     const textYOffset = (itemH / 2) - 4;
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
-    doc.font("Helvetica-Bold").text(it.name, 52, curY + 3, { width: 220 });
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
     if (it.subText) {
-      doc.font("Helvetica").fontSize(5.5).fillColor("#475569").text(it.subText, 52, curY + 12, { width: 220, lineGap: 1 });
+      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
     }
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
@@ -942,27 +986,42 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
     doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#0d9488").stroke();
 
     const boxY = topY + 54;
-    const boxH = 58;
+    
+    // Dynamic height calculation for left (Customer) and right (Details) boxes
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
+    doc.fontSize(6).font("Helvetica");
+    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
+    
+    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
+    const rightRequiredH = 62;
+    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+
     doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
     doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
+    // Draw Left Side (Proforma To)
     doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Proforma To (Customer):", 36, boxY + 5);
-    doc.font("Helvetica-Bold").text(clientCompany, 36, boxY + 15, { width: 245 });
-    doc.font("Helvetica").fontSize(6).fillColor("#334155").text(clientAddress, 36, boxY + 25, { width: 245, lineGap: 1 });
-    doc.font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, 36, boxY + 46);
+    const compY = boxY + 14;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
+    const addrY = compY + compH + 2;
+    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
+    const gstinY = addrY + addrH + 4;
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
 
+    // Draw Right Side (Proforma Details)
     doc.fontSize(6.5).font("Helvetica-Bold").text("Proforma Details:", 296, boxY + 5);
     doc.font("Helvetica").fontSize(6.5);
     doc.text("Proforma No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(piNo, 365, boxY + 16);
-    doc.text("Proforma Date:", 296, boxY + 27);
-    doc.text(piDate, 365, boxY + 27);
+    doc.font("Helvetica-Bold").text(piNo, 365, boxY + 16, { width: 195 });
+    doc.font("Helvetica").text("Proforma Date:", 296, boxY + 27);
+    doc.text(piDate, 365, boxY + 27, { width: 195 });
     doc.text("Due Date:", 296, boxY + 38);
-    doc.text(dueDate, 365, boxY + 38);
+    doc.text(dueDate, 365, boxY + 38, { width: 195 });
     doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48);
+    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
 
-    return boxY + boxH;
+    return boxY + boxH + 6;
   };
 
   const drawCompactPiHeader = (doc) => {
@@ -998,7 +1057,14 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
 
   for (let i = 0; i < formattedItems.length; i++) {
     const it = formattedItems[i];
-    const itemH = it.subText && it.subText.includes("\n") ? rowH + 8 : rowH;
+    doc.fontSize(6.5).font("Helvetica-Bold");
+    const nameH = doc.heightOfString(it.name, { width: 220 });
+    let subH = 0;
+    if (it.subText) {
+      doc.fontSize(5.5).font("Helvetica");
+      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
+    }
+    const itemH = Math.max(rowH, nameH + subH + 8);
 
     if (curY + itemH > 750) {
       doc.addPage({ size: "A4", margin: 25 });
@@ -1016,9 +1082,9 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
     const textYOffset = (itemH / 2) - 4;
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
-    doc.font("Helvetica-Bold").text(it.name, 52, curY + 3, { width: 220 });
+    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
     if (it.subText) {
-      doc.font("Helvetica").fontSize(5.5).fillColor("#475569").text(it.subText, 52, curY + 12, { width: 220, lineGap: 1 });
+      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
     }
     doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
     doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
@@ -1137,15 +1203,18 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   const certNo = data.certificateNo || data.certificateNumber || "ARCL-CAL-2026-HM01";
   const calDate = data.calibrationDate ? new Date(data.calibrationDate).toLocaleDateString("en-GB") : "15/05/2026";
   const dueDate = data.calibrationDueDate || data.suggestedDueDate ? new Date(data.calibrationDueDate || data.suggestedDueDate).toLocaleDateString("en-GB") : "14/05/2027";
-  const clientCompany = data.clientCompany || data.customer?.name || "Harsh Mishra Technologies Pvt. Ltd.";
-  const clientAddress = data.clientAddress || data.customer?.address || "Airoli, Navi Mumbai, Maharashtra - 400708";
-  const instrument = data.instrument || data.instrument?.name || "Digital Compression Testing Machine 2000 kN";
-  const serialNo = data.serialNo || data.instrument?.serialNumber || "ARCL-CTM-9842";
-  const make = data.make || data.instrument?.manufacturer || "-";
-  const modelNo = data.modelNo || data.instrument?.model || "-";
-  const instrumentRange = data.instrumentRange || data.instrument?.range || "0 - 2000 kN";
-  const leastCount = data.leastCount || data.instrument?.leastCount || "0.1 kN";
-  const dcNo = data.dcNo || data.srfNo || "DC/26-27/0188";
+  const rawCompany = data.clientCompany || data.customer?.name || "Harsh Mishra Technologies Pvt. Ltd.";
+  const clientCompany = String(rawCompany).replace(/\r?\n+/g, " ").trim();
+  const rawAddress = data.clientAddress || data.customer?.address || "Airoli, Navi Mumbai, Maharashtra - 400708";
+  const clientAddress = String(rawAddress).replace(/\r?\n+/g, ", ").trim();
+  const rawInstrument = data.instrument || data.instrument?.name || "Digital Compression Testing Machine 2000 kN";
+  const instrument = String(rawInstrument).replace(/\r?\n+/g, " ").trim();
+  const serialNo = (data.serialNo || data.instrument?.serialNumber || "ARCL-CTM-9842").replace(/\r?\n+/g, " ").trim();
+  const make = (data.make || data.instrument?.manufacturer || "-").replace(/\r?\n+/g, " ").trim();
+  const modelNo = (data.modelNo || data.instrument?.model || "-").replace(/\r?\n+/g, " ").trim();
+  const instrumentRange = (data.instrumentRange || data.instrument?.range || "0 - 2000 kN").replace(/\r?\n+/g, " ").trim();
+  const leastCount = (data.leastCount || data.instrument?.leastCount || "0.1 kN").replace(/\r?\n+/g, " ").trim();
+  const dcNo = (data.dcNo || data.srfNo || "DC/26-27/0188").replace(/\r?\n+/g, " ").trim();
 
   let results = data.calibrationResults && Array.isArray(data.calibrationResults) && data.calibrationResults.length > 0
     ? data.calibrationResults
@@ -1179,17 +1248,17 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   doc.text(`Calibration Date: ${calDate}`, 320, curY + 8);
 
   doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-  doc.text(`Customer Name: `, 45, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 130, curY + 23, { width: 180, lineBreak: false });
+  doc.text(`Customer Name: `, 45, curY + 23).font("Helvetica-Bold").fillColor("#0f172a").text(clientCompany, 130, curY + 23, { width: 180, lineBreak: false, ellipsis: true });
   doc.font("Helvetica").fillColor("#334155").text(`Suggested Due Date: `, 320, curY + 23).font("Helvetica-Bold").fillColor("#059669").text(dueDate, 420, curY + 23);
 
-  doc.font("Helvetica").fillColor("#334155").text(`Address: `, 45, curY + 38).font("Helvetica").fillColor("#0f172a").text(clientAddress, 130, curY + 38, { width: 180, lineBreak: false });
+  doc.font("Helvetica").fillColor("#334155").text(`Address: `, 45, curY + 38).font("Helvetica").fillColor("#0f172a").text(clientAddress, 130, curY + 38, { width: 180, lineBreak: false, ellipsis: true });
   doc.font("Helvetica").fillColor("#334155").text(`Challan / SRF Ref: `, 320, curY + 38).font("Helvetica-Bold").fillColor("#0f172a").text(dcNo, 420, curY + 38);
 
-  doc.font("Helvetica").fillColor("#334155").text(`Instrument: `, 45, curY + 53).font("Helvetica-Bold").fillColor("#0f172a").text(instrument, 130, curY + 53, { width: 180, lineBreak: false });
+  doc.font("Helvetica").fillColor("#334155").text(`Instrument: `, 45, curY + 53).font("Helvetica-Bold").fillColor("#0f172a").text(instrument, 130, curY + 53, { width: 180, lineBreak: false, ellipsis: true });
   doc.font("Helvetica").fillColor("#334155").text(`Serial / Asset No: `, 320, curY + 53).font("Helvetica-Bold").fillColor("#2563eb").text(serialNo, 420, curY + 53);
 
-  doc.font("Helvetica").fillColor("#334155").text(`Make / Model: `, 45, curY + 68).font("Helvetica-Bold").fillColor("#0f172a").text(`${make} / ${modelNo}`, 130, curY + 68);
-  doc.font("Helvetica").fillColor("#334155").text(`Range / Least Count: `, 320, curY + 68).font("Helvetica-Bold").fillColor("#0f172a").text(`${instrumentRange} | LC: ${leastCount}`, 420, curY + 68);
+  doc.font("Helvetica").fillColor("#334155").text(`Make / Model: `, 45, curY + 68).font("Helvetica-Bold").fillColor("#0f172a").text(`${make} / ${modelNo}`, 130, curY + 68, { width: 180, lineBreak: false, ellipsis: true });
+  doc.font("Helvetica").fillColor("#334155").text(`Range / Least Count: `, 320, curY + 68).font("Helvetica-Bold").fillColor("#0f172a").text(`${instrumentRange} | LC: ${leastCount}`, 420, curY + 68, { width: 130, lineBreak: false, ellipsis: true });
 
   curY += infoH + sectionSpacing;
 
@@ -1688,20 +1757,25 @@ export const generatePurchaseOrderPdf = async (customData = {}) => {
     doc.fontSize(12).font("Helvetica-Bold").fillColor("#ffffff").text("PURCHASE ORDER", 20, topY + 8, { width: 802, align: "center" });
 
     const boxY = topY + 35;
-    const boxH = 45;
+    doc.fontSize(6).font("Helvetica");
+    const addrH = doc.heightOfString(supplierAddress, { width: 380, lineGap: 1 });
+    const boxH = Math.max(45, 16 + 10 + addrH + 4 + 10 + 4);
+
     doc.rect(20, boxY, 802, boxH).lineWidth(0.5).strokeColor("#cbd5e1").stroke();
     doc.moveTo(420, boxY).lineTo(420, boxY + boxH).lineWidth(0.5).strokeColor("#cbd5e1").stroke();
 
     doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text("Supplier / Service Provider:", 26, boxY + 5);
-    doc.font("Helvetica").fontSize(6.5).text(supplierName, 26, boxY + 16);
-    doc.text(supplierAddress, 26, boxY + 26, { width: 380 });
-    doc.font("Helvetica-Bold").text(`GSTIN: ${supplierGstin}`, 26, boxY + 36);
+    doc.font("Helvetica-Bold").fontSize(6.5).text(supplierName, 26, boxY + 16, { width: 380 });
+    const sAddrY = boxY + 16 + 10;
+    doc.font("Helvetica").fontSize(6).text(supplierAddress, 26, sAddrY, { width: 380, lineGap: 1 });
+    const sGstinY = sAddrY + addrH + 4;
+    doc.font("Helvetica-Bold").fontSize(6.5).text(`GSTIN: ${supplierGstin}`, 26, sGstinY);
 
     doc.fontSize(7).font("Helvetica-Bold").text("PO Details:", 426, boxY + 5);
     doc.font("Helvetica").fontSize(6.5);
     doc.text(`PO Number: ${poNo}`, 426, boxY + 16);
     doc.text(`PO Date: ${poDate}`, 426, boxY + 26);
-    doc.text(`Payment Terms: 100% Advance Against Proforma Invoice / Calibration Schedule`, 426, boxY + 36);
+    doc.text(`Payment Terms: 100% Advance Against Proforma Invoice / Calibration Schedule`, 426, boxY + 36, { width: 380 });
 
     return boxY + boxH + 8;
   };

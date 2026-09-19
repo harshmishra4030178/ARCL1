@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import html2canvas from "html2canvas";
 import {
   FaCertificate,
   FaFilePdf,
@@ -951,6 +952,8 @@ export default function CalibrationPageView() {
   const [selectedReminderRecord, setSelectedReminderRecord] = useState(null);
   const [customReminderEmail, setCustomReminderEmail] = useState("");
   const [customReminderPhone, setCustomReminderPhone] = useState("");
+  const whatsAppPreviewCardRef = useRef(null);
+  const modalWhatsAppCardRef = useRef(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState(null);
   const [isBatchConfirmOpen, setIsBatchConfirmOpen] = useState(false);
@@ -3078,6 +3081,60 @@ export default function CalibrationPageView() {
     }
   };
 
+  // Construct beautifully formatted WhatsApp Text Notice with official Box Container styling
+  const buildFormattedWhatsAppNotice = ({
+    company = "Valued Client",
+    contactPerson = "Quality Manager",
+    subject = "",
+    intro = "",
+    instruments = [],
+  }) => {
+    const targetInstruments = instruments && instruments.length > 0 ? instruments : [
+      { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
+    ];
+
+    const instItems = targetInstruments.map((i) => {
+      const sNo = i.serialNo && i.serialNo !== "-" ? i.serialNo : "N/A";
+      const dDate = toSafeLocaleDate(i.calibrationDueDate, "Due Soon");
+      return (
+        `│ • *${i.instrument}*\n` +
+        `│   S/N: ${sNo}\n` +
+        `│   ➜ Due: 🔴 *${dDate}*`
+      );
+    }).join("\n├──────────────────────────────────┤\n");
+
+    const resolvedIntro = (intro || reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that {{count}} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
+      .replace(/{{company}}/gi, company)
+      .replace(/{{contactPerson}}/gi, contactPerson)
+      .replace(/{{count}}/gi, String(targetInstruments.length));
+
+    let resolvedSubj = (subject || reminderTemplate.subject || "🚨 [URGENT] Calibration Due Notice for {{company}}")
+      .replace(/{{company}}/gi, company)
+      .replace(/{{contactPerson}}/gi, contactPerson)
+      .replace(/{{count}}/gi, String(targetInstruments.length));
+
+    if (!resolvedSubj.includes("🚨") && !resolvedSubj.includes("🔴")) {
+      resolvedSubj = `🚨 ${resolvedSubj}`;
+    }
+
+    return (
+      `*${resolvedSubj}*\n` +
+      `*ARCL Lab CC-4313*\n\n` +
+      `Dear ${contactPerson} (${company}),\n\n` +
+      `${resolvedIntro}\n\n` +
+      `╭──────────────────────────────────╮\n` +
+      `│ 🔴 *CALIBRATION DUE INSTRUMENTS*  │\n` +
+      `├──────────────────────────────────┤\n` +
+      `${instItems}\n` +
+      `╰──────────────────────────────────╯\n\n` +
+      `📅 *Please schedule recalibration pickup or book on-site testing.*\n\n` +
+      `🔗 arclinstruments.com/calibration-services\n\n` +
+      `*ARCL Instruments Private Limited*\n` +
+      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
+      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+    );
+  };
+
   const handleDirectWhatsAppDispatch = (recip) => {
     if (!recip) return;
     const recipDue = recip.dueInstruments && recip.dueInstruments.length > 0
@@ -3090,34 +3147,11 @@ export default function CalibrationPageView() {
       { instrument: "Testing & Measuring Equipment", serialNo: "N/A", calibrationDueDate: new Date() }
     ];
 
-    const instrumentsSummary = targetInstruments
-      .map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due: 🔴 ${toSafeLocaleDate(i.calibrationDueDate, "Due Soon")}`)
-      .join("\n");
-
-    const resolvedIntro = (reminderTemplate.introMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:")
-      .replace(/{{company}}/gi, recip.company || "Valued Client")
-      .replace(/{{contactPerson}}/gi, recip.contactPerson || "Quality Manager")
-      .replace(/{{count}}/gi, String(targetInstruments.length));
-
-    let resolvedSubj = (reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
-      .replace(/{{company}}/gi, recip.company || "Valued Client")
-      .replace(/{{contactPerson}}/gi, recip.contactPerson || "Quality Manager")
-      .replace(/{{count}}/gi, String(targetInstruments.length));
-
-    if (!resolvedSubj.includes("🔴")) {
-      resolvedSubj = `🔴 ${resolvedSubj}`;
-    }
-
-    const rawMessage =
-      `*${resolvedSubj}*\n\n` +
-      `Dear ${recip.contactPerson || "Quality Manager"} (${recip.company || "Valued Client"}),\n` +
-      `${resolvedIntro}\n\n` +
-      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
-      `Please schedule recalibration pickup or book on-site testing:\n` +
-      `https://arclinstruments.com/calibration-services\n\n` +
-      `ARCL Metrology Support Desk:\n` +
-      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
+    const rawMessage = buildFormattedWhatsAppNotice({
+      company: recip.company || "Valued Client",
+      contactPerson: recip.contactPerson || "Quality Manager",
+      instruments: targetInstruments,
+    });
 
     const cleanPhone = (recip.phone || "8369458583").replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
@@ -3129,9 +3163,20 @@ export default function CalibrationPageView() {
     } catch (e) {}
 
     const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
-
     triggerWhatsAppOpen(waLink);
-    toast.success(`💬 WhatsApp opened for ${recip.company || "Client"}! (Message copied to clipboard)`);
+
+    toast.success(`💬 WhatsApp opened for ${recip.company || "Client"}! (Formatted card notice ready)`);
+
+    recordDispatchLog({
+      company: recip.company,
+      contactPerson: recip.contactPerson,
+      email: recip.email,
+      phone: formattedPhone,
+      channel: "WhatsApp Formatted Notice",
+      subject: `Calibration Notice for ${recip.company}`,
+      instrumentsCount: targetInstruments.length,
+      status: "Dispatched (WhatsApp Link) ✅",
+    });
   };
 
   const handleBulkDispatchSelected = async (recipientGroups, channel = "email") => {
@@ -3264,21 +3309,18 @@ export default function CalibrationPageView() {
       resolvedSubj = `🔴 ${resolvedSubj}`;
     }
 
-    const rawMessage =
-      `*${resolvedSubj}*\n\n` +
-      `Dear ${contactPerson || "Quality Manager"} (${company || "Valued Client"}),\n` +
-      `${resolvedIntro}\n\n` +
-      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
-      `Please schedule recalibration pickup or book on-site testing:\n` +
-      `https://arclinstruments.com/calibration-services\n\n` +
-      `ARCL Metrology Support Desk:\n` +
-      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
+    const rawMessage = buildFormattedWhatsAppNotice({
+      company: company || "Valued Client",
+      contactPerson: contactPerson || "Quality Head",
+      subject: resolvedSubj,
+      intro: resolvedIntro,
+      instruments: targetInstruments,
+    });
 
     const cleanPhone = (phone || "8369458583").replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
 
-    // Open WhatsApp immediately if requested
+    // Open WhatsApp with Formatted Message if requested
     if (channel === "whatsapp" || channel === "both") {
       try {
         if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
@@ -3288,7 +3330,19 @@ export default function CalibrationPageView() {
 
       const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
       triggerWhatsAppOpen(waLink);
-      toast.success(`💬 WhatsApp opened for +${formattedPhone}! (Message copied to clipboard)`);
+      toast.success(`💬 WhatsApp opened for +${formattedPhone}! (Card notice ready)`);
+
+      recordDispatchLog({
+        company: company || "Manual Entry",
+        contactPerson: contactPerson || "Quality Head",
+        email: email || "arclinstruments@gmail.com",
+        phone: formattedPhone,
+        channel: "WhatsApp Formatted Notice",
+        subject: resolvedSubj,
+        instrumentsCount: targetInstruments.length,
+        status: "Dispatched (WhatsApp Link) ✅",
+      });
+
       if (channel === "whatsapp") {
         setIsManualModalOpen(false);
       }
@@ -4105,19 +4159,15 @@ export default function CalibrationPageView() {
       resolvedSubj = `🔴 ${resolvedSubj}`;
     }
 
-    const rawMessage =
-      `*${resolvedSubj}*\n\n` +
-      `Dear ${person} (${company}),\n` +
-      `${resolvedIntro}\n\n` +
-      `\`\`\`\n${instrumentsSummary}\n\`\`\`\n\n` +
-      `Please schedule recalibration pickup or book on-site testing:\n` +
-      `https://arclinstruments.com/calibration-services\n\n` +
-      `ARCL Metrology Support Desk:\n` +
-      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`;
+    const rawMessage = buildFormattedWhatsAppNotice({
+      company,
+      contactPerson: person,
+      subject: customModalSubject,
+      intro: customModalMessage,
+      instruments: instList,
+    });
 
-    const targetPhone = customReminderPhone || activeRec?.clientPhone || "8369458583";
-    const cleanPhone = targetPhone.replace(/[^0-9]/g, "");
+    const cleanPhone = (customReminderPhone || activeRec?.clientPhone || "8369458583").replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone;
 
     try {
@@ -4127,9 +4177,21 @@ export default function CalibrationPageView() {
     } catch (e) {}
 
     const waLink = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(rawMessage)}`;
-
     triggerWhatsAppOpen(waLink);
-    toast.success(`💬 Opened WhatsApp with pre-filled calibration notice for +${formattedPhone}! (Message copied to clipboard)`);
+
+    toast.success(`💬 WhatsApp opened for ${company}! (Card notice ready)`);
+
+    recordDispatchLog({
+      company,
+      contactPerson: person,
+      email: customReminderEmail || activeRec?.clientEmail || "N/A",
+      phone: formattedPhone,
+      channel: "WhatsApp Formatted Notice",
+      subject: customModalSubject || `Calibration Notice for ${company}`,
+      instrumentsCount: instList.length,
+      status: "Dispatched (WhatsApp Link) ✅",
+    });
+
     if (closeModal) {
       setIsReminderModalOpen(false);
     }
@@ -6518,7 +6580,7 @@ export default function CalibrationPageView() {
 
                 {/* SIMULATOR SCREEN: WHATSAPP MESSAGE VIEW */}
                 {templatePreviewMode === "whatsapp" && (
-                  <div className="bg-[#E5DDD5] rounded-2xl border border-gray-300 shadow-md p-5 font-sans">
+                  <div ref={whatsAppPreviewCardRef} className="bg-[#E5DDD5] rounded-2xl border border-gray-300 shadow-md p-5 font-sans">
                     {/* Simulated WhatsApp Chat Top Header */}
                     <div className="bg-[#075E54] text-white p-3.5 rounded-xl shadow-xs flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2.5">
@@ -6549,6 +6611,15 @@ export default function CalibrationPageView() {
 
                       {/* Pure White Background Container Card for Instruments */}
                       <div className="bg-white rounded-2xl p-4 sm:p-5 space-y-2.5 border border-emerald-300/70 shadow-xs text-xs sm:text-[12.5px]">
+                        <div className="flex items-center justify-between border-b border-emerald-100 pb-2 mb-1">
+                          <p className="font-extrabold text-[#065f46] text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <span>📋</span>
+                            <span>VERIFIED EQUIPMENT RECALIBRATION LIST:</span>
+                          </p>
+                          <span className="text-[10px] font-bold font-mono bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200">
+                            {targetDueRecords.length > 0 ? targetDueRecords.length : 1} Due
+                          </span>
+                        </div>
                         {targetDueRecords.length > 0 ? (
                           targetDueRecords.map((inst, idx) => (
                             <p key={inst._id || idx} className="text-gray-900 leading-relaxed">
@@ -6589,7 +6660,7 @@ export default function CalibrationPageView() {
                         onClick={handleDispatchWhatsAppFromModal}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition inline-flex items-center gap-2 cursor-pointer active:scale-95"
                       >
-                        <FaWhatsapp className="text-base" /> Test Open in WhatsApp Web
+                        <FaWhatsapp className="text-base" /> Send on WhatsApp (Direct Notice)
                       </button>
                     </div>
                   </div>
@@ -10711,11 +10782,87 @@ export default function CalibrationPageView() {
                   Notice Message Body:
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={customModalMessage}
                   onChange={(e) => setCustomModalMessage(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-2 focus:ring-blue-500 leading-relaxed"
                 />
+              </div>
+
+              {/* WhatsApp Card Live Visual Preview */}
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[11px] font-bold text-gray-700 flex items-center gap-1.5">
+                  <FaWhatsapp className="text-emerald-600" />
+                  <span>WhatsApp Card Image Preview (Exact Card Shared):</span>
+                </p>
+                <div ref={modalWhatsAppCardRef} className="bg-[#E5DDD5] rounded-2xl border border-gray-300 shadow-inner p-3.5 font-sans text-xs">
+                  {/* Top Chat Header */}
+                  <div className="bg-[#075E54] text-white p-2.5 rounded-xl shadow-xs flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-bold text-[10px]">
+                        QA
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs leading-tight">{selectedReminderClient || "Valued Client"}</p>
+                        <p className="text-[9.5px] text-emerald-200 leading-tight">{customReminderPhone || "Registered Mobile"}</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] bg-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                      NABL CC-4313
+                    </span>
+                  </div>
+
+                  {/* WhatsApp Green Speech Bubble */}
+                  <div className="bg-[#DCF8C6] text-gray-900 rounded-2xl rounded-tr-none p-3.5 shadow-xs border border-emerald-300/80 space-y-2 text-xs leading-relaxed">
+                    <p className="font-extrabold text-[#064e3b] text-xs tracking-tight">
+                      *{customModalSubject || `🔴 [URGENT] Calibration Due Notice for ${selectedReminderClient || "Valued Client"}`}*
+                    </p>
+                    <p className="font-medium text-gray-900 text-[11.5px]">
+                      Dear {selectedReminderRecord?.clientContactPerson || "Quality Manager"} ({selectedReminderClient || "Valued Client"}),
+                    </p>
+                    <p className="text-gray-800 text-[11px] whitespace-pre-line leading-relaxed">
+                      {customModalMessage || "This is an automated quality compliance notice to inform you that testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date."}
+                    </p>
+
+                    {/* Pure White Background Container Card for Instruments */}
+                    <div className="bg-white rounded-xl p-3.5 space-y-1.5 border border-emerald-300/70 shadow-2xs text-[11px]">
+                      <div className="flex items-center justify-between border-b border-emerald-100 pb-1.5 mb-1">
+                        <p className="font-extrabold text-[#065f46] text-[11px] uppercase tracking-wider flex items-center gap-1">
+                          <span>📋</span>
+                          <span>VERIFIED EQUIPMENT RECALIBRATION LIST:</span>
+                        </p>
+                        <span className="text-[9.5px] font-bold font-mono bg-rose-50 text-rose-700 px-1.5 py-0.2 rounded-full border border-rose-200">
+                          Due Notice
+                        </span>
+                      </div>
+                      {(selectedReminderRecord
+                        ? [selectedReminderRecord]
+                        : records.filter((r) => r.clientCompany === selectedReminderClient)
+                      ).slice(0, 10).map((inst, idx) => (
+                        <p key={inst._id || idx} className="text-gray-900 leading-relaxed">
+                          • <strong className="font-bold">*{inst.instrument}*</strong>{" "}
+                          <span className="font-mono text-gray-700">({inst.serialNo && inst.serialNo !== "-" ? `S/N: ${inst.serialNo}` : "ID: Verified"})</span>{" "}
+                          ➔ Due: 🔴{" "}
+                          <span className="text-rose-600 font-bold font-mono">
+                            *{toSafeLocaleDate(inst.calibrationDueDate, "Due Soon")}*
+                          </span>
+                        </p>
+                      ))}
+                    </div>
+
+                    <p className="text-[10.5px] text-gray-700 pt-0.5">
+                      Please schedule recalibration pickup or book on-site testing:
+                      <br />
+                      <span className="text-blue-700 underline font-mono font-medium">https://arclinstruments.com/calibration-services</span>
+                    </p>
+
+                    <div className="pt-1.5 border-t border-emerald-300/70 text-[10px] text-gray-700 flex flex-col gap-0.5">
+                      <p className="font-bold text-gray-900">ARCL Metrology Support Desk:</p>
+                      <p>🔴 Phone: {reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}</p>
+                      <p>🔴 Email: {reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -10742,7 +10889,7 @@ export default function CalibrationPageView() {
                 >
                   <FaWhatsapp className="text-lg text-emerald-600 group-hover:text-white group-hover:scale-110 transition" />
                   <span>WhatsApp Only</span>
-                  <span className="text-[10px] font-normal opacity-80">(Bus WhatsApp)</span>
+                  <span className="text-[10px] font-normal opacity-80">(Direct WhatsApp)</span>
                 </button>
 
                 <button
