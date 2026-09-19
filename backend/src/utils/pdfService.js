@@ -281,7 +281,7 @@ const drawOfficialFooter = (doc, customY = null) => {
  * =========================================================================
  */
 export const generateTaxInvoicePdf = async (customData = {}) => {
-  const doc = new PDFDocument({ size: "A4", margin: 25, bufferPages: true });
+  const doc = new PDFDocument({ size: "A4", margin: 10, bufferPages: true });
 
   const inv = customData.taxInvoiceData || customData;
   const invoiceNo = inv.invoiceNo || "ARCL/26-27/74";
@@ -293,20 +293,23 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
     : "23 Jun 2026";
   const placeOfSupply = inv.placeOfSupply || "27-MAHARASHTRA";
 
-  const clientCompany = inv.clientCompany || inv.billTo?.companyName || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
-  const clientGstin = inv.clientGstin || inv.billTo?.gstin || "27AAOCR3275P1ZH";
-  const clientAddress = inv.clientAddress || (inv.billTo?.address ? `${inv.billTo.address}\n${inv.billTo.cityStatePin || ""}`.trim() : "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS\nBELAVALI, Ambarnath\nThane, MAHARASHTRA, 421503");
+  const rawCompany = inv.clientCompany || inv.billTo?.companyName || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
+  const clientCompany = String(rawCompany).replace(/\r?\n+/g, " ").trim();
+  const rawGstin = inv.clientGstin || inv.billTo?.gstin || "27AAOCR3275P1ZH";
+  const clientGstin = String(rawGstin).replace(/\r?\n+/g, " ").trim();
+  const rawAddress = inv.clientAddress || (inv.billTo?.address ? `${inv.billTo.address}, ${inv.billTo.cityStatePin || ""}` : "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS, BELAVALI, Ambarnath, Thane, MAHARASHTRA, 421503");
+  const clientAddress = String(rawAddress).replace(/\r?\n+/g, ", ").replace(/\s+,/g, ",").trim();
 
   let items = inv.items && Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : defaultTaxInvoiceItems;
 
   const formattedItems = items.map((it, idx) => ({
     itemNo: it.itemNo || idx + 1,
-    name: it.name || it.description || `Calibration Service ${idx + 1}`,
-    subText: it.subText || it.remarks || "",
-    hsnSac: String(it.hsnSac || it.hsnCode || "998346"),
-    taxRate: String(it.taxRate || it.gstRate || "18%"),
+    name: String(it.name || it.description || `Calibration Service ${idx + 1}`).replace(/\r?\n+/g, " ").trim(),
+    subText: String(it.subText || it.remarks || "").replace(/\r?\n+/g, " ").trim(),
+    hsnSac: String(it.hsnSac || it.hsnCode || "998346").trim(),
+    taxRate: String(it.taxRate || it.gstRate || "18%").trim(),
     qty: Number(it.qty || 1),
-    qtyUnit: it.qtyUnit || it.uom || "NOS",
+    qtyUnit: String(it.qtyUnit || it.uom || "NOS").trim(),
     rate: Number(it.rate || 0),
     amount: (Number(it.amount) || Number(it.qty || 1) * Number(it.rate || 0)),
   }));
@@ -321,13 +324,11 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
   const igstAmount = isInterstate ? taxableAmount * 0.18 : 0;
   const totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount;
 
-  // Bank & UPI QR Code (Generated from .env / Account details)
+  // Bank & UPI QR Code
   const bankName = (inv.bankName || process.env.BANK_NAME || "HDFC Bank").trim();
   const accountNo = (inv.accountNo || process.env.BANK_ACCOUNT_NO || "50200111763991").trim();
   const branchName = (inv.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (inv.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
-  const payeeName = (process.env.UPI_PAYEE_NAME || inv.payeeName || "ARCL INSTRUMENTS PRIVATE LIMITED").trim();
-  const upiId = (process.env.UPI_ID || inv.upiId || "8572995533.2@hdfc").trim();
 
   let qrBuffer = null;
   if (fs.existsSync(QR_IMAGE_PATH)) {
@@ -338,256 +339,220 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
     }
   }
 
-  // Auto-Spacing calculation
-  const isSinglePage = formattedItems.length <= 8;
-  const rowH = isSinglePage
-    ? Math.max(24, Math.min(38, Math.floor(260 / Math.max(1, formattedItems.length))))
-    : 22;
+  const leftMargin = 30;
+  const contentWidth = 535;
 
-  // Draw Full Header for Page 1
-  const drawFullTaxHeader = (doc) => {
-    let topY = 25;
-    if (fs.existsSync(LOGO_PATH)) {
-      try {
-        doc.image(LOGO_PATH, 30, topY, { width: 75 });
-      } catch (e) {
-        doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
-      }
-    } else {
-      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
+  // 1. TOP OFFICIAL HEADER
+  let topY = 14;
+  if (fs.existsSync(LOGO_PATH)) {
+    try {
+      doc.image(LOGO_PATH, leftMargin, topY, { width: 56 });
+    } catch (e) {
+      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
     }
+  } else {
+    doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
+  }
 
-    doc.fontSize(12).font("Helvetica-Bold").fillColor("#021C57").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
-    doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
-    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
+  doc.fontSize(10.5).font("Helvetica-Bold").fillColor("#021C57").text("ARCL INSTRUMENTS PRIVATE LIMITED", leftMargin + 64, topY + 2);
+  doc.fontSize(5.8).font("Helvetica").fillColor("#334155");
+  doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai, Maharashtra - 400708", leftMargin + 64, topY + 14);
+  doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", leftMargin + 64, topY + 23);
 
-    doc.rect(430, topY, 135, 38).fillColor("#021C57").fill();
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#ffffff").text("TAX INVOICE", 430, topY + 6, { width: 135, align: "center" });
-    doc.fontSize(6).font("Helvetica").text("Original for Recipient", 430, topY + 22, { width: 135, align: "center" });
+  const badgeW = 135;
+  const badgeX = leftMargin + contentWidth - badgeW;
+  doc.rect(badgeX, topY + 2, badgeW, 26).fillColor("#021C57").fill();
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#ffffff").text("TAX INVOICE", badgeX, topY + 5, { width: badgeW, align: "center" });
+  doc.fontSize(5.2).font("Helvetica").text("Original for Recipient", badgeX, topY + 17, { width: badgeW, align: "center" });
 
-    doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#021C57").stroke();
+  doc.moveTo(leftMargin, topY + 36).lineTo(leftMargin + contentWidth, topY + 36).lineWidth(1).strokeColor("#021C57").stroke();
 
-    const boxY = topY + 54;
-    
-    // Dynamic height calculation for left (Customer) and right (Details) boxes
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
-    doc.fontSize(6).font("Helvetica");
-    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
-    
-    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
-    const rightRequiredH = 62;
-    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+  // 2. BILLED TO & INVOICE DETAILS CARD
+  const boxY = topY + 40;
+  const boxH = 54;
+  const boxSplitX = leftMargin + 270;
 
-    doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, boxY, contentWidth, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(boxSplitX, boxY).lineTo(boxSplitX, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
-    // Draw Left Side (Billed To)
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Billed To (Customer):", 36, boxY + 5);
-    const compY = boxY + 14;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
-    const addrY = compY + compH + 2;
-    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
-    const gstinY = addrY + addrH + 4;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
+  // Left: Billed To
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Billed To (Customer):", leftMargin + 6, boxY + 4);
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(clientCompany, leftMargin + 6, boxY + 13, { width: 255, ellipsis: true });
+  doc.fontSize(5.5).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 6, boxY + 23, { width: 255, height: 18, lineGap: 0.8, ellipsis: true });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, leftMargin + 6, boxY + 43);
 
-    // Draw Right Side (Invoice Details)
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Invoice Details:", 296, boxY + 5);
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text("Invoice No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(invoiceNo, 365, boxY + 16, { width: 195 });
-    doc.font("Helvetica").text("Invoice Date:", 296, boxY + 27);
-    doc.text(invoiceDate, 365, boxY + 27, { width: 195 });
-    doc.text("Due Date:", 296, boxY + 38);
-    doc.text(dueDate, 365, boxY + 38, { width: 195 });
-    doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
+  // Right: Invoice Details
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Invoice Details:", boxSplitX + 6, boxY + 4);
+  doc.font("Helvetica").fontSize(5.8);
+  doc.text("Invoice No.:", boxSplitX + 6, boxY + 13);
+  doc.font("Helvetica-Bold").text(invoiceNo, boxSplitX + 75, boxY + 13, { width: 180 });
+  doc.font("Helvetica").text("Invoice Date:", boxSplitX + 6, boxY + 23);
+  doc.text(invoiceDate, boxSplitX + 75, boxY + 23, { width: 180 });
+  doc.text("Due Date:", boxSplitX + 6, boxY + 33);
+  doc.text(dueDate, boxSplitX + 75, boxY + 33, { width: 180 });
+  doc.text("Place of Supply:", boxSplitX + 6, boxY + 43);
+  doc.text(placeOfSupply, boxSplitX + 75, boxY + 43, { width: 180 });
 
-    return boxY + boxH + 6;
-  };
+  // 3. TABLE HEADER
+  let curY = boxY + boxH + 3;
+  const thH = 15;
+  doc.rect(leftMargin, curY, contentWidth, thH).fillColor("#021C57").fill();
 
-  // Draw Compact Header for Continuation Pages
-  const drawCompactTaxHeader = (doc) => {
-    let topY = 25;
-    doc.rect(30, topY, 535, 24).fillColor("#021C57").fill();
-    doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#ffffff").text(`ARCL INSTRUMENTS - TAX INVOICE (${invoiceNo})`, 36, topY + 7);
-    doc.fontSize(7.5).font("Helvetica").text(`Date: ${invoiceDate}  |  Place of Supply: ${placeOfSupply}`, 320, topY + 8, { width: 235, align: "right" });
-    return topY + 28;
-  };
+  const colX = [
+    leftMargin,
+    leftMargin + 18,
+    leftMargin + 225,
+    leftMargin + 275,
+    leftMargin + 315,
+    leftMargin + 365,
+    leftMargin + 430,
+    leftMargin + contentWidth
+  ];
 
-  // Draw Table Columns Header
-  const drawTaxTableHeader = (doc, startY) => {
-    const thH = 18;
-    doc.rect(30, startY, 535, thH).fillColor("#021C57").fill();
-    doc.moveTo(48, startY).lineTo(48, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(275, startY).lineTo(275, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(330, startY).lineTo(330, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(390, startY).lineTo(390, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(460, startY).lineTo(460, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  for (let i = 1; i < colX.length; i++) {
+    doc.moveTo(colX[i], curY).lineTo(colX[i], curY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  }
 
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#ffffff");
-    doc.text("#", 30, startY + 5, { width: 18, align: "center" });
-    doc.text("Description of Services / Calibration Scope", 52, startY + 5);
-    doc.text("HSN/SAC", 275, startY + 5, { width: 55, align: "center" });
-    doc.text("Qty", 330, startY + 5, { width: 60, align: "center" });
-    doc.text("Rate (INR)", 390, startY + 5, { width: 70, align: "right" });
-    doc.text("Amount (INR)", 460, startY + 5, { width: 100, align: "right" });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#ffffff");
+  doc.text("#", colX[0], curY + 4, { width: colX[1] - colX[0], align: "center" });
+  doc.text("Description of Services / Calibration Scope", colX[1] + 4, curY + 4);
+  doc.text("HSN/SAC", colX[2], curY + 4, { width: colX[3] - colX[2], align: "center" });
+  doc.text("Tax", colX[3], curY + 4, { width: colX[4] - colX[3], align: "center" });
+  doc.text("Qty", colX[4], curY + 4, { width: colX[5] - colX[4], align: "center" });
+  doc.text("Rate (INR)", colX[5], curY + 4, { width: colX[6] - colX[5], align: "right" });
+  doc.text("Amount (INR)", colX[6], curY + 4, { width: colX[7] - colX[6] - 4, align: "right" });
 
-    return startY + thH;
-  };
+  curY += thH;
 
-  // Draw Summary, HSN Tax Breakdown & Bank Details Block
-  const drawTaxInvoiceSummaryBlock = (doc, startY) => {
-    let cur = startY;
+  // 4. ITEMS ROWS AUTO-SCALED TO FIT SINGLE PAGE
+  const N = formattedItems.length;
+  let rowH = 14;
+  let showSub = true;
+  if (N <= 3) {
+    rowH = 26;
+  } else if (N <= 8) {
+    rowH = 20;
+  } else if (N <= 15) {
+    rowH = 16;
+  } else {
+    rowH = Math.max(12, Math.floor(375 / N));
+    showSub = rowH >= 15;
+  }
 
-    // 1. Total & Words Box
-    const sumH = 48;
-    doc.rect(30, cur, 535, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(390, cur).lineTo(390, cur + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
-
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", 36, cur + 5);
-    doc.font("Helvetica").fontSize(6.5).text(numberToWords(totalAmount.toFixed(2)), 36, cur + 15, { width: 345 });
-
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text("Taxable Amount:", 395, cur + 5);
-    doc.text(taxableAmount.toFixed(2), 485, cur + 5, { width: 75, align: "right" });
-    doc.text("Total GST Amount:", 395, cur + 15);
-    doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), 485, cur + 15, { width: 75, align: "right" });
-    doc.font("Helvetica-Bold").text("Grand Total (INR):", 395, cur + 30);
-    doc.text(totalAmount.toFixed(2), 485, cur + 30, { width: 75, align: "right" });
-
-    cur += sumH;
-
-    // 2. HSN Table
-    const hsnH = 42;
-    doc.rect(30, cur, 535, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.rect(30, cur, 535, 14).fillColor("#f1f5f9").fill();
-
-    doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000");
-    doc.text("HSN/SAC", 35, cur + 4);
-    doc.text("Taxable Value", 145, cur + 4, { width: 80, align: "right" });
-    doc.text("CGST Rate", 232, cur + 4, { width: 55, align: "center" });
-    doc.text("CGST Amt", 292, cur + 4, { width: 55, align: "right" });
-    doc.text("SGST Rate", 352, cur + 4, { width: 55, align: "center" });
-    doc.text("SGST Amt", 412, cur + 4, { width: 55, align: "right" });
-    doc.text("Total Tax Amt", 475, cur + 4, { width: 85, align: "right" });
-
-    doc.font("Helvetica").fontSize(6);
-    doc.text("998346", 35, cur + 18);
-    doc.text(taxableAmount.toFixed(2), 145, cur + 18, { width: 80, align: "right" });
-    doc.text(`${cgstRate.toFixed(1)}%`, 232, cur + 18, { width: 55, align: "center" });
-    doc.text(cgstAmount.toFixed(2), 292, cur + 18, { width: 55, align: "right" });
-    doc.text(`${sgstRate.toFixed(1)}%`, 352, cur + 18, { width: 55, align: "center" });
-    doc.text(sgstAmount.toFixed(2), 412, cur + 18, { width: 55, align: "right" });
-    doc.text((cgstAmount + sgstAmount).toFixed(2), 475, cur + 18, { width: 85, align: "right" });
-
-    cur += hsnH;
-
-    // 3. Bank Details, Terms & Signatures
-    const botH = 135;
-    doc.rect(30, cur, 535, botH).lineWidth(0.8).strokeColor("#000000").stroke();
-    doc.moveTo(270, cur).lineTo(270, cur + botH).lineWidth(0.8).strokeColor("#000000").stroke();
-
-    doc.fontSize(7).font("Helvetica-Bold").fillColor("#000000").text("Bank Details:", 36, cur + 6);
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text(`Bank Name: ${bankName}`, 36, cur + 18);
-    doc.text(`A/C No: ${accountNo}`, 36, cur + 29);
-    doc.text(`Branch: ${branchName}`, 36, cur + 40);
-    doc.text(`IFSC Code: ${ifscCode}`, 36, cur + 51);
-
-    if (qrBuffer) {
-      doc.image(qrBuffer, 175, cur + 8, { width: 68 });
-      doc.fontSize(6).font("Helvetica-Bold").text("Scan to Pay UPI", 175, cur + 80, { width: 68, align: "center" });
-    }
-
-    doc.fontSize(7).font("Helvetica-Bold").text("Terms & Conditions:", 276, cur + 6);
-    doc.font("Helvetica").fontSize(6);
-    doc.text("1. Calibration reports will be issued as per ISO/IEC 17025 norms.", 276, cur + 18, { width: 280 });
-    doc.text("2. Interest @ 18% p.a. will be charged if payment is delayed.", 276, cur + 28, { width: 280 });
-    doc.text("3. Subject to Mumbai Jurisdiction.", 276, cur + 38, { width: 280 });
-
-    doc.fontSize(7).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", 276, cur + 68, { width: 280, align: "right" });
-    
-    if (fs.existsSync(STAMP_IMAGE_PATH)) {
-      try {
-        doc.image(STAMP_IMAGE_PATH, 455, cur + 72, { width: 85 });
-      } catch (e) {}
-    } else {
-      const stampX = 500;
-      const stampY = cur + 105;
-      doc.save();
-      doc.circle(stampX, stampY, 20).lineWidth(1).strokeColor("#1e3a8a").stroke();
-      doc.circle(stampX, stampY, 17).lineWidth(0.5).strokeColor("#1e3a8a").stroke();
-      doc.fontSize(4).font("Helvetica-Bold").fillColor("#1e3a8a").text("ARCL INSTRUMENTS", stampX - 18, stampY - 6, { width: 36, align: "center" });
-      doc.restore();
-    }
-
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000").text("Authorized Signatory", 276, cur + 120, { width: 280, align: "right" });
-    return cur + botH;
-  };
-
-  // Execution Flow
-  let curY = drawFullTaxHeader(doc);
-  curY = drawTaxTableHeader(doc, curY);
-
-  for (let i = 0; i < formattedItems.length; i++) {
+  for (let i = 0; i < N; i++) {
     const it = formattedItems[i];
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const nameH = doc.heightOfString(it.name, { width: 220 });
-    let subH = 0;
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica");
-      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
-    }
-    const itemH = Math.max(rowH, nameH + subH + 8);
+    const bg = i % 2 === 0 ? "#ffffff" : "#fdfcfb";
+    doc.rect(leftMargin, curY, contentWidth, rowH).fillColor(bg).strokeColor("#000000").lineWidth(0.5).fillAndStroke();
 
-    if (curY + itemH > 750) {
-      doc.addPage({ size: "A4", margin: 25 });
-      curY = drawCompactTaxHeader(doc);
-      curY = drawTaxTableHeader(doc, curY);
+    for (let j = 1; j < colX.length; j++) {
+      doc.moveTo(colX[j], curY).lineTo(colX[j], curY + rowH).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
     }
 
-    doc.rect(30, curY, 535, itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(48, curY).lineTo(48, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(275, curY).lineTo(275, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(330, curY).lineTo(330, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(390, curY).lineTo(390, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(460, curY).lineTo(460, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
+    const midY = curY + (rowH / 2) - 3.2;
 
-    const textYOffset = (itemH / 2) - 4;
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
+    // Item No
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(String(it.itemNo), colX[0], midY, { width: colX[1] - colX[0], align: "center" });
 
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
+    // Name & Subtext
+    if (showSub && it.subText && rowH >= 16) {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, curY + 2.5, { width: colX[2] - colX[1] - 8, ellipsis: true });
+      doc.fontSize(5).font("Helvetica").fillColor("#475569").text(it.subText, colX[1] + 4, curY + 10, { width: colX[2] - colX[1] - 8, ellipsis: true });
+    } else {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, midY, { width: colX[2] - colX[1] - 8, ellipsis: true });
     }
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
-    doc.text(`${it.qty} ${it.qtyUnit}`, 330, curY + textYOffset, { width: 60, align: "center" });
-    doc.text(it.rate.toFixed(2), 390, curY + textYOffset, { width: 65, align: "right" });
-    doc.text(it.amount.toFixed(2), 460, curY + textYOffset, { width: 100, align: "right" });
 
-    curY += itemH;
+    // HSN, Tax, Qty, Rate, Amount
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(it.hsnSac, colX[2], midY, { width: colX[3] - colX[2], align: "center" });
+    doc.text(it.taxRate || "18%", colX[3], midY, { width: colX[4] - colX[3], align: "center" });
+    doc.text(`${it.qty} ${it.qtyUnit}`, colX[4], midY, { width: colX[5] - colX[4], align: "center" });
+    doc.text(it.rate.toFixed(2), colX[5], midY, { width: colX[6] - colX[5], align: "right" });
+    doc.text(it.amount.toFixed(2), colX[6], midY, { width: colX[7] - colX[6] - 4, align: "right" });
+
+    curY += rowH;
   }
 
-  // Check if complete summary fits on current page (requires ~235 pt)
-  if (curY + 235 > 775) {
-    doc.addPage({ size: "A4", margin: 25 });
-    curY = drawCompactTaxHeader(doc);
+  // 5. SUMMARY BLOCK (Total in words & Tax totals)
+  const sumH = 34;
+  doc.rect(leftMargin, curY, contentWidth, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(leftMargin + 350, curY).lineTo(leftMargin + 350, curY + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6).text(numberToWords(totalAmount.toFixed(2)), leftMargin + 6, curY + 13, { width: 338, lineGap: 0.8 });
+
+  doc.font("Helvetica").fontSize(6);
+  doc.text("Taxable Amount:", leftMargin + 356, curY + 3.5);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 450, curY + 3.5, { width: 78, align: "right" });
+  doc.text("Total GST Amount:", leftMargin + 356, curY + 12.5);
+  doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), leftMargin + 450, curY + 12.5, { width: 78, align: "right" });
+  doc.font("Helvetica-Bold").text("Grand Total (INR):", leftMargin + 356, curY + 22.5);
+  doc.text(totalAmount.toFixed(2), leftMargin + 450, curY + 22.5, { width: 78, align: "right" });
+
+  curY += sumH;
+
+  // 6. HSN TAX BREAKDOWN TABLE
+  const hsnH = 26;
+  doc.rect(leftMargin, curY, contentWidth, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, curY, contentWidth, 11).fillColor("#f1f5f9").fill();
+
+  doc.fontSize(5.6).font("Helvetica-Bold").fillColor("#000000");
+  doc.text("HSN/SAC", leftMargin + 6, curY + 2.5);
+  doc.text("Taxable Value", leftMargin + 130, curY + 2.5, { width: 80, align: "right" });
+  doc.text("CGST Rate", leftMargin + 220, curY + 2.5, { width: 50, align: "center" });
+  doc.text("CGST Amt", leftMargin + 275, curY + 2.5, { width: 55, align: "right" });
+  doc.text("SGST Rate", leftMargin + 335, curY + 2.5, { width: 50, align: "center" });
+  doc.text("SGST Amt", leftMargin + 390, curY + 2.5, { width: 55, align: "right" });
+  doc.text("Total Tax Amt", leftMargin + 450, curY + 2.5, { width: 78, align: "right" });
+
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text("998346", leftMargin + 6, curY + 14);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 130, curY + 14, { width: 80, align: "right" });
+  doc.text(`${cgstRate.toFixed(1)}%`, leftMargin + 220, curY + 14, { width: 50, align: "center" });
+  doc.text(cgstAmount.toFixed(2), leftMargin + 275, curY + 14, { width: 55, align: "right" });
+  doc.text(`${sgstRate.toFixed(1)}%`, leftMargin + 335, curY + 14, { width: 50, align: "center" });
+  doc.text(sgstAmount.toFixed(2), leftMargin + 390, curY + 14, { width: 55, align: "right" });
+  doc.text((cgstAmount + sgstAmount).toFixed(2), leftMargin + 450, curY + 14, { width: 78, align: "right" });
+
+  curY += hsnH;
+
+  // 7. BANK DETAILS, QR CODE, TERMS & SIGNATURE BLOCK
+  const botH = 92;
+  const botSplitX = leftMargin + 265;
+  doc.rect(leftMargin, curY, contentWidth, botH).lineWidth(0.8).strokeColor("#000000").stroke();
+  doc.moveTo(botSplitX, curY).lineTo(botSplitX, curY + botH).lineWidth(0.8).strokeColor("#000000").stroke();
+
+  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Bank Details:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text(`Bank Name: ${bankName}`, leftMargin + 6, curY + 13);
+  doc.text(`A/C No: ${accountNo}`, leftMargin + 6, curY + 21);
+  doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
+  doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
+
+  if (qrBuffer) {
+    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
+    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
   }
 
-  drawTaxInvoiceSummaryBlock(doc, curY);
+  doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
 
-  // Dynamic Footer on all pages with Page X of Y
-  const range = doc.bufferedPageRange();
-  for (let p = 0; p < range.count; p++) {
-    doc.switchToPage(p);
-    const footerText = `Page ${p + 1} of ${range.count}  •  ${invoiceNo}  •  Digitally Authenticated Tax Invoice`;
-    doc.fontSize(7).font("Helvetica").fillColor("#475569").text(footerText, 30, 805, { width: 535, align: "center" });
+  doc.fontSize(6).font("Helvetica-Bold").text("Terms & Conditions:", botSplitX + 6, curY + 16);
+  doc.font("Helvetica").fontSize(5.2);
+  doc.text("1. Calibration reports will be issued as per ISO/IEC 17025 norms.", botSplitX + 6, curY + 25, { width: 190 });
+  doc.text("2. Interest @ 18% p.a. will be charged if payment is delayed.", botSplitX + 6, curY + 34, { width: 190 });
+  doc.text("3. Subject to Mumbai Jurisdiction.", botSplitX + 6, curY + 43, { width: 190 });
+
+  if (fs.existsSync(STAMP_IMAGE_PATH)) {
+    try {
+      doc.image(STAMP_IMAGE_PATH, leftMargin + contentWidth - 68, curY + 18, { width: 44 });
+    } catch (e) {}
   }
+
+  doc.fontSize(6).font("Helvetica").fillColor("#000000").text("Authorized Signatory", botSplitX + 6, curY + 76, { width: 258, align: "right" });
+
+  // 8. FOOTER
+  const footerText = `Page 1 of 1  •  ${invoiceNo}  •  Digitally Authenticated Tax Invoice`;
+  doc.fontSize(6.2).font("Helvetica").fillColor("#64748b").text(footerText, leftMargin, 814, { width: contentWidth, align: "center", lineBreak: false });
 
   return buildPdfBuffer(doc);
 };
@@ -598,7 +563,7 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
  * =========================================================================
  */
 export const generateQuotationPdf = async (customData = {}) => {
-  const doc = new PDFDocument({ size: "A4", margin: 25, bufferPages: true });
+  const doc = new PDFDocument({ size: "A4", margin: 10, bufferPages: true });
 
   const qtn = customData.quotationData || customData;
   const qtnNo = qtn.quotationNo || "ARCL/QTN/26-27/47";
@@ -610,20 +575,23 @@ export const generateQuotationPdf = async (customData = {}) => {
     : "29 Apr 2026";
   const placeOfSupply = qtn.placeOfSupply || "27-MAHARASHTRA";
 
-  const clientCompany = qtn.billTo?.companyName || qtn.clientCompany || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
-  const clientGstin = qtn.billTo?.gstin || qtn.clientGstin || "27AAOCR3275P1ZH";
-  const clientAddress = qtn.billTo?.address
-    ? (qtn.billTo.cityStatePin ? `${qtn.billTo.address}\n${qtn.billTo.cityStatePin}` : qtn.billTo.address)
-    : (qtn.clientAddress || "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS\nBELAVALI, Ambarnath\nThane, MAHARASHTRA, 421503");
+  const rawCompany = qtn.billTo?.companyName || qtn.clientCompany || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
+  const clientCompany = String(rawCompany).replace(/\r?\n+/g, " ").trim();
+  const rawGstin = qtn.billTo?.gstin || qtn.clientGstin || "27AAOCR3275P1ZH";
+  const clientGstin = String(rawGstin).replace(/\r?\n+/g, " ").trim();
+  const rawAddress = qtn.billTo?.address
+    ? (qtn.billTo.cityStatePin ? `${qtn.billTo.address}, ${qtn.billTo.cityStatePin}` : qtn.billTo.address)
+    : (qtn.clientAddress || "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS, BELAVALI, Ambarnath, Thane, MAHARASHTRA, 421503");
+  const clientAddress = String(rawAddress).replace(/\r?\n+/g, ", ").replace(/\s+,/g, ",").trim();
 
   let rawItems = qtn.items && Array.isArray(qtn.items) && qtn.items.length > 0 ? qtn.items : defaultQuotationItems;
 
   const formattedItems = rawItems.map((it, idx) => ({
     itemNo: it.itemNo || idx + 1,
-    name: it.name || it.description || `Calibration Item ${idx + 1}`,
-    subText: it.subText || it.remarks || "",
-    hsnSac: String(it.hsnSac || it.hsnCode || "998346"),
-    qty: `${it.qty || 1} ${it.qtyUnit || "NOS"}`,
+    name: String(it.name || it.description || `Calibration Item ${idx + 1}`).replace(/\r?\n+/g, " ").trim(),
+    subText: String(it.subText || it.remarks || "").replace(/\r?\n+/g, " ").trim(),
+    hsnSac: String(it.hsnSac || it.hsnCode || "998346").trim(),
+    qty: String(it.qty || 1) + (it.qtyUnit ? ` ${it.qtyUnit}` : " NOS"),
     rate: Number(it.rate || 0).toFixed(2),
     amount: (Number(it.amount) || Number(it.qty || 1) * Number(it.rate || 0)).toFixed(2),
     rawAmount: Number(it.amount) || Number(it.qty || 1) * Number(it.rate || 0),
@@ -639,13 +607,11 @@ export const generateQuotationPdf = async (customData = {}) => {
   const igstAmount = isInterstate ? taxableAmount * 0.18 : 0;
   const totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount;
 
-  // Bank & UPI QR Code (Generated from .env / Account details)
+  // Bank & UPI QR Code
   const bankName = (qtn.bankName || process.env.BANK_NAME || "HDFC Bank").trim();
   const accountNo = (qtn.accountNo || process.env.BANK_ACCOUNT_NO || "50200111763991").trim();
   const branchName = (qtn.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (qtn.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
-  const payeeName = (process.env.UPI_PAYEE_NAME || qtn.payeeName || "ARCL INSTRUMENTS PRIVATE LIMITED").trim();
-  const upiId = (process.env.UPI_ID || qtn.upiId || "8572995533.2@hdfc").trim();
 
   let qrBuffer = null;
   if (fs.existsSync(QR_IMAGE_PATH)) {
@@ -656,244 +622,214 @@ export const generateQuotationPdf = async (customData = {}) => {
     }
   }
 
-  const isSinglePage = formattedItems.length <= 8;
-  const rowH = isSinglePage
-    ? Math.max(24, Math.min(38, Math.floor(260 / Math.max(1, formattedItems.length))))
-    : 22;
+  const leftMargin = 30;
+  const contentWidth = 535;
 
-  const drawPageHeader = (doc) => {
-    let topY = 25;
-    if (fs.existsSync(LOGO_PATH)) {
-      try {
-        doc.image(LOGO_PATH, 30, topY, { width: 75 });
-      } catch (e) {
-        doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
-      }
-    } else {
-      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
+  // 1. TOP OFFICIAL HEADER
+  let topY = 14;
+  if (fs.existsSync(LOGO_PATH)) {
+    try {
+      doc.image(LOGO_PATH, leftMargin, topY, { width: 56 });
+    } catch (e) {
+      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
     }
+  } else {
+    doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
+  }
 
-    doc.fontSize(12).font("Helvetica-Bold").fillColor("#2563EB").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
-    doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
-    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
+  doc.fontSize(10.5).font("Helvetica-Bold").fillColor("#2563EB").text("ARCL INSTRUMENTS PRIVATE LIMITED", leftMargin + 64, topY + 2);
+  doc.fontSize(5.8).font("Helvetica").fillColor("#334155");
+  doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai, Maharashtra - 400708", leftMargin + 64, topY + 14);
+  doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", leftMargin + 64, topY + 23);
 
-    doc.rect(430, topY, 135, 38).fillColor("#2563EB").fill();
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#ffffff").text("QUOTATION", 430, topY + 6, { width: 135, align: "center" });
-    doc.fontSize(6).font("Helvetica").text("Official Metrological Estimate", 430, topY + 22, { width: 135, align: "center" });
+  const badgeW = 135;
+  const badgeX = leftMargin + contentWidth - badgeW;
+  doc.rect(badgeX, topY + 2, badgeW, 26).fillColor("#2563EB").fill();
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#ffffff").text("QUOTATION", badgeX, topY + 5, { width: badgeW, align: "center" });
+  doc.fontSize(5.2).font("Helvetica").text("Official Metrological Estimate", badgeX, topY + 17, { width: badgeW, align: "center" });
 
-    doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#2563EB").stroke();
+  doc.moveTo(leftMargin, topY + 36).lineTo(leftMargin + contentWidth, topY + 36).lineWidth(1).strokeColor("#2563EB").stroke();
 
-    const boxY = topY + 54;
-    
-    // Dynamic height calculation for left (Customer) and right (Details) boxes
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
-    doc.fontSize(6).font("Helvetica");
-    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
-    
-    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
-    const rightRequiredH = 62;
-    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+  // 2. QUOTATION TO & DETAILS CARD
+  const boxY = topY + 40;
+  const boxH = 54;
+  const boxSplitX = leftMargin + 270;
 
-    doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, boxY, contentWidth, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(boxSplitX, boxY).lineTo(boxSplitX, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
-    // Draw Left Side (Quotation To)
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Quotation To (Customer):", 36, boxY + 5);
-    const compY = boxY + 14;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
-    const addrY = compY + compH + 2;
-    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
-    const gstinY = addrY + addrH + 4;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
+  // Left: Quotation To
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Quotation To (Customer):", leftMargin + 6, boxY + 4);
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(clientCompany, leftMargin + 6, boxY + 13, { width: 255, ellipsis: true });
+  doc.fontSize(5.5).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 6, boxY + 23, { width: 255, height: 18, lineGap: 0.8, ellipsis: true });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, leftMargin + 6, boxY + 43);
 
-    // Draw Right Side (Quotation Details)
-    doc.fontSize(6.5).font("Helvetica-Bold").text("Quotation Details:", 296, boxY + 5);
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text("Quotation No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(qtnNo, 365, boxY + 16, { width: 195 });
-    doc.font("Helvetica").text("Date:", 296, boxY + 27);
-    doc.text(qtnDate, 365, boxY + 27, { width: 195 });
-    doc.text("Valid Till:", 296, boxY + 38);
-    doc.text(validityDate, 365, boxY + 38, { width: 195 });
-    doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
+  // Right: Details
+  doc.fontSize(6).font("Helvetica-Bold").text("Quotation Details:", boxSplitX + 6, boxY + 4);
+  doc.font("Helvetica").fontSize(5.8);
+  doc.text("Quotation No.:", boxSplitX + 6, boxY + 13);
+  doc.font("Helvetica-Bold").text(qtnNo, boxSplitX + 75, boxY + 13, { width: 180 });
+  doc.font("Helvetica").text("Date:", boxSplitX + 6, boxY + 23);
+  doc.text(qtnDate, boxSplitX + 75, boxY + 23, { width: 180 });
+  doc.text("Valid Till:", boxSplitX + 6, boxY + 33);
+  doc.text(validityDate, boxSplitX + 75, boxY + 33, { width: 180 });
+  doc.text("Place of Supply:", boxSplitX + 6, boxY + 43);
+  doc.text(placeOfSupply, boxSplitX + 75, boxY + 43, { width: 180 });
 
-    return boxY + boxH + 6;
-  };
+  // 3. TABLE HEADER
+  let curY = boxY + boxH + 3;
+  const thH = 15;
+  doc.rect(leftMargin, curY, contentWidth, thH).fillColor("#2563EB").fill();
 
-  const drawCompactQtnHeader = (doc) => {
-    let topY = 25;
-    doc.rect(30, topY, 535, 24).fillColor("#2563EB").fill();
-    doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#ffffff").text(`ARCL INSTRUMENTS - QUOTATION (${qtnNo})`, 36, topY + 7);
-    doc.fontSize(7.5).font("Helvetica").text(`Date: ${qtnDate}  |  Place of Supply: ${placeOfSupply}`, 320, topY + 8, { width: 235, align: "right" });
-    return topY + 28;
-  };
+  const colX = [
+    leftMargin,
+    leftMargin + 18,
+    leftMargin + 240,
+    leftMargin + 295,
+    leftMargin + 350,
+    leftMargin + 420,
+    leftMargin + contentWidth
+  ];
 
-  const drawTableHeader = (doc, startY) => {
-    const thH = 18;
-    doc.rect(30, startY, 535, thH).fillColor("#2563EB").fill();
-    doc.moveTo(48, startY).lineTo(48, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(275, startY).lineTo(275, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(330, startY).lineTo(330, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(390, startY).lineTo(390, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(460, startY).lineTo(460, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  for (let i = 1; i < colX.length; i++) {
+    doc.moveTo(colX[i], curY).lineTo(colX[i], curY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  }
 
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#ffffff");
-    doc.text("#", 30, startY + 5, { width: 18, align: "center" });
-    doc.text("Item & Calibration Scope", 52, startY + 5);
-    doc.text("HSN/SAC", 275, startY + 5, { width: 55, align: "center" });
-    doc.text("Qty", 330, startY + 5, { width: 60, align: "center" });
-    doc.text("Rate (INR)", 390, startY + 5, { width: 70, align: "right" });
-    doc.text("Amount (INR)", 460, startY + 5, { width: 100, align: "right" });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#ffffff");
+  doc.text("#", colX[0], curY + 4, { width: colX[1] - colX[0], align: "center" });
+  doc.text("Item & Calibration Scope", colX[1] + 4, curY + 4);
+  doc.text("HSN/SAC", colX[2], curY + 4, { width: colX[3] - colX[2], align: "center" });
+  doc.text("Qty", colX[3], curY + 4, { width: colX[4] - colX[3], align: "center" });
+  doc.text("Rate (INR)", colX[4], curY + 4, { width: colX[5] - colX[4], align: "right" });
+  doc.text("Amount (INR)", colX[5], curY + 4, { width: colX[6] - colX[5] - 4, align: "right" });
 
-    return startY + thH;
-  };
+  curY += thH;
 
-  const drawQuotationSummary = (doc, curY) => {
-    let sumY = curY;
-    const sumH = 48;
-    doc.rect(30, sumY, 535, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(390, sumY).lineTo(390, sumY + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+  // 4. ITEMS ROWS
+  const N = formattedItems.length;
+  let rowH = 14;
+  let showSub = true;
+  if (N <= 3) {
+    rowH = 26;
+  } else if (N <= 8) {
+    rowH = 20;
+  } else if (N <= 15) {
+    rowH = 16;
+  } else {
+    rowH = Math.max(12, Math.floor(375 / N));
+    showSub = rowH >= 15;
+  }
 
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", 36, sumY + 5);
-    doc.font("Helvetica").fontSize(6.5).text(numberToWords(totalAmount.toFixed(2)), 36, sumY + 15, { width: 345 });
-
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text("Taxable Amount:", 395, sumY + 5);
-    doc.text(taxableAmount.toFixed(2), 485, sumY + 5, { width: 75, align: "right" });
-    doc.text("Total Tax (GST):", 395, sumY + 15);
-    doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), 485, sumY + 15, { width: 75, align: "right" });
-    doc.font("Helvetica-Bold").text("Grand Total (INR):", 395, sumY + 30);
-    doc.text(totalAmount.toFixed(2), 485, sumY + 30, { width: 75, align: "right" });
-
-    let nextY = sumY + sumH;
-    const hsnY = nextY;
-    const hsnH = 42;
-    doc.rect(30, hsnY, 535, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.rect(30, hsnY, 535, 14).fillColor("#f1f5f9").fill();
-
-    doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000");
-    doc.text("HSN/SAC", 35, hsnY + 4);
-    doc.text("Taxable Value", 145, hsnY + 4, { width: 80, align: "right" });
-    doc.text("CGST Rate", 232, hsnY + 4, { width: 55, align: "center" });
-    doc.text("CGST Amt", 292, hsnY + 4, { width: 55, align: "right" });
-    doc.text("SGST Rate", 352, hsnY + 4, { width: 55, align: "center" });
-    doc.text("SGST Amt", 412, hsnY + 4, { width: 55, align: "right" });
-    doc.text("Total Tax Amt", 475, hsnY + 4, { width: 85, align: "right" });
-
-    doc.font("Helvetica").fontSize(6);
-    doc.text("998346", 35, hsnY + 18);
-    doc.text(taxableAmount.toFixed(2), 145, hsnY + 18, { width: 80, align: "right" });
-    doc.text(`${cgstRate.toFixed(1)}%`, 232, hsnY + 18, { width: 55, align: "center" });
-    doc.text(cgstAmount.toFixed(2), 292, hsnY + 18, { width: 55, align: "right" });
-    doc.text(`${sgstRate.toFixed(1)}%`, 352, hsnY + 18, { width: 55, align: "center" });
-    doc.text(sgstAmount.toFixed(2), 412, hsnY + 18, { width: 55, align: "right" });
-    doc.text((cgstAmount + sgstAmount).toFixed(2), 475, hsnY + 18, { width: 85, align: "right" });
-
-    nextY = hsnY + hsnH;
-
-    const botY = nextY;
-    const botH = 135;
-    doc.rect(30, botY, 535, botH).lineWidth(0.8).strokeColor("#000000").stroke();
-    doc.moveTo(270, botY).lineTo(270, botY + botH).lineWidth(0.8).strokeColor("#000000").stroke();
-
-    doc.fontSize(7).font("Helvetica-Bold").text("Bank Details:", 36, botY + 6);
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text(`Bank Name: ${bankName}`, 36, botY + 18);
-    doc.text(`A/C No: ${accountNo}`, 36, botY + 29);
-    doc.text(`Branch: ${branchName}`, 36, botY + 40);
-    doc.text(`IFSC Code: ${ifscCode}`, 36, botY + 51);
-
-    if (qrBuffer) {
-      doc.image(qrBuffer, 175, botY + 8, { width: 68 });
-      doc.fontSize(6).font("Helvetica-Bold").text("Scan to Pay UPI", 175, botY + 80, { width: 68, align: "center" });
-    }
-
-    doc.fontSize(7).font("Helvetica-Bold").text("Terms & Conditions:", 276, botY + 6);
-    doc.font("Helvetica").fontSize(6);
-    doc.text("1. Payment: 100% advance along with PO.", 276, botY + 18, { width: 280 });
-    doc.text("2. Calibration reports will be issued as per ISO/IEC 17025 norms.", 276, botY + 28, { width: 280 });
-    doc.text("3. Validity: 30 days from the date of quotation.", 276, botY + 38, { width: 280 });
-    doc.text("4. Subject to Mumbai Jurisdiction.", 276, botY + 48, { width: 280 });
-
-    doc.fontSize(7).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", 276, botY + 68, { width: 280, align: "right" });
-    
-    if (fs.existsSync(STAMP_IMAGE_PATH)) {
-      try {
-        doc.image(STAMP_IMAGE_PATH, 455, botY + 72, { width: 85 });
-      } catch (e) {}
-    } else {
-      const stampX = 500;
-      const stampY = botY + 105;
-      doc.save();
-      doc.circle(stampX, stampY, 20).lineWidth(1).strokeColor("#1e3a8a").stroke();
-      doc.circle(stampX, stampY, 17).lineWidth(0.5).strokeColor("#1e3a8a").stroke();
-      doc.fontSize(4).font("Helvetica-Bold").fillColor("#1e3a8a").text("ARCL INSTRUMENTS", stampX - 18, stampY - 6, { width: 36, align: "center" });
-      doc.restore();
-    }
-
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000").text("Authorized Signatory", 276, botY + 120, { width: 280, align: "right" });
-    return botY + botH;
-  };
-
-  let curY = drawPageHeader(doc);
-  curY = drawTableHeader(doc, curY);
-
-  for (let i = 0; i < formattedItems.length; i++) {
+  for (let i = 0; i < N; i++) {
     const it = formattedItems[i];
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const nameH = doc.heightOfString(it.name, { width: 220 });
-    let subH = 0;
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica");
-      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
-    }
-    const itemH = Math.max(rowH, nameH + subH + 8);
+    const bg = i % 2 === 0 ? "#ffffff" : "#fdfcfb";
+    doc.rect(leftMargin, curY, contentWidth, rowH).fillColor(bg).strokeColor("#000000").lineWidth(0.5).fillAndStroke();
 
-    if (curY + itemH > 750) {
-      doc.addPage({ size: "A4", margin: 25 });
-      curY = drawCompactQtnHeader(doc);
-      curY = drawTableHeader(doc, curY);
+    for (let j = 1; j < colX.length; j++) {
+      doc.moveTo(colX[j], curY).lineTo(colX[j], curY + rowH).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
     }
 
-    doc.rect(30, curY, 535, itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(48, curY).lineTo(48, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(275, curY).lineTo(275, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(330, curY).lineTo(330, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(390, curY).lineTo(390, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(460, curY).lineTo(460, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
+    const midY = curY + (rowH / 2) - 3.2;
 
-    const textYOffset = (itemH / 2) - 4;
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(String(it.itemNo), colX[0], midY, { width: colX[1] - colX[0], align: "center" });
+
+    if (showSub && it.subText && rowH >= 16) {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, curY + 2.5, { width: colX[2] - colX[1] - 8, ellipsis: true });
+      doc.fontSize(5).font("Helvetica").fillColor("#475569").text(it.subText, colX[1] + 4, curY + 10, { width: colX[2] - colX[1] - 8, ellipsis: true });
+    } else {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, midY, { width: colX[2] - colX[1] - 8, ellipsis: true });
     }
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
-    doc.text(it.qty, 330, curY + textYOffset, { width: 60, align: "center" });
-    doc.text(it.rate, 390, curY + textYOffset, { width: 65, align: "right" });
-    doc.text(it.amount, 460, curY + textYOffset, { width: 100, align: "right" });
 
-    curY += itemH;
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(it.hsnSac, colX[2], midY, { width: colX[3] - colX[2], align: "center" });
+    doc.text(it.qty, colX[3], midY, { width: colX[4] - colX[3], align: "center" });
+    doc.text(it.rate, colX[4], midY, { width: colX[5] - colX[4], align: "right" });
+    doc.text(it.amount, colX[5], midY, { width: colX[6] - colX[5] - 4, align: "right" });
+
+    curY += rowH;
   }
 
-  if (curY + 235 > 775) {
-    doc.addPage({ size: "A4", margin: 25 });
-    curY = drawCompactQtnHeader(doc);
-  }
-  drawQuotationSummary(doc, curY);
+  // 5. SUMMARY BLOCK
+  const sumH = 34;
+  doc.rect(leftMargin, curY, contentWidth, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(leftMargin + 350, curY).lineTo(leftMargin + 350, curY + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
 
-  const range = doc.bufferedPageRange();
-  for (let p = 0; p < range.count; p++) {
-    doc.switchToPage(p);
-    const footerText = `Page ${p + 1} of ${range.count}  •  ${qtnNo}  •  Digitally Signed Quotation`;
-    doc.fontSize(7).font("Helvetica").fillColor("#475569").text(footerText, 30, 805, { width: 535, align: "center" });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6).text(numberToWords(totalAmount.toFixed(2)), leftMargin + 6, curY + 13, { width: 338, lineGap: 0.8 });
+
+  doc.font("Helvetica").fontSize(6);
+  doc.text("Taxable Amount:", leftMargin + 356, curY + 3.5);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 450, curY + 3.5, { width: 78, align: "right" });
+  doc.text("Total Tax (GST):", leftMargin + 356, curY + 12.5);
+  doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), leftMargin + 450, curY + 12.5, { width: 78, align: "right" });
+  doc.font("Helvetica-Bold").text("Grand Total (INR):", leftMargin + 356, curY + 22.5);
+  doc.text(totalAmount.toFixed(2), leftMargin + 450, curY + 22.5, { width: 78, align: "right" });
+
+  curY += sumH;
+
+  // 6. HSN / TAX SUMMARY TABLE
+  const hsnH = 26;
+  doc.rect(leftMargin, curY, contentWidth, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, curY, contentWidth, 11).fillColor("#f1f5f9").fill();
+
+  doc.fontSize(5.6).font("Helvetica-Bold").fillColor("#000000");
+  doc.text("HSN/SAC", leftMargin + 6, curY + 2.5);
+  doc.text("Taxable Value", leftMargin + 130, curY + 2.5, { width: 80, align: "right" });
+  doc.text("CGST Rate", leftMargin + 220, curY + 2.5, { width: 50, align: "center" });
+  doc.text("CGST Amt", leftMargin + 275, curY + 2.5, { width: 55, align: "right" });
+  doc.text("SGST Rate", leftMargin + 335, curY + 2.5, { width: 50, align: "center" });
+  doc.text("SGST Amt", leftMargin + 390, curY + 2.5, { width: 55, align: "right" });
+  doc.text("Total Tax Amt", leftMargin + 450, curY + 2.5, { width: 78, align: "right" });
+
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text("998346", leftMargin + 6, curY + 14);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 130, curY + 14, { width: 80, align: "right" });
+  doc.text(`${cgstRate.toFixed(1)}%`, leftMargin + 220, curY + 14, { width: 50, align: "center" });
+  doc.text(cgstAmount.toFixed(2), leftMargin + 275, curY + 14, { width: 55, align: "right" });
+  doc.text(`${sgstRate.toFixed(1)}%`, leftMargin + 335, curY + 14, { width: 50, align: "center" });
+  doc.text(sgstAmount.toFixed(2), leftMargin + 390, curY + 14, { width: 55, align: "right" });
+  doc.text((cgstAmount + sgstAmount).toFixed(2), leftMargin + 450, curY + 14, { width: 78, align: "right" });
+
+  curY += hsnH;
+
+  // 7. BANK DETAILS, QR CODE, TERMS & SIGNATURE BLOCK
+  const botH = 92;
+  const botSplitX = leftMargin + 265;
+  doc.rect(leftMargin, curY, contentWidth, botH).lineWidth(0.8).strokeColor("#000000").stroke();
+  doc.moveTo(botSplitX, curY).lineTo(botSplitX, curY + botH).lineWidth(0.8).strokeColor("#000000").stroke();
+
+  doc.fontSize(6.5).font("Helvetica-Bold").text("Bank Details:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text(`Bank Name: ${bankName}`, leftMargin + 6, curY + 13);
+  doc.text(`A/C No: ${accountNo}`, leftMargin + 6, curY + 21);
+  doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
+  doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
+
+  if (qrBuffer) {
+    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
+    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
   }
+
+  doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
+
+  doc.fontSize(6).font("Helvetica-Bold").text("Terms & Conditions:", botSplitX + 6, curY + 16);
+  doc.font("Helvetica").fontSize(5.2);
+  doc.text("1. Payment: 100% advance along with PO.", botSplitX + 6, curY + 25, { width: 190 });
+  doc.text("2. Calibration reports will be issued as per ISO/IEC 17025 norms.", botSplitX + 6, curY + 34, { width: 190 });
+  doc.text("3. Validity: 30 days from the date of quotation.", botSplitX + 6, curY + 43, { width: 190 });
+
+  if (fs.existsSync(STAMP_IMAGE_PATH)) {
+    try {
+      doc.image(STAMP_IMAGE_PATH, leftMargin + contentWidth - 68, curY + 18, { width: 44 });
+    } catch (e) {}
+  }
+
+  doc.fontSize(6).font("Helvetica").fillColor("#000000").text("Authorized Signatory", botSplitX + 6, curY + 76, { width: 258, align: "right" });
+
+  // 8. FOOTER
+  const footerText = `Page 1 of 1  •  ${qtnNo}  •  Digitally Signed Quotation`;
+  doc.fontSize(6.2).font("Helvetica").fillColor("#64748b").text(footerText, leftMargin, 814, { width: contentWidth, align: "center", lineBreak: false });
 
   return buildPdfBuffer(doc);
 };
@@ -904,7 +840,7 @@ export const generateQuotationPdf = async (customData = {}) => {
  * =========================================================================
  */
 export const generateProformaInvoicePdf = async (customData = {}) => {
-  const doc = new PDFDocument({ size: "A4", margin: 25, bufferPages: true });
+  const doc = new PDFDocument({ size: "A4", margin: 10, bufferPages: true });
 
   const pi = customData.proformaData || customData;
   const piNo = pi.piNo || pi.proformaNo || "ARCL/PI/26-27/08";
@@ -912,18 +848,21 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
   const dueDate = pi.dueDate || "23 Jun 2026";
   const placeOfSupply = pi.placeOfSupply || "27-MAHARASHTRA";
 
-  const clientCompany = pi.clientCompany || pi.buyerCompany || pi.billTo?.companyName || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
-  const clientGstin = pi.clientGstin || pi.buyerGstin || pi.billTo?.gstin || "27AAOCR3275P1ZH";
-  const clientAddress = pi.clientAddress || pi.buyerAddress || (pi.billTo?.address ? `${pi.billTo.address}\n${pi.billTo.cityStatePin || ""}`.trim() : "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS\nBELAVALI, Ambarnath\nThane, MAHARASHTRA, 421503");
+  const rawCompany = pi.clientCompany || pi.buyerCompany || pi.billTo?.companyName || "RDSS QUALITY CONTROL LAB PRIVATE LIMITED";
+  const clientCompany = String(rawCompany).replace(/\r?\n+/g, " ").trim();
+  const rawGstin = pi.clientGstin || pi.buyerGstin || pi.billTo?.gstin || "27AAOCR3275P1ZH";
+  const clientGstin = String(rawGstin).replace(/\r?\n+/g, " ").trim();
+  const rawAddress = pi.clientAddress || pi.buyerAddress || (pi.billTo?.address ? `${pi.billTo.address}, ${pi.billTo.cityStatePin || ""}`.trim() : "FLAT NO-1105, A-WING, 11TH FLOOR, SHREEJI GREENS, BELAVALI, Ambarnath, Thane, MAHARASHTRA, 421503");
+  const clientAddress = String(rawAddress).replace(/\r?\n+/g, ", ").replace(/\s+,/g, ",").trim();
 
-  let items = pi.items && Array.isArray(pi.items) && pi.items.length > 0 ? pi.items : defaultProformaInvoiceItems;
+  let rawItems = pi.items && Array.isArray(pi.items) && pi.items.length > 0 ? pi.items : defaultProformaInvoiceItems;
 
-  const formattedItems = items.map((it, idx) => ({
+  const formattedItems = rawItems.map((it, idx) => ({
     itemNo: it.itemNo || idx + 1,
-    name: it.name || it.description || `Service Item ${idx + 1}`,
-    subText: it.subText || it.remarks || "",
-    hsnSac: String(it.hsnSac || it.hsnCode || "998346"),
-    qty: `${it.qty || 1} ${it.qtyUnit || "NOS"}`,
+    name: String(it.name || it.description || `Service Item ${idx + 1}`).replace(/\r?\n+/g, " ").trim(),
+    subText: String(it.subText || it.remarks || "").replace(/\r?\n+/g, " ").trim(),
+    hsnSac: String(it.hsnSac || it.hsnCode || "998346").trim(),
+    qty: String(it.qty || 1) + (it.qtyUnit ? ` ${it.qtyUnit}` : " NOS"),
     rate: Number(it.rate || 0).toFixed(2),
     amount: (Number(it.amount) || Number(it.qty || 1) * Number(it.rate || 0)).toFixed(2),
     rawAmount: Number(it.amount) || Number(it.qty || 1) * Number(it.rate || 0),
@@ -939,13 +878,11 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
   const igstAmount = isInterstate ? taxableAmount * 0.18 : 0;
   const totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount;
 
-  // Bank & UPI QR Code (Generated from .env / Account details)
+  // Bank & UPI QR Code
   const bankName = (pi.bankName || process.env.BANK_NAME || "HDFC Bank").trim();
   const accountNo = (pi.accountNo || process.env.BANK_ACCOUNT_NO || "50200111763991").trim();
   const branchName = (pi.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (pi.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
-  const payeeName = (process.env.UPI_PAYEE_NAME || pi.payeeName || "ARCL INSTRUMENTS PRIVATE LIMITED").trim();
-  const upiId = (process.env.UPI_ID || pi.upiId || "8572995533.2@hdfc").trim();
 
   let qrBuffer = null;
   if (fs.existsSync(QR_IMAGE_PATH)) {
@@ -956,238 +893,214 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
     }
   }
 
-  const isSinglePage = formattedItems.length <= 8;
-  const rowH = isSinglePage
-    ? Math.max(24, Math.min(38, Math.floor(260 / Math.max(1, formattedItems.length))))
-    : 22;
+  const leftMargin = 30;
+  const contentWidth = 535;
 
-  const drawPiHeader = (doc) => {
-    let topY = 25;
-    if (fs.existsSync(LOGO_PATH)) {
-      try {
-        doc.image(LOGO_PATH, 30, topY, { width: 75 });
-      } catch (e) {
-        doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
-      }
-    } else {
-      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", 30, topY);
+  // 1. TOP OFFICIAL HEADER
+  let topY = 14;
+  if (fs.existsSync(LOGO_PATH)) {
+    try {
+      doc.image(LOGO_PATH, leftMargin, topY, { width: 56 });
+    } catch (e) {
+      doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
     }
+  } else {
+    doc.fontSize(16).font("Helvetica-Bold").fillColor("#021C57").text("ARCL", leftMargin, topY);
+  }
 
-    doc.fontSize(12).font("Helvetica-Bold").fillColor("#0d9488").text("ARCL INSTRUMENTS PRIVATE LIMITED", 110, topY);
-    doc.fontSize(6.5).font("Helvetica").fillColor("#334155");
-    doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A,", 110, topY + 14);
-    doc.text("Airoli, Navi Mumbai, Maharashtra - 400708", 110, topY + 23);
-    doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", 110, topY + 32);
+  doc.fontSize(10.5).font("Helvetica-Bold").fillColor("#0d9488").text("ARCL INSTRUMENTS PRIVATE LIMITED", leftMargin + 64, topY + 2);
+  doc.fontSize(5.8).font("Helvetica").fillColor("#334155");
+  doc.text("Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai, Maharashtra - 400708", leftMargin + 64, topY + 14);
+  doc.text("GSTIN: 27AATCA7874C1ZB | Phone: +91 8369458583 / +91 6205691085 | Email: arclinstruments@gmail.com", leftMargin + 64, topY + 23);
 
-    doc.rect(430, topY, 135, 38).fillColor("#0d9488").fill();
-    doc.fontSize(10.5).font("Helvetica-Bold").fillColor("#ffffff").text("PROFORMA INVOICE", 430, topY + 6, { width: 135, align: "center" });
-    doc.fontSize(6).font("Helvetica").text("Advance Commercial Estimate", 430, topY + 22, { width: 135, align: "center" });
+  const badgeW = 135;
+  const badgeX = leftMargin + contentWidth - badgeW;
+  doc.rect(badgeX, topY + 2, badgeW, 26).fillColor("#0d9488").fill();
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#ffffff").text("PROFORMA INVOICE", badgeX, topY + 5, { width: badgeW, align: "center" });
+  doc.fontSize(5.2).font("Helvetica").text("Advance Commercial Estimate", badgeX, topY + 17, { width: badgeW, align: "center" });
 
-    doc.moveTo(30, topY + 48).lineTo(565, topY + 48).lineWidth(1).strokeColor("#0d9488").stroke();
+  doc.moveTo(leftMargin, topY + 36).lineTo(leftMargin + contentWidth, topY + 36).lineWidth(1).strokeColor("#0d9488").stroke();
 
-    const boxY = topY + 54;
-    
-    // Dynamic height calculation for left (Customer) and right (Details) boxes
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const compH = doc.heightOfString(clientCompany || "Client", { width: 245 });
-    doc.fontSize(6).font("Helvetica");
-    const addrH = doc.heightOfString(clientAddress || "", { width: 245, lineGap: 1.2 });
-    
-    const leftRequiredH = 14 + compH + 2 + addrH + 4 + 9 + 5;
-    const rightRequiredH = 62;
-    const boxH = Math.max(leftRequiredH, rightRequiredH, 58);
+  // 2. PROFORMA TO & DETAILS CARD
+  const boxY = topY + 40;
+  const boxH = 54;
+  const boxSplitX = leftMargin + 270;
 
-    doc.rect(30, boxY, 535, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(290, boxY).lineTo(290, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, boxY, contentWidth, boxH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(boxSplitX, boxY).lineTo(boxSplitX, boxY + boxH).lineWidth(0.5).strokeColor("#000000").stroke();
 
-    // Draw Left Side (Proforma To)
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Proforma To (Customer):", 36, boxY + 5);
-    const compY = boxY + 14;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(clientCompany || "Client", 36, compY, { width: 245 });
-    const addrY = compY + compH + 2;
-    doc.fontSize(6).font("Helvetica").fillColor("#334155").text(clientAddress || "", 36, addrY, { width: 245, lineGap: 1.2 });
-    const gstinY = addrY + addrH + 4;
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin || "N/A"}`, 36, gstinY, { width: 245 });
+  // Left: Proforma To
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Proforma To (Customer):", leftMargin + 6, boxY + 4);
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(clientCompany, leftMargin + 6, boxY + 13, { width: 255, ellipsis: true });
+  doc.fontSize(5.5).font("Helvetica").fillColor("#334155").text(clientAddress, leftMargin + 6, boxY + 23, { width: 255, height: 18, lineGap: 0.8, ellipsis: true });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(`GSTIN: ${clientGstin}`, leftMargin + 6, boxY + 43);
 
-    // Draw Right Side (Proforma Details)
-    doc.fontSize(6.5).font("Helvetica-Bold").text("Proforma Details:", 296, boxY + 5);
-    doc.font("Helvetica").fontSize(6.5);
-    doc.text("Proforma No.:", 296, boxY + 16);
-    doc.font("Helvetica-Bold").text(piNo, 365, boxY + 16, { width: 195 });
-    doc.font("Helvetica").text("Proforma Date:", 296, boxY + 27);
-    doc.text(piDate, 365, boxY + 27, { width: 195 });
-    doc.text("Due Date:", 296, boxY + 38);
-    doc.text(dueDate, 365, boxY + 38, { width: 195 });
-    doc.text("Place of Supply:", 296, boxY + 48);
-    doc.text(placeOfSupply, 365, boxY + 48, { width: 195 });
+  // Right: Details
+  doc.fontSize(6).font("Helvetica-Bold").text("Proforma Details:", boxSplitX + 6, boxY + 4);
+  doc.font("Helvetica").fontSize(5.8);
+  doc.text("Proforma No.:", boxSplitX + 6, boxY + 13);
+  doc.font("Helvetica-Bold").text(piNo, boxSplitX + 75, boxY + 13, { width: 180 });
+  doc.font("Helvetica").text("Date:", boxSplitX + 6, boxY + 23);
+  doc.text(piDate, boxSplitX + 75, boxY + 23, { width: 180 });
+  doc.text("Due Date:", boxSplitX + 6, boxY + 33);
+  doc.text(dueDate, boxSplitX + 75, boxY + 33, { width: 180 });
+  doc.text("Place of Supply:", boxSplitX + 6, boxY + 43);
+  doc.text(placeOfSupply, boxSplitX + 75, boxY + 43, { width: 180 });
 
-    return boxY + boxH + 6;
-  };
+  // 3. TABLE HEADER
+  let curY = boxY + boxH + 3;
+  const thH = 15;
+  doc.rect(leftMargin, curY, contentWidth, thH).fillColor("#0d9488").fill();
 
-  const drawCompactPiHeader = (doc) => {
-    let topY = 25;
-    doc.rect(30, topY, 535, 24).fillColor("#0d9488").fill();
-    doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#ffffff").text(`ARCL INSTRUMENTS - PROFORMA INVOICE (${piNo})`, 36, topY + 7);
-    doc.fontSize(7.5).font("Helvetica").text(`Date: ${piDate}  |  Place of Supply: ${placeOfSupply}`, 320, topY + 8, { width: 235, align: "right" });
-    return topY + 28;
-  };
+  const colX = [
+    leftMargin,
+    leftMargin + 18,
+    leftMargin + 240,
+    leftMargin + 295,
+    leftMargin + 350,
+    leftMargin + 420,
+    leftMargin + contentWidth
+  ];
 
-  const drawPiTableHeader = (doc, startY) => {
-    const thH = 18;
-    doc.rect(30, startY, 535, thH).fillColor("#0d9488").fill();
-    doc.moveTo(48, startY).lineTo(48, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(275, startY).lineTo(275, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(330, startY).lineTo(330, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(390, startY).lineTo(390, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
-    doc.moveTo(460, startY).lineTo(460, startY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  for (let i = 1; i < colX.length; i++) {
+    doc.moveTo(colX[i], curY).lineTo(colX[i], curY + thH).lineWidth(0.5).strokeColor("#ffffff").stroke();
+  }
 
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#ffffff");
-    doc.text("#", 30, startY + 5, { width: 18, align: "center" });
-    doc.text("Item & Calibration Scope", 52, startY + 5);
-    doc.text("HSN/SAC", 275, startY + 5, { width: 55, align: "center" });
-    doc.text("Qty", 330, startY + 5, { width: 60, align: "center" });
-    doc.text("Rate (INR)", 390, startY + 5, { width: 70, align: "right" });
-    doc.text("Amount (INR)", 460, startY + 5, { width: 100, align: "right" });
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#ffffff");
+  doc.text("#", colX[0], curY + 4, { width: colX[1] - colX[0], align: "center" });
+  doc.text("Item & Calibration Scope", colX[1] + 4, curY + 4);
+  doc.text("HSN/SAC", colX[2], curY + 4, { width: colX[3] - colX[2], align: "center" });
+  doc.text("Qty", colX[3], curY + 4, { width: colX[4] - colX[3], align: "center" });
+  doc.text("Rate (INR)", colX[4], curY + 4, { width: colX[5] - colX[4], align: "right" });
+  doc.text("Amount (INR)", colX[5], curY + 4, { width: colX[6] - colX[5] - 4, align: "right" });
 
-    return startY + thH;
-  };
+  curY += thH;
 
-  let curY = drawPiHeader(doc);
-  curY = drawPiTableHeader(doc, curY);
+  // 4. ITEMS ROWS
+  const N = formattedItems.length;
+  let rowH = 14;
+  let showSub = true;
+  if (N <= 3) {
+    rowH = 26;
+  } else if (N <= 8) {
+    rowH = 20;
+  } else if (N <= 15) {
+    rowH = 16;
+  } else {
+    rowH = Math.max(12, Math.floor(375 / N));
+    showSub = rowH >= 15;
+  }
 
-  for (let i = 0; i < formattedItems.length; i++) {
+  for (let i = 0; i < N; i++) {
     const it = formattedItems[i];
-    doc.fontSize(6.5).font("Helvetica-Bold");
-    const nameH = doc.heightOfString(it.name, { width: 220 });
-    let subH = 0;
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica");
-      subH = doc.heightOfString(it.subText, { width: 220, lineGap: 1 });
-    }
-    const itemH = Math.max(rowH, nameH + subH + 8);
+    const bg = i % 2 === 0 ? "#ffffff" : "#f0fdfa";
+    doc.rect(leftMargin, curY, contentWidth, rowH).fillColor(bg).strokeColor("#000000").lineWidth(0.5).fillAndStroke();
 
-    if (curY + itemH > 750) {
-      doc.addPage({ size: "A4", margin: 25 });
-      curY = drawCompactPiHeader(doc);
-      curY = drawPiTableHeader(doc, curY);
+    for (let j = 1; j < colX.length; j++) {
+      doc.moveTo(colX[j], curY).lineTo(colX[j], curY + rowH).lineWidth(0.5).strokeColor("#e2e8f0").stroke();
     }
 
-    doc.rect(30, curY, 535, itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(48, curY).lineTo(48, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(275, curY).lineTo(275, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(330, curY).lineTo(330, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(390, curY).lineTo(390, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
-    doc.moveTo(460, curY).lineTo(460, curY + itemH).lineWidth(0.5).strokeColor("#000000").stroke();
+    const midY = curY + (rowH / 2) - 3.2;
 
-    const textYOffset = (itemH / 2) - 4;
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(String(it.itemNo), 30, curY + textYOffset, { width: 18, align: "center" });
-    doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text(it.name, 52, curY + 4, { width: 220 });
-    if (it.subText) {
-      doc.fontSize(5.5).font("Helvetica").fillColor("#475569").text(it.subText, 52, curY + 4 + nameH + 1, { width: 220, lineGap: 1 });
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(String(it.itemNo), colX[0], midY, { width: colX[1] - colX[0], align: "center" });
+
+    if (showSub && it.subText && rowH >= 16) {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, curY + 2.5, { width: colX[2] - colX[1] - 8, ellipsis: true });
+      doc.fontSize(5).font("Helvetica").fillColor("#475569").text(it.subText, colX[1] + 4, curY + 10, { width: colX[2] - colX[1] - 8, ellipsis: true });
+    } else {
+      doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text(it.name, colX[1] + 4, midY, { width: colX[2] - colX[1] - 8, ellipsis: true });
     }
-    doc.fontSize(6.5).font("Helvetica").fillColor("#000000");
-    doc.text(it.hsnSac, 275, curY + textYOffset, { width: 55, align: "center" });
-    doc.text(it.qty, 330, curY + textYOffset, { width: 60, align: "center" });
-    doc.text(it.rate, 390, curY + textYOffset, { width: 65, align: "right" });
-    doc.text(it.amount, 460, curY + textYOffset, { width: 100, align: "right" });
 
-    curY += itemH;
+    doc.fontSize(6).font("Helvetica").fillColor("#000000");
+    doc.text(it.hsnSac, colX[2], midY, { width: colX[3] - colX[2], align: "center" });
+    doc.text(it.qty, colX[3], midY, { width: colX[4] - colX[3], align: "center" });
+    doc.text(it.rate, colX[4], midY, { width: colX[5] - colX[4], align: "right" });
+    doc.text(it.amount, colX[5], midY, { width: colX[6] - colX[5] - 4, align: "right" });
+
+    curY += rowH;
   }
 
-  if (curY + 235 > 775) {
-    doc.addPage({ size: "A4", margin: 25 });
-    curY = drawCompactPiHeader(doc);
-  }
+  // 5. SUMMARY BLOCK
+  const sumH = 34;
+  doc.rect(leftMargin, curY, contentWidth, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.moveTo(leftMargin + 350, curY).lineTo(leftMargin + 350, curY + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
 
-  // Summary
-  const sumH = 48;
-  doc.rect(30, curY, 535, sumH).lineWidth(0.5).strokeColor("#000000").stroke();
-  doc.moveTo(390, curY).lineTo(390, curY + sumH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6).text(numberToWords(totalAmount.toFixed(2)), leftMargin + 6, curY + 13, { width: 338, lineGap: 0.8 });
 
-  doc.fontSize(6.5).font("Helvetica-Bold").fillColor("#000000").text("Total in Words:", 36, curY + 5);
-  doc.font("Helvetica").fontSize(6.5).text(numberToWords(totalAmount.toFixed(2)), 36, curY + 15, { width: 345 });
-
-  doc.font("Helvetica").fontSize(6.5);
-  doc.text("Taxable Amount:", 395, curY + 5);
-  doc.text(taxableAmount.toFixed(2), 485, curY + 5, { width: 75, align: "right" });
-  doc.text("Total Tax (GST):", 395, curY + 15);
-  doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), 485, curY + 15, { width: 75, align: "right" });
-  doc.font("Helvetica-Bold").text("Grand Total (INR):", 395, curY + 30);
-  doc.text(totalAmount.toFixed(2), 485, curY + 30, { width: 75, align: "right" });
+  doc.font("Helvetica").fontSize(6);
+  doc.text("Taxable Amount:", leftMargin + 356, curY + 3.5);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 450, curY + 3.5, { width: 78, align: "right" });
+  doc.text("Total Tax (GST):", leftMargin + 356, curY + 12.5);
+  doc.text((cgstAmount + sgstAmount + igstAmount).toFixed(2), leftMargin + 450, curY + 12.5, { width: 78, align: "right" });
+  doc.font("Helvetica-Bold").text("Grand Total (INR):", leftMargin + 356, curY + 22.5);
+  doc.text(totalAmount.toFixed(2), leftMargin + 450, curY + 22.5, { width: 78, align: "right" });
 
   curY += sumH;
 
-  const hsnH = 42;
-  doc.rect(30, curY, 535, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
-  doc.rect(30, curY, 535, 14).fillColor("#f1f5f9").fill();
+  // 6. HSN / TAX SUMMARY TABLE
+  const hsnH = 26;
+  doc.rect(leftMargin, curY, contentWidth, hsnH).lineWidth(0.5).strokeColor("#000000").stroke();
+  doc.rect(leftMargin, curY, contentWidth, 11).fillColor("#f1f5f9").fill();
 
-  doc.fontSize(6).font("Helvetica-Bold").fillColor("#000000");
-  doc.text("HSN/SAC", 35, curY + 4);
-  doc.text("Taxable Value", 145, curY + 4, { width: 80, align: "right" });
-  doc.text("CGST Rate", 232, curY + 4, { width: 55, align: "center" });
-  doc.text("CGST Amt", 292, curY + 4, { width: 55, align: "right" });
-  doc.text("SGST Rate", 352, curY + 4, { width: 55, align: "center" });
-  doc.text("SGST Amt", 412, curY + 4, { width: 55, align: "right" });
-  doc.text("Total Tax Amt", 475, curY + 4, { width: 85, align: "right" });
+  doc.fontSize(5.6).font("Helvetica-Bold").fillColor("#000000");
+  doc.text("HSN/SAC", leftMargin + 6, curY + 2.5);
+  doc.text("Taxable Value", leftMargin + 130, curY + 2.5, { width: 80, align: "right" });
+  doc.text("CGST Rate", leftMargin + 220, curY + 2.5, { width: 50, align: "center" });
+  doc.text("CGST Amt", leftMargin + 275, curY + 2.5, { width: 55, align: "right" });
+  doc.text("SGST Rate", leftMargin + 335, curY + 2.5, { width: 50, align: "center" });
+  doc.text("SGST Amt", leftMargin + 390, curY + 2.5, { width: 55, align: "right" });
+  doc.text("Total Tax Amt", leftMargin + 450, curY + 2.5, { width: 78, align: "right" });
 
-  doc.font("Helvetica").fontSize(6);
-  doc.text("998346", 35, curY + 18);
-  doc.text(taxableAmount.toFixed(2), 145, curY + 18, { width: 80, align: "right" });
-  doc.text(`${cgstRate.toFixed(1)}%`, 232, curY + 18, { width: 55, align: "center" });
-  doc.text(cgstAmount.toFixed(2), 292, curY + 18, { width: 55, align: "right" });
-  doc.text(`${sgstRate.toFixed(1)}%`, 352, curY + 18, { width: 55, align: "center" });
-  doc.text(sgstAmount.toFixed(2), 412, curY + 18, { width: 55, align: "right" });
-  doc.text((cgstAmount + sgstAmount).toFixed(2), 475, curY + 18, { width: 85, align: "right" });
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text("998346", leftMargin + 6, curY + 14);
+  doc.text(taxableAmount.toFixed(2), leftMargin + 130, curY + 14, { width: 80, align: "right" });
+  doc.text(`${cgstRate.toFixed(1)}%`, leftMargin + 220, curY + 14, { width: 50, align: "center" });
+  doc.text(cgstAmount.toFixed(2), leftMargin + 275, curY + 14, { width: 55, align: "right" });
+  doc.text(`${sgstRate.toFixed(1)}%`, leftMargin + 335, curY + 14, { width: 50, align: "center" });
+  doc.text(sgstAmount.toFixed(2), leftMargin + 390, curY + 14, { width: 55, align: "right" });
+  doc.text((cgstAmount + sgstAmount).toFixed(2), leftMargin + 450, curY + 14, { width: 78, align: "right" });
 
   curY += hsnH;
 
-  const botH = 135;
-  doc.rect(30, curY, 535, botH).lineWidth(0.8).strokeColor("#000000").stroke();
-  doc.moveTo(270, curY).lineTo(270, curY + botH).lineWidth(0.8).strokeColor("#000000").stroke();
+  // 7. BANK DETAILS, QR CODE, TERMS & SIGNATURE BLOCK
+  const botH = 92;
+  const botSplitX = leftMargin + 265;
+  doc.rect(leftMargin, curY, contentWidth, botH).lineWidth(0.8).strokeColor("#000000").stroke();
+  doc.moveTo(botSplitX, curY).lineTo(botSplitX, curY + botH).lineWidth(0.8).strokeColor("#000000").stroke();
 
-  doc.fontSize(7).font("Helvetica-Bold").text("Bank Details:", 36, curY + 6);
-  doc.font("Helvetica").fontSize(6.5);
-  doc.text(`Bank Name: ${bankName}`, 36, curY + 18);
-  doc.text(`A/C No: ${accountNo}`, 36, curY + 29);
-  doc.text(`Branch: ${branchName}`, 36, curY + 40);
-  doc.text(`IFSC Code: ${ifscCode}`, 36, curY + 51);
+  doc.fontSize(6.5).font("Helvetica-Bold").text("Bank Details:", leftMargin + 6, curY + 4);
+  doc.font("Helvetica").fontSize(5.6);
+  doc.text(`Bank Name: ${bankName}`, leftMargin + 6, curY + 13);
+  doc.text(`A/C No: ${accountNo}`, leftMargin + 6, curY + 21);
+  doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
+  doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
 
   if (qrBuffer) {
-    doc.image(qrBuffer, 175, curY + 8, { width: 68 });
-    doc.fontSize(6).font("Helvetica-Bold").text("Scan to Pay UPI", 175, curY + 80, { width: 68, align: "center" });
+    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
+    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
   }
 
-  doc.fontSize(7).font("Helvetica-Bold").text("Terms & Conditions:", 276, curY + 6);
-  doc.font("Helvetica").fontSize(6);
-  doc.text("1. Proforma Invoice for advance processing & material inward.", 276, curY + 18, { width: 280 });
-  doc.text("2. Reports issued strictly upon receipt of confirmed payment.", 276, curY + 28, { width: 280 });
-  doc.text("3. Subject to Mumbai Jurisdiction.", 276, curY + 38, { width: 280 });
+  doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
 
-  doc.fontSize(7).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", 276, curY + 68, { width: 280, align: "right" });
+  doc.fontSize(6).font("Helvetica-Bold").text("Terms & Conditions:", botSplitX + 6, curY + 16);
+  doc.font("Helvetica").fontSize(5.2);
+  doc.text("1. Proforma Invoice for advance processing & material inward.", botSplitX + 6, curY + 25, { width: 190 });
+  doc.text("2. Reports issued strictly upon receipt of confirmed payment.", botSplitX + 6, curY + 34, { width: 190 });
+  doc.text("3. Subject to Mumbai Jurisdiction.", botSplitX + 6, curY + 43, { width: 190 });
 
   if (fs.existsSync(STAMP_IMAGE_PATH)) {
     try {
-      doc.image(STAMP_IMAGE_PATH, 455, curY + 72, { width: 85 });
+      doc.image(STAMP_IMAGE_PATH, leftMargin + contentWidth - 68, curY + 18, { width: 44 });
     } catch (e) {}
-  } else {
-    const stampX = 500;
-    const stampY = curY + 105;
-    doc.save();
-    doc.circle(stampX, stampY, 20).lineWidth(1).strokeColor("#0d9488").stroke();
-    doc.circle(stampX, stampY, 17).lineWidth(0.5).strokeColor("#0d9488").stroke();
-    doc.fontSize(4).font("Helvetica-Bold").fillColor("#0d9488").text("ARCL INSTRUMENTS", stampX - 18, stampY - 6, { width: 36, align: "center" });
-    doc.restore();
   }
 
-  doc.fontSize(6.5).font("Helvetica").fillColor("#000000").text("Authorized Signatory", 276, curY + 120, { width: 280, align: "right" });
+  doc.fontSize(6).font("Helvetica").fillColor("#000000").text("Authorized Signatory", botSplitX + 6, curY + 76, { width: 258, align: "right" });
 
-  const range = doc.bufferedPageRange();
-  for (let p = 0; p < range.count; p++) {
-    doc.switchToPage(p);
-    const footerText = `Page ${p + 1} of ${range.count}  •  ${piNo}  •  Proforma Commercial Document`;
-    doc.fontSize(7).font("Helvetica").fillColor("#475569").text(footerText, 30, 805, { width: 535, align: "center" });
-  }
+  // 8. FOOTER
+  const footerText = `Page 1 of 1  •  ${piNo}  •  Digitally Signed Proforma Invoice`;
+  doc.fontSize(6.2).font("Helvetica").fillColor("#64748b").text(footerText, leftMargin, 814, { width: contentWidth, align: "center", lineBreak: false });
 
   return buildPdfBuffer(doc);
 };
