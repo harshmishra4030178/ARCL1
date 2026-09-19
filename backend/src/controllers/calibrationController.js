@@ -652,7 +652,21 @@ export const sendDueReminder = async (req, res, next) => {
     // Build WhatsApp Message Link
     const instItems = targetInstruments.map((i) => {
       const sNo = i.serialNo && i.serialNo !== "-" ? i.serialNo : "N/A";
-      const dDate = i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon";
+      let dDate = "Due Soon";
+      if (i.calibrationDueDate) {
+        try {
+          const raw = String(i.calibrationDueDate);
+          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+            const parts = raw.slice(0, 10).split("-");
+            const parsed = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            dDate = parsed.toLocaleDateString("en-GB");
+          } else {
+            dDate = new Date(i.calibrationDueDate).toLocaleDateString("en-GB");
+          }
+        } catch (e) {
+          dDate = "Due Soon";
+        }
+      }
       return (
         `│ • *${i.instrument}* │\n` +
         `│   S/N: ${sNo} │\n` +
@@ -667,13 +681,13 @@ export const sendDueReminder = async (req, res, next) => {
           .replace(/\{\{count\}\}/gi, String(targetInstruments.length))
       : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`;
 
-    let subjText = (customSubject || `🚨 [URGENT] Calibration Due Notice for ${company}`)
+    let subjText = (customSubject || `🔴 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313`)
       .replace(/\{\{company\}\}/gi, company)
       .replace(/\{\{contactPerson\}\}/gi, person)
       .replace(/\{\{count\}\}/gi, String(targetInstruments.length));
 
-    if (!subjText.includes("🚨") && !subjText.includes("🔴")) {
-      subjText = `🚨 ${subjText}`;
+    if (!subjText.includes("🔴") && !subjText.includes("🚨")) {
+      subjText = `🔴 ${subjText}`;
     }
 
     const waRawMessage =

@@ -81,13 +81,19 @@ import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { hasModuleAccess, isSuperAdmin } from "../../utils/rbac.js";
 
-// Safe Date formatting helper utilities to avoid any RangeError / runtime exception
+// Safe Date formatting helper utilities to avoid any RangeError / runtime exception / timezone shifts
 const toSafeIsoDate = (d, fallback = "") => {
   if (!d) return fallback;
   try {
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+      return d.slice(0, 10);
+    }
     const parsed = new Date(d);
     if (isNaN(parsed.getTime())) return fallback;
-    return parsed.toISOString().slice(0, 10);
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   } catch (e) {
     return fallback;
   }
@@ -96,6 +102,16 @@ const toSafeIsoDate = (d, fallback = "") => {
 const toSafeLocaleDate = (d, fallback = "-", locale = "en-GB", options) => {
   if (!d) return fallback;
   try {
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+      const parts = d.slice(0, 10).split("-");
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const localDate = new Date(year, month, day);
+      if (!isNaN(localDate.getTime())) {
+        return localDate.toLocaleDateString(locale, options);
+      }
+    }
     const parsed = new Date(d);
     if (isNaN(parsed.getTime())) return fallback;
     return parsed.toLocaleDateString(locale, options);
@@ -2299,10 +2315,19 @@ export default function CalibrationPageView() {
       const item = { ...updated[index], [field]: value };
       if (field === "calibrationDate" && value) {
         try {
-          const d = new Date(value);
-          if (!isNaN(d.getTime())) {
-            const nextYear = new Date(d.getTime() + 365 * 24 * 60 * 60 * 1000);
-            item.calibrationDueDate = nextYear.toISOString().slice(0, 10);
+          const parts = String(value).slice(0, 10).split("-");
+          if (parts.length === 3 && parts[0].length === 4) {
+            const nextYear = parseInt(parts[0], 10) + 1;
+            item.calibrationDueDate = `${nextYear}-${parts[1]}-${parts[2]}`;
+          } else {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+              d.setFullYear(d.getFullYear() + 1);
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              item.calibrationDueDate = `${y}-${m}-${day}`;
+            }
           }
         } catch (e) {}
       }
@@ -2409,10 +2434,19 @@ export default function CalibrationPageView() {
       const item = { ...updated[index], [field]: value };
       if (field === "calibrationDate" && value) {
         try {
-          const d = new Date(value);
-          if (!isNaN(d.getTime())) {
-            const nextYear = new Date(d.getTime() + 365 * 24 * 60 * 60 * 1000);
-            item.calibrationDueDate = nextYear.toISOString().slice(0, 10);
+          const parts = String(value).slice(0, 10).split("-");
+          if (parts.length === 3 && parts[0].length === 4) {
+            const nextYear = parseInt(parts[0], 10) + 1;
+            item.calibrationDueDate = `${nextYear}-${parts[1]}-${parts[2]}`;
+          } else {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+              d.setFullYear(d.getFullYear() + 1);
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              item.calibrationDueDate = `${y}-${m}-${day}`;
+            }
           }
         } catch (e) {}
       }
@@ -3109,13 +3143,13 @@ export default function CalibrationPageView() {
       .replace(/{{contactPerson}}/gi, contactPerson)
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
-    let resolvedSubj = (subject || reminderTemplate.subject || "🚨 [URGENT] Calibration Due Notice for {{company}}")
+    let resolvedSubj = (subject || reminderTemplate.subject || "🔴 [URGENT] Calibration Due Notice for {{company}} - ARCL Lab CC-4313")
       .replace(/{{company}}/gi, company)
       .replace(/{{contactPerson}}/gi, contactPerson)
       .replace(/{{count}}/gi, String(targetInstruments.length));
 
-    if (!resolvedSubj.includes("🚨") && !resolvedSubj.includes("🔴")) {
-      resolvedSubj = `🚨 ${resolvedSubj}`;
+    if (!resolvedSubj.includes("🔴") && !resolvedSubj.includes("🚨")) {
+      resolvedSubj = `🔴 ${resolvedSubj}`;
     }
 
     const phoneText = reminderTemplate.labContactPhone || "+91 8369458583 / +91 6205691085";
