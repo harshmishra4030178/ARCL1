@@ -49,7 +49,7 @@ const getBaseURL = () => {
 
 const API = axios.create({
   baseURL: getBaseURL(),
-  timeout: 30000,
+  timeout: 90000,
 });
 
 // Request interceptor to attach Bearer token
