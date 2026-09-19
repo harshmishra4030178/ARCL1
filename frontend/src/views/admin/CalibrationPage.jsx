@@ -3098,9 +3098,9 @@ export default function CalibrationPageView() {
       const sNo = i.serialNo && i.serialNo !== "-" ? i.serialNo : "N/A";
       const dDate = toSafeLocaleDate(i.calibrationDueDate, "Due Soon");
       return (
-        `│ • *${i.instrument}*\n` +
-        `│   S/N: ${sNo}\n` +
-        `│   ➜ Due: 🔴 *${dDate}*`
+        `│ • *${i.instrument}* │\n` +
+        `│   S/N: ${sNo} │\n` +
+        `│   ➜ Due: 🔴 *${dDate}* │`
       );
     }).join("\n├──────────────────────────────────┤\n");
 
@@ -3118,6 +3118,9 @@ export default function CalibrationPageView() {
       resolvedSubj = `🚨 ${resolvedSubj}`;
     }
 
+    const phoneText = reminderTemplate.labContactPhone || "+91 8369458583 / +91 6205691085";
+    const emailText = reminderTemplate.labContactEmail || "arclinstruments@gmail.com";
+
     return (
       `*${resolvedSubj}*\n` +
       `*ARCL Lab CC-4313*\n\n` +
@@ -3131,8 +3134,8 @@ export default function CalibrationPageView() {
       `📅 *Please schedule recalibration pickup or book on-site testing.*\n\n` +
       `🔗 arclinstruments.com/calibration-services\n\n` +
       `*ARCL Instruments Private Limited*\n` +
-      `🔴 Phone: ${reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}\n` +
-      `🔴 Email: ${reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}`
+      `🔴 Phone: ${phoneText}\n` +
+      `🔴 Email: ${emailText}`
     );
   };
 
@@ -3402,7 +3405,7 @@ export default function CalibrationPageView() {
     salutation: "Dear {{contactPerson}} ({{company}}),",
     introMessage: "This is an automated quality compliance notice to inform you that {{count}} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:",
     thresholdDays: "30",
-    labContactPhone: "+91 6205691085 / +91 8369458583",
+    labContactPhone: "+91 8369458583 / +91 6205691085",
     labContactEmail: "arclinstruments@gmail.com",
     labScope: "NABL ACCREDITED LABORATORY (CC-4313) • ISO/IEC 17025:2017",
     footerNote: "Need on-site calibration or immediate pickup? Contact our Metrology Desk.",
@@ -3415,8 +3418,8 @@ export default function CalibrationPageView() {
         const saved = localStorage.getItem("arcl_calibration_reminder_template");
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.labContactPhone && (parsed.labContactPhone.includes("8009559900") || !parsed.labContactPhone)) {
-            parsed.labContactPhone = "+91 6205691085 / +91 8369458583";
+          if (parsed.labContactPhone && (parsed.labContactPhone.includes("8009559900") || parsed.labContactPhone.includes("6205691085 / +91 8369458583") || !parsed.labContactPhone)) {
+            parsed.labContactPhone = "+91 8369458583 / +91 6205691085";
           }
           if (parsed.subject && !parsed.subject.includes("🔴")) {
             parsed.subject = `🔴 ${parsed.subject.replace(/^[🔴\s*]+/, "")}`;
@@ -10881,7 +10884,7 @@ export default function CalibrationPageView() {
 
                     <div className="pt-1.5 border-t border-emerald-300/70 text-[10px] text-gray-700 flex flex-col gap-0.5">
                       <p className="font-bold text-gray-900">ARCL Metrology Support Desk:</p>
-                      <p>🔴 Phone: {reminderTemplate.labContactPhone || "+91 6205691085 / +91 8369458583"}</p>
+                      <p>🔴 Phone: {reminderTemplate.labContactPhone || "+91 8369458583 / +91 6205691085"}</p>
                       <p>🔴 Email: {reminderTemplate.labContactEmail || "arclinstruments@gmail.com"}</p>
                     </div>
                   </div>

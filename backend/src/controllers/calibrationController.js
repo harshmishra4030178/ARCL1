@@ -633,7 +633,7 @@ export const sendDueReminder = async (req, res, next) => {
     const email = clientEmail || (targetInstruments[0]?.clientEmail) || "arclinstruments@gmail.com";
     const company = clientCompany || (targetInstruments[0]?.clientCompany) || "Tata Projects Ltd.";
     const person = contactPerson || (targetInstruments[0]?.clientContactPerson) || "QA Manager";
-    const phone = labContactPhone || "+91 6205691085 / +91 8369458583";
+    const phone = labContactPhone || "+91 8369458583 / +91 6205691085";
 
     // Send real email with dynamic options
     const emailResult = await sendCalibrationDueEmail({
@@ -650,24 +650,51 @@ export const sendDueReminder = async (req, res, next) => {
     });
 
     // Build WhatsApp Message Link
-    const instrumentsSummary = targetInstruments
-      .map((i) => `• *${i.instrument}* (S/N: ${i.serialNo}) \u2794 \uD83D\uDD34 *Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}*`)
-      .join("%0A");
+    const instItems = targetInstruments.map((i) => {
+      const sNo = i.serialNo && i.serialNo !== "-" ? i.serialNo : "N/A";
+      const dDate = i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon";
+      return (
+        `│ • *${i.instrument}* │\n` +
+        `│   S/N: ${sNo} │\n` +
+        `│   ➜ Due: 🔴 *${dDate}* │`
+      );
+    }).join("\n├──────────────────────────────────┤\n");
 
-    const customWaIntro = customMessage
-      ? encodeURIComponent(
-          customMessage
-            .replace(/\{\{company\}\}/gi, company)
-            .replace(/\{\{contactPerson\}\}/gi, person)
-            .replace(/\{\{count\}\}/gi, String(targetInstruments.length))
-        )
+    const introText = customMessage
+      ? customMessage
+          .replace(/\{\{company\}\}/gi, company)
+          .replace(/\{\{contactPerson\}\}/gi, person)
+          .replace(/\{\{count\}\}/gi, String(targetInstruments.length))
       : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`;
 
-    const waText = encodeURIComponent(
-      `*\uD83D\uDD34 [URGENT] Calibration Due Notice for ${company} - ARCL Lab CC-4313*\n\nDear ${person} (${company}),\n${customMessage ? customMessage.replace(/\{\{company\}\}/gi, company).replace(/\{\{contactPerson\}\}/gi, person).replace(/\{\{count\}\}/gi, String(targetInstruments.length)) : `This is an automated quality compliance notice to inform you that ${targetInstruments.length} testing & measuring instrument(s) registered with ARCL Calibration Laboratory are approaching their annual calibration validity due date. Below is the verified list of instruments due for NABL recalibration:`}\n\n\`\`\`\n${targetInstruments.map((i) => `• ${i.instrument} (S/N: ${i.serialNo || "N/A"}) ➔ Due Date: ${i.calibrationDueDate ? new Date(i.calibrationDueDate).toLocaleDateString("en-GB") : "Due Soon"}`).join("\n")}\n\`\`\`\n\nPlease schedule recalibration pickup or book on-site calibration:\nhttps://arclinstruments.com/calibration-services\n\nARCL Metrology Support Desk:\n\uD83D\uDD34 Phone: ${phone}\n\uD83D\uDD34 Email: ${labContactEmail || "arclinstruments@gmail.com"}`
-    );
+    let subjText = (customSubject || `🚨 [URGENT] Calibration Due Notice for ${company}`)
+      .replace(/\{\{company\}\}/gi, company)
+      .replace(/\{\{contactPerson\}\}/gi, person)
+      .replace(/\{\{count\}\}/gi, String(targetInstruments.length));
 
-    const targetPhone = (targetInstruments[0]?.clientPhone || req.body.clientPhone || "8009559900").replace(/[^0-9]/g, "");
+    if (!subjText.includes("🚨") && !subjText.includes("🔴")) {
+      subjText = `🚨 ${subjText}`;
+    }
+
+    const waRawMessage =
+      `*${subjText}*\n` +
+      `*ARCL Lab CC-4313*\n\n` +
+      `Dear ${person} (${company}),\n\n` +
+      `${introText}\n\n` +
+      `╭──────────────────────────────────╮\n` +
+      `│ 🔴 *CALIBRATION DUE INSTRUMENTS*  │\n` +
+      `├──────────────────────────────────┤\n` +
+      `${instItems}\n` +
+      `╰──────────────────────────────────╯\n\n` +
+      `📅 *Please schedule recalibration pickup or book on-site testing.*\n\n` +
+      `🔗 arclinstruments.com/calibration-services\n\n` +
+      `*ARCL Instruments Private Limited*\n` +
+      `🔴 Phone: ${phone}\n` +
+      `🔴 Email: ${labContactEmail || "arclinstruments@gmail.com"}`;
+
+    const waText = encodeURIComponent(waRawMessage);
+
+    const targetPhone = (targetInstruments[0]?.clientPhone || req.body.clientPhone || "8369458583").replace(/[^0-9]/g, "");
     const waLink = `https://wa.me/${targetPhone.length === 10 ? "91" + targetPhone : targetPhone}?text=${waText}`;
 
     return res.status(200).json(
