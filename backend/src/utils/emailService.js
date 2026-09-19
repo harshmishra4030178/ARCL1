@@ -21,8 +21,8 @@ const getTransporter = () => {
     return cachedTransporter;
   }
 
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER || "arclinstruments@gmail.com";
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || "srrczqghmqekrvmk";
 
   if (!user || !pass) {
     return null;
@@ -803,24 +803,29 @@ export const sendCalibrationDueEmail = async ({
   const stampAtt = getStampAttachment();
   if (stampAtt) mailAttachments.push(stampAtt);
 
-  if (transporter && toEmail) {
-    try {
-      await transporter.sendMail({
-        from: fromAddress,
-        to: toEmail,
-        replyTo: fromEmail,
-        subject: subjectLine,
-        html: emailHtml,
-        attachments: mailAttachments,
-      });
-      return { success: true, method: "smtp", subject: subjectLine };
-    } catch (err) {
-      console.warn("SMTP send failed, falling back:", err.message);
-      return { success: true, method: "simulated", warning: err.message, subject: subjectLine };
-    }
+  if (!toEmail) {
+    throw new Error("Recipient email address is required");
   }
 
-  return { success: true, method: "simulated", subject: subjectLine };
+  if (!transporter) {
+    throw new Error("SMTP Transporter could not be initialized");
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      replyTo: fromEmail,
+      subject: subjectLine,
+      html: emailHtml,
+      attachments: mailAttachments,
+    });
+    console.log(`[EmailService] Calibration due notice delivered to ${toEmail} (MessageId: ${info.messageId})`);
+    return { success: true, method: "smtp", subject: subjectLine, messageId: info.messageId };
+  } catch (err) {
+    console.error(`[EmailService Error] SMTP send failed to ${toEmail}:`, err.message);
+    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
+  }
 };
 
 
@@ -986,24 +991,29 @@ export const sendCertificateDeliveryEmail = async ({
     });
   }
 
-  if (transporter && toEmail) {
-    try {
-      await transporter.sendMail({
-        from: fromAddress,
-        to: toEmail,
-        replyTo: fromEmail,
-        subject: `[Calibration Certificate] ${instName} (${sNo}) - ARCL Instruments`,
-        html: emailHtml,
-        attachments,
-      });
-      return { success: true, method: "smtp" };
-    } catch (err) {
-      console.warn("SMTP send failed, falling back:", err.message);
-      return { success: true, method: "simulated", warning: err.message };
-    }
+  if (!toEmail) {
+    throw new Error("Recipient email address is required");
   }
 
-  return { success: true, method: "simulated" };
+  if (!transporter) {
+    throw new Error("SMTP Transporter could not be initialized");
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      replyTo: fromEmail,
+      subject: `[Calibration Certificate] ${instName} (${sNo}) - ARCL Instruments`,
+      html: emailHtml,
+      attachments,
+    });
+    console.log(`[EmailService] Certificate delivery notice sent to ${toEmail} (MessageId: ${info.messageId})`);
+    return { success: true, method: "smtp", messageId: info.messageId };
+  } catch (err) {
+    console.error(`[EmailService Error] Certificate SMTP send failed to ${toEmail}:`, err.message);
+    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
+  }
 };
 
 /**
@@ -1380,22 +1390,27 @@ export const sendSpecificDocumentEmail = async ({
   const stampAtt = getStampAttachment();
   if (stampAtt) attachments.push(stampAtt);
 
-  if (transporter && toEmail) {
-    try {
-      await transporter.sendMail({
-        from: fromAddress,
-        to: toEmail,
-        replyTo: fromEmail,
-        subject: mainSubject,
-        html: emailHtml,
-        attachments,
-      });
-      return { success: true, method: "smtp", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
-    } catch (err) {
-      console.warn("SMTP send failed, falling back:", err.message);
-      return { success: true, method: "simulated", warning: err.message, subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
-    }
+  if (!toEmail) {
+    throw new Error("Recipient email address is required");
   }
 
-  return { success: true, method: "simulated", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length };
+  if (!transporter) {
+    throw new Error("SMTP Transporter could not be initialized");
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      replyTo: fromEmail,
+      subject: mainSubject,
+      html: emailHtml,
+      attachments,
+    });
+    console.log(`[EmailService] Document notification delivered to ${toEmail} (MessageId: ${info.messageId})`);
+    return { success: true, method: "smtp", subject: mainSubject, count: docsList.length, attachmentsCount: attachments.length, messageId: info.messageId };
+  } catch (err) {
+    console.error(`[EmailService Error] Document SMTP send failed to ${toEmail}:`, err.message);
+    throw new Error(`SMTP Dispatch Failed: ${err.message}`);
+  }
 };
