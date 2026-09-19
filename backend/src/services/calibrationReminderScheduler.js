@@ -71,12 +71,12 @@ export const runCalibrationDueReminderScan = async ({
       return summary;
     }
 
-    // Group eligible instruments by client email / company
+    // Group eligible instruments by client company
     const grouped = {};
     eligibleRecords.forEach((rec) => {
-      const emailKey = (rec.clientEmail || "").trim().toLowerCase();
       const companyKey = (rec.clientCompany || "Default Client").trim();
-      const key = emailKey || companyKey;
+      const emailKey = (rec.clientEmail || "").trim().toLowerCase();
+      const key = `${companyKey.toLowerCase()}___${emailKey}`;
 
       if (!grouped[key]) {
         grouped[key] = {

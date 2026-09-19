@@ -4808,11 +4808,12 @@ export default function CalibrationPageView() {
             
             const recipientMap = {};
             safeRecords.forEach((r) => {
-              const key = (r?.clientEmail || r?.clientCompany || "External Client").toLowerCase();
+              const compName = (r?.clientCompany || "External Client").trim();
+              const key = compName.toLowerCase();
               if (!recipientMap[key]) {
                 recipientMap[key] = {
                   id: "db-" + (r?._id || key),
-                  company: r?.clientCompany || "External Client",
+                  company: compName,
                   contactPerson: r?.clientContactPerson || "Quality Manager",
                   email: r?.clientEmail || "arclinstruments@gmail.com",
                   phone: r?.clientPhone || "+91 8009559900",
@@ -4821,6 +4822,15 @@ export default function CalibrationPageView() {
                 };
               }
               recipientMap[key].allInstruments.push(r);
+              if (r?.clientEmail && recipientMap[key].email === "arclinstruments@gmail.com" && r.clientEmail !== "arclinstruments@gmail.com") {
+                recipientMap[key].email = r.clientEmail;
+              }
+              if (r?.clientContactPerson && recipientMap[key].contactPerson === "Quality Manager" && r.clientContactPerson !== "Quality Manager") {
+                recipientMap[key].contactPerson = r.clientContactPerson;
+              }
+              if (r?.clientPhone && recipientMap[key].phone === "+91 8009559900" && r.clientPhone !== "+91 8009559900") {
+                recipientMap[key].phone = r.clientPhone;
+              }
               const isDue = r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : false;
               if (isDue) {
                 recipientMap[key].dueInstruments.push(r);
@@ -5678,11 +5688,12 @@ export default function CalibrationPageView() {
         const recipientGroups = [];
         const map = {};
         safeRecords.forEach((r) => {
-          const key = (r?.clientEmail || r?.clientCompany || "External Client").toLowerCase();
+          const compName = (r?.clientCompany || "External Client").trim();
+          const key = compName.toLowerCase();
           if (!map[key]) {
             map[key] = {
               id: "db-" + (r?._id || key),
-              company: r?.clientCompany || "External Client",
+              company: compName,
               contactPerson: r?.clientContactPerson || "Quality Manager",
               email: r?.clientEmail || "arclinstruments@gmail.com",
               phone: r?.clientPhone || "+91 8009559900",
@@ -5694,6 +5705,15 @@ export default function CalibrationPageView() {
             recipientGroups.push(map[key]);
           }
           map[key].allInstruments.push(r);
+          if (r?.clientEmail && map[key].email === "arclinstruments@gmail.com" && r.clientEmail !== "arclinstruments@gmail.com") {
+            map[key].email = r.clientEmail;
+          }
+          if (r?.clientContactPerson && map[key].contactPerson === "Quality Manager" && r.clientContactPerson !== "Quality Manager") {
+            map[key].contactPerson = r.clientContactPerson;
+          }
+          if (r?.clientPhone && map[key].phone === "+91 8009559900" && r.clientPhone !== "+91 8009559900") {
+            map[key].phone = r.clientPhone;
+          }
           const isDue = r?.calibrationDueDate ? new Date(r.calibrationDueDate) <= cutoffDate : false;
           if (isDue) {
             map[key].dueInstruments.push(r);
@@ -5703,7 +5723,8 @@ export default function CalibrationPageView() {
         // Add custom candidate entries so every added email/candidate appears here
         const safeCandidates = Array.isArray(customCandidates) ? customCandidates : [];
         safeCandidates.forEach((cand) => {
-          const key = (cand?.email || cand?.company || cand?.id || "").toLowerCase();
+          const compName = (cand?.company || cand?.email || cand?.id || "Custom Candidate").trim();
+          const key = (cand?.id || compName).toLowerCase();
           if (key && !map[key]) {
             const isDue = cand?.dueDate ? new Date(cand.dueDate) <= cutoffDate : true;
             const instObj = {
@@ -5713,10 +5734,10 @@ export default function CalibrationPageView() {
             };
             map[key] = {
               id: cand.id,
-              company: cand.company,
-              contactPerson: cand.contactPerson,
-              email: cand.email,
-              phone: cand.phone,
+              company: cand.company || compName,
+              contactPerson: cand.contactPerson || "Quality Manager",
+              email: cand.email || "arclinstruments@gmail.com",
+              phone: cand.phone || "+91 8009559900",
               allInstruments: [instObj],
               dueInstruments: isDue ? [instObj] : [],
               isCustom: true,
