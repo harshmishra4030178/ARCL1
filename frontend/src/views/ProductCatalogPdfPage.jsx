@@ -262,25 +262,25 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         id="catalog-document"
         className="relative overflow-hidden max-w-4xl mx-auto bg-white border border-slate-200/90 rounded-3xl shadow-xl p-6 sm:p-8 md:p-10 text-slate-800 space-y-6"
       >
-        {/* Repeating Watermark Overlay (Clean Single-Layer SVG Pattern with Generous Spacing - Zero Overlapping) */}
+        {/* Repeating Watermark Overlay (Floats Uniformly Over Entire Sheet - Zero Hidden Areas) */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-10 opacity-[0.08]"
+          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-30 opacity-[0.09]"
         >
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern
                 id="arclCatalogWatermarkPattern"
-                width="300"
-                height="150"
+                width="280"
+                height="140"
                 patternUnits="userSpaceOnUse"
                 patternTransform="rotate(-30)"
               >
                 <text
-                  x="150"
+                  x="140"
                   y="45"
                   fill="#021C57"
-                  fontSize="11"
+                  fontSize="11.5"
                   fontWeight="900"
                   fontFamily="Inter, Arial, sans-serif"
                   textAnchor="middle"
@@ -289,10 +289,10 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
                   ARCL INSTRUMENTS PVT. LTD.
                 </text>
                 <text
-                  x="300"
-                  y="120"
+                  x="280"
+                  y="115"
                   fill="#021C57"
-                  fontSize="11"
+                  fontSize="11.5"
                   fontWeight="900"
                   fontFamily="Inter, Arial, sans-serif"
                   textAnchor="middle"
@@ -302,9 +302,9 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
                 </text>
                 <text
                   x="0"
-                  y="120"
+                  y="115"
                   fill="#021C57"
-                  fontSize="11"
+                  fontSize="11.5"
                   fontWeight="900"
                   fontFamily="Inter, Arial, sans-serif"
                   textAnchor="middle"
