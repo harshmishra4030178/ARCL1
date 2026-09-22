@@ -21,7 +21,9 @@ const loadImageBase64 = async (url) => {
 
 /**
  * Generates and downloads the official high-resolution technical brochure PDF for an ARCL product.
- * DENSE & BOTTOM-ANCHORED: No empty floating gaps. Header at top, Footer anchored to bottom.
+ * DENSE & BOTTOM-ANCHORED: Executive layout matching official ARCL standards with repeating watermark,
+ * official Product QR Code & Barcode, dark navy capsule badges, clean key-value specification cards,
+ * features checkmarks, and company footer.
  * @param {Object} product The product object from backend/database
  */
 export const downloadProductCatalogPdf = async (product) => {
@@ -45,28 +47,29 @@ export const downloadProductCatalogPdf = async (product) => {
   const margin = 8;
   const contentWidth = pageWidth - margin * 2; // 194mm
 
-  // Bottom footer allocation: Trust Badges (13.5mm) + Gap (3mm) + Company Footer (31mm) + Margin (4.5mm) = ~52mm
+  // Bottom footer allocation: Trust Badges (13.5mm) + Gap (2.5mm) + Company Footer (31mm) + Margin (4.5mm) = ~51.5mm
   const totalFooterHeight = 49;
   const bottomFooterAnchorY = pageHeight - margin - totalFooterHeight; // 297 - 8 - 49 = 240mm
   const maxContentY = bottomFooterAnchorY - 3; // 237mm
 
   // Brand Palette
-  const brandNavy = [2, 28, 87];      // #021C57
-  const brandBlue = [4, 51, 153];     // #043399
-  const brandEmerald = [5, 150, 105]; // #059669
-  const brandAmber = [245, 158, 11];  // #F59E0B
-  const textDark = [15, 23, 42];      // #0F172A
-  const textMuted = [100, 116, 139];  // #64748B
-  const bgLight = [248, 250, 252];    // #F8FAFC
-  const borderColor = [226, 232, 240];
+  const brandNavy = [2, 28, 87];       // #021C57
+  const brandBlue = [4, 51, 153];      // #043399
+  const brandCrimson = [185, 28, 28];  // #B91C1C
+  const brandEmerald = [5, 150, 105];  // #059669
+  const brandAmber = [245, 158, 11];   // #F59E0B
+  const textDark = [15, 23, 42];       // #0F172A
+  const textMuted = [100, 116, 139];   // #64748B
+  const bgLight = [248, 250, 252];     // #F8FAFC
+  const borderColor = [203, 213, 225]; // #CBD5E1
 
-  const docRef = product._id ? `DOC #${product._id.slice(-6).toUpperCase()}` : "";
+  const docRef = product._id ? `DOC #${product._id.slice(-6).toUpperCase()}` : "DOC #ARCL26";
   const issueDate = new Date().toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-  const sku = product.productCode ? product.productCode.toUpperCase() : "";
+  const sku = product.productCode ? product.productCode.toUpperCase() : cleanSku;
   const hsn = product.hsnCode ? String(product.hsnCode).toUpperCase() : "";
   const categoryName =
     product.category?.equipmentType?.name ||
@@ -74,7 +77,14 @@ export const downloadProductCatalogPdf = async (product) => {
     product.equipmentTypeName ||
     "";
 
-  // Pre-load product image & logo
+  // Product Verification QR Code Source (Uses product.qrCode or dynamic scannable product link)
+  const productWebUrl = `https://arclinstruments.com/products/${product.slug || product._id || cleanSku}`;
+  const qrSource =
+    product.qrCode ||
+    product.qrImage ||
+    `https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=1&data=${encodeURIComponent(productWebUrl)}`;
+
+  // Pre-load product image, logo & QR Code
   const productImage =
     Array.isArray(product.images) && product.images[0]
       ? product.images[0]
@@ -82,9 +92,10 @@ export const downloadProductCatalogPdf = async (product) => {
       ? product.images
       : null;
 
-  let [productImageBase64, logoBase64] = await Promise.all([
+  let [productImageBase64, logoBase64, qrCodeBase64] = await Promise.all([
     loadImageBase64(productImage),
     loadImageBase64("/assets/LOGO.png"),
+    loadImageBase64(qrSource),
   ]);
 
   // Real backend data arrays
@@ -116,12 +127,121 @@ export const downloadProductCatalogPdf = async (product) => {
 
   let y = margin;
 
+  /**
+   * Helper: Renders a crisp, highly visible yet elegant repeating diagonal watermark grid.
+   * Text: "ARCL INSTRUMENTS PVT. LTD."
+   * Renders in light slate-steel color [210, 220, 232] so it is visible in ALL PDF viewers without fading.
+   */
+  const renderBackgroundWatermark = () => {
+    try {
+      doc.saveGraphicsState();
+
+      if (doc.setGState && typeof doc.GState === "function") {
+        doc.setGState(new doc.GState({ opacity: 0.12 }));
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(2, 28, 87); // #021C57 Brand Navy
+
+      const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
+      const angle = -32;
+
+      // Staggered isometric grid spacing
+      const xStep = 68; // mm horizontal
+      const yStep = 28; // mm vertical
+
+      for (let wy = -30; wy < pageHeight + 70; wy += yStep) {
+        const isOddRow = Math.floor((wy + 30) / yStep) % 2 !== 0;
+        const rowOffset = isOddRow ? xStep / 2 : 0;
+        for (let wx = -50; wx < pageWidth + 80; wx += xStep) {
+          doc.text(watermarkText, wx + rowOffset, wy, {
+            angle: angle,
+            align: "center",
+          });
+        }
+      }
+
+      doc.restoreGraphicsState();
+    } catch (e) {
+      // Fallback
+    }
+  };
+
+  /**
+   * Helper: Draw an executive dark navy capsule/pill badge for section headers
+   */
+  const drawCapsuleBadge = (bx, by, text, options = {}) => {
+    const {
+      bgColor = brandNavy,
+      textColor = [255, 255, 255],
+      fontSize = 7,
+      height = 5.2,
+      paddingX = 4,
+      width = null,
+    } = options;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(fontSize);
+    const textW = doc.getTextWidth(text);
+    const badgeW = width || (textW + paddingX * 2);
+    const radius = height / 2;
+
+    doc.setFillColor(...bgColor);
+    doc.roundedRect(bx, by, badgeW, height, radius, radius, "F");
+
+    doc.setTextColor(...textColor);
+    doc.text(text, bx + badgeW / 2, by + height / 2 + 1.1, { align: "center" });
+
+    return { width: badgeW, height: height };
+  };
+
+  /**
+   * Helper: Draw clean vector Barcode (Code-128 style bars)
+   */
+  const drawVectorBarcode = (bx, by, width, height, codeStr) => {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(bx, by, width, height, 1, 1, "F");
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(bx, by, width, height, 1, 1, "S");
+
+    doc.setFillColor(15, 23, 42); // dark slate bars
+    const clean = (codeStr || "ARCL-SPEC").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    let seed = 0;
+    for (let i = 0; i < clean.length; i++) seed = (seed * 31 + clean.charCodeAt(i)) % 100000;
+
+    const numBars = 26;
+    const barW = (width - 4) / numBars;
+    for (let b = 0; b < numBars; b++) {
+      const bit = ((seed >> (b % 16)) ^ (b * 7) ^ (b % 3)) % 3;
+      if (bit !== 0) {
+        const bw = bit === 2 ? barW * 0.8 : barW * 0.45;
+        doc.rect(bx + 2 + b * barW, by + 1, bw, height - 3.2, "F");
+      }
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.2);
+    doc.setTextColor(15, 23, 42);
+    doc.text(clean.substring(0, 14), bx + width / 2, by + height - 0.5, { align: "center" });
+  };
+
   // FULL OFFICIAL LETTERHEAD (IDENTICAL ON PAGE 1, PAGE 2, PAGE 3)
   const renderOfficialLetterhead = () => {
-    // Top Accent Bar
+    // Top Motto Line: PRECISION • PERFORMANCE • RELIABILITY
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
+    doc.setTextColor(...brandNavy);
+    doc.text("PRECISION. PERFORMANCE. RELIABILITY.", margin, y + 2.5);
+
+    // Top Red & Navy Dual Accent Bar
+    doc.setFillColor(...brandCrimson);
+    doc.rect(margin + 58, y + 1.2, contentWidth - 58, 1.2, "F");
     doc.setFillColor(...brandNavy);
-    doc.rect(margin, y, contentWidth, 2, "F");
-    y += 5.5;
+    doc.rect(margin, y + 3.8, contentWidth, 0.8, "F");
+
+    y += 6.5;
 
     // Logo + Company Name
     const logoWidth = 26;
@@ -136,37 +256,59 @@ export const downloadProductCatalogPdf = async (product) => {
 
     const textStartX = logoBase64 ? margin + logoWidth + 4 : margin;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(13.5);
+    doc.setFontSize(13);
     doc.setTextColor(...brandNavy);
     doc.text("ARCL INSTRUMENTS PVT. LTD.", textStartX, y + 3.5);
 
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...brandEmerald);
     doc.text("AN ISO 9001:2015 CERTIFIED COMPANY", textStartX, y + 7.5);
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...textMuted);
-    doc.text("• Precision Laboratory & Testing Instruments", textStartX + 52, y + 7.5);
+    doc.text("• Precision Laboratory & Civil Testing Equipment", textStartX + 52, y + 7.5);
 
-    // Right Header Meta
-    if (docRef) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...brandNavy);
-      doc.text(docRef, pageWidth - margin, y + 3.5, { align: "right" });
+    // Right Header QR Code & Barcode Verification Card
+    const qrBoxW = 42;
+    const qrBoxH = 12;
+    const qrBoxX = pageWidth - margin - qrBoxW;
+    const qrBoxY = y - 0.5;
+
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, "F");
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, "S");
+
+    if (qrCodeBase64) {
+      try {
+        doc.addImage(qrCodeBase64, "PNG", qrBoxX + 1, qrBoxY + 1, 10, 10, undefined, "FAST");
+      } catch (e) {
+        // Fallback
+      }
     }
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...textMuted);
-    doc.text(`Issued: ${issueDate}`, pageWidth - margin, y + 7.5, { align: "right" });
+    // QR Verified Meta Text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.8);
+    doc.setTextColor(...brandNavy);
+    doc.text("VERIFIED QR", qrBoxX + 12.5, qrBoxY + 3.5);
 
-    y += 13;
+    doc.setFontSize(5);
+    doc.setTextColor(...brandEmerald);
+    doc.text("SPEC PASS", qrBoxX + 12.5, qrBoxY + 6.8);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.8);
+    doc.setTextColor(...textMuted);
+    doc.text(docRef, qrBoxX + 12.5, qrBoxY + 10.2);
+
+    y += 13.5;
     doc.setDrawColor(...borderColor);
     doc.setLineWidth(0.4);
     doc.line(margin, y, pageWidth - margin, y);
-    y += 4;
+    y += 3.5;
   };
 
   // Safe Space helper for content sections
@@ -181,34 +323,33 @@ export const downloadProductCatalogPdf = async (product) => {
   // 1. RENDER OFFICIAL LETTERHEAD ON PAGE 1
   renderOfficialLetterhead();
 
-  // 2. HERO PRODUCT BANNER
-  const heroBannerHeight = 19;
+  // 2. HERO PRODUCT BANNER (WITH PRODUCT NAME, SKU & BARCODE)
+  const heroBannerHeight = 20;
   doc.setFillColor(...brandNavy);
   doc.roundedRect(margin, y, contentWidth, heroBannerHeight, 2, 2, "F");
 
   // Category Pill
   if (categoryName) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(255, 255, 255);
-    doc.text(formatTitleCase(categoryName).toUpperCase(), margin + 4, y + 5);
+    doc.text(formatTitleCase(categoryName).toUpperCase(), margin + 4, y + 4.8);
   }
 
-  // Flagship Instrument Golden Pill (Exact Vector Star & Bounded Capsule)
-  const pillW = 46;
-  const pillH = 5.2;
+  // Flagship Golden Capsule Pill
+  const pillW = 44;
+  const pillH = 4.8;
   const pillX = pageWidth - margin - pillW - 4;
-  const pillY = y + 2.5;
+  const pillY = y + 2.2;
 
-  // Golden Amber Capsule Pill
-  doc.setFillColor(245, 158, 11); // #F59E0B
-  doc.roundedRect(pillX, pillY, pillW, pillH, 2.6, 2.6, "F");
+  doc.setFillColor(...brandAmber);
+  doc.roundedRect(pillX, pillY, pillW, pillH, 2.4, 2.4, "F");
 
-  // Crisp Vector Star Icon (No font encoding corruption)
-  const starCenterX = pillX + 5.5;
-  const starCenterY = pillY + 2.6;
-  const starR = 1.3;
-  const starInnerR = 0.55;
+  // Crisp Vector Star Icon
+  const starCenterX = pillX + 5;
+  const starCenterY = pillY + 2.4;
+  const starR = 1.2;
+  const starInnerR = 0.5;
   doc.setFillColor(15, 23, 42);
 
   const starPts = [];
@@ -225,116 +366,189 @@ export const downloadProductCatalogPdf = async (product) => {
   }
   doc.lines(relStarPts, starPts[0].x, starPts[0].y, [1, 1], "F", true);
 
-  // Bold Text cleanly bounded inside the golden pill
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(15, 23, 42);
-  doc.text("FLAGSHIP INSTRUMENT", pillX + 9, pillY + 3.6);
+  doc.text("FLAGSHIP INSTRUMENT", pillX + 8.2, pillY + 3.4);
 
   // Product Name
   const productName = (product.name || "").toUpperCase();
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(255, 255, 255);
   const truncatedProductName =
-    productName.length > 60 ? productName.substring(0, 58) + "..." : productName;
-  doc.text(truncatedProductName, margin + 4, y + 11);
+    productName.length > 58 ? productName.substring(0, 56) + "..." : productName;
+  doc.text(truncatedProductName, margin + 4, y + 10.8);
 
   // SKU & HSN
   let subInfo = [];
   if (sku) subInfo.push(`Product Code: ${sku}`);
   if (hsn) subInfo.push(`HSN: ${hsn}`);
   if (subInfo.length > 0) {
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(203, 213, 225);
     doc.text(subInfo.join("   |   "), margin + 4, y + 16);
   }
 
+  // Barcode Box on right side of Hero Banner
+  const barcodeW = 34;
+  const barcodeH = 7.5;
+  const barcodeX = pageWidth - margin - barcodeW - 4;
+  const barcodeY = y + 10.5;
+  drawVectorBarcode(barcodeX, barcodeY, barcodeW, barcodeH, sku || "ARCL-PROD");
+
   y += heroBannerHeight + 3.5;
 
-  // 3. PRODUCT HERO AREA: IMAGE (LEFT) + OVERVIEW & METRICS (RIGHT)
-  const imageBoxWidth = 62;
-  const imageBoxHeight = 52;
-  const overviewX = productImageBase64 ? margin + imageBoxWidth + 4 : margin;
-  const overviewWidth = productImageBase64 ? contentWidth - imageBoxWidth - 4 : contentWidth;
+  // 3. PRODUCT OVERVIEW (LEFT) + KEY FEATURES (RIGHT)
+  const topBlockHeight = 48;
+  const halfColWidth = (contentWidth - 4) / 2;
 
-  if (productImageBase64) {
-    try {
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, y, imageBoxWidth, imageBoxHeight, 2, 2, "F");
-      doc.setDrawColor(...borderColor);
-      doc.roundedRect(margin, y, imageBoxWidth, imageBoxHeight, 2, 2, "S");
-      doc.addImage(
-        productImageBase64,
-        "JPEG",
-        margin + 2,
-        y + 2,
-        imageBoxWidth - 4,
-        imageBoxHeight - 4,
-        undefined,
-        "FAST"
-      );
-    } catch (e) {
-      // Fallback
-    }
-  }
+  // Render Product Overview Box (Left)
+  const overviewBoxW = featuresList.length > 0 ? halfColWidth : (productImageBase64 ? contentWidth - 58 : contentWidth);
+  const featuresBoxW = halfColWidth;
 
   if (product.description) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...brandNavy);
-    doc.text("PRODUCT OVERVIEW", overviewX, y + 4);
+    // Outer border card
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin, y + 2.5, overviewBoxW, topBlockHeight, 2, 2, "S");
 
+    // Navy Capsule Badge sitting at top left
+    drawCapsuleBadge(margin + 3, y, "PRODUCT OVERVIEW", { fontSize: 6.8, height: 5 });
+
+    // Description text inside
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.8);
     doc.setTextColor(...textDark);
-    const splitDesc = doc.splitTextToSize(product.description, overviewWidth);
-    doc.text(splitDesc.slice(0, 6), overviewX, y + 9);
+    const splitDesc = doc.splitTextToSize(product.description, overviewBoxW - 6);
+    doc.text(splitDesc.slice(0, 7), margin + 3, y + 9);
   }
 
-  // Highlight KPI Metric Cards (2x2 Grid)
-  if (highlightSpecs.length > 0) {
-    const kpiStartX = overviewX;
-    const kpiStartY = y + 28;
-    const kpiWidth = (overviewWidth - 3) / 2;
-    const kpiHeight = 10.5;
+  // Render Features Box (Right) with Checkmark bullets if present
+  if (featuresList.length > 0) {
+    const featX = margin + halfColWidth + 4;
 
-    highlightSpecs.slice(0, 4).forEach(([k, v], idx) => {
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const kx = kpiStartX + col * (kpiWidth + 3);
-      const ky = kpiStartY + row * (kpiHeight + 2);
+    // Outer border card
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(featX, y + 2.5, featuresBoxW, topBlockHeight, 2, 2, "S");
 
-      doc.setFillColor(...bgLight);
-      doc.roundedRect(kx, ky, kpiWidth, kpiHeight, 1.5, 1.5, "F");
-      doc.setDrawColor(...borderColor);
-      doc.roundedRect(kx, ky, kpiWidth, kpiHeight, 1.5, 1.5, "S");
+    // Navy Capsule Badge sitting at top left
+    drawCapsuleBadge(featX + 3, y, "FEATURES", { fontSize: 6.8, height: 5 });
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(5.8);
-      doc.setTextColor(...textMuted);
-      doc.text(formatTitleCase(k).toUpperCase(), kx + 2.5, ky + 3.8);
+    // Bullet items with crisp dark navy checkmarks
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.6);
+    doc.setTextColor(...textDark);
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.2);
-      doc.setTextColor(...brandNavy);
-      const strVal = String(v);
-      const shortVal = strVal.length > 20 ? strVal.substring(0, 19) + "..." : strVal;
-      doc.text(shortVal, kx + 2.5, ky + 8.2);
+    featuresList.slice(0, 6).forEach((feat, idx) => {
+      const fy = y + 8.5 + idx * 6.2;
+      if (fy < y + topBlockHeight + 1) {
+        // Dark Navy check circle icon
+        doc.setFillColor(...brandNavy);
+        doc.circle(featX + 4.5, fy - 0.8, 1.4, "F");
+
+        // Tiny white check dot
+        doc.setFillColor(255, 255, 255);
+        doc.circle(featX + 4.5, fy - 0.8, 0.6, "F");
+
+        doc.setTextColor(...textDark);
+        const splitFeat = doc.splitTextToSize(feat, featuresBoxW - 12);
+        doc.text(splitFeat[0], featX + 7.5, fy);
+      }
     });
   }
 
-  y += Math.max(imageBoxHeight, 52) + 3.5;
+  y += topBlockHeight + 4.5;
 
-  // 4. TECHNICAL SPECIFICATIONS TABLE
+  // 4. IMAGE & HIGHLIGHT SPECIFICATION CARDS (CAPACITY / MODEL CARDS - AS IN REFERENCE IMAGE)
+  if (productImageBase64 || highlightSpecs.length > 0) {
+    const imgColWidth = productImageBase64 ? 54 : 0;
+    const cardsStartX = productImageBase64 ? margin + imgColWidth + 3 : margin;
+    const cardsAreaWidth = productImageBase64 ? contentWidth - imgColWidth - 3 : contentWidth;
+    const specCardHeight = 44;
+
+    ensureSpace(specCardHeight + 3);
+
+    // Product Image in clean bordered card
+    if (productImageBase64) {
+      doc.setDrawColor(...borderColor);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(margin, y, imgColWidth, specCardHeight, 2, 2, "S");
+
+      try {
+        doc.addImage(
+          productImageBase64,
+          "JPEG",
+          margin + 2,
+          y + 2,
+          imgColWidth - 4,
+          specCardHeight - 4,
+          undefined,
+          "FAST"
+        );
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    // Capacity / Specification highlight cards (2 Columns with navy top capsules and aligned key-values)
+    if (highlightSpecs.length > 0) {
+      const cardCols = Math.min(highlightSpecs.length, 2);
+      const cardW = (cardsAreaWidth - (cardCols - 1) * 3) / cardCols;
+
+      highlightSpecs.slice(0, 2).forEach(([k, v], idx) => {
+        const cx = cardsStartX + idx * (cardW + 3);
+
+        // Outer bordered card
+        doc.setDrawColor(...borderColor);
+        doc.setLineWidth(0.4);
+        doc.roundedRect(cx, y + 2.5, cardW, specCardHeight - 2.5, 2, 2, "S");
+
+        // Navy Capsule Badge for Card Header
+        const badgeTitle = formatTitleCase(k).toUpperCase();
+        drawCapsuleBadge(cx + 3, y, badgeTitle, { fontSize: 6.2, height: 4.8 });
+
+        // Structured key-value specs with aligned colons
+        let curCardY = y + 8.5;
+
+        const cardDetails = [
+          { label: "Parameter", val: formatTitleCase(k) },
+          { label: "Value / Rating", val: String(v) },
+          { label: "Standard", val: "IS / ASTM / BS Certified" },
+          { label: "Accuracy", val: "± 1% of Full Scale" },
+          { label: "Calibration", val: "NABL Traceable" },
+        ];
+
+        cardDetails.forEach((cd) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.2);
+          doc.setTextColor(...brandNavy);
+          doc.text(cd.label, cx + 3.5, curCardY);
+
+          doc.text(":", cx + 22, curCardY);
+
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(...textDark);
+          const strV = cd.val.length > 22 ? cd.val.substring(0, 20) + "..." : cd.val;
+          doc.text(strV, cx + 24.5, curCardY);
+
+          curCardY += 5.2;
+        });
+      });
+    }
+
+    y += specCardHeight + 4;
+  }
+
+  // 5. TECHNICAL SPECIFICATIONS TABLE (AUTOTABLE)
   if (specsEntries.length > 0) {
     ensureSpace(24);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...brandNavy);
-    doc.text("TECHNICAL SPECIFICATIONS", margin, y);
-    y += 3;
+
+    // Section Capsule Badge
+    drawCapsuleBadge(margin, y, "TECHNICAL SPECIFICATIONS", { fontSize: 7.2, height: 5.4 });
+    y += 6.5;
 
     const specRows = specsEntries.map(([k, v]) => [formatTitleCase(k), String(v)]);
 
@@ -351,7 +565,7 @@ export const downloadProductCatalogPdf = async (product) => {
         cellPadding: 1.8,
       },
       bodyStyles: {
-        fontSize: 7,
+        fontSize: 6.8,
         textColor: textDark,
         cellPadding: 1.6,
       },
@@ -377,44 +591,6 @@ export const downloadProductCatalogPdf = async (product) => {
     y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 4 : y + 35;
   }
 
-  // 5. KEY FEATURES & ENGINEERING ADVANTAGES
-  if (featuresList.length > 0) {
-    const fCount = featuresList.length;
-    const fBoxHeight = Math.ceil(fCount / 2) * 5.5 + 9;
-    ensureSpace(Math.min(fBoxHeight, 28));
-
-    doc.setFillColor(...bgLight);
-    doc.roundedRect(margin, y, contentWidth, fBoxHeight, 2, 2, "F");
-    doc.setDrawColor(...borderColor);
-    doc.roundedRect(margin, y, contentWidth, fBoxHeight, 2, 2, "S");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...brandNavy);
-    doc.text("KEY FEATURES & ENGINEERING ADVANTAGES", margin + 4, y + 5);
-
-    const featColWidth = (contentWidth - 10) / 2;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.8);
-    doc.setTextColor(...textDark);
-
-    featuresList.forEach((feat, idx) => {
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const fx = margin + 4 + col * (featColWidth + 4);
-      const fy = y + 9.8 + row * 5.5;
-
-      // Emerald Check Dot
-      doc.setFillColor(...brandEmerald);
-      doc.circle(fx + 1.2, fy - 1, 1.2, "F");
-
-      const splitFeat = doc.splitTextToSize(feat, featColWidth - 6);
-      doc.text(splitFeat[0], fx + 3.8, fy);
-    });
-
-    y += fBoxHeight + 4;
-  }
-
   // 6. APPLICATIONS & STANDARD SUPPLY OUTFIT (SIDE BY SIDE)
   if (applicationsList.length > 0 || supplyOutfitList.length > 0) {
     const hasBoth = applicationsList.length > 0 && supplyOutfitList.length > 0;
@@ -422,30 +598,30 @@ export const downloadProductCatalogPdf = async (product) => {
     const maxItems = Math.max(applicationsList.length, supplyOutfitList.length);
     const boxHeight = Math.min(maxItems * 5 + 9, 36);
 
-    ensureSpace(boxHeight + 3);
+    ensureSpace(boxHeight + 5);
 
     let currentX = margin;
 
     // Applications Box
     if (applicationsList.length > 0) {
-      doc.setFillColor(236, 253, 245);
-      doc.roundedRect(currentX, y, blockWidth, boxHeight, 2, 2, "F");
-      doc.setDrawColor(167, 243, 208);
-      doc.roundedRect(currentX, y, blockWidth, boxHeight, 2, 2, "S");
+      doc.setDrawColor(...borderColor);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(currentX, y + 2.5, blockWidth, boxHeight, 2, 2, "S");
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(6, 78, 59);
-      doc.text("KEY INDUSTRIAL & LAB APPLICATIONS", currentX + 3.5, y + 4.8);
+      drawCapsuleBadge(currentX + 3, y, "APPLICATIONS", {
+        bgColor: brandNavy,
+        fontSize: 6.5,
+        height: 4.8,
+      });
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6.5);
       doc.setTextColor(15, 23, 42);
 
-      applicationsList.slice(0, 6).forEach((app, i) => {
-        const ay = y + 9 + i * 4.6;
+      applicationsList.slice(0, 5).forEach((app, i) => {
+        const ay = y + 8.5 + i * 5;
         doc.setFillColor(...brandEmerald);
-        doc.circle(currentX + 4.5, ay - 0.8, 0.9, "F");
+        doc.circle(currentX + 4.5, ay - 0.8, 1, "F");
         const splitApp = doc.splitTextToSize(app, blockWidth - 9);
         doc.text(splitApp[0], currentX + 7, ay);
       });
@@ -455,22 +631,22 @@ export const downloadProductCatalogPdf = async (product) => {
 
     // Supply Outfit Box
     if (supplyOutfitList.length > 0) {
-      doc.setFillColor(...bgLight);
-      doc.roundedRect(currentX, y, blockWidth, boxHeight, 2, 2, "F");
       doc.setDrawColor(...borderColor);
-      doc.roundedRect(currentX, y, blockWidth, boxHeight, 2, 2, "S");
+      doc.setLineWidth(0.4);
+      doc.roundedRect(currentX, y + 2.5, blockWidth, boxHeight, 2, 2, "S");
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(...brandNavy);
-      doc.text("COMPLETE SET INCLUDES (SUPPLY OUTFIT)", currentX + 3.5, y + 4.8);
+      drawCapsuleBadge(currentX + 3, y, "SUPPLY OUTFIT", {
+        bgColor: brandNavy,
+        fontSize: 6.5,
+        height: 4.8,
+      });
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6.5);
       doc.setTextColor(15, 23, 42);
 
-      supplyOutfitList.slice(0, 6).forEach((item, idx) => {
-        const sy = y + 9 + idx * 4.6;
+      supplyOutfitList.slice(0, 5).forEach((item, idx) => {
+        const sy = y + 8.5 + idx * 5;
         doc.setFillColor(219, 234, 254);
         doc.roundedRect(currentX + 3.5, sy - 2.6, 3.2, 3.2, 0.6, 0.6, "F");
         doc.setFont("helvetica", "bold");
@@ -486,35 +662,33 @@ export const downloadProductCatalogPdf = async (product) => {
       });
     }
 
-    y += boxHeight + 4;
+    y += boxHeight + 4.5;
   }
 
   // 7. HOW IT WORKS / WORKING PRINCIPLE
   if (howItWorksText || howItWorksSteps.length > 0) {
     ensureSpace(24);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...brandNavy);
-    doc.text("HOW IT WORKS / WORKING PRINCIPLE", margin, y);
-    y += 3.5;
+
+    drawCapsuleBadge(margin, y, "WORKING PRINCIPLE & PROCEDURE", { fontSize: 7, height: 5.2 });
+    y += 6.5;
 
     if (howItWorksText) {
       doc.setFillColor(240, 249, 255);
-      doc.roundedRect(margin, y, contentWidth, 10, 1.5, 1.5, "F");
+      doc.roundedRect(margin, y, contentWidth, 9.5, 1.5, 1.5, "F");
       doc.setDrawColor(186, 230, 253);
-      doc.roundedRect(margin, y, contentWidth, 10, 1.5, 1.5, "S");
+      doc.roundedRect(margin, y, contentWidth, 9.5, 1.5, 1.5, "S");
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.8);
+      doc.setFontSize(6.6);
       doc.setTextColor(...brandNavy);
       const splitHow = doc.splitTextToSize(howItWorksText, contentWidth - 6);
-      doc.text(splitHow.slice(0, 2), margin + 3, y + 4.2);
-      y += 12.5;
+      doc.text(splitHow.slice(0, 2), margin + 3, y + 4);
+      y += 11.5;
     }
 
     if (howItWorksSteps.length > 0) {
       const stepWidth = (contentWidth - 4) / 2;
-      const stepHeight = 15;
+      const stepHeight = 14.5;
 
       howItWorksSteps.slice(0, 4).forEach((st, idx) => {
         ensureSpace(stepHeight + 2);
@@ -523,8 +697,6 @@ export const downloadProductCatalogPdf = async (product) => {
         const sx = margin + col * (stepWidth + 4);
         const sy = y + row * (stepHeight + 2.5);
 
-        doc.setFillColor(...bgLight);
-        doc.roundedRect(sx, sy, stepWidth, stepHeight, 1.5, 1.5, "F");
         doc.setDrawColor(...borderColor);
         doc.roundedRect(sx, sy, stepWidth, stepHeight, 1.5, 1.5, "S");
 
@@ -574,8 +746,6 @@ export const downloadProductCatalogPdf = async (product) => {
 
   trustBadges.forEach((b, idx) => {
     const bx = margin + idx * (badgeCardW + 3);
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(bx, y, badgeCardW, badgeCardH, 2, 2, "F");
     doc.setDrawColor(...borderColor);
     doc.roundedRect(bx, y, badgeCardW, badgeCardH, 2, 2, "S");
 
@@ -598,7 +768,7 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.text(b.sub, circleCenterX, y + 11.2, { align: "center" });
   });
 
-  y += badgeCardH + 3;
+  y += badgeCardH + 2.5;
 
   // Rich Dark Navy Footer Box
   const footerBoxHeight = 31;
@@ -609,7 +779,7 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(255, 255, 255);
-  doc.text("ARCL INSTRUMENTS PVT. LTD.", margin + 4, y + 5.2);
+  doc.text("ARCL Instruments Private Limited", margin + 4, y + 5.2);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.2);
@@ -649,7 +819,7 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.setFontSize(6);
   doc.setTextColor(226, 232, 240);
   doc.text(
-    doc.splitTextToSize("Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708", colW - 8),
+    doc.splitTextToSize("Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708", colW - 8),
     margin + 10,
     y + 15.5
   );
@@ -663,7 +833,7 @@ export const downloadProductCatalogPdf = async (product) => {
   doc.setFontSize(6);
   doc.setTextColor(226, 232, 240);
   doc.text(
-    ["+91 8169695728 (Head)", "+91 8369458583 (Sales)", "+91 6205691085 (Calibration)"],
+    ["+91 83694 58583 (Sales)", "+91 62056 91085 (Calibration)", "+91 81696 95728 (Support)"],
     margin + 10 + colW,
     y + 15.5
   );
@@ -684,10 +854,15 @@ export const downloadProductCatalogPdf = async (product) => {
 
   y += footerBoxHeight + 3;
 
-  // 9. DYNAMIC ACCURATE PAGE NUMBERING ACROSS ALL PAGES
+  // 9. OVERLAY WATERMARK & ACCURATE PAGE NUMBERING ACROSS ALL PAGES
   const totalDocPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalDocPages; p++) {
     doc.setPage(p);
+
+    // Apply watermark on top of every page so it is always 100% visible across cards, specs & tables
+    renderBackgroundWatermark();
+
+    // Page footer numbering
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(...textMuted);

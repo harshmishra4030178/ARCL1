@@ -57,6 +57,31 @@ export const generateQuotationPdf = ({
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
         body { margin: 0; padding: 24px; background: #ffffff; color: #1e293b; }
+        .quote-box {
+          position: relative;
+          overflow: hidden;
+          max-width: 850px;
+          margin: 0 auto;
+          border: 1px solid #cbd5e1;
+          border-radius: 12px;
+          padding: 32px;
+          background: #fff;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        .watermark-bg {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          pointer-events: none;
+          z-index: 0;
+          opacity: 0.05;
+        }
+        .content-layer {
+          position: relative;
+          z-index: 1;
+        }
         @media print {
           body { padding: 0; }
           .no-print { display: none !important; }
@@ -64,8 +89,21 @@ export const generateQuotationPdf = ({
       </style>
     </head>
     <body>
-      <div style="max-width: 850px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 32px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-        
+      <div class="quote-box">
+        <!-- Repeating Watermark Background -->
+        <div class="watermark-bg">
+          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="wmPattern" width="240" height="115" patternUnits="userSpaceOnUse" patternTransform="rotate(-32)">
+                <text x="120" y="35" fill="#021C57" font-size="12" font-weight="900" font-family="Inter, sans-serif" text-anchor="middle" letter-spacing="1px">ARCL INSTRUMENTS PVT. LTD.</text>
+                <text x="240" y="92" fill="#021C57" font-size="12" font-weight="900" font-family="Inter, sans-serif" text-anchor="middle" letter-spacing="1px">ARCL INSTRUMENTS PVT. LTD.</text>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#wmPattern)" />
+          </svg>
+        </div>
+
+        <div class="content-layer">
         <!-- Header Bar -->
         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #021C57; padding-bottom: 20px; margin-bottom: 24px;">
           <div>
@@ -149,8 +187,8 @@ export const generateQuotationPdf = ({
             Close Preview
           </button>
         </div>
-
-      </div>
+        </div> <!-- content-layer -->
+      </div> <!-- quote-box -->
     </body>
     </html>
   `;

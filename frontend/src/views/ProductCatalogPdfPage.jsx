@@ -22,6 +22,7 @@ import {
   Zap,
   Layers,
   PackageCheck,
+  QrCode,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
@@ -66,7 +67,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const handleDirectDownload = async () => {
     if (!product) return;
     try {
-      const toastId = toast.loading("Generating High-Resolution Technical Brochure...");
+      const toastId = toast.loading("Generating High-Resolution Technical Brochure with Barcode & Watermark...");
       const filename = await downloadProductCatalogPdf(product);
       toast.update(toastId, {
         render: `Brochure (${filename}) downloaded successfully!`,
@@ -164,6 +165,14 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
     product.equipmentTypeName ||
     "";
 
+  const qrImageUrl =
+    product.qrCode ||
+    `https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=1&data=${encodeURIComponent(
+      `https://arclinstruments.com/products/${product.slug || product._id || "catalog"}`
+    )}`;
+
+  const skuCode = (product.productCode || product.slug || "ARCL-SPEC").toUpperCase();
+
   return (
     <div className="min-h-screen bg-slate-100/90 py-8 px-4 sm:px-6 lg:px-8 font-sans">
       {/* NATIVE PRINT STYLES - ZERO HORIZONTAL SPLITTING */}
@@ -251,67 +260,113 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
       {/* 2. OFFICIAL CATALOG PRINTABLE BROCHURE SHEET */}
       <div
         id="catalog-document"
-        className="max-w-4xl mx-auto bg-white border border-slate-200/90 rounded-3xl shadow-xl p-6 sm:p-8 md:p-10 text-slate-800 space-y-6"
+        className="relative overflow-hidden max-w-4xl mx-auto bg-white border border-slate-200/90 rounded-3xl shadow-xl p-6 sm:p-8 md:p-10 text-slate-800 space-y-6"
       >
-        {/* HEADER LETTERHEAD */}
-        <div className="print-section border-b-2 border-[#021C57] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="bg-white p-1.5 rounded-xl border border-slate-100 shadow-xs shrink-0">
-              <img
-                src={logo}
-                alt="ARCL Logo"
-                crossOrigin="anonymous"
-                className="w-18 md:w-22 object-contain"
-              />
-            </div>
-            <div>
-              <h1 className="text-lg md:text-xl font-black text-[#021C57] tracking-tight">
-                ARCL INSTRUMENTS PVT. LTD.
-              </h1>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  <Award size={12} className="text-emerald-600" /> ISO 9001:2015 Certified
-                </span>
-                <span className="text-slate-400 text-xs">•</span>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  Laboratory & Civil Testing Equipment Manufacturer
-                </span>
-              </div>
-            </div>
+        {/* Repeating Watermark Overlay (Prominently visible across the entire sheet, matching reference image) */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-20 opacity-[0.09]"
+        >
+          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern
+                id="arclCatalogWatermarkPattern"
+                width="220"
+                height="110"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(-32)"
+              >
+                <text
+                  x="110"
+                  y="32"
+                  fill="#021C57"
+                  fontSize="12"
+                  fontWeight="900"
+                  fontFamily="Inter, Arial, sans-serif"
+                  textAnchor="middle"
+                  letterSpacing="1.2px"
+                >
+                  ARCL INSTRUMENTS PVT. LTD.
+                </text>
+                <text
+                  x="220"
+                  y="87"
+                  fill="#021C57"
+                  fontSize="12"
+                  fontWeight="900"
+                  fontFamily="Inter, Arial, sans-serif"
+                  textAnchor="middle"
+                  letterSpacing="1.2px"
+                >
+                  ARCL INSTRUMENTS PVT. LTD.
+                </text>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#arclCatalogWatermarkPattern)" />
+          </svg>
+        </div>
+
+        {/* TOP MOTTO LINE & HEADER LETTERHEAD */}
+        <div className="relative z-10 print-section space-y-2.5 border-b-2 border-[#021C57] pb-4">
+          <div className="flex items-center justify-between text-[11px] font-black text-[#021C57] tracking-wider border-b border-red-600/30 pb-1">
+            <span>PRECISION • PERFORMANCE • RELIABILITY</span>
+            <span className="text-slate-400 font-semibold text-[10px] hidden sm:inline">OFFICIAL TECHNICAL PRODUCT CATALOG</span>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
-            {product.qrCode && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-200 rounded-xl p-1.5 flex items-center gap-1.5 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="bg-white p-1.5 rounded-xl border border-slate-100 shadow-xs shrink-0">
                 <img
-                  src={product.qrCode}
-                  alt="Product QR"
+                  src={logo}
+                  alt="ARCL Logo"
                   crossOrigin="anonymous"
-                  className="w-10 h-10 object-contain bg-white rounded-lg p-0.5 border border-blue-100"
+                  className="w-18 md:w-22 object-contain"
                 />
-                <div className="text-[8px] font-extrabold text-[#021C57] leading-tight text-left pr-1">
-                  <span>VERIFIED QR</span><br />
-                  <span className="text-slate-500 font-medium">SPEC PASS</span>
+              </div>
+              <div>
+                <h1 className="text-lg md:text-xl font-black text-[#021C57] tracking-tight">
+                  ARCL INSTRUMENTS PVT. LTD.
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    <Award size={12} className="text-emerald-600" /> ISO 9001:2015 Certified
+                  </span>
+                  <span className="text-slate-400 text-xs">•</span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Precision Laboratory & Civil Testing Equipment
+                  </span>
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="text-left sm:text-right text-[10px] text-slate-500 space-y-0.5">
-              {product._id && (
-                <div className="font-mono bg-[#021C57]/10 text-[#021C57] px-2.5 py-0.5 rounded-lg font-bold inline-block border border-blue-200">
-                  DOC #{product._id.slice(-6).toUpperCase()}
+            {/* VERIFIED QR CODE IN HEADER */}
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              <div className="bg-white border border-slate-200 rounded-xl p-1.5 flex items-center gap-2 shadow-xs">
+                <img
+                  src={qrImageUrl}
+                  alt="Product Verification QR"
+                  crossOrigin="anonymous"
+                  className="w-11 h-11 object-contain bg-white rounded-lg p-0.5 border border-slate-100"
+                />
+                <div className="text-[9px] font-extrabold text-[#021C57] leading-tight text-left pr-1">
+                  <span>VERIFIED QR</span><br />
+                  <span className="text-emerald-600 font-bold">SPEC PASS</span><br />
+                  <span className="text-slate-400 font-mono text-[8px]">{product._id ? `DOC #${product._id.slice(-6).toUpperCase()}` : "ARCL-SPEC"}</span>
                 </div>
-              )}
+              </div>
+
               {currentDate && (
-                <div className="flex items-center sm:justify-end gap-1 text-slate-400 font-medium">
-                  <Calendar size={11} /> Issued: {currentDate}
+                <div className="hidden sm:flex flex-col text-right text-[10px] text-slate-400 font-medium space-y-0.5">
+                  <div className="flex items-center justify-end gap-1">
+                    <Calendar size={11} /> Issued: {currentDate}
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* HERO PRODUCT BANNER */}
+        {/* HERO PRODUCT BANNER (WITH BARCODE) */}
         <div className="print-section bg-gradient-to-r from-[#021C57] via-[#052d87] to-[#0A47B8] rounded-2xl p-4 sm:p-5 text-white space-y-2.5 shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between gap-3 flex-wrap relative z-10">
             {categoryTitle && (
@@ -321,34 +376,78 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             )}
 
             <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-xs flex items-center gap-1 border border-amber-300">
-                ★ FLAGSHIP INSTRUMENT
-              </span>
-
-
+              ★ FLAGSHIP INSTRUMENT
+            </span>
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white leading-tight tracking-tight relative z-10">
             {formatTitleCase(product.name)}
           </h2>
 
-          <div className="flex items-center gap-2 text-[11px] text-blue-100 font-semibold pt-0.5 flex-wrap relative z-10">
-            {product.productCode && (
-              <span className="bg-black/25 px-2.5 py-0.5 rounded-lg border border-white/10">
-                Product Code: <strong className="text-white font-mono">{product.productCode.toUpperCase()}</strong>
+          <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap relative z-10">
+            <div className="flex items-center gap-2 text-[11px] text-blue-100 font-semibold flex-wrap">
+              {product.productCode && (
+                <span className="bg-black/25 px-2.5 py-0.5 rounded-lg border border-white/10">
+                  Product Code: <strong className="text-white font-mono">{product.productCode.toUpperCase()}</strong>
+                </span>
+              )}
+              {product.hsnCode && (
+                <span className="bg-black/25 px-2.5 py-0.5 rounded-lg border border-white/10">
+                  HSN Code: <strong className="text-white font-mono">{product.hsnCode.toUpperCase()}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* PRODUCT BARCODE DISPLAY */}
+            <div className="bg-white text-slate-900 px-3 py-1 rounded-lg border border-slate-200 shadow-xs flex flex-col items-center">
+              <div className="flex items-center gap-0.5 h-4">
+                {[4, 2, 6, 3, 5, 2, 4, 3, 6, 2, 4, 5, 3, 6, 2, 4, 3, 5].map((w, idx) => (
+                  <div key={idx} className={`bg-slate-900 h-full ${w % 2 === 0 ? "w-0.5" : "w-1"}`} />
+                ))}
+              </div>
+              <span className="text-[8px] font-mono font-bold text-slate-700 tracking-wider">
+                {skuCode}
               </span>
-            )}
-            {product.hsnCode && (
-              <span className="bg-black/25 px-2.5 py-0.5 rounded-lg border border-white/10">
-                HSN Code: <strong className="text-white font-mono">{product.hsnCode.toUpperCase()}</strong>
-              </span>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* HERO AREA: IMAGE (LEFT) + OVERVIEW & METRICS (RIGHT) */}
+        {/* HERO AREA: PRODUCT OVERVIEW & KEY FEATURES (MATCHING REFERENCE SHEET CAPSULES) */}
+        <div className="print-section grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* PRODUCT OVERVIEW CARD */}
+          {product.description && (
+            <div className="bg-white/95 rounded-2xl border border-slate-300 p-4 space-y-2 shadow-xs relative">
+              <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
+                PRODUCT OVERVIEW
+              </div>
+              <p className="text-slate-700 text-xs leading-relaxed text-justify font-normal pt-1">
+                {product.description}
+              </p>
+            </div>
+          )}
+
+          {/* FEATURES CARD WITH NAVY/EMERALD CHECKMARKS */}
+          {featuresList.length > 0 && (
+            <div className="bg-white/95 rounded-2xl border border-slate-300 p-4 space-y-2 shadow-xs relative">
+              <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
+                FEATURES
+              </div>
+              <div className="space-y-1.5 pt-1 text-xs text-slate-800">
+                {featuresList.map((feat, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-[#021C57] shrink-0 mt-0.5" />
+                    <span className="leading-tight font-medium text-slate-800">{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* IMAGE & SPECIFICATION CARDS (CAPACITY / MODEL SPECIFICATION CARDS) */}
         <div className="print-section grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
           {imageUrl && (
-            <div className="md:col-span-5 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/90 p-4 flex flex-col items-center justify-center shadow-2xs">
+            <div className="md:col-span-4 bg-white/95 rounded-2xl border border-slate-300 p-3 flex flex-col items-center justify-center shadow-xs">
               <div className="w-full h-44 sm:h-48 flex items-center justify-center overflow-hidden">
                 <img
                   src={imageUrl}
@@ -360,62 +459,43 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             </div>
           )}
 
-          <div className={`${imageUrl ? "md:col-span-7" : "md:col-span-12"} flex flex-col justify-between space-y-3`}>
-            {product.description && (
-              <div className="space-y-1.5 bg-slate-50/70 p-3.5 sm:p-4 rounded-2xl border border-slate-200/70">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider text-[#021C57] flex items-center gap-1">
-                    <Sparkles size={12} className="text-amber-500" /> PRODUCT OVERVIEW
-                  </h3>
-                  <span className="text-[9px] font-bold text-slate-400">PRECISION ENGINEERED</span>
+          <div className={`${imageUrl ? "md:col-span-8" : "md:col-span-12"} grid grid-cols-1 sm:grid-cols-2 gap-3`}>
+            {highlightSpecs.slice(0, 4).map(([k, v], idx) => (
+              <div
+                key={k}
+                className="bg-white/95 rounded-2xl border border-slate-300 p-3.5 space-y-2 shadow-xs"
+              >
+                <div className="inline-block bg-[#021C57] text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                  {formatTitleCase(k)}
                 </div>
-                <p className="text-slate-700 text-[11px] sm:text-xs leading-relaxed text-justify font-normal">
-                  {product.description}
-                </p>
-              </div>
-            )}
 
-            {highlightSpecs.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {highlightSpecs.map(([k, v], idx) => {
-                  const colors = [
-                    { bg: "bg-blue-50/80", border: "border-blue-200", text: "text-[#021C57]", label: "text-blue-600" },
-                    { bg: "bg-emerald-50/80", border: "border-emerald-200", text: "text-emerald-900", label: "text-emerald-700" },
-                    { bg: "bg-amber-50/80", border: "border-amber-200", text: "text-amber-950", label: "text-amber-700" },
-                    { bg: "bg-indigo-50/80", border: "border-indigo-200", text: "text-indigo-950", label: "text-indigo-700" },
-                  ];
-                  const c = colors[idx % colors.length];
-
-                  return (
-                    <div
-                      key={k}
-                      className={`rounded-xl p-2.5 border ${c.bg} ${c.border} shadow-2xs`}
-                    >
-                      <span className={`block font-extrabold uppercase tracking-wider text-[8px] ${c.label}`}>
-                        {formatTitleCase(k)}
-                      </span>
-                      <span className={`font-black text-xs truncate block mt-0.5 ${c.text}`}>
-                        {String(v)}
-                      </span>
-                    </div>
-                  );
-                })}
+                <div className="space-y-1 text-[11px] text-slate-700">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                    <span className="font-bold text-[#021C57]">Rating / Value</span>
+                    <span className="font-bold text-slate-900">{String(v)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                    <span className="font-medium text-slate-500">Standard</span>
+                    <span className="font-semibold text-slate-800">IS / ASTM / BS</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-500">Calibration</span>
+                    <span className="font-semibold text-emerald-700">NABL Traceable</span>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
           </div>
         </div>
 
         {/* TECHNICAL SPECIFICATIONS TABLE */}
         {specsEntries.length > 0 && (
-          <div className="print-section space-y-2 pt-1">
-            <div className="flex items-center justify-between border-b-2 border-slate-200 pb-1.5">
-              <h3 className="text-xs font-black text-[#021C57] flex items-center gap-1.5 uppercase tracking-wide">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> TECHNICAL SPECIFICATIONS
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400">Certified Test Ratings</span>
+          <div className="print-section space-y-2.5 pt-1">
+            <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-xs">
+              TECHNICAL SPECIFICATIONS
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs bg-white/95">
               <table className="w-full text-left text-[11px]">
                 <thead className="bg-[#021C57] text-white">
                   <tr>
@@ -423,16 +503,16 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
                     <th className="p-2.5 font-bold uppercase tracking-wider text-[10px] w-1/2">Technical Value</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-200">
                   {specsEntries.map(([key, val], idx) => (
                     <tr
                       key={key}
-                      className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}
+                      className={idx % 2 === 0 ? "bg-white/80" : "bg-slate-50/70"}
                     >
-                      <td className="p-2 font-semibold text-slate-800">
+                      <td className="p-2.5 font-bold text-[#021C57]">
                         {formatTitleCase(key)}
                       </td>
-                      <td className="p-2 text-slate-900 font-medium">
+                      <td className="p-2.5 text-slate-900 font-medium">
                         {String(val)}
                       </td>
                     </tr>
@@ -443,35 +523,18 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           </div>
         )}
 
-        {/* KEY FEATURES & ENGINEERING ADVANTAGES */}
-        {featuresList.length > 0 && (
-          <div className="print-section bg-slate-50/80 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
-            <h4 className="text-[11px] font-black text-[#021C57] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
-              <Zap size={13} className="text-amber-500" /> KEY FEATURES & ENGINEERING ADVANTAGES
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-700">
-              {featuresList.map((feat, idx) => (
-                <div key={idx} className="bg-white p-2 rounded-xl border border-slate-200/70 flex items-start gap-2 shadow-2xs">
-                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="leading-tight font-medium text-slate-800">{feat}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* APPLICATIONS & COMPLETE SET INCLUDES */}
+        {/* APPLICATIONS & COMPLETE SUPPLY OUTFIT */}
         {(applicationsList.length > 0 || supplyOutfitList.length > 0) && (
-          <div className="print-section grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="print-section grid grid-cols-1 sm:grid-cols-2 gap-4">
             {applicationsList.length > 0 && (
-              <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-3.5 space-y-2">
-                <h3 className="text-[10px] font-black text-emerald-950 uppercase tracking-wider border-b border-emerald-200/80 pb-1.5 flex items-center gap-1.5">
-                  <Layers size={13} className="text-emerald-700" /> KEY APPLICATIONS
-                </h3>
-                <div className="space-y-1.5 text-[11px] text-slate-700">
+              <div className="bg-white/95 rounded-2xl border border-slate-300 p-4 space-y-2 shadow-xs">
+                <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full">
+                  APPLICATIONS
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-800 pt-1">
                   {applicationsList.map((app, i) => (
-                    <div key={i} className="bg-white p-1.5 rounded-lg border border-emerald-100 flex items-start gap-2 shadow-2xs">
-                      <CheckCircle2 size={12} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <div key={i} className="flex items-start gap-2">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
                       <span className="leading-tight font-medium text-slate-800">{app}</span>
                     </div>
                   ))}
@@ -480,15 +543,15 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             )}
 
             {supplyOutfitList.length > 0 && (
-              <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3.5 space-y-2">
-                <h3 className="text-[10px] font-black text-[#021C57] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
-                  <PackageCheck size={13} className="text-[#021C57]" /> STANDARD SUPPLY OUTFIT
-                </h3>
-                <div className="space-y-1.5 text-[11px] text-slate-800">
+              <div className="bg-white/95 rounded-2xl border border-slate-300 p-4 space-y-2 shadow-xs">
+                <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full">
+                  SUPPLY OUTFIT
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-800 pt-1">
                   {supplyOutfitList.map((item, idx) => (
                     <div
                       key={idx}
-                      className="bg-white p-1.5 rounded-lg border border-slate-200/80 flex items-start gap-2 shadow-2xs"
+                      className="flex items-start gap-2"
                     >
                       <span className="w-4 h-4 rounded bg-blue-100 text-blue-900 font-bold text-[9px] flex items-center justify-center shrink-0 mt-0.5">
                         {idx + 1}
@@ -504,26 +567,23 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
         {/* HOW IT WORKS / WORKING PRINCIPLE */}
         {(howItWorksText || howItWorksSteps.length > 0) && (
-          <div className="print-section space-y-2">
-            <div className="flex items-center justify-between border-b-2 border-slate-200 pb-1">
-              <h3 className="text-xs font-black text-[#021C57] flex items-center gap-1.5 uppercase tracking-wide">
-                <Cog className="w-3.5 h-3.5 text-amber-600" /> HOW IT WORKS / OPERATING PROCEDURE
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400">Methodology</span>
+          <div className="print-section space-y-2.5">
+            <div className="inline-block bg-[#021C57] text-white text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-xs">
+              WORKING PRINCIPLE & PROCEDURE
             </div>
 
             {howItWorksText && (
-              <p className="text-[11px] text-slate-700 leading-relaxed font-medium bg-blue-50/50 p-2.5 rounded-xl border border-blue-200/80">
+              <p className="text-xs text-slate-700 leading-relaxed font-medium bg-blue-50/50 p-3 rounded-xl border border-blue-200">
                 {howItWorksText}
               </p>
             )}
 
             {howItWorksSteps.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {howItWorksSteps.map((step, idx) => (
                   <div
                     key={idx}
-                    className="bg-white border border-slate-200 rounded-xl p-2.5 space-y-1 shadow-2xs"
+                    className="bg-white/95 border border-slate-200 rounded-xl p-2.5 space-y-1 shadow-2xs"
                   >
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-lg bg-[#021C57] text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
@@ -572,11 +632,10 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             </div>
           </div>
 
-
           <div className="bg-[#021C57] text-white rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/15 pb-2.5">
               <div>
-                <h4 className="text-sm sm:text-base font-black tracking-tight">ARCL INSTRUMENTS PVT. LTD.</h4>
+                <h4 className="text-sm sm:text-base font-black tracking-tight">ARCL Instruments Private Limited</h4>
                 <p className="text-[10px] text-blue-200 font-medium">
                   Precision Testing Instruments for Concrete, Cement, Soil, Bitumen & Surveying
                 </p>
@@ -595,16 +654,16 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
               <div className="flex items-start gap-2">
                 <Building size={13} className="text-amber-400 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  Shop No. 6, Siddivinayak Park CHS, Sector 8A Airoli, Navi Mumbai - 400708
+                  Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
                 </span>
               </div>
 
               <div className="flex items-start gap-2">
                 <Phone size={13} className="text-amber-400 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  +91 8169695728 (Head)<br />
-                  +91 8369458583 (Sales)<br />
-                  +91 6205691085 (Calibration)
+                  +91 83694 58583 (Sales)<br />
+                  +91 62056 91085 (Calibration)<br />
+                  +91 81696 95728 (Support)
                 </span>
               </div>
 

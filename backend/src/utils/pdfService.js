@@ -198,6 +198,45 @@ export const defaultProformaInvoiceItems = [
 ];
 
 /**
+ * Applies a subtle repeating diagonal watermark grid across all buffered pages in PDFKit.
+ * Text: "ARCL INSTRUMENTS PVT. LTD."
+ */
+const applyPdfKitWatermark = (doc) => {
+  try {
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      doc.save();
+      doc.opacity(0.045);
+      doc.fillColor("#021C57");
+      doc.fontSize(9.5);
+      doc.font("Helvetica-Bold");
+
+      const text = "ARCL INSTRUMENTS PVT. LTD.";
+      const angle = -32;
+      const xStep = 185;
+      const yStep = 80;
+      const width = doc.page.width;
+      const height = doc.page.height;
+
+      for (let wy = -50; wy < height + 100; wy += yStep) {
+        const isOdd = Math.floor((wy + 50) / yStep) % 2 !== 0;
+        const rowOffset = isOdd ? xStep / 2 : 0;
+        for (let wx = -80; wx < width + 100; wx += xStep) {
+          doc.rotate(angle, { origin: [wx + rowOffset, wy] });
+          doc.text(text, wx + rowOffset - 60, wy, { lineBreak: false });
+          doc.rotate(-angle, { origin: [wx + rowOffset, wy] });
+        }
+      }
+
+      doc.restore();
+    }
+  } catch (err) {
+    // Failsafe
+  }
+};
+
+/**
  * Buffer Builder
  */
 const buildPdfBuffer = (doc) => {
@@ -206,6 +245,7 @@ const buildPdfBuffer = (doc) => {
     doc.on("data", (chunk) => buffers.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", (err) => reject(err));
+    applyPdfKitWatermark(doc);
     doc.end();
   });
 };
