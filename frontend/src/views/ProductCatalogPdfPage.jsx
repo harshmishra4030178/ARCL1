@@ -266,6 +266,10 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         <div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none overflow-hidden select-none z-20 opacity-[0.09]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='110' viewBox='0 0 220 110'%3E%3Cg transform='rotate(-32 110 55)'%3E%3Ctext x='110' y='32' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='220' y='87' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='0' y='87' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+          }}
         >
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
