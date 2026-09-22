@@ -262,45 +262,53 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         id="catalog-document"
         className="relative overflow-hidden max-w-4xl mx-auto bg-white border border-slate-200/90 rounded-3xl shadow-xl p-6 sm:p-8 md:p-10 text-slate-800 space-y-6"
       >
-        {/* Repeating Watermark Overlay (Prominently visible across the entire sheet, matching reference image) */}
+        {/* Repeating Watermark Overlay (Clean Single-Layer SVG Pattern with Generous Spacing - Zero Overlapping) */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-20 opacity-[0.09]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='110' viewBox='0 0 220 110'%3E%3Cg transform='rotate(-32 110 55)'%3E%3Ctext x='110' y='32' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='220' y='87' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='0' y='87' fill='%23021C57' font-size='12' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.2'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundRepeat: "repeat",
-          }}
+          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-10 opacity-[0.08]"
         >
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern
                 id="arclCatalogWatermarkPattern"
-                width="220"
-                height="110"
+                width="300"
+                height="150"
                 patternUnits="userSpaceOnUse"
-                patternTransform="rotate(-32)"
+                patternTransform="rotate(-30)"
               >
                 <text
-                  x="110"
-                  y="32"
+                  x="150"
+                  y="45"
                   fill="#021C57"
-                  fontSize="12"
+                  fontSize="11"
                   fontWeight="900"
                   fontFamily="Inter, Arial, sans-serif"
                   textAnchor="middle"
-                  letterSpacing="1.2px"
+                  letterSpacing="1.5px"
                 >
                   ARCL INSTRUMENTS PVT. LTD.
                 </text>
                 <text
-                  x="220"
-                  y="87"
+                  x="300"
+                  y="120"
                   fill="#021C57"
-                  fontSize="12"
+                  fontSize="11"
                   fontWeight="900"
                   fontFamily="Inter, Arial, sans-serif"
                   textAnchor="middle"
-                  letterSpacing="1.2px"
+                  letterSpacing="1.5px"
+                >
+                  ARCL INSTRUMENTS PVT. LTD.
+                </text>
+                <text
+                  x="0"
+                  y="120"
+                  fill="#021C57"
+                  fontSize="11"
+                  fontWeight="900"
+                  fontFamily="Inter, Arial, sans-serif"
+                  textAnchor="middle"
+                  letterSpacing="1.5px"
                 >
                   ARCL INSTRUMENTS PVT. LTD.
                 </text>

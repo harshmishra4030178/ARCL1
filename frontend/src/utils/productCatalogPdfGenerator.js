@@ -172,27 +172,26 @@ export const downloadProductCatalogPdf = async (product) => {
     : [];
 
   /**
-   * Helper: Renders a crisp, highly visible repeating diagonal watermark grid across the background.
-   * Uses native vector text with soft slate tone [218, 226, 236] for 100% universal reader compatibility.
+   * Helper: Renders a clean, single-pass repeating diagonal watermark grid across the background with generous spacing.
    */
   const renderBackgroundWatermark = () => {
     try {
       doc.saveGraphicsState();
 
       if (doc.setGState && typeof doc.GState === "function") {
-        doc.setGState(new doc.GState({ opacity: 0.10 }));
+        doc.setGState(new doc.GState({ opacity: 0.08 }));
       }
 
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
+      doc.setFontSize(9.5);
       doc.setTextColor(2, 28, 87); // #021C57 Brand Navy
 
       const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
-      const angle = -32;
+      const angle = -30;
 
-      // Staggered isometric grid spacing matching web SVG pattern
-      const xStep = 60; // mm horizontal
-      const yStep = 28; // mm vertical
+      // Generous isometric grid spacing with zero overlapping
+      const xStep = 80; // mm horizontal
+      const yStep = 38; // mm vertical
 
       for (let wy = -30; wy < pageHeight + 70; wy += yStep) {
         const isOddRow = Math.floor((wy + 30) / yStep) % 2 !== 0;
@@ -209,14 +208,14 @@ export const downloadProductCatalogPdf = async (product) => {
     } catch (e) {
       // Fallback
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(218, 226, 236);
+      doc.setFontSize(9);
+      doc.setTextColor(225, 232, 240);
       const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
-      const angle = -32;
-      for (let wy = -30; wy < pageHeight + 70; wy += 28) {
-        const isOddRow = Math.floor((wy + 30) / 28) % 2 !== 0;
-        const rowOffset = isOddRow ? 30 : 0;
-        for (let wx = -50; wx < pageWidth + 80; wx += 60) {
+      const angle = -30;
+      for (let wy = -30; wy < pageHeight + 70; wy += 38) {
+        const isOddRow = Math.floor((wy + 30) / 38) % 2 !== 0;
+        const rowOffset = isOddRow ? 40 : 0;
+        for (let wx = -50; wx < pageWidth + 80; wx += 80) {
           doc.text(watermarkText, wx + rowOffset, wy, { angle: angle, align: "center" });
         }
       }
@@ -800,9 +799,6 @@ export const downloadProductCatalogPdf = async (product) => {
     margin + 10 + colW * 2,
     y + 14.2
   );
-
-  // 9. OVERLAY WATERMARK (Rendered on top layer at the end so it matches view mode 100%)
-  renderBackgroundWatermark();
 
   // Page numbering footer (Strictly Page 1 of 1)
   doc.setFont("helvetica", "normal");
