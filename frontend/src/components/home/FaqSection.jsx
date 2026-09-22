@@ -100,8 +100,12 @@ const FaqSection = () => {
               >
                 <button
                   suppressHydrationWarning
+                  type="button"
+                  id={`faq-question-${faq.id}`}
+                  aria-expanded={isOpen}
+                  aria-controls={`faq-answer-${faq.id}`}
                   onClick={() => toggleAccordion(index)}
-                  className="w-full text-left p-5 sm:p-6 flex items-center justify-between gap-4 cursor-pointer select-none transition"
+                  className="w-full text-left p-5 sm:p-6 flex items-center justify-between gap-4 cursor-pointer select-none transition focus:outline-none focus:ring-2 focus:ring-[#021C57] rounded-3xl"
                 >
                   <div className="flex items-center gap-3.5 sm:gap-4">
                     <span
@@ -126,13 +130,18 @@ const FaqSection = () => {
                         : "bg-gray-50 text-gray-400"
                     }`}
                   >
-                    <ChevronDown size={18} />
+                    <ChevronDown size={18} aria-hidden="true" />
                   </div>
                 </button>
 
                 {/* ACCORDION CONTENT */}
                 {isOpen && (
-                  <div className="px-5 sm:px-6 pb-6 pt-1 text-sm text-gray-600 leading-relaxed border-t border-gray-100/80 bg-slate-50/40">
+                  <div
+                    id={`faq-answer-${faq.id}`}
+                    role="region"
+                    aria-labelledby={`faq-question-${faq.id}`}
+                    className="px-5 sm:px-6 pb-6 pt-1 text-sm text-gray-600 leading-relaxed border-t border-gray-100/80 bg-slate-50/40"
+                  >
                     <div className="flex items-start gap-3 mt-3">
                       <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
                         A

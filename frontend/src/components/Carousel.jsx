@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "../utils/navigation.jsx";
 import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 
 const image1 = "/assets/Slider/CalibrationMaintenanceService.jpg";
@@ -45,11 +44,17 @@ const slides = [
 
 const Carousel = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const length = slides.length;
   const timerRef = useRef(null);
 
-  // Continuous Auto Slide every 5 seconds
+  // Auto Slide every 5 seconds (paused on hover or keyboard focus)
   useEffect(() => {
+    if (isPaused) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
     timerRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev === length - 1 ? 0 : prev + 1));
     }, 5000);
@@ -57,31 +62,54 @@ const Carousel = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [currentIndex, length]);
+  }, [currentIndex, length, isPaused]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     setCurrentIndex((prev) => (prev === 0 ? length - 1 : prev - 1));
-  };
+  }, [length]);
 
-  const nextSlide = () => {
+  const nextSlide = useCallback(() => {
     setCurrentIndex((prev) => (prev === length - 1 ? 0 : prev + 1));
-  };
+  }, [length]);
 
   const goToSlide = (index) => {
     setCurrentIndex(index);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowLeft") {
+      prevSlide();
+    } else if (e.key === "ArrowRight") {
+      nextSlide();
+    }
+  };
+
   return (
-    <div className="relative w-full xl:h-[calc(100vh-10rem)] min-h-[520px] md:min-h-[600px] bg-slate-950 overflow-hidden select-none">
+    <section
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Featured Laboratory Equipment and Calibration Services"
+      onKeyDown={handleKeyDown}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+      className="relative w-full xl:h-[calc(100vh-10rem)] min-h-[520px] md:min-h-[600px] bg-slate-950 overflow-hidden select-none"
+    >
       {/* Background Slides */}
       {slides.map((item, index) => {
         const isActive = index === currentIndex;
         return (
           <div
             key={index}
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`Slide ${index + 1} of ${slides.length}: ${item.heading}`}
             aria-hidden={!isActive}
             className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+              isActive
+                ? "opacity-100 z-10 visible pointer-events-auto"
+                : "opacity-0 z-0 invisible pointer-events-none"
             }`}
           >
             {/* Animated HTML5 Video Loop */}
@@ -91,13 +119,18 @@ const Carousel = () => {
               muted
               playsInline
               poster={item.image}
+              aria-hidden="true"
+              tabIndex={-1}
               className="absolute inset-0 w-full h-full object-cover z-0"
             >
               <source src={item.video} type="video/mp4" />
             </video>
 
             {/* Dark Transparent Overlay for Contrast */}
-            <div className="absolute inset-0 bg-black/65 z-10 pointer-events-none" />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-black/65 z-10 pointer-events-none"
+            />
 
             {/* Slide Foreground Content */}
             <div className="absolute inset-0 z-20 flex flex-col justify-center pointer-events-auto">
@@ -122,15 +155,17 @@ const Carousel = () => {
                 <div className="pt-2 flex flex-wrap items-center gap-3.5">
                   <Link
                     to={item.primaryCta.to}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/25 transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer"
+                    tabIndex={isActive ? 0 : -1}
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/25 transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
                   >
                     <span>{item.primaryCta.label}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </Link>
 
                   <Link
                     to={item.secondaryCta.to}
-                    className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-5 py-3 rounded-2xl border border-white/30 backdrop-blur-md shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer"
+                    tabIndex={isActive ? 0 : -1}
+                    className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-5 py-3 rounded-2xl border border-white/30 backdrop-blur-md shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
                   >
                     <span>{item.secondaryCta.label}</span>
                   </Link>
@@ -148,9 +183,9 @@ const Carousel = () => {
         type="button"
         onClick={prevSlide}
         aria-label="Previous Slide"
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
       >
-        <ChevronLeft className="w-6 h-6" />
+        <ChevronLeft className="w-6 h-6" aria-hidden="true" />
       </button>
 
       <button
@@ -158,29 +193,38 @@ const Carousel = () => {
         type="button"
         onClick={nextSlide}
         aria-label="Next Slide"
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20"
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
       >
-        <ChevronRight className="w-6 h-6" />
+        <ChevronRight className="w-6 h-6" aria-hidden="true" />
       </button>
 
       {/* Slide Indicators / Dots */}
-      <div className="absolute bottom-5 w-full flex justify-center space-x-2 z-30">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            suppressHydrationWarning
-            type="button"
-            onClick={() => goToSlide(index)}
-            aria-label={`Go to slide ${index + 1}`}
-            className={`h-3 rounded-full transition-all duration-300 cursor-pointer ${
-              index === currentIndex
-                ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
-                : "w-3 bg-white/50 hover:bg-white/80"
-            }`}
-          />
-        ))}
+      <div
+        role="tablist"
+        aria-label="Slide Selection"
+        className="absolute bottom-5 w-full flex justify-center space-x-2 z-30"
+      >
+        {slides.map((item, index) => {
+          const isCurrent = index === currentIndex;
+          return (
+            <button
+              key={index}
+              suppressHydrationWarning
+              type="button"
+              role="tab"
+              aria-selected={isCurrent}
+              aria-label={`Slide ${index + 1}: ${item.heading}`}
+              onClick={() => goToSlide(index)}
+              className={`h-3 rounded-full transition-all duration-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                isCurrent
+                  ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
+                  : "w-3 bg-white/50 hover:bg-white/80"
+              }`}
+            />
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 };
 

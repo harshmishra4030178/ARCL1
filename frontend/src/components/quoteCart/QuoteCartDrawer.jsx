@@ -149,10 +149,16 @@ const QuoteCartDrawer = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quote-basket-heading"
+      className="fixed inset-0 z-50 overflow-hidden"
+    >
       {/* BACKDROP */}
       <div
         onClick={closeCart}
+        aria-hidden="true"
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-fade-in"
       />
 
@@ -164,10 +170,10 @@ const QuoteCartDrawer = () => {
           <div className="p-5 sm:p-6 bg-[#021C57] text-white flex items-center justify-between shadow-md shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-cyan-300">
-                <ShoppingBag size={20} />
+                <ShoppingBag size={20} aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-lg font-bold flex items-center gap-2">
+                <h2 id="quote-basket-heading" className="text-lg font-bold flex items-center gap-2">
                   Quote Basket
                   {items.length > 0 && (
                     <span className="bg-amber-400 text-gray-900 text-xs font-black px-2 py-0.5 rounded-full">
@@ -184,20 +190,24 @@ const QuoteCartDrawer = () => {
             <div className="flex items-center gap-2">
               {items.length > 0 && (
                 <button
+                  type="button"
                   onClick={clearCart}
                   className="text-xs text-blue-200 hover:text-white transition px-2.5 py-1 rounded-lg hover:bg-white/10 cursor-pointer"
                   title="Clear all items"
+                  aria-label="Clear all items from quote basket"
                 >
                   Clear All
                 </button>
               )}
 
               <button
+                type="button"
                 onClick={closeCart}
                 className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
                 title="Close Drawer"
+                aria-label="Close quote basket drawer"
               >
-                <X size={18} />
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
           </div>

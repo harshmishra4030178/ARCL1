@@ -243,8 +243,15 @@ const Navbar = () => {
               {/* MOBILE MENU */}
 
               <div className="lg:hidden">
-                <button onClick={() => setIsMenuOpen(true)}>
-                  <Menu size={24} />
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(true)}
+                  aria-label="Open Navigation Menu"
+                  aria-expanded={isMenuOpen}
+                  aria-controls="mobile-nav-sidebar"
+                  className="p-1 rounded-md text-gray-700 hover:text-[#021C57] focus:outline-none focus:ring-2 focus:ring-[#021C57]"
+                >
+                  <Menu size={24} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -253,6 +260,10 @@ const Navbar = () => {
 
             {isMenuOpen && (
               <div
+                id="mobile-nav-sidebar"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Mobile Navigation Menu"
                 className="
                 fixed
                 top-0
@@ -275,10 +286,12 @@ const Navbar = () => {
                     Menu & Search
                   </span>
                   <button
+                    type="button"
                     onClick={() => setIsMenuOpen(false)}
-                    className="p-1 rounded-md text-gray-500 hover:bg-gray-100"
+                    aria-label="Close Navigation Menu"
+                    className="p-1 rounded-md text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#021C57]"
                   >
-                    <X size={20} />
+                    <X size={20} aria-hidden="true" />
                   </button>
                 </div>
 
