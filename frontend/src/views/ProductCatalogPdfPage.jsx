@@ -83,11 +83,39 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="w-14 h-14 border-4 border-[#021C57] border-t-transparent rounded-full animate-spin mb-4 shadow-md"></div>
-        <p className="text-slate-700 font-bold text-lg tracking-tight">
-          Generating Technical Catalog Document...
-        </p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#021C57] to-slate-950 flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute w-96 h-96 bg-blue-500/15 rounded-full blur-3xl pointer-events-none -top-20 -left-20"></div>
+        <div className="absolute w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none -bottom-20 -right-20"></div>
+
+        <div className="relative z-10 bg-white/10 backdrop-blur-xl border border-white/20 p-8 sm:p-10 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
+          {/* Logo with spinning indicator */}
+          <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-blue-400 animate-spin"></div>
+            <div className="w-16 h-16 rounded-xl bg-white p-2 shadow-lg flex items-center justify-center">
+              <img src="/assets/LOGO.png" alt="ARCL" className="w-full h-full object-contain" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+              ARCL Technical Brochure
+            </h2>
+            <p className="text-xs text-blue-200 font-medium">
+              Generating High-Resolution Technical Brochure & Security Watermark...
+            </p>
+          </div>
+
+          {/* Animated Progress Bar */}
+          <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-blue-400 via-indigo-400 to-amber-400 rounded-full animate-pulse w-3/4 mx-auto"></div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-[10px] text-slate-300 font-semibold">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Formatting Single-Page Vector Layout & Barcode...</span>
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Link } from "../../utils/navigation.jsx";
 import {
   X,
@@ -11,6 +12,7 @@ import {
   Package,
   Cog,
   SlidersHorizontal,
+  Loader2,
 } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 
@@ -20,6 +22,8 @@ const CategoryProductsCatalogModal = ({
   category,
   products = [],
 }) => {
+  const [loadingSlug, setLoadingSlug] = useState(null);
+
   if (!isOpen || !category) return null;
 
   // Filter products belonging to this category
@@ -194,11 +198,25 @@ const CategoryProductsCatalogModal = ({
                       {/* PDF Catalog Button (Primary Action) */}
                       <Link
                         to={`/products/${product.slug}/catalog`}
-                        onClick={onClose}
-                        className="flex-1 bg-gradient-to-r from-[#021C57] to-[#043399] hover:from-[#03308f] hover:to-[#052b7a] text-white text-xs font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          setLoadingSlug(product.slug);
+                          setTimeout(() => setLoadingSlug(null), 2500);
+                        }}
+                        className="flex-1 bg-gradient-to-r from-[#021C57] to-[#043399] hover:from-[#03308f] hover:to-[#052b7a] text-white text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs hover:shadow active:scale-95 cursor-pointer"
                       >
-                        <FileText size={13} />
-                        View PDF Catalog
+                        {loadingSlug === product.slug ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin text-amber-300 shrink-0" />
+                            <span>Opening Catalog...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText size={13} className="shrink-0" />
+                            <span>View PDF Catalog</span>
+                          </>
+                        )}
                       </Link>
 
                       {/* WhatsApp Inquiry */}
