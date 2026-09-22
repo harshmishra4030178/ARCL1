@@ -180,7 +180,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 8mm 10mm;
+            margin: 0 !important;
           }
           html, body {
             background: #ffffff !important;
@@ -192,17 +192,17 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
           #catalog-document {
             border: none !important;
             box-shadow: none !important;
-            padding: 0 !important;
+            padding: 20px 24px !important;
             margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
             border-radius: 0 !important;
-            background: transparent !important;
+            background: #ffffff !important;
           }
           .print-section {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 14px !important;
+            margin-bottom: 10px !important;
           }
           tr {
             break-inside: avoid !important;

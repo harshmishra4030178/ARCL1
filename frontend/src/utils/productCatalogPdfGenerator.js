@@ -47,7 +47,17 @@ export const downloadProductCatalogPdf = async (product) => {
           allowTaint: true,
           backgroundColor: "#ffffff",
           logging: false,
-          windowWidth: catalogElement.scrollWidth || 900,
+          onclone: (clonedDoc) => {
+            const el = clonedDoc.getElementById("catalog-document");
+            if (el) {
+              el.style.borderRadius = "0px";
+              el.style.border = "none";
+              el.style.boxShadow = "none";
+              el.style.margin = "0px";
+              el.style.maxWidth = "100%";
+              el.style.width = "100%";
+            }
+          },
         });
 
         const imgData = canvas.toDataURL("image/jpeg", 0.98);
@@ -59,32 +69,8 @@ export const downloadProductCatalogPdf = async (product) => {
           compress: true,
         });
 
-        const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
-        const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
-
-        const margin = 4; // 4mm margin
-        const availW = pdfWidth - margin * 2; // 202mm
-        const availH = pdfHeight - margin * 2; // 289mm
-
-        const canvasRatio = canvas.width / canvas.height;
-        const availRatio = availW / availH;
-
-        let renderW, renderH, renderX, renderY;
-
-        // STRICT 1 SINGLE A4 PAGE MATHEMATICAL FIT
-        if (canvasRatio > availRatio) {
-          renderW = availW;
-          renderH = availW / canvasRatio;
-          renderX = margin;
-          renderY = margin + (availH - renderH) / 2;
-        } else {
-          renderH = availH;
-          renderW = availH * canvasRatio;
-          renderX = margin + (availW - renderW) / 2;
-          renderY = margin;
-        }
-
-        pdf.addImage(imgData, "JPEG", renderX, renderY, renderW, renderH, undefined, "FAST");
+        // 100% FULL PAGE BLEED (Edge to Edge 210mm x 297mm - ZERO SIDE GAPS / MARGINS)
+        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
         pdf.save(filename);
         return filename;
       } catch (domErr) {
