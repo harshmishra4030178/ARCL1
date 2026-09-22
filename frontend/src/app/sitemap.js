@@ -40,12 +40,15 @@ export default async function sitemap() {
   try {
     const [catRes, prodRes, blogRes] = await Promise.all([
       fetch(`${BACKEND_URL}/client/categories`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
         next: { revalidate: 3600 },
       }).catch(() => null),
       fetch(`${BACKEND_URL}/client/products`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
         next: { revalidate: 3600 },
       }).catch(() => null),
       fetch(`${BACKEND_URL}/client/blogs`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
         next: { revalidate: 3600 },
       }).catch(() => null),
     ]);

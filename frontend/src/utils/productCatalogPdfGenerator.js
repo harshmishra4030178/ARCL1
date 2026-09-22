@@ -20,6 +20,55 @@ const loadImageBase64 = async (url) => {
 };
 
 /**
+ * Generates an exact, high-resolution transparent PNG watermark pattern DataURL.
+ * Matches 100% identically with the web view SVG pattern (same font, weight, angle -32°, spacing, and 9% brand navy opacity).
+ */
+const generateWatermarkDataUrl = (pageWidthMm = 210, pageHeightMm = 297) => {
+  if (typeof document === "undefined") return null;
+  try {
+    const scale = 2.5; // High-resolution crisp rendering
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(pageWidthMm * (96 / 25.4) * scale); // ~2000px
+    canvas.height = Math.round(pageHeightMm * (96 / 25.4) * scale); // ~2900px
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const text = "ARCL INSTRUMENTS PVT. LTD.";
+    const angle = -32 * (Math.PI / 180);
+
+    ctx.save();
+    // Exact matching brand navy #021C57 with 9% opacity (same as web view)
+    ctx.fillStyle = "rgba(2, 28, 87, 0.09)";
+    ctx.font = `900 ${13 * scale}px "Inter", Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Exact matching SVG grid spacing: width 220px, height 110px scaled
+    const xStep = 220 * (scale * 0.9);
+    const yStep = 110 * (scale * 0.9);
+
+    for (let wy = -canvas.height * 0.4; wy < canvas.height * 1.5; wy += yStep) {
+      const isOdd = Math.floor((wy + canvas.height * 0.4) / yStep) % 2 !== 0;
+      const rowOffset = isOdd ? xStep / 2 : 0;
+      for (let wx = -canvas.width * 0.4; wx < canvas.width * 1.5; wx += xStep) {
+        ctx.save();
+        ctx.translate(wx + rowOffset, wy);
+        ctx.rotate(angle);
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    ctx.restore();
+    return canvas.toDataURL("image/png");
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
  * Generates and downloads the official high-resolution technical brochure PDF for an ARCL product.
  * DENSE & BOTTOM-ANCHORED: Executive layout matching official ARCL standards with repeating watermark,
  * official Product QR Code & Barcode, dark navy capsule badges, clean key-value specification cards,
@@ -77,12 +126,15 @@ export const downloadProductCatalogPdf = async (product) => {
     product.equipmentTypeName ||
     "";
 
-  // Product Verification QR Code Source (Uses product.qrCode or dynamic scannable product link)
+  // Product Verification QR Code Source
   const productWebUrl = `https://arclinstruments.com/products/${product.slug || product._id || cleanSku}`;
   const qrSource =
     product.qrCode ||
     product.qrImage ||
     `https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=1&data=${encodeURIComponent(productWebUrl)}`;
+
+  // Generate exact matching transparent watermark PNG DataURL
+  const watermarkPngDataUrl = generateWatermarkDataUrl(pageWidth, pageHeight);
 
   // Pre-load product image, logo & QR Code
   const productImage =
@@ -128,47 +180,6 @@ export const downloadProductCatalogPdf = async (product) => {
   let y = margin;
 
   /**
-   * Helper: Renders a crisp, highly visible yet elegant repeating diagonal watermark grid.
-   * Text: "ARCL INSTRUMENTS PVT. LTD."
-   * Renders in light slate-steel color [210, 220, 232] so it is visible in ALL PDF viewers without fading.
-   */
-  const renderBackgroundWatermark = () => {
-    try {
-      doc.saveGraphicsState();
-
-      if (doc.setGState && typeof doc.GState === "function") {
-        doc.setGState(new doc.GState({ opacity: 0.12 }));
-      }
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(2, 28, 87); // #021C57 Brand Navy
-
-      const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
-      const angle = -32;
-
-      // Staggered isometric grid spacing
-      const xStep = 68; // mm horizontal
-      const yStep = 28; // mm vertical
-
-      for (let wy = -30; wy < pageHeight + 70; wy += yStep) {
-        const isOddRow = Math.floor((wy + 30) / yStep) % 2 !== 0;
-        const rowOffset = isOddRow ? xStep / 2 : 0;
-        for (let wx = -50; wx < pageWidth + 80; wx += xStep) {
-          doc.text(watermarkText, wx + rowOffset, wy, {
-            angle: angle,
-            align: "center",
-          });
-        }
-      }
-
-      doc.restoreGraphicsState();
-    } catch (e) {
-      // Fallback
-    }
-  };
-
-  /**
    * Helper: Draw an executive dark navy capsule/pill badge for section headers
    */
   const drawCapsuleBadge = (bx, by, text, options = {}) => {
@@ -197,13 +208,14 @@ export const downloadProductCatalogPdf = async (product) => {
   };
 
   /**
-   * Helper: Draw clean vector Barcode (Code-128 style bars)
+   * Helper: Draw clean vector Barcode (Code-128 style bars matching web view)
    */
   const drawVectorBarcode = (bx, by, width, height, codeStr) => {
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(bx, by, width, height, 1, 1, "F");
+    doc.roundedRect(bx, by, width, height, 1.2, 1.2, "F");
     doc.setDrawColor(203, 213, 225);
-    doc.roundedRect(bx, by, width, height, 1, 1, "S");
+    doc.setLineWidth(0.3);
+    doc.roundedRect(bx, by, width, height, 1.2, 1.2, "S");
 
     doc.setFillColor(15, 23, 42); // dark slate bars
     const clean = (codeStr || "ARCL-SPEC").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -229,19 +241,24 @@ export const downloadProductCatalogPdf = async (product) => {
 
   // FULL OFFICIAL LETTERHEAD (IDENTICAL ON PAGE 1, PAGE 2, PAGE 3)
   const renderOfficialLetterhead = () => {
-    // Top Motto Line: PRECISION • PERFORMANCE • RELIABILITY
+    // Top Motto Line: PRECISION • PERFORMANCE • RELIABILITY (Left) + OFFICIAL TECHNICAL PRODUCT CATALOG (Right)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.8);
     doc.setTextColor(...brandNavy);
-    doc.text("PRECISION. PERFORMANCE. RELIABILITY.", margin, y + 2.5);
+    doc.text("PRECISION • PERFORMANCE • RELIABILITY", margin, y + 2.5);
+
+    doc.setFontSize(6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...textMuted);
+    doc.text("OFFICIAL TECHNICAL PRODUCT CATALOG", pageWidth - margin, y + 2.5, { align: "right" });
 
     // Top Red & Navy Dual Accent Bar
     doc.setFillColor(...brandCrimson);
-    doc.rect(margin + 58, y + 1.2, contentWidth - 58, 1.2, "F");
+    doc.rect(margin, y + 3.8, contentWidth, 0.6, "F");
     doc.setFillColor(...brandNavy);
-    doc.rect(margin, y + 3.8, contentWidth, 0.8, "F");
+    doc.rect(margin, y + 4.6, contentWidth, 0.4, "F");
 
-    y += 6.5;
+    y += 7.5;
 
     // Logo + Company Name
     const logoWidth = 26;
@@ -269,8 +286,8 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.setTextColor(...textMuted);
     doc.text("• Precision Laboratory & Civil Testing Equipment", textStartX + 52, y + 7.5);
 
-    // Right Header QR Code & Barcode Verification Card
-    const qrBoxW = 42;
+    // Right Header QR Code Verification Card (Matching Web View)
+    const qrBoxW = 40;
     const qrBoxH = 12;
     const qrBoxX = pageWidth - margin - qrBoxW;
     const qrBoxY = y - 0.5;
@@ -323,8 +340,8 @@ export const downloadProductCatalogPdf = async (product) => {
   // 1. RENDER OFFICIAL LETTERHEAD ON PAGE 1
   renderOfficialLetterhead();
 
-  // 2. HERO PRODUCT BANNER (WITH PRODUCT NAME, SKU & BARCODE)
-  const heroBannerHeight = 20;
+  // 2. HERO PRODUCT BANNER (WITH PRODUCT NAME, SKU & BARCODE - MATCHING SCREENSHOT)
+  const heroBannerHeight = 20.5;
   doc.setFillColor(...brandNavy);
   doc.roundedRect(margin, y, contentWidth, heroBannerHeight, 2, 2, "F");
 
@@ -388,14 +405,14 @@ export const downloadProductCatalogPdf = async (product) => {
     doc.setFontSize(6.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(203, 213, 225);
-    doc.text(subInfo.join("   |   "), margin + 4, y + 16);
+    doc.text(subInfo.join("   |   "), margin + 4, y + 16.2);
   }
 
   // Barcode Box on right side of Hero Banner
   const barcodeW = 34;
   const barcodeH = 7.5;
   const barcodeX = pageWidth - margin - barcodeW - 4;
-  const barcodeY = y + 10.5;
+  const barcodeY = y + 11;
   drawVectorBarcode(barcodeX, barcodeY, barcodeW, barcodeH, sku || "ARCL-PROD");
 
   y += heroBannerHeight + 3.5;
@@ -462,7 +479,7 @@ export const downloadProductCatalogPdf = async (product) => {
 
   y += topBlockHeight + 4.5;
 
-  // 4. IMAGE & HIGHLIGHT SPECIFICATION CARDS (CAPACITY / MODEL CARDS - AS IN REFERENCE IMAGE)
+  // 4. IMAGE & HIGHLIGHT SPECIFICATION CARDS (CAPACITY / MODEL CARDS)
   if (productImageBase64 || highlightSpecs.length > 0) {
     const imgColWidth = productImageBase64 ? 54 : 0;
     const cardsStartX = productImageBase64 ? margin + imgColWidth + 3 : margin;
@@ -859,8 +876,14 @@ export const downloadProductCatalogPdf = async (product) => {
   for (let p = 1; p <= totalDocPages; p++) {
     doc.setPage(p);
 
-    // Apply watermark on top of every page so it is always 100% visible across cards, specs & tables
-    renderBackgroundWatermark();
+    // Apply exact matching transparent watermark PNG on top layer across every page
+    if (watermarkPngDataUrl) {
+      try {
+        doc.addImage(watermarkPngDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+      } catch (e) {
+        // Fallback
+      }
+    }
 
     // Page footer numbering
     doc.setFont("helvetica", "normal");
