@@ -2,12 +2,44 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import QRCode from "qrcode";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOGO_PATH = path.resolve(__dirname, "../../public/assets/LOGO.png");
 const QR_IMAGE_PATH = path.resolve(__dirname, "../../public/assets/hdfc_qr.png");
 const STAMP_IMAGE_PATH = path.resolve(__dirname, "../../public/assets/arcl_stamp.png");
+
+// Helper to generate dynamic UPI QR PNG Buffer for PDF embedding
+const getDynamicUpiQrBuffer = async ({ vpa, payeeName, amount, refNote }) => {
+  const upiVpa = (vpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc").trim();
+  const am = Number(amount || 0) > 0 ? Number(amount).toFixed(2) : "1.00";
+  const upiString = `upi://pay?pa=${upiVpa}&pn=ARCL&am=${am}&cu=INR`;
+
+  try {
+    const pngBuffer = await QRCode.toBuffer(upiString, {
+      width: 350,
+      margin: 3,
+      color: { dark: "#0f172a", light: "#ffffff" },
+    });
+    return pngBuffer;
+  } catch (err) {
+    return null;
+  }
+};
+
+// Helper to get static official bank QR code image buffer
+const getStaticQrBuffer = () => {
+  const pngPath = path.resolve(__dirname, "../../public/assets/hdfc_qr.png");
+  const jpgPath = path.resolve(__dirname, "../../public/assets/hdfc_qr.jpg");
+  if (fs.existsSync(pngPath)) {
+    try { return fs.readFileSync(pngPath); } catch (e) {}
+  }
+  if (fs.existsSync(jpgPath)) {
+    try { return fs.readFileSync(jpgPath); } catch (e) {}
+  }
+  return null;
+};
 
 // Helper to convert number to Indian Currency Words
 export function numberToWords(num) {
@@ -230,30 +262,74 @@ const drawOfficialHeader = (doc, title = "Official Document", accentColor = "#b9
 /**
  * Common Footer for Technical Calibration Documents
  */
-const drawOfficialFooter = (doc, customY = null) => {
+let cachedUpiQrBuffer = null;
+const getCachedUpiQrBuffer = async (amount = 0) => {
+  const am = Number(amount || 0) > 0 ? Number(amount).toFixed(2) : "1.00";
+  const upiVpa = (process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc").trim();
+  const upiString = `upi://pay?pa=${upiVpa}&pn=ARCL&am=${am}&cu=INR`;
+  try {
+    const buf = await QRCode.toBuffer(upiString, { width: 350, margin: 3, color: { dark: "#0f172a", light: "#ffffff" } });
+    if (!cachedUpiQrBuffer) cachedUpiQrBuffer = buf;
+    return buf;
+  } catch (e) {
+    return cachedUpiQrBuffer;
+  }
+};
+
+/**
+ * Common Footer for Technical Calibration Documents (With Dual QR Codes)
+ */
+const drawOfficialFooter = (doc, customY = null, dynamicQrBuf = null) => {
   const y = customY !== null ? customY : 725;
   doc.moveTo(35, y).lineTo(560, y).lineWidth(0.8).strokeColor("#cbd5e1").stroke();
 
-  doc.rect(40, y + 6, 120, 38).lineWidth(0.8).strokeColor("#021C57").stroke();
-  doc
-    .fontSize(6.5)
-    .font("Helvetica-Bold")
-    .fillColor("#021C57")
-    .text("NABL CC-4313", 45, y + 10, { width: 110, align: "center" })
-    .fillColor("#059669")
-    .text("DIGITALLY VERIFIED", 45, y + 19, { width: 110, align: "center" })
-    .fillColor("#64748b")
-    .text("ISO/IEC 17025 SEAL", 45, y + 28, { width: 110, align: "center" });
+  const staticQrBuffer = getStaticQrBuffer();
+  const dynQrBuffer = dynamicQrBuf || cachedUpiQrBuffer;
 
+  // Box 1: Static Official Bank QR (Left: 38 to 120)
+  doc.rect(38, y + 4, 82, 42).lineWidth(0.6).strokeColor("#021C57").stroke();
+  if (staticQrBuffer) {
+    try {
+      doc.image(staticQrBuffer, 41, y + 6, { width: 38, height: 38 });
+    } catch (e) {}
+    doc
+      .fontSize(5)
+      .font("Helvetica-Bold")
+      .fillColor("#021C57")
+      .text("BANK QR", 78, y + 8, { width: 40, align: "center" })
+      .fillColor("#059669")
+      .text("VERIFIED", 78, y + 16, { width: 40, align: "center" })
+      .fillColor("#64748b")
+      .text("CC-4313", 78, y + 24, { width: 40, align: "center" });
+  }
+
+  // Box 2: Dynamic Auto-Pay UPI QR (Middle: 124 to 206)
+  doc.rect(124, y + 4, 82, 42).lineWidth(0.6).strokeColor("#0284c7").stroke();
+  if (dynQrBuffer) {
+    try {
+      doc.image(dynQrBuffer, 127, y + 6, { width: 38, height: 38 });
+    } catch (e) {}
+    doc
+      .fontSize(5)
+      .font("Helvetica-Bold")
+      .fillColor("#0284c7")
+      .text("AUTO PAY", 164, y + 8, { width: 40, align: "center" })
+      .fillColor("#059669")
+      .text("UPI PAY", 164, y + 16, { width: 40, align: "center" })
+      .fillColor("#64748b")
+      .text("₹0-FEE", 164, y + 24, { width: 40, align: "center" });
+  }
+
+  // Verification Statement Text in center (210 to 415)
   doc
-    .fontSize(6.5)
+    .fontSize(5.8)
     .font("Helvetica")
     .fillColor("#64748b")
     .text(
-      "This is an authentic computer-generated metrological document issued under the authority of ARCL Instruments Calibration Division. Verified authentic as per NABL guidelines.",
-      175,
-      y + 12,
-      { width: 220, align: "center" }
+      "Authentic metrological document issued under authority of ARCL Instruments. Dual-verified authentic as per ISO/IEC 17025 & NABL CC-4313.",
+      210,
+      y + 11,
+      { width: 205, align: "center" }
     );
 
   if (fs.existsSync(STAMP_IMAGE_PATH)) {
@@ -330,14 +406,13 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
   const branchName = (inv.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (inv.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
 
-  let qrBuffer = null;
-  if (fs.existsSync(QR_IMAGE_PATH)) {
-    try {
-      qrBuffer = fs.readFileSync(QR_IMAGE_PATH);
-    } catch (e) {
-      qrBuffer = null;
-    }
-  }
+  const staticQrBuffer = getStaticQrBuffer();
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: inv.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: inv.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: totalAmount,
+    refNote: `CALIB-${String(invoiceNo || "TAX").replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   const leftMargin = 30;
   const contentWidth = 535;
@@ -529,9 +604,20 @@ export const generateTaxInvoicePdf = async (customData = {}) => {
   doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
   doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
 
-  if (qrBuffer) {
-    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
-    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
+  // 1. Render Static Official Bank QR
+  if (staticQrBuffer) {
+    try {
+      doc.image(staticQrBuffer, leftMargin + 138, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0f172a").text("Official Bank QR", leftMargin + 138, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
+  }
+
+  // 2. Render Dynamic Auto-Generated Fixed Amount QR
+  if (dynamicQrBuffer) {
+    try {
+      doc.image(dynamicQrBuffer, leftMargin + 196, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0284c7").text(`Auto Pay ₹${totalAmount.toFixed(0)}`, leftMargin + 196, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
   }
 
   doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
@@ -613,14 +699,13 @@ export const generateQuotationPdf = async (customData = {}) => {
   const branchName = (qtn.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (qtn.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
 
-  let qrBuffer = null;
-  if (fs.existsSync(QR_IMAGE_PATH)) {
-    try {
-      qrBuffer = fs.readFileSync(QR_IMAGE_PATH);
-    } catch (e) {
-      qrBuffer = null;
-    }
-  }
+  const staticQrBuffer = getStaticQrBuffer();
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: qtn.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: qtn.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: totalAmount,
+    refNote: `CALIB-${String(qtnNo || "QTN").replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   const leftMargin = 30;
   const contentWidth = 535;
@@ -806,9 +891,20 @@ export const generateQuotationPdf = async (customData = {}) => {
   doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
   doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
 
-  if (qrBuffer) {
-    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
-    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
+  // 1. Render Static Official Bank QR
+  if (staticQrBuffer) {
+    try {
+      doc.image(staticQrBuffer, leftMargin + 138, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0f172a").text("Official Bank QR", leftMargin + 138, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
+  }
+
+  // 2. Render Dynamic Auto-Generated Fixed Amount QR
+  if (dynamicQrBuffer) {
+    try {
+      doc.image(dynamicQrBuffer, leftMargin + 196, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0284c7").text(`Auto Pay ₹${totalAmount.toFixed(0)}`, leftMargin + 196, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
   }
 
   doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
@@ -884,14 +980,13 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
   const branchName = (pi.bankBranch || process.env.BANK_BRANCH || "Kandivali East - Thakur Village").trim();
   const ifscCode = (pi.ifscCode || process.env.BANK_IFSC || "HDFC0000582").trim();
 
-  let qrBuffer = null;
-  if (fs.existsSync(QR_IMAGE_PATH)) {
-    try {
-      qrBuffer = fs.readFileSync(QR_IMAGE_PATH);
-    } catch (e) {
-      qrBuffer = null;
-    }
-  }
+  const staticQrBuffer = getStaticQrBuffer();
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: pi.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: pi.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: totalAmount,
+    refNote: `CALIB-${String(piNo || "PI").replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   const leftMargin = 30;
   const contentWidth = 535;
@@ -1077,9 +1172,20 @@ export const generateProformaInvoicePdf = async (customData = {}) => {
   doc.text(`Branch: ${branchName}`, leftMargin + 6, curY + 29);
   doc.text(`IFSC Code: ${ifscCode}`, leftMargin + 6, curY + 37);
 
-  if (qrBuffer) {
-    doc.image(qrBuffer, leftMargin + 185, curY + 4, { width: 56 });
-    doc.fontSize(5.2).font("Helvetica-Bold").text("Scan to Pay UPI", leftMargin + 185, curY + 64, { width: 56, align: "center" });
+  // 1. Render Static Official Bank QR
+  if (staticQrBuffer) {
+    try {
+      doc.image(staticQrBuffer, leftMargin + 138, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0f172a").text("Official Bank QR", leftMargin + 138, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
+  }
+
+  // 2. Render Dynamic Auto-Generated Fixed Amount QR
+  if (dynamicQrBuffer) {
+    try {
+      doc.image(dynamicQrBuffer, leftMargin + 196, curY + 4, { width: 50, height: 50 });
+      doc.fontSize(4.8).font("Helvetica-Bold").fillColor("#0284c7").text(`Auto Pay ₹${totalAmount.toFixed(0)}`, leftMargin + 196, curY + 56, { width: 50, align: "center" });
+    } catch (e) {}
   }
 
   doc.fontSize(6.5).font("Helvetica-Bold").text("For ARCL INSTRUMENTS PRIVATE LIMITED", botSplitX + 6, curY + 5, { width: 258, align: "right" });
@@ -1128,6 +1234,14 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   const instrumentRange = (data.instrumentRange || data.instrument?.range || "0 - 2000 kN").replace(/\r?\n+/g, " ").trim();
   const leastCount = (data.leastCount || data.instrument?.leastCount || "0.1 kN").replace(/\r?\n+/g, " ").trim();
   const dcNo = (data.dcNo || data.srfNo || "DC/26-27/0188").replace(/\r?\n+/g, " ").trim();
+
+  const certAmount = data.finalPayableAmount || data.totalAmount || data.grandTotal || data.charges || 2950;
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: data.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: data.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: certAmount,
+    refNote: `CALIB-${String(certNo).replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   let results = data.calibrationResults && Array.isArray(data.calibrationResults) && data.calibrationResults.length > 0
     ? data.calibrationResults
@@ -1227,7 +1341,7 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
     const result = r.result || "PASS ✓";
 
     if (curY + rowH > 710) {
-      drawOfficialFooter(doc, 725);
+      drawOfficialFooter(doc, 725, dynamicQrBuffer);
       doc.addPage({ size: "A4", margin: 25 });
       curY = drawOfficialHeader(doc, "Calibration Certificate - Continued Readings", "#b91c1c");
       curY = drawCertResultsHeader(curY);
@@ -1249,7 +1363,7 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
 
   const remarksH = isSinglePage ? 52 : 46;
   if (curY + remarksH > 710) {
-    drawOfficialFooter(doc, 725);
+    drawOfficialFooter(doc, 725, dynamicQrBuffer);
     doc.addPage({ size: "A4", margin: 25 });
     curY = drawOfficialHeader(doc, "Calibration Certificate - Compliance & Authorization", "#b91c1c");
   }
@@ -1268,7 +1382,7 @@ export const generateCalibrationCertificatePdf = async (data = {}) => {
   const range = doc.bufferedPageRange();
   for (let p = 0; p < range.count; p++) {
     doc.switchToPage(p);
-    drawOfficialFooter(doc, 725);
+    drawOfficialFooter(doc, 725, dynamicQrBuffer);
     doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(
       `Page ${p + 1} of ${range.count}  •  ${certNo}  •  Digitally Authenticated Certificate`,
       35,
@@ -1294,6 +1408,14 @@ export const generateObservationSheetPdf = async (data = {}) => {
   const temperature = data.temperature || "23.2 °C";
   const humidity = data.humidity || "52% RH";
   const masterCell = data.masterLoadCell || "ARCL-MTR-01 (NPL Traceable)";
+
+  const obsAmount = data.finalPayableAmount || data.totalAmount || data.grandTotal || data.charges || 2950;
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: data.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: data.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: obsAmount,
+    refNote: `CALIB-${String(serialNo).replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   let readings = data.observations && Array.isArray(data.observations) && data.observations.length > 0
     ? data.observations
@@ -1350,7 +1472,7 @@ export const generateObservationSheetPdf = async (data = {}) => {
     const unc = r.unc || r.uncertainty || "± 0.25%";
 
     if (curY + rowH > 710) {
-      drawOfficialFooter(doc, 725);
+      drawOfficialFooter(doc, 725, dynamicQrBuffer);
       doc.addPage({ size: "A4", margin: 25 });
       curY = drawOfficialHeader(doc, "Observation Sheet - Continued Readings", "#0f766e");
       curY = drawObsHeader(curY);
@@ -1372,7 +1494,7 @@ export const generateObservationSheetPdf = async (data = {}) => {
   const range = doc.bufferedPageRange();
   for (let p = 0; p < range.count; p++) {
     doc.switchToPage(p);
-    drawOfficialFooter(doc, 725);
+    drawOfficialFooter(doc, 725, dynamicQrBuffer);
     doc.fontSize(6.5).font("Helvetica").fillColor("#64748b").text(
       `Page ${p + 1} of ${range.count}  •  Worksheet Ref: WS-ARCL-2026-${serialNo}`,
       35,
@@ -1409,6 +1531,14 @@ export const generateSrfSlipPdf = async (data = {}) => {
   const dcNo = (data.dcNo || "N/A").replace(/\r?\n+/g, " ").trim();
   const rawSentToLab = data.sentToLab || "ARCL Calibration Lab";
   const sentToLab = (rawSentToLab.includes("Metrology") || rawSentToLab.includes("Central") ? "ARCL Calibration Lab" : rawSentToLab).replace(/\r?\n+/g, " ").trim();
+
+  const srfAmount = data.finalPayableAmount || data.totalAmount || data.grandTotal || data.charges || 2950;
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: data.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: data.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: srfAmount,
+    refNote: `CALIB-${String(srfNo).replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   // Dynamic Inward Instruments List
   const rawInstruments = data.instruments && Array.isArray(data.instruments) && data.instruments.length > 0
@@ -1604,7 +1734,7 @@ export const generateSrfSlipPdf = async (data = {}) => {
   const range = doc.bufferedPageRange();
   for (let p = 0; p < range.count; p++) {
     doc.switchToPage(p);
-    drawOfficialFooter(doc, footerY);
+    drawOfficialFooter(doc, footerY, dynamicQrBuffer);
     // Position pagination text strictly on the left half to avoid collision with right-side Authorized Signatory & Stamp
     doc.fontSize(6).font("Helvetica").fillColor("#94a3b8").text(
       `Page ${p + 1} of ${range.count}  •  SRF Ref: ${srfNo}  •  Inward Challan: ${dcNo}`,
@@ -1663,6 +1793,14 @@ export const generatePurchaseOrderPdf = async (customData = {}) => {
   }));
 
   const grandTotal = formattedItems.reduce((acc, curr) => acc + curr.rawGross, 0);
+
+  const staticQrBuffer = getStaticQrBuffer();
+  const dynamicQrBuffer = await getDynamicUpiQrBuffer({
+    vpa: po.upiVpa || process.env.UPI_ID || process.env.ARCL_UPI_VPA || "8572995533.2@hdfc",
+    payeeName: po.upiName || process.env.UPI_PAYEE_NAME || process.env.ARCL_UPI_NAME || "ARCL INSTRUMENTS PRIVATE LIMITED",
+    amount: grandTotal,
+    refNote: `PO-${String(poNo).replace(/[^a-zA-Z0-9]/g, "")}`,
+  });
 
   const drawPoHeader = (doc) => {
     let topY = 20;
@@ -1743,7 +1881,7 @@ export const generatePurchaseOrderPdf = async (customData = {}) => {
     curY += itemH;
   }
 
-  if (curY + 60 > 535) {
+  if (curY + 65 > 535) {
     doc.addPage({ size: "A4", layout: "landscape", margin: 20 });
     curY = 30;
   }
@@ -1755,12 +1893,26 @@ export const generatePurchaseOrderPdf = async (customData = {}) => {
   doc.text(numberToWords(grandTotal.toFixed(2)), 180, curY + 6, { width: 450 });
   doc.text(`INR ${grandTotal.toFixed(2)}`, 660, curY + 6, { width: 150, align: "right" });
 
-  // PO Signatory & Stamp Box
+  // PO Signatory & Stamp Box with Dual QR Codes
   const poSigY = curY + 28;
   if (poSigY + 55 > 550) {
     doc.addPage({ size: "A4", layout: "landscape", margin: 20 });
   }
   const finalSigY = poSigY + 55 > 550 ? 30 : poSigY;
+
+  // Render Dual QR in PO Footer
+  if (staticQrBuffer) {
+    try {
+      doc.image(staticQrBuffer, 25, finalSigY + 2, { width: 44, height: 44 });
+      doc.fontSize(4.5).font("Helvetica-Bold").fillColor("#0f172a").text("Official Bank QR", 25, finalSigY + 48, { width: 44, align: "center" });
+    } catch (e) {}
+  }
+  if (dynamicQrBuffer) {
+    try {
+      doc.image(dynamicQrBuffer, 80, finalSigY + 2, { width: 44, height: 44 });
+      doc.fontSize(4.5).font("Helvetica-Bold").fillColor("#0284c7").text(`Auto Pay ₹${grandTotal.toFixed(0)}`, 80, finalSigY + 48, { width: 44, align: "center" });
+    } catch (e) {}
+  }
 
   doc.rect(530, finalSigY, 292, 50).lineWidth(0.5).strokeColor("#cbd5e1").stroke();
   doc.fontSize(7).font("Helvetica-Bold").fillColor("#0f172a").text("For ARCL INSTRUMENTS PRIVATE LIMITED", 535, finalSigY + 5, { width: 282, align: "right" });

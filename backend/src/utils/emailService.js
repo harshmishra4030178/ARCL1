@@ -72,6 +72,8 @@ export const sendMailWithFallback = async (mailOptions) => {
   }
 };
 
+export const sendEmail = sendMailWithFallback;
+
 const getTransporter = () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER || "arclinstruments@gmail.com";
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || "srrczqghmqekrvmk";

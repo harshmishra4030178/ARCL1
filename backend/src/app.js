@@ -21,6 +21,7 @@ import adminAnalyticsRoutes from "./routes/admin/analyticsRoutes.js";
 import adminBlogRoutes from "./routes/admin/blogRoutes.js";
 import adminErrorLogRoutes from "./routes/admin/errorLogRoutes.js";
 import adminCalibrationRoutes from "./routes/admin/calibrationRoutes.js";
+import calibrationPaymentRoutes from "./routes/calibrationPaymentRoutes.js";
 
 // ================= CLIENT ROUTES =================
 import clientCategoryRoutes from "./routes/client/categoryRoutes.js";
@@ -117,6 +118,7 @@ app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 app.use(`${ADMIN_API}/blogs`, verifyAdmin, checkModulePermission("blogs"), adminBlogRoutes);
 app.use(`${ADMIN_API}/error-logs`, verifyAdmin, adminErrorLogRoutes);
 app.use(`${ADMIN_API}/calibration`, adminCalibrationRoutes);
+app.use(`${ADMIN_API}/calibration-payment`, calibrationPaymentRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
@@ -129,6 +131,7 @@ app.use(`${CLIENT_API}/analytics`, clientAnalyticsRoutes);
 app.use(`${CLIENT_API}/blogs`, clientBlogRoutes);
 app.use(`${CLIENT_API}/error-logs`, clientErrorLogRoutes);
 app.use(`${CLIENT_API}/calibration`, clientCalibrationRoutes);
+app.use(`${CLIENT_API}/calibration-payment`, calibrationPaymentRoutes);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {

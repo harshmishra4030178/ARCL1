@@ -338,6 +338,7 @@ const AdminLogin = () => {
 
   return (
     <div
+      suppressHydrationWarning
       onContextMenu={handleContextMenu}
       className="relative min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none font-sans"
     >
@@ -374,7 +375,7 @@ const AdminLogin = () => {
       )}
 
       {/* 🛡️ MAIN EXECUTIVE LOGIN CARD */}
-      <div className="relative z-10 max-w-[450px] w-full bg-white/95 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_80px_-15px_rgba(2,28,87,0.45)] p-7 sm:p-9 border border-white/70 space-y-5 transition-all">
+      <div suppressHydrationWarning className="relative z-10 max-w-[450px] w-full bg-white/95 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_80px_-15px_rgba(2,28,87,0.45)] p-7 sm:p-9 border border-white/70 space-y-5 transition-all">
         
         {/* LIVE SECURITY ENCRYPTION STATUS BAR */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100/80 text-[10px]">
@@ -388,6 +389,7 @@ const AdminLogin = () => {
               Esc : Panic Shield
             </span>
             <button
+              suppressHydrationWarning
               type="button"
               onClick={() => setShowPrivacyModal(true)}
               className="text-slate-400 hover:text-[#021C57] font-semibold flex items-center gap-1 cursor-pointer transition"
@@ -468,11 +470,12 @@ const AdminLogin = () => {
         )}
 
         {/* LOGIN FORM */}
-        <form onSubmit={handlePasswordLoginSubmit} className="space-y-4">
+        <form suppressHydrationWarning onSubmit={handlePasswordLoginSubmit} className="space-y-4">
           
           {/* BOT HONEYPOT (Invisible to humans, traps scrapers) */}
           <div style={{ display: "none" }} aria-hidden="true">
             <input
+              suppressHydrationWarning
               type="text"
               name="company_trap"
               value={honeypot}
@@ -489,6 +492,7 @@ const AdminLogin = () => {
                 Super Admin ID / Email
               </label>
               <button
+                suppressHydrationWarning
                 type="button"
                 onClick={() => setMaskEmail(!maskEmail)}
                 className="text-[10px] text-slate-500 hover:text-amber-700 flex items-center gap-1 cursor-pointer font-medium"
@@ -503,6 +507,7 @@ const AdminLogin = () => {
                 <FaEnvelope className="text-sm" />
               </div>
               <input
+                suppressHydrationWarning
                 type={maskEmail ? "password" : "email"}
                 required
                 autoComplete="off"
@@ -533,6 +538,7 @@ const AdminLogin = () => {
                 <FaLock className="text-sm" />
               </div>
               <input
+                suppressHydrationWarning
                 type={showPassword ? "text" : "password"}
                 required
                 autoComplete="new-password"
@@ -546,6 +552,7 @@ const AdminLogin = () => {
                 className="w-full pl-10 pr-11 py-3 bg-slate-50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all font-medium shadow-2xs tracking-wider"
               />
               <button
+                suppressHydrationWarning
                 type="button"
                 onClick={togglePasswordVisibility}
                 className="absolute right-3 text-slate-400 hover:text-slate-700 p-1.5 cursor-pointer transition rounded-lg hover:bg-slate-100"
@@ -560,6 +567,7 @@ const AdminLogin = () => {
           <div className="flex items-center justify-between pt-0.5 text-xs text-slate-600">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
+                suppressHydrationWarning
                 type="checkbox"
                 checked={privateSession}
                 onChange={(e) => setPrivateSession(e.target.checked)}
@@ -574,6 +582,7 @@ const AdminLogin = () => {
 
           {/* SUBMIT BUTTON */}
           <button
+            suppressHydrationWarning
             type="submit"
             disabled={loading || lockoutSeconds > 0}
             className="w-full mt-2 flex items-center justify-center gap-2.5 bg-gradient-to-r from-[#021C57] via-[#08338f] to-[#021C57] hover:from-[#08338f] hover:to-[#021C57] text-white font-black py-3.5 px-6 rounded-2xl transition-all duration-300 shadow-xl shadow-blue-950/25 hover:shadow-amber-500/20 active:scale-[0.98] disabled:opacity-50 cursor-pointer text-xs sm:text-sm tracking-wide border border-blue-800/40"
@@ -623,6 +632,7 @@ const AdminLogin = () => {
 
           {/* EMERGENCY 1-CLICK PURGE BUTTON */}
           <button
+            suppressHydrationWarning
             type="button"
             onClick={handleEmergencyPanicPurge}
             className="text-slate-400 hover:text-rose-600 flex items-center gap-1 transition cursor-pointer hover:underline"

@@ -1394,15 +1394,33 @@ function Calibration() {
                 </table>
               </div>
 
-              {/* Signatures & QR Code */}
+              {/* Signatures & Dual QR Codes */}
               <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 bg-slate-900 text-white rounded flex items-center justify-center text-xs">
-                    <FaQrcode className="text-3xl" />
+                  {/* Dual QR Codes */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center">
+                      <div className="w-12 h-12 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center overflow-hidden">
+                        <img src="/assets/hdfc_qr.png" onError={(e) => { e.target.src = "/assets/hdfc_qr.jpg"; }} alt="Official Bank QR" className="w-full h-full object-contain" />
+                      </div>
+                      <span className="text-[8px] font-bold text-gray-700 mt-0.5">Bank QR</span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className="w-12 h-12 bg-white border border-sky-400 rounded p-0.5 flex items-center justify-center overflow-hidden">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=3&data=${encodeURIComponent(`upi://pay?pa=8572995533.2@hdfc&pn=ARCL&cu=INR`)}`}
+                          alt="Auto Pay UPI QR" 
+                          className="w-full h-full object-contain" 
+                        />
+                      </div>
+                      <span className="text-[8px] font-bold text-sky-700 mt-0.5">Auto Pay QR</span>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-500 font-mono">
-                    <p className="font-bold text-gray-900">SCAN TO VERIFY</p>
-                    <p>ISO 17025 Seal</p>
+
+                  <div className="text-[9px] text-slate-500 font-mono hidden sm:block">
+                    <p className="font-bold text-gray-900">VERIFIED METROLOGY</p>
+                    <p>ISO/IEC 17025 • NABL CC-4313</p>
                   </div>
                 </div>
 
@@ -1422,6 +1440,15 @@ function Calibration() {
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/calibration/payment/${encodeURIComponent(trackResult.serialNo || trackResult.dcNo || "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
+                  title="Make ₹0-fee direct UPI payment for calibration charges"
+                >
+                  <FaQrcode /> Make Online UPI Payment
+                </a>
                 <button
                   type="button"
                   onClick={() => {

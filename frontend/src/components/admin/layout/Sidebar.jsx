@@ -15,6 +15,7 @@ import {
   FaBookOpen,
   FaShieldAlt,
   FaCertificate,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -24,6 +25,7 @@ const allMenuItems = [
   { name: "Categories", path: "/admin/categories", icon: <FaThList />, module: "categories" },
   { name: "Products", path: "/admin/products", icon: <FaBox />, module: "products" },
   { name: "Calibration Portal", path: "/admin/calibration", icon: <FaCertificate />, module: "calibration" },
+  { name: "Payment Verifications", path: "/admin/calibration/payments", icon: <FaMoneyBillWave />, module: "calibration" },
   { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen />, module: "blogs" },
   { name: "Users & Roles", path: "/admin/users", icon: <FaUsers />, module: "users", action: "manage" },
   { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope />, module: "inquiries" },
@@ -56,13 +58,13 @@ const Sidebar = () => {
           <NavLink
             key={item.name}
             to={item.path}
-            end={item.path === "/admin"}
+            end={item.path === "/admin" || item.path === "/admin/calibration"}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
               ${
                 isActive
-                  ? "bg-blue-500 shadow-md"
-                  : "hover:bg-gray-700 "
+                  ? "bg-blue-600 shadow-md font-semibold text-white"
+                  : "text-gray-300 hover:bg-gray-700/70 hover:text-white"
               }`
             }
           >

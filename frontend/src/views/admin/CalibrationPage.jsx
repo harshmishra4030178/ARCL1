@@ -45,6 +45,10 @@ import {
   FaUpload,
   FaCheckSquare,
   FaUsers,
+  FaMoneyBillWave,
+  FaMicrophone,
+  FaMicrophoneSlash,
+  FaVolumeUp,
 } from "react-icons/fa";
 import API from "../../api/axios.js";
 import {
@@ -77,6 +81,15 @@ import {
   uploadPoApi,
   deletePoApi,
 } from "../../api/calibrationApi.js";
+import { getProducts } from "../../api/productApi.js";
+import { getEquipmentTypes } from "../../api/equipmentTypeApi.js";
+import EquipmentAutocompleteInput from "../../components/admin/calibration/EquipmentAutocompleteInput.jsx";
+import {
+  buildUnifiedEquipmentSuggestions,
+  saveCustomEquipmentToStorage,
+  getStoredCustomEquipment,
+} from "../../data/calibrationEquipmentCatalog.js";
+import useVoiceInput from "../../hooks/useVoiceInput.js";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { hasModuleAccess, isSuperAdmin } from "../../utils/rbac.js";
@@ -955,6 +968,12 @@ export default function CalibrationPageView() {
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
+  const mainSearchVoice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (spokenText) setSearchTerm(spokenText);
+    },
+  });
   const [stageFilter, setStageFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedClient, setSelectedClient] = useState("all");
@@ -1046,8 +1065,88 @@ export default function CalibrationPageView() {
     annualSubscriptionRate: 11000,
   });
 
+  // Default Equipment Row & Form State for Calibration SRF & Pipeline
+  const createDefaultInstrumentRow = () => ({
+    id: "inst_" + Math.random().toString(36).substring(2, 9),
+    instrument: "",
+    make: "",
+    modelNo: "",
+    serialNo: "",
+    instrumentRange: "",
+    calibrationDate: new Date().toISOString().slice(0, 10),
+    calibrationDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    stage: "Instrument Received",
+    paymentStatus: "Paid",
+    stickerCheck: true,
+    remarks: "",
+  });
+
+  const initialFormData = {
+    clientCompany: "",
+    clientContactPerson: "",
+    clientEmail: "",
+    clientPhone: "",
+    clientGst: "",
+    clientAddress: "",
+    dcNo: "",
+    challanDate: new Date().toISOString().slice(0, 10),
+    sentToLab: "ARCL Calibration Lab",
+    instruments: [createDefaultInstrumentRow()],
+  };
+
+  const [formData, setFormData] = useState(initialFormData);
+
+  // Auto-Suggestion State for SRF & Calibration Equipment Selection
+  const [websiteProducts, setWebsiteProducts] = useState([]);
+  const [equipmentTypesList, setEquipmentTypesList] = useState([]);
+  const [customSavedEquipments, setCustomSavedEquipments] = useState(() => getStoredCustomEquipment());
+
+  // Unified auto-suggestion pool combining DB Records, Website Products, NABL Catalog, LocalStorage & Live Form Entries
+  const unifiedEquipmentSuggestions = useMemo(() => {
+    return buildUnifiedEquipmentSuggestions({
+      dbRecords: records,
+      websiteProducts,
+      equipmentTypes: equipmentTypesList,
+      customList: customSavedEquipments,
+      currentFormInstruments: [
+        ...(formData?.instruments || []),
+        ...(editFormData?.instruments || []),
+      ],
+    });
+  }, [
+    records,
+    websiteProducts,
+    equipmentTypesList,
+    customSavedEquipments,
+    formData?.instruments,
+    editFormData?.instruments,
+  ]);
+
+  const fetchWebsiteEquipments = async () => {
+    try {
+      const [prodRes, eqRes] = await Promise.allSettled([
+        getProducts({ limit: 1000 }),
+        getEquipmentTypes(),
+      ]);
+      if (prodRes.status === "fulfilled" && prodRes.value?.data?.data?.products) {
+        setWebsiteProducts(prodRes.value.data.data.products);
+      }
+      if (eqRes.status === "fulfilled" && eqRes.value?.data?.data) {
+        setEquipmentTypesList(eqRes.value.data.data);
+      }
+    } catch (e) {
+      console.warn("Website equipment catalog load notice:", e);
+    }
+  };
+
   // Dynamic Recipients Directory States
   const [directorySearchTerm, setDirectorySearchTerm] = useState("");
+  const directorySearchVoice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (spokenText) setDirectorySearchTerm(spokenText);
+    },
+  });
   const [directoryFilter, setDirectoryFilter] = useState("all"); // 'all', 'due', 'uptodate', 'custom'
   const [selectedDirectoryIds, setSelectedDirectoryIds] = useState([]);
   const [selectedAuditLogIds, setSelectedAuditLogIds] = useState([]);
@@ -2027,6 +2126,7 @@ export default function CalibrationPageView() {
     fetchTemplates();
     fetchAutoReminderStatus();
     fetchLabScope();
+    fetchWebsiteEquipments();
   }, []);
 
   useEffect(() => {
@@ -2244,37 +2344,11 @@ export default function CalibrationPageView() {
   };
 
   // Row Action Handlers for Add New Instrument / Batch Calibration
-  const createDefaultInstrumentRow = () => ({
-    id: "inst_" + Math.random().toString(36).substring(2, 9),
-    instrument: "",
-    make: "",
-    modelNo: "",
-    serialNo: "",
-    instrumentRange: "",
-    calibrationDate: new Date().toISOString().slice(0, 10),
-    calibrationDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    stage: "Instrument Received",
-    paymentStatus: "Paid",
-    stickerCheck: true,
-    remarks: "",
-  });
-
-  const initialFormData = {
-    clientCompany: "",
-    clientContactPerson: "",
-    clientEmail: "",
-    clientPhone: "",
-    clientGst: "",
-    clientAddress: "",
-    dcNo: "",
-    challanDate: new Date().toISOString().slice(0, 10),
-    sentToLab: "ARCL Calibration Lab",
-    instruments: [createDefaultInstrumentRow()],
-  };
-
-  const [formData, setFormData] = useState(initialFormData);
-
   const handleAddInstrumentRow = () => {
+    // Persist any custom equipment names already typed in previous rows
+    saveCustomEquipmentToStorage(formData.instruments);
+    setCustomSavedEquipments(getStoredCustomEquipment());
+
     setFormData((prev) => ({
       ...prev,
       instruments: [...prev.instruments, createDefaultInstrumentRow()],
@@ -2283,6 +2357,9 @@ export default function CalibrationPageView() {
   };
 
   const handleDuplicateInstrumentRow = (index) => {
+    saveCustomEquipmentToStorage(formData.instruments);
+    setCustomSavedEquipments(getStoredCustomEquipment());
+
     setFormData((prev) => {
       const currentList = [...prev.instruments];
       const source = currentList[index];
@@ -2336,6 +2413,22 @@ export default function CalibrationPageView() {
     });
   };
 
+  const handleSelectSuggestionForInstrument = (index, suggestion) => {
+    if (!suggestion) return;
+    setFormData((prev) => {
+      const updated = [...prev.instruments];
+      const current = updated[index] || {};
+      updated[index] = {
+        ...current,
+        instrument: suggestion.name,
+        make: current.make || suggestion.defaultMake || "ARCL",
+        modelNo: current.modelNo || suggestion.defaultModel || "",
+        instrumentRange: current.instrumentRange || suggestion.defaultRange || "",
+      };
+      return { ...prev, instruments: updated };
+    });
+  };
+
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formData.clientCompany?.trim()) {
@@ -2377,6 +2470,11 @@ export default function CalibrationPageView() {
       toast.success(
         `Successfully added ${totalCount} equipment${totalCount > 1 ? "s" : ""} for "${formData.clientCompany}"! ✅`
       );
+
+      // Persist newly added custom equipments for future auto-suggestions
+      saveCustomEquipmentToStorage(formData.instruments);
+      setCustomSavedEquipments(getStoredCustomEquipment());
+
       setIsAddModalOpen(false);
       setFormData({
         ...initialFormData,
@@ -2420,6 +2518,11 @@ export default function CalibrationPageView() {
       toast.success(
         `Successfully saved all changes for ${items.length} equipment(s) under "${editFormData.clientCompany}"! ✅`
       );
+
+      // Persist newly added custom equipments for future auto-suggestions
+      saveCustomEquipmentToStorage(editFormData.instruments);
+      setCustomSavedEquipments(getStoredCustomEquipment());
+
       setIsEditModalOpen(false);
       fetchData(false);
     } catch (err) {
@@ -2455,7 +2558,26 @@ export default function CalibrationPageView() {
     });
   };
 
+  const handleSelectEditSuggestionForInstrument = (index, suggestion) => {
+    if (!suggestion) return;
+    setEditFormData((prev) => {
+      const updated = [...(prev.instruments || [])];
+      const current = updated[index] || {};
+      updated[index] = {
+        ...current,
+        instrument: suggestion.name,
+        make: current.make || suggestion.defaultMake || "ARCL",
+        modelNo: current.modelNo || suggestion.defaultModel || "",
+        instrumentRange: current.instrumentRange || suggestion.defaultRange || "",
+      };
+      return { ...prev, instruments: updated };
+    });
+  };
+
   const handleAddEditInstrumentRow = () => {
+    saveCustomEquipmentToStorage(editFormData.instruments);
+    setCustomSavedEquipments(getStoredCustomEquipment());
+
     setEditFormData((prev) => ({
       ...prev,
       instruments: [...prev.instruments, createDefaultInstrumentRow()],
@@ -2464,6 +2586,9 @@ export default function CalibrationPageView() {
   };
 
   const handleDuplicateEditInstrumentRow = (index) => {
+    saveCustomEquipmentToStorage(editFormData.instruments);
+    setCustomSavedEquipments(getStoredCustomEquipment());
+
     setEditFormData((prev) => {
       const currentList = [...prev.instruments];
       const source = currentList[index];
@@ -4464,6 +4589,17 @@ export default function CalibrationPageView() {
         >
           <FaShieldAlt /> 4. NABL Scope &amp; Lab Profile
         </button>
+        <a
+          href="/admin/calibration/payments"
+          className="px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md font-bold ml-auto hover:from-blue-500 hover:to-indigo-600 cursor-pointer active:scale-95"
+          title="Open Live UPI Payment Verification Portal"
+        >
+          <FaMoneyBillWave className="text-emerald-300 animate-pulse" />
+          <span>5. UPI Payment Verifications</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500 text-white font-black font-mono">
+            LIVE
+          </span>
+        </a>
       </div>
 
       {/* ========================================================================= */}
@@ -5050,15 +5186,65 @@ export default function CalibrationPageView() {
 
           {/* Search & Filter Bar */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
-            <div className="md:col-span-6 relative">
-              <FaSearch className="absolute left-3.5 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by Instrument / Serial No. / Model No. / Make..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-800"
-              />
+            <div className="md:col-span-6 relative flex flex-col justify-center">
+              <div className="relative flex items-center">
+                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by Instrument / Serial No. / Model No. / Make (Type or Click Mic)..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-16 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-800 font-medium"
+                />
+                <div className="absolute right-2 flex items-center gap-1">
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm("")}
+                      className="p-1 text-gray-400 hover:text-gray-600 rounded-full transition text-xs cursor-pointer"
+                      title="Clear search"
+                    >
+                      <FaTimes />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => mainSearchVoice.toggleListening()}
+                    className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center cursor-pointer ${
+                      mainSearchVoice.isListening
+                        ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/50 ring-2 ring-rose-300"
+                        : "text-blue-600 hover:text-blue-800 hover:bg-blue-100/70 bg-blue-50/70 border border-blue-200/60"
+                    }`}
+                    title={
+                      mainSearchVoice.isListening
+                        ? "🎙️ Listening... Click to stop"
+                        : "🎙️ Click to Speak & Search Records"
+                    }
+                  >
+                    <FaMicrophone className={`text-xs ${mainSearchVoice.isListening ? "animate-bounce" : ""}`} />
+                  </button>
+                </div>
+              </div>
+              {mainSearchVoice.statusText && (
+                <div
+                  className={`mt-1 text-[11px] px-2.5 py-1 rounded-lg flex items-center justify-between gap-1.5 transition animate-fadeIn ${
+                    mainSearchVoice.isListening
+                      ? "bg-rose-50 text-rose-800 border border-rose-300 font-semibold"
+                      : "bg-blue-50 text-blue-800 border border-blue-200"
+                  }`}
+                >
+                  <span className="truncate">{mainSearchVoice.statusText}</span>
+                  {mainSearchVoice.isListening && (
+                    <button
+                      type="button"
+                      onClick={() => mainSearchVoice.stopListening()}
+                      className="text-[10px] font-bold text-rose-800 hover:underline shrink-0 cursor-pointer"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-3">
@@ -6887,23 +7073,64 @@ export default function CalibrationPageView() {
               <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   {/* Search Input */}
-                  <div className="relative flex-1">
-                    <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                    <input
-                      type="text"
-                      value={directorySearchTerm}
-                      onChange={(e) => setDirectorySearchTerm(e.target.value)}
-                      placeholder="Search by company, contact person, email, phone, or instrument name..."
-                      className="w-full pl-9 pr-8 py-2 bg-white rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                    />
-                    {directorySearchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setDirectorySearchTerm("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                  <div className="relative flex-1 flex flex-col justify-center">
+                    <div className="relative flex items-center">
+                      <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
+                      <input
+                        type="text"
+                        value={directorySearchTerm}
+                        onChange={(e) => setDirectorySearchTerm(e.target.value)}
+                        placeholder="Search by company, contact person, email, phone, or instrument name (or Click Mic)..."
+                        className="w-full pl-9 pr-16 py-2 bg-white rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                      />
+                      <div className="absolute right-2 flex items-center gap-1">
+                        {directorySearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setDirectorySearchTerm("")}
+                            className="p-1 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                            title="Clear search"
+                          >
+                            <FaTimes />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => directorySearchVoice.toggleListening()}
+                          className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center cursor-pointer ${
+                            directorySearchVoice.isListening
+                              ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/50 ring-2 ring-rose-300"
+                              : "text-blue-600 hover:text-blue-800 hover:bg-blue-100/70 bg-blue-50/70 border border-blue-200/60"
+                          }`}
+                          title={
+                            directorySearchVoice.isListening
+                              ? "🎙️ Listening... Click to stop"
+                              : "🎙️ Click to Speak & Search Directory"
+                          }
+                        >
+                          <FaMicrophone className={`text-xs ${directorySearchVoice.isListening ? "animate-bounce" : ""}`} />
+                        </button>
+                      </div>
+                    </div>
+                    {directorySearchVoice.statusText && (
+                      <div
+                        className={`mt-1 text-[11px] px-2.5 py-1 rounded-lg flex items-center justify-between gap-1.5 transition animate-fadeIn ${
+                          directorySearchVoice.isListening
+                            ? "bg-rose-50 text-rose-800 border border-rose-300 font-semibold"
+                            : "bg-blue-50 text-blue-800 border border-blue-200"
+                        }`}
                       >
-                        <FaTimes />
-                      </button>
+                        <span className="truncate">{directorySearchVoice.statusText}</span>
+                        {directorySearchVoice.isListening && (
+                          <button
+                            type="button"
+                            onClick={() => directorySearchVoice.stopListening()}
+                            className="text-[10px] font-bold text-rose-800 hover:underline shrink-0 cursor-pointer"
+                          >
+                            Stop
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -8007,12 +8234,13 @@ export default function CalibrationPageView() {
                             <span>Instrument / Equipment Name *</span>
                             <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
                           </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. Compression Testing Machine 2000 kN / Vernier Caliper"
+                          <EquipmentAutocompleteInput
                             value={inst.instrument}
-                            onChange={(e) => handleInstrumentFieldChange(index, "instrument", e.target.value)}
+                            onChange={(val) => handleInstrumentFieldChange(index, "instrument", val)}
+                            onSelectEquipment={(sugg) => handleSelectSuggestionForInstrument(index, sugg)}
+                            suggestions={unifiedEquipmentSuggestions}
+                            required
+                            placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
                             className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
                           />
                         </div>
@@ -8412,12 +8640,13 @@ export default function CalibrationPageView() {
                             <span>Instrument / Equipment Name *</span>
                             <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
                           </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. Compression Testing Machine 2000 kN / Vernier Caliper"
+                          <EquipmentAutocompleteInput
                             value={inst.instrument || ""}
-                            onChange={(e) => handleEditInstrumentFieldChange(index, "instrument", e.target.value)}
+                            onChange={(val) => handleEditInstrumentFieldChange(index, "instrument", val)}
+                            onSelectEquipment={(sugg) => handleSelectEditSuggestionForInstrument(index, sugg)}
+                            suggestions={unifiedEquipmentSuggestions}
+                            required
+                            placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
                             className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
                           />
                         </div>
@@ -9351,12 +9580,29 @@ export default function CalibrationPageView() {
                     <p>Branch: <strong>Kandivali East - Thakur Village</strong></p>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center p-2 text-center space-y-1">
-                    <p className="font-bold text-gray-800 text-[10px]">Pay using UPI:</p>
-                    <div className="w-16 h-16 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
-                      <img src="/assets/hdfc_qr.png" alt="UPI QR" className="w-full h-full object-contain" />
+                  {/* Dual QR Codes Column: Static Official QR + Dynamic Auto-Generated Fixed Payment QR */}
+                  <div className="flex items-center justify-around p-1 text-center gap-2">
+                    {/* QR 1: Static Official Bank QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-gray-800 text-[9px]">Official Bank QR:</p>
+                      <div className="w-14 h-14 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img src="/assets/hdfc_qr.png" onError={(e) => { e.target.src = "/assets/hdfc_qr.jpg"; }} alt="Official Bank QR" className="w-full h-full object-contain" />
+                      </div>
+                      <p className="font-mono text-[8px] text-gray-600 font-semibold">8572995533.2@hdfc</p>
                     </div>
-                    <p className="font-mono text-[9px] text-gray-700 font-bold">8572995533.2@hdfc</p>
+
+                    {/* QR 2: Dynamic Auto-Generated Fixed Amount UPI QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-sky-700 text-[9px]">Auto Pay ₹{(taxInvoiceTotals.grand || 0).toLocaleString("en-IN")}:</p>
+                      <div className="w-14 h-14 bg-white border border-sky-400 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=3&data=${encodeURIComponent(`upi://pay?pa=8572995533.2@hdfc&pn=ARCL&am=${(Number(taxInvoiceTotals.grand || 0) || 1).toFixed(2)}&cu=INR`)}`}
+                          alt="Dynamic Auto Pay UPI QR" 
+                          className="w-full h-full object-contain" 
+                        />
+                      </div>
+                      <p className="font-bold text-[8px] text-sky-700">₹{(taxInvoiceTotals.grand || 0).toLocaleString("en-IN")}</p>
+                    </div>
                   </div>
 
                   <div className="text-right space-y-1 flex flex-col justify-between items-end">
@@ -9972,12 +10218,29 @@ export default function CalibrationPageView() {
                     <p className="font-bold pt-1">ARCL Instruments Private Limited</p>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center p-2 text-center space-y-1">
-                    <p className="font-bold text-gray-800 text-[10px]">Pay using UPI:</p>
-                    <div className="w-16 h-16 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
-                      <img src="/assets/hdfc_qr.png" alt="UPI QR" className="w-full h-full object-contain" />
+                  {/* Dual QR Codes Column: Static Official QR + Dynamic Auto-Generated Fixed Payment QR */}
+                  <div className="flex items-center justify-around p-1 text-center gap-2">
+                    {/* QR 1: Static Official Bank QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-gray-800 text-[9px]">Official Bank QR:</p>
+                      <div className="w-14 h-14 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img src="/assets/hdfc_qr.png" onError={(e) => { e.target.src = "/assets/hdfc_qr.jpg"; }} alt="Official Bank QR" className="w-full h-full object-contain" />
+                      </div>
+                      <p className="font-mono text-[8px] text-gray-600 font-semibold">8572995533.2@hdfc</p>
                     </div>
-                    <p className="font-mono text-[9px] text-gray-700 font-bold">8572995533.2@hdfc</p>
+
+                    {/* QR 2: Dynamic Auto-Generated Fixed Amount UPI QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-teal-700 text-[9px]">Auto Pay ₹{(proformaTotals.grand || 0).toLocaleString("en-IN")}:</p>
+                      <div className="w-14 h-14 bg-white border border-teal-400 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=3&data=${encodeURIComponent(`upi://pay?pa=8572995533.2@hdfc&pn=ARCL&am=${(Number(proformaTotals.grand || 0) || 1).toFixed(2)}&cu=INR`)}`}
+                          alt="Dynamic Auto Pay UPI QR" 
+                          className="w-full h-full object-contain" 
+                        />
+                      </div>
+                      <p className="font-bold text-[8px] text-teal-700">₹{(proformaTotals.grand || 0).toLocaleString("en-IN")}</p>
+                    </div>
                   </div>
 
                   <div className="text-right space-y-1 flex flex-col justify-between items-end">
@@ -10363,12 +10626,29 @@ export default function CalibrationPageView() {
                     <p>Branch: <strong>Kandivali East - Thakur Village</strong></p>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center p-2 text-center space-y-1">
-                    <p className="font-bold text-gray-800 text-[10px]">Scan UPI to Pay:</p>
-                    <div className="w-16 h-16 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
-                      <img src="/assets/hdfc_qr.png" alt="UPI QR" className="w-full h-full object-contain" />
+                  {/* Dual QR Codes Column: Static Official QR + Dynamic Auto-Generated Fixed Payment QR */}
+                  <div className="flex items-center justify-around p-1 text-center gap-2">
+                    {/* QR 1: Static Official Bank QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-gray-800 text-[9px]">Official Bank QR:</p>
+                      <div className="w-14 h-14 bg-white border border-gray-300 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img src="/assets/hdfc_qr.png" onError={(e) => { e.target.src = "/assets/hdfc_qr.jpg"; }} alt="Official Bank QR" className="w-full h-full object-contain" />
+                      </div>
+                      <p className="font-mono text-[8px] text-gray-600 font-semibold">8572995533.2@hdfc</p>
                     </div>
-                    <p className="font-mono text-[9px] text-gray-700 font-bold">8572995533.2@hdfc</p>
+
+                    {/* QR 2: Dynamic Auto-Generated Fixed Amount UPI QR */}
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <p className="font-bold text-blue-700 text-[9px]">Auto Pay ₹{Number(quotationTotals?.grand || quotationTotals?.total || 0).toLocaleString("en-IN")}:</p>
+                      <div className="w-14 h-14 bg-white border border-blue-400 rounded p-0.5 flex items-center justify-center shadow-xs overflow-hidden">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=3&data=${encodeURIComponent(`upi://pay?pa=8572995533.2@hdfc&pn=ARCL&am=${(Number(quotationTotals?.grand || quotationTotals?.total || 0) || 1).toFixed(2)}&cu=INR`)}`}
+                          alt="Dynamic Auto Pay UPI QR" 
+                          className="w-full h-full object-contain" 
+                        />
+                      </div>
+                      <p className="font-bold text-[8px] text-blue-700">₹{Number(quotationTotals?.grand || quotationTotals?.total || 0).toLocaleString("en-IN")}</p>
+                    </div>
                   </div>
 
                   <div className="text-right space-y-1 flex flex-col justify-between items-end">
@@ -11203,12 +11483,13 @@ export default function CalibrationPageView() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-700 mb-1">Instrument Name</label>
-                  <input
-                    type="text"
+                  <EquipmentAutocompleteInput
                     value={candidateForm.instrumentName}
-                    onChange={(e) => setCandidateForm({ ...candidateForm, instrumentName: e.target.value })}
+                    onChange={(val) => setCandidateForm({ ...candidateForm, instrumentName: val })}
+                    onSelectEquipment={(sugg) => setCandidateForm({ ...candidateForm, instrumentName: sugg.name })}
+                    suggestions={unifiedEquipmentSuggestions}
+                    placeholder="Type or select equipment name"
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-emerald-500"
-                    placeholder="Digital Compression Testing Machine"
                   />
                 </div>
                 <div>
@@ -11330,10 +11611,12 @@ export default function CalibrationPageView() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-700 mb-1">Instrument Name</label>
-                  <input
-                    type="text"
+                  <EquipmentAutocompleteInput
                     value={editCandidateForm.instrumentName}
-                    onChange={(e) => setEditCandidateForm({ ...editCandidateForm, instrumentName: e.target.value })}
+                    onChange={(val) => setEditCandidateForm({ ...editCandidateForm, instrumentName: val })}
+                    onSelectEquipment={(sugg) => setEditCandidateForm({ ...editCandidateForm, instrumentName: sugg.name })}
+                    suggestions={unifiedEquipmentSuggestions}
+                    placeholder="Type or select equipment name"
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

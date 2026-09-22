@@ -17,6 +17,7 @@ try {
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import { startCalibrationReminderScheduler } from "./services/calibrationReminderScheduler.js";
+import { syncCalibrationRecordsToPayments } from "./controllers/calibrationPaymentController.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -30,6 +31,11 @@ connectDB()
 
       // Initialize automated daily calibration due reminder background scheduler
       startCalibrationReminderScheduler();
+
+      // Background non-blocking sync for calibration payment ledger
+      syncCalibrationRecordsToPayments().catch((err) =>
+        console.warn("Startup payment sync warning:", err.message)
+      );
     });
 
     process.on("unhandledRejection", (err) => {
