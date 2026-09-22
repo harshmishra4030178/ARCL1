@@ -203,13 +203,23 @@ const CatalogPage = () => {
               const IconComponent =
                 categoryIcons[index % categoryIcons.length] || Layers;
 
-              // Count products in category
-              const catProductCount = products.filter(
+              // Find products in category
+              const categoryProducts = products.filter(
                 (p) =>
                   p.category?._id === category._id ||
                   p.category === category._id ||
                   p.category?.slug === category.slug
-              ).length;
+              );
+              const catProductCount = categoryProducts.length;
+
+              // Find first product's image or category image
+              const firstProduct = categoryProducts[0];
+              const productImage =
+                (Array.isArray(firstProduct?.images) && firstProduct.images[0]) ||
+                (typeof firstProduct?.images === "string" && firstProduct.images) ||
+                category.image ||
+                category.imageUrl ||
+                null;
 
               return (
                 <div
@@ -220,9 +230,28 @@ const CatalogPage = () => {
                   {/* Top Header */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      {/* Icon */}
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 text-[#021C57] group-hover:bg-[#021C57] group-hover:text-white transition-colors duration-300 flex items-center justify-center shadow-xs">
-                        <IconComponent size={26} />
+                      {/* Product Image Thumbnail / Icon Box */}
+                      <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200/90 p-1.5 flex items-center justify-center shadow-xs overflow-hidden group-hover:border-[#021C57] group-hover:shadow-md transition-all duration-300 shrink-0">
+                        {productImage ? (
+                          <img
+                            src={productImage}
+                            alt={category.name}
+                            className="w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-300"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              const fallback = e.currentTarget.parentElement?.querySelector(".icon-fallback");
+                              if (fallback) fallback.style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`icon-fallback w-full h-full rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 text-[#021C57] group-hover:bg-[#021C57] group-hover:text-white transition-colors duration-300 ${
+                            productImage ? "hidden" : "flex"
+                          } items-center justify-center`}
+                        >
+                          <IconComponent size={26} />
+                        </div>
                       </div>
 
                       {/* Badge */}
