@@ -262,61 +262,24 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
         id="catalog-document"
         className="relative overflow-hidden max-w-4xl mx-auto bg-white border border-slate-200/90 rounded-3xl shadow-xl p-6 sm:p-8 md:p-10 text-slate-800 space-y-6"
       >
-        {/* Repeating Watermark Overlay (Floats Uniformly Over Entire Sheet - Zero Hidden Areas) */}
+        {/* Repeating Watermark Overlay (Tiles 100% Seamlessly from Top to Bottom Across the ENTIRE Sheet) */}
         <div
+          id="catalog-watermark-overlay"
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none overflow-hidden select-none z-30 opacity-[0.09]"
-        >
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern
-                id="arclCatalogWatermarkPattern"
-                width="280"
-                height="140"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(-30)"
-              >
-                <text
-                  x="140"
-                  y="45"
-                  fill="#021C57"
-                  fontSize="11.5"
-                  fontWeight="900"
-                  fontFamily="Inter, Arial, sans-serif"
-                  textAnchor="middle"
-                  letterSpacing="1.5px"
-                >
-                  ARCL INSTRUMENTS PVT. LTD.
-                </text>
-                <text
-                  x="280"
-                  y="115"
-                  fill="#021C57"
-                  fontSize="11.5"
-                  fontWeight="900"
-                  fontFamily="Inter, Arial, sans-serif"
-                  textAnchor="middle"
-                  letterSpacing="1.5px"
-                >
-                  ARCL INSTRUMENTS PVT. LTD.
-                </text>
-                <text
-                  x="0"
-                  y="115"
-                  fill="#021C57"
-                  fontSize="11.5"
-                  fontWeight="900"
-                  fontFamily="Inter, Arial, sans-serif"
-                  textAnchor="middle"
-                  letterSpacing="1.5px"
-                >
-                  ARCL INSTRUMENTS PVT. LTD.
-                </text>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#arclCatalogWatermarkPattern)" />
-          </svg>
-        </div>
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden select-none z-30 opacity-[0.09]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='140' viewBox='0 0 280 140'%3E%3Cg transform='rotate(-30 140 70)'%3E%3Ctext x='140' y='45' fill='%23021C57' font-size='11.5' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.5'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='280' y='115' fill='%23021C57' font-size='11.5' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.5'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3Ctext x='0' y='115' fill='%23021C57' font-size='11.5' font-weight='900' font-family='sans-serif' text-anchor='middle' letter-spacing='1.5'%3EARCL INSTRUMENTS PVT. LTD.%3C/text%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+            backgroundSize: "280px 140px",
+            minHeight: "100%",
+            width: "100%",
+            height: "100%",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
 
         {/* TOP MOTTO LINE & HEADER LETTERHEAD */}
         <div className="relative z-10 print-section space-y-2.5 border-b-2 border-[#021C57] pb-4">

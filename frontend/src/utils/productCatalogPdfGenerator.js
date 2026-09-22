@@ -57,6 +57,18 @@ export const downloadProductCatalogPdf = async (product) => {
               el.style.maxWidth = "100%";
               el.style.width = "100%";
             }
+            const wm = clonedDoc.getElementById("catalog-watermark-overlay");
+            if (wm) {
+              wm.style.position = "absolute";
+              wm.style.top = "0px";
+              wm.style.left = "0px";
+              wm.style.right = "0px";
+              wm.style.bottom = "0px";
+              wm.style.width = "100%";
+              wm.style.height = "100%";
+              wm.style.minHeight = "100%";
+              wm.style.backgroundRepeat = "repeat";
+            }
           },
         });
 
