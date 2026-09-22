@@ -122,7 +122,7 @@ export const downloadProductCatalogPdf = async (product) => {
       doc.saveGraphicsState();
 
       if (doc.setGState && typeof doc.GState === "function") {
-        doc.setGState(new doc.GState({ opacity: 0.14 }));
+        doc.setGState(new doc.GState({ opacity: 0.10 }));
       }
 
       doc.setFont("helvetica", "bold");
@@ -132,14 +132,14 @@ export const downloadProductCatalogPdf = async (product) => {
       const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
       const angle = -32;
 
-      // Staggered isometric grid spacing
-      const xStep = 68; // mm horizontal
+      // Staggered isometric grid spacing matching web SVG pattern
+      const xStep = 60; // mm horizontal
       const yStep = 28; // mm vertical
 
-      for (let wy = -25; wy < pageHeight + 60; wy += yStep) {
-        const isOddRow = Math.floor((wy + 25) / yStep) % 2 !== 0;
+      for (let wy = -30; wy < pageHeight + 70; wy += yStep) {
+        const isOddRow = Math.floor((wy + 30) / yStep) % 2 !== 0;
         const rowOffset = isOddRow ? xStep / 2 : 0;
-        for (let wx = -45; wx < pageWidth + 70; wx += xStep) {
+        for (let wx = -50; wx < pageWidth + 80; wx += xStep) {
           doc.text(watermarkText, wx + rowOffset, wy, {
             angle: angle,
             align: "center",
@@ -155,9 +155,11 @@ export const downloadProductCatalogPdf = async (product) => {
       doc.setTextColor(218, 226, 236);
       const watermarkText = "ARCL INSTRUMENTS PVT. LTD.";
       const angle = -32;
-      for (let wy = -25; wy < pageHeight + 60; wy += 28) {
-        for (let wx = -45; wx < pageWidth + 70; wx += 68) {
-          doc.text(watermarkText, wx, wy, { angle: angle, align: "center" });
+      for (let wy = -30; wy < pageHeight + 70; wy += 28) {
+        const isOddRow = Math.floor((wy + 30) / 28) % 2 !== 0;
+        const rowOffset = isOddRow ? 30 : 0;
+        for (let wx = -50; wx < pageWidth + 80; wx += 60) {
+          doc.text(watermarkText, wx + rowOffset, wy, { angle: angle, align: "center" });
         }
       }
     }
@@ -740,6 +742,9 @@ export const downloadProductCatalogPdf = async (product) => {
     margin + 10 + colW * 2,
     y + 14.2
   );
+
+  // 9. OVERLAY WATERMARK (Rendered on top layer at the end so it matches view mode 100%)
+  renderBackgroundWatermark();
 
   // Page numbering footer (Strictly Page 1 of 1)
   doc.setFont("helvetica", "normal");
