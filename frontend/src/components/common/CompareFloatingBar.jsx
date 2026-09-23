@@ -48,14 +48,16 @@ export default function CompareFloatingBar() {
                   {formatTitleCase(prod.name)}
                 </span>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeFromCompare(prod._id);
                   }}
-                  className="text-blue-300 hover:text-red-400 p-0.5 rounded-full"
+                  aria-label={`Remove ${prod.name} from comparison`}
+                  className="text-blue-300 hover:text-red-400 p-0.5 rounded-full cursor-pointer"
                   title="Remove"
                 >
-                  <X size={12} />
+                  <X size={12} aria-hidden="true" />
                 </button>
               </div>
             ))}
@@ -64,19 +66,23 @@ export default function CompareFloatingBar() {
           {/* Compare Now CTA */}
           <div className="flex items-center gap-2 shrink-0">
             <button
+              type="button"
               onClick={openCompareModal}
-              className="bg-amber-400 hover:bg-amber-300 text-blue-950 px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition shadow-md hover:scale-105"
+              aria-label={`Compare ${items.length} selected products`}
+              className="bg-amber-400 hover:bg-amber-300 text-blue-950 px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition shadow-md hover:scale-105 cursor-pointer"
             >
               <span>Compare ({items.length})</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={14} aria-hidden="true" />
             </button>
 
             <button
+              type="button"
               onClick={clearCompare}
               title="Clear comparison"
-              className="p-2 text-blue-300 hover:text-white rounded-xl hover:bg-white/10 transition hidden sm:block"
+              aria-label="Clear all compared products"
+              className="p-2 text-blue-300 hover:text-white rounded-xl hover:bg-white/10 transition hidden sm:block cursor-pointer"
             >
-              <Trash2 size={16} />
+              <Trash2 size={16} aria-hidden="true" />
             </button>
           </div>
 

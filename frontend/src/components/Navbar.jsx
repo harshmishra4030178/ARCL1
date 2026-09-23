@@ -99,6 +99,7 @@ const Navbar = () => {
               <button
                 onClick={openCart}
                 suppressHydrationWarning={true}
+                aria-label={`View Multi-Product Quote Basket (${cartItemCount} items)`}
                 className="inline-flex items-center gap-1.5 sm:gap-2 bg-[#021C57] hover:bg-[#032d88] text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
                 title="View Multi-Product Quote Basket"
               >
@@ -152,10 +153,14 @@ const Navbar = () => {
                 >
                   <img
                     src={logo}
-                    alt="logo"
+                    alt="ARCL Instruments Private Limited Logo"
+                    width={80}
+                    height={40}
+                    fetchPriority="high"
                     className="
                   w-20
                   mix-blend-darken
+                  object-contain
                 "
                   />
 
@@ -339,6 +344,8 @@ const Navbar = () => {
                 )}
 
                 <button
+                  type="button"
+                  aria-label={`Open Quote Basket (${cartItemCount} items)`}
                   onClick={() => {
                     setIsMenuOpen(false);
                     openCart();

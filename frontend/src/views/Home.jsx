@@ -387,6 +387,10 @@ const Home = ({ initialShowcase = [] }) => {
               <img
                 src={item.image}
                 alt={item.title}
+                width={80}
+                height={80}
+                loading="lazy"
+                decoding="async"
                 className="w-20 h-20 object-contain mb-6"
               />
               <h3 className="text-xl font-bold text-[#021C57] mb-3">

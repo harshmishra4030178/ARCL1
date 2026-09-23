@@ -2,18 +2,29 @@
 
 import React, { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import QuoteCartDrawer from "../components/quoteCart/QuoteCartDrawer";
 import FloatingQuoteCartButton from "../components/quoteCart/FloatingQuoteCartButton";
 import FloatingContactButtons from "../components/common/FloatingContactButtons";
-import CompareFloatingBar from "../components/common/CompareFloatingBar";
-import ArclAiAssistant from "../components/ai/ArclAiAssistant";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
 import { ErrorBoundary } from "../components/common/ErrorBoundary.jsx";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+const QuoteCartDrawer = dynamic(
+  () => import("../components/quoteCart/QuoteCartDrawer"),
+  { ssr: false }
+);
+const CompareFloatingBar = dynamic(
+  () => import("../components/common/CompareFloatingBar"),
+  { ssr: false }
+);
+const ArclAiAssistant = dynamic(
+  () => import("../components/ai/ArclAiAssistant"),
+  { ssr: false }
+);
 
 export default function ClientLayout({ children }) {
   useVisitorTracker();

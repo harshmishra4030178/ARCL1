@@ -8,9 +8,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const image1 = "/assets/Slider/CalibrationMaintenanceService.jpg";
-const image2 = "/assets/Slider/CivilAndMechanicalLabEqu.jpg";
-const image3 = "/assets/Slider/MedicalAndScientificInstruments.jpg";
+const image1 = "/assets/Slider/CalibrationMaintenanceService.webp";
+const image2 = "/assets/Slider/CivilAndMechanicalLabEqu.webp";
+const image3 = "/assets/Slider/MedicalAndScientificInstruments.webp";
 
 const slides = [
   {
@@ -45,8 +45,13 @@ const slides = [
 const Carousel = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const length = slides.length;
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Auto Slide every 5 seconds (paused on hover or keyboard focus)
   useEffect(() => {
@@ -99,6 +104,9 @@ const Carousel = () => {
       {/* Background Slides */}
       {slides.map((item, index) => {
         const isActive = index === currentIndex;
+        // Only load video for active slide or if user is interacting, to prevent massive initial 23MB payload
+        const shouldLoadVideo = isClient && (isActive || Math.abs(index - currentIndex) <= 1);
+
         return (
           <div
             key={index}
@@ -106,25 +114,42 @@ const Carousel = () => {
             aria-roledescription="slide"
             aria-label={`Slide ${index + 1} of ${slides.length}: ${item.heading}`}
             aria-hidden={!isActive}
+            inert={!isActive ? "" : undefined}
             className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
               isActive
                 ? "opacity-100 z-10 visible pointer-events-auto"
                 : "opacity-0 z-0 invisible pointer-events-none"
             }`}
           >
-            {/* Animated HTML5 Video Loop */}
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              poster={item.image}
+            {/* High-priority WebP Poster Image for instant LCP render */}
+            <img
+              src={item.image}
+              alt=""
               aria-hidden="true"
-              tabIndex={-1}
+              fetchPriority={index === 0 ? "high" : "low"}
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding={index === 0 ? "sync" : "async"}
               className="absolute inset-0 w-full h-full object-cover z-0"
-            >
-              <source src={item.video} type="video/mp4" />
-            </video>
+            />
+
+            {/* Animated HTML5 Video Loop (Mounted smoothly on client without blocking LCP) */}
+            {shouldLoadVideo && (
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload={isActive ? "auto" : "none"}
+                poster={item.image}
+                aria-hidden="true"
+                tabIndex={-1}
+                className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 ${
+                  isActive ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                <source src={item.video} type="video/mp4" />
+              </video>
+            )}
 
             {/* Dark Transparent Overlay for Contrast */}
             <div

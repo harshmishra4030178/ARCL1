@@ -13,6 +13,7 @@ const FloatingQuoteCartButton = () => {
     <div className="fixed bottom-6 left-6 z-40 animate-bounce-subtle">
       <button
         onClick={openCart}
+        aria-label={`Open Quote Basket with ${items.length} ${items.length === 1 ? "product" : "products"} (${totalQuantity} units)`}
         className="group bg-gradient-to-r from-[#021C57] to-[#043399] hover:from-[#032d88] hover:to-[#021C57] text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl flex items-center gap-3 transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-white/20 cursor-pointer"
         title="Open Quote Basket"
       >
