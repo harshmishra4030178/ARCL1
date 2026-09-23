@@ -1,5 +1,12 @@
 import "../index.css";
+import { Inter } from "next/font/google";
 import ClientLayout from "./ClientLayout";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata = {
   metadataBase: new URL("https://arclinstruments.com"),
@@ -148,7 +155,7 @@ const organizationJsonLd = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <meta name="google-site-verification" content="Mq-moqdyg-M2BS6wTh301R6U-gAmOxNFBQWVoPJQ1Y4" />
@@ -163,7 +170,7 @@ export default function RootLayout({ children }) {
       </head>
       <body
         suppressHydrationWarning
-        className="antialiased min-h-screen flex flex-col bg-white text-gray-900"
+        className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}
       >
         <ClientLayout>{children}</ClientLayout>
       </body>

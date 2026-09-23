@@ -143,7 +143,11 @@ const Home = ({ initialShowcase = [] }) => {
   ];
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main id="main-content" className="min-h-screen bg-gray-50">
+      <h1 className="sr-only">
+        ARCL Instruments Private Limited - Civil &amp; Material Testing Laboratory Equipment Manufacturer
+      </h1>
+
       {/* 1. HERO CAROUSEL */}
       <Carousel />
 
@@ -158,9 +162,9 @@ const Home = ({ initialShowcase = [] }) => {
               <span className="inline-flex items-center gap-2 bg-blue-50 text-[#021C57] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-blue-200">
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Leading Civil &amp; Material Testing Manufacturer
               </span>
-              <h1 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black text-[#021C57] tracking-tight">
+              <h2 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black text-[#021C57] tracking-tight">
                 Civil Laboratory Equipment Manufacturer &amp; Supplier in Mumbai
-              </h1>
+              </h2>
               <p className="mt-3 text-gray-600 text-sm md:text-base max-w-3xl mx-auto">
                 ARCL Instruments Private Limited manufactures precision civil engineering, construction materials, soil, concrete, bitumen, and laboratory testing machines with NABL-traceable calibration across Mumbai, Navi Mumbai, Thane, and Maharashtra.
               </p>

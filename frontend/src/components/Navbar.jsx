@@ -74,7 +74,14 @@ const Navbar = () => {
 
   return (
     <>
-      <header className="h-28 sm:h-30 w-full" suppressHydrationWarning={true}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[99999] focus:bg-[#021C57] focus:text-white focus:px-4 focus:py-2 focus:rounded-xl focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs font-bold"
+      >
+        Skip to main content
+      </a>
+
+      <header role="banner" className="h-28 sm:h-30 w-full" suppressHydrationWarning={true}>
         <div className="fixed top-0 left-0 right-0 z-50 h-28 sm:h-30 bg-white" suppressHydrationWarning={true}>
           {/* TOP BAR WITH AMAZON SEARCH & CONTACT */}
           <div className="upper-layer h-1/2 flex justify-between items-center bg-zinc-100 shadow-2xs px-3 sm:px-6 gap-2 sm:gap-4" suppressHydrationWarning={true}>
@@ -254,7 +261,7 @@ const Navbar = () => {
                   aria-label="Open Navigation Menu"
                   aria-expanded={isMenuOpen}
                   aria-controls="mobile-nav-sidebar"
-                  className="p-1 rounded-md text-gray-700 hover:text-[#021C57] focus:outline-none focus:ring-2 focus:ring-[#021C57]"
+                  className="min-w-[44px] min-h-[44px] p-2 flex items-center justify-center rounded-lg text-gray-700 hover:text-[#021C57] focus:outline-none focus:ring-2 focus:ring-[#021C57] cursor-pointer"
                 >
                   <Menu size={24} aria-hidden="true" />
                 </button>
@@ -264,41 +271,50 @@ const Navbar = () => {
             {/* MOBILE SIDEBAR */}
 
             {isMenuOpen && (
-              <div
-                id="mobile-nav-sidebar"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Mobile Navigation Menu"
-                className="
-                fixed
-                top-0
-                left-0
-                h-screen
-                w-1/2
-                sm:w-1/2
-                bg-white
-                shadow-lg
-                z-50
-                p-4
-                flex
-                flex-col
-                gap-4
-              "
-              >
-                {/* CLOSE */}
-                <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                  <span className="text-xs font-bold text-[#021C57] uppercase tracking-wider">
-                    Menu & Search
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsMenuOpen(false)}
-                    aria-label="Close Navigation Menu"
-                    className="p-1 rounded-md text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#021C57]"
-                  >
-                    <X size={20} aria-hidden="true" />
-                  </button>
-                </div>
+              <>
+                {/* Backdrop overlay */}
+                <div
+                  onClick={() => setIsMenuOpen(false)}
+                  aria-hidden="true"
+                  className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 transition-opacity"
+                />
+
+                <div
+                  id="mobile-nav-sidebar"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Mobile Navigation Menu"
+                  className="
+                  fixed
+                  top-0
+                  left-0
+                  h-screen
+                  w-4/5
+                  max-w-xs
+                  bg-white
+                  shadow-2xl
+                  z-50
+                  p-4
+                  flex
+                  flex-col
+                  gap-4
+                  overflow-y-auto
+                "
+                >
+                  {/* CLOSE */}
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <span className="text-xs font-bold text-[#021C57] uppercase tracking-wider">
+                      Menu & Search
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsMenuOpen(false)}
+                      aria-label="Close Navigation Menu"
+                      className="min-w-[44px] min-h-[44px] p-2 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#021C57] cursor-pointer"
+                    >
+                      <X size={20} aria-hidden="true" />
+                    </button>
+                  </div>
 
                 {/* MOBILE SEARCH BAR */}
                 <div className="my-1">
@@ -361,7 +377,8 @@ const Navbar = () => {
                   </span>
                 </button>
               </div>
-            )}
+            </>
+          )}
           </nav>
         </div>
       </header>

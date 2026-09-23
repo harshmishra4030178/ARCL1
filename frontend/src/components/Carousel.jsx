@@ -12,10 +12,15 @@ const image1 = "/assets/Slider/CalibrationMaintenanceService.webp";
 const image2 = "/assets/Slider/CivilAndMechanicalLabEqu.webp";
 const image3 = "/assets/Slider/MedicalAndScientificInstruments.webp";
 
+const image1Mobile = "/assets/Slider/CalibrationMaintenanceService-mobile.webp";
+const image2Mobile = "/assets/Slider/CivilAndMechanicalLabEqu-mobile.webp";
+const image3Mobile = "/assets/Slider/MedicalAndScientificInstruments-mobile.webp";
+
 const slides = [
   {
     video: "/videos/slide1.mp4",
     image: image2,
+    mobileImage: image2Mobile,
     subheading: "We offers",
     heading: "Civil and Mechanical Equipments",
     text: "ARCL specializes in providing advanced civil and mechanical laboratory equipment, offering durable and high-accuracy tools used in engineering research, quality testing, and educational institutions.",
@@ -25,6 +30,7 @@ const slides = [
   {
     video: "/videos/slide2.mp4",
     image: image1,
+    mobileImage: image1Mobile,
     subheading: "We offers",
     heading: "Calibration and Maintenance Service",
     text: "ARCL delivers professional calibration and maintenance services, ensuring your laboratory instruments remain accurate, compliant, and reliable in accordance with regulatory and ISO standards.",
@@ -34,6 +40,7 @@ const slides = [
   {
     video: "/videos/slide3.mp4",
     image: image3,
+    mobileImage: image3Mobile,
     subheading: "We offers",
     heading: "Medical and Scientific Instruments",
     text: "ARCL provides a comprehensive range of precision medical and scientific instruments designed to meet the demands of modern laboratories and research institutions, conforming to national and international standards.",
@@ -121,16 +128,30 @@ const Carousel = () => {
                 : "opacity-0 z-0 invisible pointer-events-none"
             }`}
           >
-            {/* High-priority WebP Poster Image for instant LCP render */}
-            <img
-              src={item.image}
-              alt=""
-              aria-hidden="true"
-              fetchPriority={index === 0 ? "high" : "low"}
-              loading={index === 0 ? "eager" : "lazy"}
-              decoding={index === 0 ? "sync" : "async"}
-              className="absolute inset-0 w-full h-full object-cover z-0"
-            />
+            {/* High-priority Responsive WebP Poster Image for instant LCP render */}
+            <picture>
+              <source
+                media="(max-width: 768px)"
+                srcSet={item.mobileImage}
+                type="image/webp"
+              />
+              <source
+                media="(min-width: 769px)"
+                srcSet={item.image}
+                type="image/webp"
+              />
+              <img
+                src={item.image}
+                alt=""
+                aria-hidden="true"
+                width={1600}
+                height={600}
+                fetchPriority={index === 0 ? "high" : "low"}
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding={index === 0 ? "sync" : "async"}
+                className="absolute inset-0 w-full h-full object-cover z-0"
+              />
+            </picture>
 
             {/* Animated HTML5 Video Loop (Mounted smoothly on client without blocking LCP) */}
             {shouldLoadVideo && (
@@ -223,11 +244,11 @@ const Carousel = () => {
         <ChevronRight className="w-6 h-6" aria-hidden="true" />
       </button>
 
-      {/* Slide Indicators / Dots */}
+      {/* Slide Indicators / Dots with accessible 44px touch targets */}
       <div
         role="tablist"
         aria-label="Slide Selection"
-        className="absolute bottom-5 w-full flex justify-center space-x-2 z-30"
+        className="absolute bottom-5 w-full flex justify-center items-center space-x-1 z-30"
       >
         {slides.map((item, index) => {
           const isCurrent = index === currentIndex;
@@ -240,12 +261,16 @@ const Carousel = () => {
               aria-selected={isCurrent}
               aria-label={`Slide ${index + 1}: ${item.heading}`}
               onClick={() => goToSlide(index)}
-              className={`h-3 rounded-full transition-all duration-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-                isCurrent
-                  ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
-                  : "w-3 bg-white/50 hover:bg-white/80"
-              }`}
-            />
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center p-1 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded-full cursor-pointer"
+            >
+              <span
+                className={`h-3 rounded-full transition-all duration-300 block ${
+                  isCurrent
+                    ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
+                    : "w-3 bg-white/50 hover:bg-white/80"
+                }`}
+              />
+            </button>
           );
         })}
       </div>

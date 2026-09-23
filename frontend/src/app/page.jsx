@@ -225,6 +225,22 @@ export default async function HomePage() {
 
   return (
     <>
+      <link
+        rel="preload"
+        as="image"
+        type="image/webp"
+        href="/assets/Slider/CivilAndMechanicalLabEqu-mobile.webp"
+        media="(max-width: 768px)"
+        fetchPriority="high"
+      />
+      <link
+        rel="preload"
+        as="image"
+        type="image/webp"
+        href="/assets/Slider/CivilAndMechanicalLabEqu.webp"
+        media="(min-width: 769px)"
+        fetchPriority="high"
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
