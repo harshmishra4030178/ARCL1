@@ -1,0 +1,12 @@
+{
+  "name": "arcl-root",
+  "private": true,
+  "browserslist": [
+    "chrome >= 109",
+    "edge >= 109",
+    "firefox >= 102",
+    "safari >= 15.4",
+    "ios_saf >= 15.4",
+    "not dead"
+  ]
+}
