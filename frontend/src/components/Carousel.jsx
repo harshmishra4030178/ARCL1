@@ -53,25 +53,31 @@ const Carousel = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const [canLoadVideo, setCanLoadVideo] = useState(false);
   const length = slides.length;
   const timerRef = useRef(null);
 
   useEffect(() => {
     setIsClient(true);
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const handle = window.requestIdleCallback(
-        () => {
+    const isDesk = window.innerWidth >= 768;
+    setIsDesktop(isDesk);
+
+    if (isDesk) {
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        const handle = window.requestIdleCallback(
+          () => {
+            setCanLoadVideo(true);
+          },
+          { timeout: 3000 }
+        );
+        return () => window.cancelIdleCallback(handle);
+      } else {
+        const timer = setTimeout(() => {
           setCanLoadVideo(true);
-        },
-        { timeout: 2800 }
-      );
-      return () => window.cancelIdleCallback(handle);
-    } else {
-      const timer = setTimeout(() => {
-        setCanLoadVideo(true);
-      }, 2500);
-      return () => clearTimeout(timer);
+        }, 2500);
+        return () => clearTimeout(timer);
+      }
     }
   }, []);
 
@@ -126,8 +132,8 @@ const Carousel = () => {
       {/* Background Slides */}
       {slides.map((item, index) => {
         const isActive = index === currentIndex;
-        // Only load video for active slide after initial LCP/idle paint
-        const shouldLoadVideo = canLoadVideo && isActive;
+        // Video only runs on Desktop screens after idle paint
+        const shouldLoadVideo = isDesktop && canLoadVideo && isActive;
 
         return (
           <div
@@ -157,10 +163,10 @@ const Carousel = () => {
                 type="image/webp"
               />
               <img
-                src={item.image}
+                src={item.mobileImage}
                 alt=""
                 aria-hidden="true"
-                width={1600}
+                width={750}
                 height={600}
                 fetchPriority={index === 0 ? "high" : "low"}
                 loading={index === 0 ? "eager" : "lazy"}

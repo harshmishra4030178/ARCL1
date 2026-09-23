@@ -48,6 +48,7 @@ const Home = ({ initialShowcase = [] }) => {
         homeShowcase: initialShowcase,
         homeShowcaseLoading: false,
       });
+      return;
     }
     fetchHomeShowcase();
   }, [fetchHomeShowcase, initialShowcase]);

@@ -101,19 +101,21 @@ const EquipmentTypeProductRow = ({
                 type="button"
                 onClick={onMoveUp}
                 disabled={isFirst}
+                aria-label={`Move ${typeName} Section Up`}
                 className="p-1.5 rounded-lg text-gray-500 hover:text-[#021C57] hover:bg-white disabled:opacity-20 transition cursor-pointer disabled:cursor-not-allowed"
                 title="Move Section Up"
               >
-                <ArrowUp size={14} />
+                <ArrowUp size={14} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={onMoveDown}
                 disabled={isLast}
+                aria-label={`Move ${typeName} Section Down`}
                 className="p-1.5 rounded-lg text-gray-500 hover:text-[#021C57] hover:bg-white disabled:opacity-20 transition cursor-pointer disabled:cursor-not-allowed"
                 title="Move Section Down"
               >
-                <ArrowDown size={14} />
+                <ArrowDown size={14} aria-hidden="true" />
               </button>
             </div>
           )}
