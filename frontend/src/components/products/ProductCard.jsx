@@ -52,6 +52,9 @@ const ProductCard = ({ product }) => {
             src={imageUrl}
             alt={product.name}
             loading="lazy"
+            decoding="async"
+            width={240}
+            height={160}
             className="max-h-full max-w-full object-contain transform group-hover:scale-105 transition-transform duration-500 ease-out"
             onError={(e) => {
               e.currentTarget.src =

@@ -53,11 +53,26 @@ const Carousel = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [canLoadVideo, setCanLoadVideo] = useState(false);
   const length = slides.length;
   const timerRef = useRef(null);
 
   useEffect(() => {
     setIsClient(true);
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(
+        () => {
+          setCanLoadVideo(true);
+        },
+        { timeout: 2800 }
+      );
+      return () => window.cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(() => {
+        setCanLoadVideo(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // Auto Slide every 5 seconds (paused on hover or keyboard focus)
@@ -111,8 +126,8 @@ const Carousel = () => {
       {/* Background Slides */}
       {slides.map((item, index) => {
         const isActive = index === currentIndex;
-        // Only load video for active slide or if user is interacting, to prevent massive initial 23MB payload
-        const shouldLoadVideo = isClient && (isActive || Math.abs(index - currentIndex) <= 1);
+        // Only load video for active slide after initial LCP/idle paint
+        const shouldLoadVideo = canLoadVideo && isActive;
 
         return (
           <div

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Search,
   X,
@@ -174,12 +174,30 @@ const AmazonSearchBar = ({ isMobile = false }) => {
     });
   }, [equipmentTypes]);
 
-  useEffect(() => {
-    setMounted(true);
+  const ensureSearchDataLoaded = useCallback(() => {
     if (!categories.length) fetchCategories();
     if (!products.length) fetchProducts();
     if (!equipmentTypes.length) fetchEquipmentTypes();
-  }, []);
+  }, [categories.length, products.length, equipmentTypes.length, fetchCategories, fetchProducts, fetchEquipmentTypes]);
+
+  useEffect(() => {
+    setMounted(true);
+    // Defer search index loading to idle time so initial paint / TBT is near 0
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(
+        () => {
+          ensureSearchDataLoaded();
+        },
+        { timeout: 3500 }
+      );
+      return () => window.cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(() => {
+        ensureSearchDataLoaded();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [ensureSearchDataLoaded]);
 
   // Handle outside clicks to close suggestion box
   useEffect(() => {
@@ -539,8 +557,11 @@ const AmazonSearchBar = ({ isMobile = false }) => {
         <div className="relative h-full flex items-center bg-gray-100 hover:bg-gray-200 border-r border-gray-300 transition shrink-0">
           <select
             value={selectedEquipmentType}
+            aria-label="Filter Search by Equipment Type"
+            onFocus={ensureSearchDataLoaded}
             onChange={(e) => {
               setSelectedEquipmentType(e.target.value);
+              ensureSearchDataLoaded();
               inputRef.current?.focus();
             }}
             suppressHydrationWarning={true}
@@ -556,6 +577,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
           </select>
           <ChevronDown
             size={13}
+            aria-hidden="true"
             className="absolute right-2 text-gray-500 pointer-events-none"
           />
         </div>
@@ -566,12 +588,17 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             ref={inputRef}
             type="text"
             value={query}
+            aria-label="Search laboratory testing equipment or calibration services"
             onChange={(e) => {
               setQuery(e.target.value);
+              ensureSearchDataLoaded();
               setIsOpen(true);
               setSelectedIndex(-1);
             }}
-            onFocus={() => setIsOpen(true)}
+            onFocus={() => {
+              ensureSearchDataLoaded();
+              setIsOpen(true);
+            }}
             onKeyDown={handleKeyDown}
             suppressHydrationWarning={true}
             placeholder={
@@ -596,18 +623,23 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                 inputRef.current?.focus();
               }}
               suppressHydrationWarning={true}
+              aria-label="Clear search input"
               className="p-1.5 text-gray-400 hover:text-gray-600 transition mr-1 cursor-pointer"
               title="Clear search"
             >
-              <X size={15} />
+              <X size={15} aria-hidden="true" />
             </button>
           )}
 
           {/* VOICE SEARCH (MIC) BUTTON */}
           <button
             type="button"
-            onClick={toggleVoiceSearch}
+            onClick={() => {
+              ensureSearchDataLoaded();
+              toggleVoiceSearch();
+            }}
             suppressHydrationWarning={true}
+            aria-label={isListening ? "Stop voice listening" : "Search by voice speech"}
             className={`p-2 rounded-lg transition mr-1.5 cursor-pointer flex items-center justify-center ${
               isListening
                 ? "bg-red-500 text-white animate-pulse shadow-md"
@@ -616,9 +648,9 @@ const AmazonSearchBar = ({ isMobile = false }) => {
             title={isListening ? "Stop listening" : "Search by voice"}
           >
             {isListening ? (
-              <MicOff size={16} className="animate-spin" />
+              <MicOff size={16} className="animate-spin" aria-hidden="true" />
             ) : (
-              <Mic size={16} />
+              <Mic size={16} aria-hidden="true" />
             )}
           </button>
         </div>
@@ -627,6 +659,7 @@ const AmazonSearchBar = ({ isMobile = false }) => {
         <button
           type="submit"
           suppressHydrationWarning={true}
+          aria-label="Search Instruments & Calibration"
           className="h-full px-4 sm:px-5 bg-[#021C57] hover:bg-blue-900 text-white transition flex items-center justify-center shrink-0 cursor-pointer"
           title="Search Instruments & Calibration"
         >
