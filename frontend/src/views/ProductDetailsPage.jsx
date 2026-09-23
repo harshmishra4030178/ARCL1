@@ -1012,8 +1012,15 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 <div className="space-y-3">
                   <div className="h-44 bg-gray-50 rounded-2xl overflow-hidden p-3 flex items-center justify-center">
                     <img
-                      src={rel.images?.[0] || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=400"}
+                      src={getOptimizedImageUrl(
+                        rel.images?.[0] || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=400",
+                        { width: 280 }
+                      )}
                       alt={rel.name}
+                      loading="lazy"
+                      decoding="async"
+                      width={240}
+                      height={160}
                       className="max-h-full max-w-full object-contain group-hover:scale-105 transition duration-500"
                     />
                   </div>

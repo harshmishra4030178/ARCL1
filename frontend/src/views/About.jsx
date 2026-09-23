@@ -29,37 +29,37 @@ const commitmentData = [
   {
     title: "Precision & Accuracy",
     text: "Engineered to deliver high-resolution measurements and consistent analytical results meeting international standards.",
-    image: "/assets/about/precision-accuracy.jpg",
+    image: "/assets/about/precision-accuracy.webp",
     icon: <Gauge className="w-5 h-5 text-blue-400" />,
   },
   {
     title: "Scientific Innovation",
     text: "Integrating digital LCD controllers, smart microprocessors, and IoT-ready telemetry into everyday laboratory workflows.",
-    image: "/assets/about/scientific-innovation.jpg",
+    image: "/assets/about/scientific-innovation.webp",
     icon: <Sparkles className="w-5 h-5 text-amber-400" />,
   },
   {
     title: "ISO & NABL Quality",
     text: "Rigorous multi-stage calibration and quality control under ISO 9001:2015 and ISO/IEC 17025 compliance frameworks.",
-    image: "/assets/about/iso-nabl-quality.jpg",
+    image: "/assets/about/iso-nabl-quality.webp",
     icon: <Award className="w-5 h-5 text-emerald-400" />,
   },
   {
     title: "Ergonomic Operation",
     text: "User-centric design with intuitive controls, emergency safety cutoffs, and durable stainless steel construction.",
-    image: "/assets/about/ergonomic-operation.jpg",
+    image: "/assets/about/ergonomic-operation.webp",
     icon: <Cpu className="w-5 h-5 text-purple-400" />,
   },
   {
     title: "Continuous Development",
     text: "Guided by feedback from civil engineering labs, pharmaceutical researchers, and institutional testing centers.",
-    image: "/assets/about/continuous-development.jpg",
+    image: "/assets/about/continuous-development.webp",
     icon: <Compass className="w-5 h-5 text-cyan-400" />,
   },
   {
     title: "Safety & Reliability",
     text: "Built-in thermal protection, overload trip mechanisms, and heavy-duty industrial chassis for 24/7 durability.",
-    image: "/assets/about/safety-reliability.jpg",
+    image: "/assets/about/safety-reliability.webp",
     icon: <ShieldCheck className="w-5 h-5 text-rose-400" />,
   },
 ];
@@ -323,8 +323,12 @@ export default function About() {
           <div className="lg:col-span-6 relative">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-gray-200 group">
               <img
-                src="/assets/about/rd-facility.jpg"
+                src="/assets/about/rd-facility.webp"
                 alt="ARCL Instruments R&D and Manufacturing Facility"
+                loading="lazy"
+                decoding="async"
+                width={600}
+                height={450}
                 className="w-full h-[450px] object-cover transition duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#021C57]/90 via-transparent to-transparent"></div>
@@ -618,6 +622,10 @@ export default function About() {
                 <img
                   src={val.image}
                   alt={val.title}
+                  loading="lazy"
+                  decoding="async"
+                  width={400}
+                  height={192}
                   className="w-full h-full object-cover transition duration-700 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>

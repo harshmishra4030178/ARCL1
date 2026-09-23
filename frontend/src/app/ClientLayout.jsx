@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import FloatingQuoteCartButton from "../components/quoteCart/FloatingQuoteCartButton";
-import FloatingContactButtons from "../components/common/FloatingContactButtons";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
 import { ErrorBoundary } from "../components/common/ErrorBoundary.jsx";
@@ -23,6 +21,14 @@ const CompareFloatingBar = dynamic(
 );
 const ArclAiAssistant = dynamic(
   () => import("../components/ai/ArclAiAssistant"),
+  { ssr: false }
+);
+const FloatingQuoteCartButton = dynamic(
+  () => import("../components/quoteCart/FloatingQuoteCartButton"),
+  { ssr: false }
+);
+const FloatingContactButtons = dynamic(
+  () => import("../components/common/FloatingContactButtons"),
   { ssr: false }
 );
 

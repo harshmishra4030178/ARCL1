@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  experimental: {
+    optimizePackageImports: ["lucide-react", "react-icons", "react-toastify"],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [

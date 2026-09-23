@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 
 const CategoryProductsCatalogModal = ({
   isOpen,
@@ -154,12 +155,13 @@ const CategoryProductsCatalogModal = ({
           {categoryProducts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {categoryProducts.map((product) => {
-                const img =
+                const rawImg =
                   Array.isArray(product.images) && product.images[0]
                     ? product.images[0]
                     : typeof product.images === "string"
                     ? product.images
                     : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600";
+                const img = getOptimizedImageUrl(rawImg, { width: 160 });
 
                 return (
                   <div
@@ -167,11 +169,15 @@ const CategoryProductsCatalogModal = ({
                     className="bg-white border border-gray-200 hover:border-[#021C57] rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group"
                   >
                     <div className="flex items-start gap-3.5">
-                      <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 shrink-0 overflow-hidden">
+                      <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1">
                         <img
                           src={img}
                           alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          loading="lazy"
+                          decoding="async"
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-contain group-hover:scale-105 transition duration-300"
                           onError={(e) => {
                             e.target.style.display = "none";
                           }}

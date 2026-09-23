@@ -22,6 +22,7 @@ import { useBlogStore } from "../store/useBlogStore";
 import { useCategoryStore } from "../store/useCategoryStore";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore";
 import { formatTitleCase } from "../utils/stringUtils";
+import { getOptimizedImageUrl } from "../utils/imageOptimizer.js";
 
 export default function BlogListPage() {
   const { blogs, fetchBlogs, isLoading } = useBlogStore();
@@ -182,8 +183,12 @@ export default function BlogListPage() {
                 <div className="lg:col-span-6 relative aspect-[16/10] lg:aspect-auto overflow-hidden bg-slate-900 flex items-center justify-center p-6">
                   {featuredBlog.featuredImage ? (
                     <img
-                      src={featuredBlog.featuredImage}
+                      src={getOptimizedImageUrl(featuredBlog.featuredImage, { width: 600 })}
                       alt={featuredBlog.title}
+                      loading="lazy"
+                      decoding="async"
+                      width={480}
+                      height={300}
                       className="w-full h-full max-h-80 object-contain group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
@@ -299,8 +304,15 @@ export default function BlogListPage() {
                 >
                   <Link href={`/blog/${blog.slug}`} className="block relative aspect-[16/10] bg-slate-900 overflow-hidden p-4">
                     <img
-                      src={blog.featuredImage || "https://res.cloudinary.com/domeeznqa/image/upload/v1788261941/products/rwv9chfcohdlnj0zvsgk.jpg"}
+                      src={getOptimizedImageUrl(
+                        blog.featuredImage || "https://res.cloudinary.com/domeeznqa/image/upload/v1788261941/products/rwv9chfcohdlnj0zvsgk.jpg",
+                        { width: 400 }
+                      )}
                       alt={blog.title}
+                      loading="lazy"
+                      decoding="async"
+                      width={320}
+                      height={200}
                       onError={(e) => {
                         e.currentTarget.src = "https://res.cloudinary.com/domeeznqa/image/upload/v1788261941/products/rwv9chfcohdlnj0zvsgk.jpg";
                       }}

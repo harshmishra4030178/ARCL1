@@ -25,6 +25,7 @@ import { STANDARDS_DATA } from "../data/standardsData";
 import { sendProductToWhatsApp } from "../utils/whatsappQuote";
 import { generateQuotationPdf } from "../utils/quotationPdfGenerator";
 import { parseRichContentToHtml } from "../utils/richContentParser";
+import { getOptimizedImageUrl } from "../utils/imageOptimizer.js";
 
 export default function BlogDetailsPage({ initialSlug, initialBlog }) {
   const { currentBlog, relatedBlogs, fetchBlogBySlug, isLoading } = useBlogStore();
@@ -217,8 +218,12 @@ export default function BlogDetailsPage({ initialSlug, initialBlog }) {
               {blog.featuredImage && (
                 <div className="mb-8 rounded-xl bg-slate-950 p-6 flex items-center justify-center border border-slate-800 shadow-inner">
                   <img
-                    src={blog.featuredImage}
+                    src={getOptimizedImageUrl(blog.featuredImage, { width: 800 })}
                     alt={blog.title}
+                    loading="lazy"
+                    decoding="async"
+                    width={600}
+                    height={360}
                     onError={(e) => {
                       e.currentTarget.src = "https://res.cloudinary.com/domeeznqa/image/upload/v1788261941/products/rwv9chfcohdlnj0zvsgk.jpg";
                     }}
@@ -330,8 +335,15 @@ export default function BlogDetailsPage({ initialSlug, initialBlog }) {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-12 h-12 rounded-lg bg-slate-900 flex-shrink-0 flex items-center justify-center p-1">
                         <img
-                          src={Array.isArray(prod.images) ? prod.images[0] : "/assets/LOGO.png"}
+                          src={getOptimizedImageUrl(
+                            Array.isArray(prod.images) ? prod.images[0] : "/assets/LOGO.webp",
+                            { width: 120 }
+                          )}
                           alt={prod.name}
+                          loading="lazy"
+                          decoding="async"
+                          width={48}
+                          height={48}
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>

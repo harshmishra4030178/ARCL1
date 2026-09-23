@@ -5,6 +5,7 @@ import { useCompareStore } from "../../store/useCompareStore.js";
 import { useQuoteCartStore } from "../../store/useQuoteCartStore.js";
 import { Link } from "../../utils/navigation.jsx";
 import { formatTitleCase } from "../../utils/stringUtils.js";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 import {
   X,
   Scale,
@@ -133,12 +134,17 @@ export default function ProductComparisonModal() {
                           {/* Product Image */}
                           <div className="h-32 w-full bg-slate-50 rounded-xl p-2 flex items-center justify-center border border-slate-100">
                             <img
-                              src={
+                              src={getOptimizedImageUrl(
                                 Array.isArray(prod.images) && prod.images[0]
                                   ? prod.images[0]
-                                  : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600"
-                              }
+                                  : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600",
+                                { width: 240 }
+                              )}
                               alt={prod.name}
+                              loading="lazy"
+                              decoding="async"
+                              width={160}
+                              height={120}
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>

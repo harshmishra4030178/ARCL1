@@ -158,6 +158,29 @@ export default function RootLayout({ children }) {
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link
+          rel="preload"
+          as="image"
+          href="/assets/Slider/CivilAndMechanicalLabEqu-mobile.webp"
+          media="(max-width: 768px)"
+          type="image/webp"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          as="image"
+          href="/assets/Slider/CivilAndMechanicalLabEqu.webp"
+          media="(min-width: 769px)"
+          type="image/webp"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          as="image"
+          href="/assets/LOGO.webp"
+          type="image/webp"
+          fetchPriority="high"
+        />
         <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://res.cloudinary.com" />
         <link rel="preconnect" href="https://arcl1-1.onrender.com" crossOrigin="anonymous" />

@@ -5,6 +5,7 @@ import { useCompareStore } from "../../store/useCompareStore.js";
 import ProductComparisonModal from "./ProductComparisonModal.jsx";
 import { Scale, X, ArrowRight, Trash2 } from "lucide-react";
 import { formatTitleCase } from "../../utils/stringUtils.js";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 
 export default function CompareFloatingBar() {
   const { items, openCompareModal, removeFromCompare, clearCompare } = useCompareStore();
@@ -36,12 +37,17 @@ export default function CompareFloatingBar() {
                 className="relative group flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl px-2 py-1 shrink-0 transition"
               >
                 <img
-                  src={
+                  src={getOptimizedImageUrl(
                     Array.isArray(prod.images) && prod.images[0]
                       ? prod.images[0]
-                      : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=100"
-                  }
+                      : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=100",
+                    { width: 80 }
+                  )}
                   alt={prod.name}
+                  loading="lazy"
+                  decoding="async"
+                  width={24}
+                  height={24}
                   className="w-6 h-6 object-contain rounded bg-white p-0.5"
                 />
                 <span className="text-[11px] font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate">
