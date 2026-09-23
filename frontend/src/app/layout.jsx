@@ -158,6 +158,10 @@ export default function RootLayout({ children }) {
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+        <link rel="preconnect" href="https://arcl1-1.onrender.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://arcl1-1.onrender.com" />
         <meta name="google-site-verification" content="Mq-moqdyg-M2BS6wTh301R6U-gAmOxNFBQWVoPJQ1Y4" />
         <meta name="geo.region" content="IN-MH" />
         <meta name="geo.placename" content="Navi Mumbai, Mumbai, Maharashtra" />

@@ -5,22 +5,20 @@
  * and automatic compression quality parameters into CDN URLs.
  */
 
-export function getOptimizedImageUrl(url, { width = 400, quality = "auto" } = {}) {
+export function getOptimizedImageUrl(url, { width = 280, quality = "auto" } = {}) {
   if (!url || typeof url !== "string") return url;
 
   // Optimize Cloudinary URLs
   if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
-    // If it already has transformation parameters, don't duplicate
-    if (
-      url.includes("/upload/f_auto") ||
-      url.includes("/upload/w_") ||
-      url.includes("/upload/q_") ||
-      url.includes("/upload/c_")
-    ) {
-      return url;
-    }
+    const uploadIdx = url.indexOf("/upload/");
+    const afterUpload = url.slice(uploadIdx + 8);
+
+    // If there's an existing version tag (e.g. v1789032089/...) strip any prior transformation
+    const versionMatch = afterUpload.match(/v\d+\//);
+    const pathAfterVersion = versionMatch ? afterUpload.slice(versionMatch.index) : afterUpload;
+
     const transform = `f_auto,q_${quality},w_${width},c_limit/`;
-    return url.replace("/upload/", `/upload/${transform}`);
+    return `${url.slice(0, uploadIdx + 8)}${transform}${pathAfterVersion}`;
   }
 
   // Optimize Unsplash images

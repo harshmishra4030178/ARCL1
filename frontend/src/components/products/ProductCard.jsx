@@ -22,7 +22,7 @@ const ProductCard = ({ product }) => {
       ? product.images
       : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600";
 
-  const imageUrl = getOptimizedImageUrl(rawImageUrl, { width: 400 });
+  const imageUrl = getOptimizedImageUrl(rawImageUrl, { width: 280 });
 
   // Quick specs array for preview pills
   const specsEntries =
