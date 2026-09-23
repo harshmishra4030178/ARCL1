@@ -131,9 +131,10 @@ const Carousel = () => {
 
         return (
           <div
+            id={`carousel-slide-${index}`}
             key={index}
-            role="group"
-            aria-roledescription="slide"
+            role="tabpanel"
+            aria-labelledby={`carousel-tab-${index}`}
             aria-label={`Slide ${index + 1} of ${slides.length}: ${item.heading}`}
             aria-hidden={!isActive}
             inert={!isActive ? "" : undefined}
@@ -269,6 +270,8 @@ const Carousel = () => {
           const isCurrent = index === currentIndex;
           return (
             <button
+              id={`carousel-tab-${index}`}
+              aria-controls={`carousel-slide-${index}`}
               key={index}
               suppressHydrationWarning
               type="button"

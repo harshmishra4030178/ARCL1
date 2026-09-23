@@ -58,7 +58,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="relative overflow-hidden bg-[#050e1d] text-white border-t border-slate-800/80">
+    <footer role="contentinfo" className="relative overflow-hidden bg-[#050e1d] text-white border-t border-slate-800/80">
       {/* Subtle Top Accent Line */}
       <div className="h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/80 to-transparent" />
 
@@ -78,20 +78,22 @@ const Footer = () => {
             >
               <img
                 src={logo}
-                alt="ARCL Instruments"
+                alt="ARCL Instruments Private Limited Logo"
+                width={80}
+                height={36}
                 className="h-9 w-auto object-contain"
               />
               <div className="flex flex-col text-[#021C57]">
                 <p className="font-bold text-xs tracking-tight uppercase leading-tight font-sans">
                   ARCL INSTRUMENTS PVT. LTD
                 </p>
-                <p className="text-[9px] text-gray-500 font-medium">
+                <p className="text-[9px] text-gray-600 font-medium">
                   ISO 9001:2015 Certified Company
                 </p>
               </div>
             </Link>
 
-            <p className="text-xs leading-relaxed text-gray-400 max-w-sm">
+            <p className="text-xs leading-relaxed text-slate-300 max-w-sm">
               Trusted manufacturer and provider of precision industrial & laboratory testing equipment, delivering certified quality for civil and material testing labs worldwide.
             </p>
 
@@ -127,9 +129,9 @@ const Footer = () => {
                       href={link.to}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 transition-colors duration-150 text-gray-400 hover:text-white"
+                      className="flex items-center gap-2 transition-colors duration-150 text-slate-300 hover:text-white"
                     >
-                      <span className="h-1 w-1 rounded-full bg-slate-600" />
+                      <span className="h-1 w-1 rounded-full bg-slate-500" />
                       <span>{link.name}</span>
                     </a>
                   ) : (
@@ -139,11 +141,11 @@ const Footer = () => {
                         `flex items-center gap-2 transition-colors duration-150 ${
                           isActive
                             ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-white"
+                            : "text-slate-300 hover:text-white"
                         }`
                       }
                     >
-                      <span className="h-1 w-1 rounded-full bg-slate-600" />
+                      <span className="h-1 w-1 rounded-full bg-slate-500" />
                       <span>{link.name}</span>
                     </NavLink>
                   )}
@@ -163,7 +165,7 @@ const Footer = () => {
               href="https://maps.app.goo.gl/Xa2cZMx3Dg8yqrB49"
               target="_blank"
               rel="noopener noreferrer"
-              className="group block text-xs text-gray-400 space-y-1 hover:text-gray-200 transition-colors"
+              className="group block text-xs text-slate-300 space-y-1 hover:text-white transition-colors"
             >
               <div className="flex items-start gap-2">
                 <TbMapPin size={16} className="text-blue-400 shrink-0 mt-0.5" />
@@ -187,20 +189,20 @@ const Footer = () => {
             <div className="space-y-3 text-xs">
               {/* Head Office */}
               <div className="space-y-1">
-                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Head Office:
                 </p>
                 <div className="flex flex-col gap-1 pl-1">
                   <a
                     href="tel:+918169695728"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
                   >
                     <TbPhone size={13} className="text-emerald-400 shrink-0" />
                     <span>+91 8169695728</span>
                   </a>
                   <a
                     href="mailto:arclinstruments@gmail.com"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
                     <TbMail size={13} className="text-blue-400 shrink-0" />
                     <span className="truncate">arclinstruments@gmail.com / info@arclinstruments.com</span>
@@ -210,20 +212,20 @@ const Footer = () => {
 
               {/* Sales Department */}
               <div className="space-y-1 pt-1 border-t border-gray-800/80">
-                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Sales Department:
                 </p>
                 <div className="flex flex-col gap-1 pl-1">
                   <a
                     href="tel:+918369458583"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
                   >
                     <TbPhone size={13} className="text-emerald-400 shrink-0" />
                     <span>+91 8369458583</span>
                   </a>
                   <a
                     href="mailto:abhinav@arclinstruments.com"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
                     <TbMail size={13} className="text-blue-400 shrink-0" />
                     <span className="truncate">abhinav@arclinstruments.com</span>
@@ -233,20 +235,20 @@ const Footer = () => {
 
               {/* Calibration Department */}
               <div className="space-y-1 pt-1 border-t border-gray-800/80">
-                <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Calibration Department:
                 </p>
                 <div className="flex flex-col gap-1 pl-1">
                   <a
                     href="tel:+916205691085"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
                   >
                     <TbPhone size={13} className="text-emerald-400 shrink-0" />
                     <span>+91 6205691085</span>
                   </a>
                   <a
                     href="mailto:rupak@arclinstruments.com"
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors truncate"
+                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
                     <TbMail size={13} className="text-blue-400 shrink-0" />
                     <span className="truncate">rupak@arclinstruments.com</span>
