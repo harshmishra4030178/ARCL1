@@ -27,6 +27,7 @@ import {
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { downloadProductCatalogPdf } from "../utils/productCatalogPdfGenerator.js";
+import { encodeCode128B } from "../utils/barcodeGenerator.js";
 
 const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
   const routeParams = useParams();
@@ -353,7 +354,7 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
                 />
                 <div className="text-[9px] font-extrabold text-[#021C57] leading-tight text-left pr-1">
                   <span>VERIFIED QR</span><br />
-                  <span className="text-emerald-600 font-bold">SPEC PASS</span><br />
+                  <span className="text-emerald-600 font-bold">SCAN LINK</span><br />
                   <span className="text-slate-400 font-mono text-[8px]">{product._id ? `DOC #${product._id.slice(-6).toUpperCase()}` : "ARCL-SPEC"}</span>
                 </div>
               </div>
@@ -401,16 +402,38 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
               )}
             </div>
 
-            {/* PRODUCT BARCODE DISPLAY */}
-            <div className="bg-white text-slate-900 px-3 py-1 rounded-lg border border-slate-200 shadow-xs flex flex-col items-center">
-              <div className="flex items-center gap-0.5 h-4">
-                {[4, 2, 6, 3, 5, 2, 4, 3, 6, 2, 4, 5, 3, 6, 2, 4, 3, 5].map((w, idx) => (
-                  <div key={idx} className={`bg-slate-900 h-full ${w % 2 === 0 ? "w-0.5" : "w-1"}`} />
-                ))}
+            {/* SCANNABLE SMART PRODUCT BARCODE & QR BADGE */}
+            <div className="bg-white text-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 shadow-xs flex items-center gap-2.5 shrink-0">
+              {/* Scannable High-Density QR Code for Mobile Link */}
+              <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
+                <img
+                  src={qrImageUrl}
+                  alt="Scan for Product Link"
+                  className="w-full h-full object-contain"
+                  crossOrigin="anonymous"
+                />
               </div>
-              <span className="text-[8px] font-mono font-bold text-slate-700 tracking-wider">
-                {skuCode}
-              </span>
+
+              {/* Mathematically Scannable Code-128 Barcode & SKU */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="flex items-center h-4 max-w-[125px] overflow-hidden">
+                  {encodeCode128B(skuCode).map((m, idx) => (
+                    <div
+                      key={idx}
+                      style={{ width: `${m.width * 0.95}px` }}
+                      className={`h-full ${m.isBar ? "bg-slate-900" : "bg-transparent"}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[8px] font-mono font-black text-slate-800 tracking-wider">
+                    {skuCode}
+                  </span>
+                  <span className="text-[6.5px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded uppercase tracking-tight">
+                    SCAN LINK
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
