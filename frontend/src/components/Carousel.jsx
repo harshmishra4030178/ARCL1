@@ -144,11 +144,11 @@ const Carousel = () => {
             aria-label={`Slide ${index + 1} of ${slides.length}: ${item.heading}`}
             aria-hidden={!isActive}
             inert={!isActive ? "" : undefined}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+            className={`absolute inset-0 ${
               isActive
                 ? "opacity-100 z-10 visible pointer-events-auto"
                 : "opacity-0 z-0 invisible pointer-events-none"
-            }`}
+            } transition-opacity duration-700 ease-in-out`}
           >
             {/* High-priority Responsive WebP Poster Image for instant LCP render */}
             <picture>
@@ -224,7 +224,7 @@ const Carousel = () => {
                   <Link
                     to={item.primaryCta.to}
                     tabIndex={isActive ? 0 : -1}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/25 transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/25 transform hover:scale-105 active:scale-95 transition-transform duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
                   >
                     <span>{item.primaryCta.label}</span>
                     <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -233,7 +233,7 @@ const Carousel = () => {
                   <Link
                     to={item.secondaryCta.to}
                     tabIndex={isActive ? 0 : -1}
-                    className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-5 py-3 rounded-2xl border border-white/30 backdrop-blur-md shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
+                    className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-5 py-3 rounded-2xl border border-white/30 backdrop-blur-md shadow-lg transform hover:scale-105 active:scale-95 transition-transform duration-200 text-xs sm:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
                   >
                     <span>{item.secondaryCta.label}</span>
                   </Link>
@@ -251,7 +251,7 @@ const Carousel = () => {
         type="button"
         onClick={prevSlide}
         aria-label="Previous Slide"
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-colors duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
       >
         <ChevronLeft className="w-6 h-6" aria-hidden="true" />
       </button>
@@ -261,7 +261,7 @@ const Carousel = () => {
         type="button"
         onClick={nextSlide}
         aria-label="Next Slide"
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-all duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-sm transition-colors duration-200 cursor-pointer hidden md:flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white"
       >
         <ChevronRight className="w-6 h-6" aria-hidden="true" />
       </button>
@@ -288,7 +288,7 @@ const Carousel = () => {
               className="min-w-[44px] min-h-[44px] flex items-center justify-center p-1 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded-full cursor-pointer"
             >
               <span
-                className={`h-3 rounded-full transition-all duration-300 block ${
+                className={`h-3 rounded-full transition-colors duration-300 block ${
                   isCurrent
                     ? "w-8 bg-amber-400 shadow-md shadow-amber-400/50"
                     : "w-3 bg-white/50 hover:bg-white/80"

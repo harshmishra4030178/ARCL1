@@ -52,10 +52,11 @@
     "vite": "^8.0.1"
   },
   "browserslist": [
-    "last 2 Chrome versions",
-    "last 2 Firefox versions",
-    "last 2 Safari versions",
-    "last 2 Edge versions",
+    "chrome >= 109",
+    "edge >= 109",
+    "firefox >= 102",
+    "safari >= 15.4",
+    "ios_saf >= 15.4",
     "not dead"
   ]
 }

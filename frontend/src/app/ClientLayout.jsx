@@ -8,9 +8,10 @@ import Footer from "../components/Footer";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
 import { ErrorBoundary } from "../components/common/ErrorBoundary.jsx";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-
+const ToastWrapper = dynamic(
+  () => import("../components/common/ToastWrapper"),
+  { ssr: false }
+);
 const QuoteCartDrawer = dynamic(
   () => import("../components/quoteCart/QuoteCartDrawer"),
   { ssr: false }
@@ -47,19 +48,7 @@ export default function ClientLayout({ children }) {
     return (
       <ErrorBoundary>
         <Suspense fallback={null}>
-          <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop={true}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-            style={{ zIndex: 999999 }}
-          />
+          <ToastWrapper />
           {children}
         </Suspense>
       </ErrorBoundary>
@@ -69,19 +58,7 @@ export default function ClientLayout({ children }) {
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
-          style={{ zIndex: 999999 }}
-        />
+        <ToastWrapper />
         <Navbar />
         {children}
         <Footer />

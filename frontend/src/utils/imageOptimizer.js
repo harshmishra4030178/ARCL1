@@ -5,7 +5,7 @@
  * and automatic compression quality parameters into CDN URLs.
  */
 
-export function getOptimizedImageUrl(url, { width = 280, quality = "auto" } = {}) {
+export function getOptimizedImageUrl(url, { width = 200, height, quality = "auto:good", crop = "limit" } = {}) {
   if (!url || typeof url !== "string") return url;
 
   // Optimize Cloudinary URLs
@@ -17,14 +17,16 @@ export function getOptimizedImageUrl(url, { width = 280, quality = "auto" } = {}
     const versionMatch = afterUpload.match(/v\d+\//);
     const pathAfterVersion = versionMatch ? afterUpload.slice(versionMatch.index) : afterUpload;
 
-    const transform = `f_auto,q_${quality},w_${width},c_limit/`;
+    const heightParam = height ? `,h_${height}` : "";
+    const transform = `f_auto,q_${quality},w_${width}${heightParam},c_${crop}/`;
     return `${url.slice(0, uploadIdx + 8)}${transform}${pathAfterVersion}`;
   }
 
   // Optimize Unsplash images
   if (url.includes("images.unsplash.com")) {
     const cleanUrl = url.split("?")[0];
-    return `${cleanUrl}?auto=format&fit=crop&q=80&w=${width}`;
+    const heightParam = height ? `&h=${height}` : "";
+    return `${cleanUrl}?auto=format&fit=crop&q=80&w=${width}${heightParam}`;
   }
 
   return url;
