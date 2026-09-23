@@ -96,9 +96,10 @@ const Navbar = () => {
               <a
                 className="text-[#021C57] font-semibold hover:underline transition flex items-center gap-1.5 text-xs sm:text-sm"
                 href="tel:+918169695728"
+                aria-label="Call ARCL Instruments at +91 8169695728"
                 suppressHydrationWarning={true}
               >
-                <FaPhoneAlt className="text-amber-500 w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <FaPhoneAlt className="text-amber-500 w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true" />
                 <span className="hidden md:inline">+91 8169695728</span>
               </a>
 
