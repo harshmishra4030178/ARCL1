@@ -41,26 +41,36 @@ export function useVisitorTracker() {
     if (lastTrackedPath.current === pathname) return;
     lastTrackedPath.current = pathname;
 
-    const sessionId = getOrCreateSessionId();
-    if (!sessionId) return;
+    const scheduleTrack = () => {
+      const sessionId = getOrCreateSessionId();
+      if (!sessionId) return;
 
-    const screenResolution =
-      typeof window !== "undefined"
-        ? `${window.screen.width}x${window.screen.height}`
-        : "";
+      const screenResolution =
+        typeof window !== "undefined"
+          ? `${window.screen.width}x${window.screen.height}`
+          : "";
 
-    const referrer =
-      typeof document !== "undefined" ? document.referrer || "" : "";
+      const referrer =
+        typeof document !== "undefined" ? document.referrer || "" : "";
 
-    const clientDevice = detectClientDevice();
+      const clientDevice = detectClientDevice();
 
-    // Fire non-blocking tracking request
-    trackVisitorApi({
-      sessionId,
-      path: pathname,
-      referrer,
-      screenResolution,
-      clientDevice,
-    });
+      // Fire non-blocking tracking request
+      trackVisitorApi({
+        sessionId,
+        path: pathname,
+        referrer,
+        screenResolution,
+        clientDevice,
+      });
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(scheduleTrack, { timeout: 2000 });
+      return () => window.cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(scheduleTrack, 1500);
+      return () => clearTimeout(timer);
+    }
   }, [pathname]);
 }

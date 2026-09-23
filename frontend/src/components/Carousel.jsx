@@ -64,20 +64,32 @@ const Carousel = () => {
     setIsDesktop(isDesk);
 
     if (isDesk) {
-      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-        const handle = window.requestIdleCallback(
-          () => {
-            setCanLoadVideo(true);
-          },
-          { timeout: 3000 }
-        );
-        return () => window.cancelIdleCallback(handle);
-      } else {
-        const timer = setTimeout(() => {
-          setCanLoadVideo(true);
-        }, 2500);
-        return () => clearTimeout(timer);
-      }
+      let loaded = false;
+      const loadVideo = () => {
+        if (loaded) return;
+        loaded = true;
+        setCanLoadVideo(true);
+        cleanup();
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("scroll", loadVideo);
+        window.removeEventListener("mousemove", loadVideo);
+        window.removeEventListener("touchstart", loadVideo);
+        window.removeEventListener("keydown", loadVideo);
+      };
+
+      window.addEventListener("scroll", loadVideo, { passive: true, once: true });
+      window.addEventListener("mousemove", loadVideo, { passive: true, once: true });
+      window.addEventListener("touchstart", loadVideo, { passive: true, once: true });
+      window.addEventListener("keydown", loadVideo, { passive: true, once: true });
+
+      const timer = setTimeout(loadVideo, 6000);
+
+      return () => {
+        cleanup();
+        clearTimeout(timer);
+      };
     }
   }, []);
 
