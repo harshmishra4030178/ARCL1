@@ -4,7 +4,7 @@ import { Menu, X, ShoppingBag } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink } from "../utils/navigation.jsx";
 
-const logo = "/assets/LOGO.png";
+const logo = "/assets/LOGO.webp";
 
 import { FaPhoneAlt } from "react-icons/fa";
 

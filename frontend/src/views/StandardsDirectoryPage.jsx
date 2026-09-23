@@ -21,9 +21,9 @@ import {
   Info,
   HelpCircle,
   Database,
-  Check,
   Award,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "../utils/imageOptimizer.js";
 import { useProductStore } from "../store/useProductStore.js";
 import { useQuoteCartStore } from "../store/useQuoteCartStore.js";
 import { generateQuotationPdf } from "../utils/quotationPdfGenerator.js";
@@ -792,10 +792,11 @@ export default function StandardsDirectoryPage() {
                   {std.liveProducts && std.liveProducts.length > 0 ? (
                     <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                       {std.liveProducts.map((p) => {
-                        const imgUrl =
+                        const rawImgUrl =
                           p.images && p.images.length > 0
                             ? p.images[0]
                             : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=300";
+                        const imgUrl = getOptimizedImageUrl(rawImgUrl, { width: 300 });
 
                         return (
                           <div
@@ -808,6 +809,8 @@ export default function StandardsDirectoryPage() {
                                 <img
                                   src={imgUrl}
                                   alt={p.name}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="max-h-28 w-auto object-contain transition duration-300 group-hover:scale-105"
                                 />
                                 {p.isFeatured && (

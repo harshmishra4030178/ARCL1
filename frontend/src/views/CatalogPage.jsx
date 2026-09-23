@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Package,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "../utils/imageOptimizer.js";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
 // Array of icons for category visual representation
@@ -234,7 +235,7 @@ const CatalogPage = () => {
                       <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200/90 p-1.5 flex items-center justify-center shadow-xs overflow-hidden group-hover:border-[#021C57] group-hover:shadow-md transition-all duration-300 shrink-0">
                         {productImage ? (
                           <img
-                            src={productImage}
+                            src={getOptimizedImageUrl(productImage, { width: 160 })}
                             alt={category.name}
                             className="w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-300"
                             loading="lazy"

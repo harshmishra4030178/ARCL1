@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Link, NavLink } from "../utils/navigation.jsx";
-const logo = "/assets/LOGO.png";
+const logo = "/assets/LOGO.webp";
 import {
   TbBrandLinkedin,
   TbMapPin,

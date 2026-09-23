@@ -6,6 +6,7 @@ import { formatTitleCase } from "../../utils/stringUtils.js";
 import { useQuoteCartStore } from "../../store/useQuoteCartStore.js";
 import { useCompareStore } from "../../store/useCompareStore.js";
 import { Scale, Check } from "lucide-react";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 
 const ProductCard = ({ product }) => {
   const { addItem, isInCart } = useQuoteCartStore();
@@ -14,12 +15,14 @@ const ProductCard = ({ product }) => {
 
   const inCompare = isInCompare(product._id);
 
-  const imageUrl =
+  const rawImageUrl =
     Array.isArray(product.images) && product.images[0]
       ? product.images[0]
       : typeof product.images === "string"
       ? product.images
       : "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=600";
+
+  const imageUrl = getOptimizedImageUrl(rawImageUrl, { width: 400 });
 
   // Quick specs array for preview pills
   const specsEntries =

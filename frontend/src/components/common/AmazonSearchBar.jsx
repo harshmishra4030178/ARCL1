@@ -27,6 +27,7 @@ import { useEquipmentTypeStore } from "../../store/useEquipmentTypeStore.js";
 import { fuzzyMatch } from "../../utils/fuzzySearch.js";
 import { formatTitleCase } from "../../utils/stringUtils.js";
 import { toast } from "react-toastify";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 
 const POPULAR_SEARCHES = [
   "Compression Testing Machine",
@@ -728,12 +729,13 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                   </p>
                   <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
                     {scopedEquipmentProducts.map((prod, pIdx) => {
-                      const thumb =
+                      const rawThumb =
                         Array.isArray(prod.images) && prod.images[0]
                           ? prod.images[0]
                           : typeof prod.images === "string" && prod.images
                           ? prod.images
-                          : "/assets/LOGO.png";
+                          : "/assets/LOGO.webp";
+                      const thumb = getOptimizedImageUrl(rawThumb, { width: 120 });
                       const prodUrl = `/products/${prod.slug || prod._id}`;
                       const isSelected = selectedIndex === pIdx;
 
@@ -919,12 +921,13 @@ const AmazonSearchBar = ({ isMobile = false }) => {
                   {filteredData.matchingProducts.map((prod, pIdx) => {
                     const globalIdx = pIdx;
                     const isSelected = selectedIndex === globalIdx;
-                    const thumb =
+                    const rawThumb =
                       Array.isArray(prod.images) && prod.images[0]
                         ? prod.images[0]
                         : typeof prod.images === "string" && prod.images
                         ? prod.images
-                        : "/assets/LOGO.png";
+                        : "/assets/LOGO.webp";
+                    const thumb = getOptimizedImageUrl(rawThumb, { width: 120 });
 
                     const prodUrl = `/products/${prod.slug || prod._id}`;
 

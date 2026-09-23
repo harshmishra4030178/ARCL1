@@ -42,6 +42,7 @@ import { sendProductToWhatsApp } from "../utils/whatsappQuote.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { Scale } from "lucide-react";
+import { getOptimizedImageUrl } from "../utils/imageOptimizer.js";
 
 const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
   const { addItem, openCart, isInCart } = useQuoteCartStore();
@@ -225,7 +226,8 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
       ? product.images
       : ["https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800"];
 
-  const currentImage = imagesList[selectedImageIndex] || imagesList[0];
+  const rawCurrentImage = imagesList[selectedImageIndex] || imagesList[0];
+  const currentImage = getOptimizedImageUrl(rawCurrentImage, { width: 800 });
 
   const equipmentTypeName = product?.category?.equipmentType?.name
     ? formatTitleCase(product.category.equipmentType.name)
@@ -411,7 +413,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                     }`}
                   >
                     <img
-                      src={imgUrl}
+                      src={getOptimizedImageUrl(imgUrl, { width: 160 })}
                       alt={`${formatTitleCase(product.name)} Angle View ${idx + 1} - ARCL Instruments`}
                       className="w-full h-full object-contain"
                     />

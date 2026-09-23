@@ -26,6 +26,7 @@ import { useInquiryStore } from "../../store/useInquiryStore.js";
 import { generateQuotationPdf } from "../../utils/quotationPdfGenerator.js";
 import { toast } from "react-toastify";
 import { formatTitleCase } from "../../utils/stringUtils.js";
+import { getOptimizedImageUrl } from "../../utils/imageOptimizer.js";
 
 const QuoteCartDrawer = () => {
   const {
@@ -275,12 +276,13 @@ const QuoteCartDrawer = () => {
 
                   <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 divide-y divide-gray-100">
                     {items.map((item) => {
-                      const img =
+                      const rawImg =
                         Array.isArray(item.product.images) && item.product.images[0]
                           ? item.product.images[0]
                           : typeof item.product.images === "string"
                           ? item.product.images
                           : "/placeholder.png";
+                      const img = getOptimizedImageUrl(rawImg, { width: 120 });
 
                       return (
                         <div
@@ -293,6 +295,8 @@ const QuoteCartDrawer = () => {
                               <img
                                 src={img}
                                 alt={item.product.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-full h-full object-contain"
                               />
                             </div>

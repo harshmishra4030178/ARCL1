@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Carousel from "../components/Carousel.jsx";
 const trustImg = "/assets/why-us/trust.png";
 const qualityImg = "/assets/why-us/quality.png";
@@ -121,6 +121,30 @@ const Home = ({ initialShowcase = [] }) => {
 
   const featuredEquipmentSections = sectionsList.length > 0 ? sectionsList : (Array.isArray(homeShowcase) ? homeShowcase : []);
   const loading = homeShowcaseLoading && featuredEquipmentSections.length === 0;
+
+  const [visibleSectionsCount, setVisibleSectionsCount] = useState(3);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    if (canReorder || visibleSectionsCount >= featuredEquipmentSections.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleSectionsCount((prev) =>
+            Math.min(prev + 3, featuredEquipmentSections.length)
+          );
+        }
+      },
+      { rootMargin: "400px 0px", threshold: 0.1 }
+    );
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [canReorder, visibleSectionsCount, featuredEquipmentSections.length]);
 
   const features = [
     {
@@ -312,7 +336,10 @@ const Home = ({ initialShowcase = [] }) => {
         {/* SECTION-WISE EQUIPMENT TYPES DISPLAY (DRAGGABLE & REORDERABLE) */}
         {!loading && featuredEquipmentSections.length > 0 && (
           <div className="space-y-16">
-            {featuredEquipmentSections.map((section, index) => {
+            {(canReorder
+              ? featuredEquipmentSections
+              : featuredEquipmentSections.slice(0, visibleSectionsCount)
+            ).map((section, index) => {
               const isDragging = draggedIndex === index;
               const isOver = dragOverIndex === index;
 
@@ -343,6 +370,11 @@ const Home = ({ initialShowcase = [] }) => {
                 </div>
               );
             })}
+
+            {/* Progressive Scroll Sentinel */}
+            {!canReorder && visibleSectionsCount < featuredEquipmentSections.length && (
+              <div ref={sentinelRef} className="h-6 w-full pointer-events-none" aria-hidden="true" />
+            )}
           </div>
         )}
 
