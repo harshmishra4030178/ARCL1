@@ -17,20 +17,22 @@ const ProductToolbar = ({
       
       {/* SEARCH BAR */}
       <div className="relative w-full md:max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
 
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by instrument name or model..."
-          className="w-full border border-gray-200 rounded-2xl pl-11 pr-10 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition"
+          aria-label="Search by instrument name or model"
+          className="w-full border border-gray-200 rounded-2xl pl-11 pr-10 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition text-slate-900"
         />
 
         {search && (
           <button
             onClick={() => setSearch("")}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+            aria-label="Clear search input"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1 cursor-pointer"
           >
             <X size={14} />
           </button>
@@ -45,6 +47,7 @@ const ProductToolbar = ({
           <button
             type="button"
             onClick={onClearEquipmentType}
+            aria-label="Clear equipment type filter"
             className="p-0.5 hover:bg-blue-100 rounded-lg text-blue-700 hover:text-blue-900 transition cursor-pointer"
             title="Clear equipment type filter"
           >
@@ -55,16 +58,17 @@ const ProductToolbar = ({
 
       {/* RIGHT: COUNT & SORT */}
       <div className="flex items-center gap-4 flex-wrap justify-between md:justify-end">
-        <p className="text-xs sm:text-sm font-semibold text-gray-600 bg-gray-50 px-3.5 py-2 rounded-xl border border-gray-100">
+        <p className="text-xs sm:text-sm font-semibold text-slate-700 bg-gray-50 px-3.5 py-2 rounded-xl border border-gray-100">
           <span className="text-[#021C57] font-bold">{totalProducts}</span> Products Available
         </p>
 
         <div className="flex items-center gap-2">
-          <SlidersHorizontal size={14} className="text-gray-400 hidden sm:block" />
+          <SlidersHorizontal size={14} className="text-slate-500 hidden sm:block" />
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="border border-gray-200 rounded-2xl px-4 py-2.5 text-xs sm:text-sm outline-none bg-white text-gray-700 font-medium cursor-pointer focus:border-blue-500 transition"
+            aria-label="Sort products catalogue"
+            className="border border-gray-200 rounded-2xl px-4 py-2.5 text-xs sm:text-sm outline-none bg-white text-slate-800 font-medium cursor-pointer focus:border-blue-500 transition"
           >
             <option value="latest">Sort: Latest Additions</option>
             <option value="popular">Sort: Featured First</option>

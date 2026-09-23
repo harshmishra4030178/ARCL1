@@ -98,7 +98,7 @@ const Footer = () => {
             </p>
 
             {/* Social Icons */}
-            <div className="pt-1 flex items-center gap-2">
+            <div className="pt-1 flex items-center gap-2.5">
               {socialLinks.map((social) => (
                 <a
                   key={social.label}
@@ -106,7 +106,7 @@ const Footer = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={social.label}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500 hover:bg-blue-600 hover:text-white"
+                  className="flex h-10 w-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500 hover:bg-blue-600 hover:text-white"
                 >
                   {social.icon}
                 </a>
@@ -121,7 +121,7 @@ const Footer = () => {
               Quick Navigation
             </h3>
 
-            <ul className="grid grid-cols-1 gap-2 text-xs">
+            <ul className="grid grid-cols-1 gap-1 text-xs">
               {navLinks.map((link) => (
                 <li key={link.name}>
                   {link.isExternal ? (
@@ -129,23 +129,23 @@ const Footer = () => {
                       href={link.to}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 transition-colors duration-150 text-slate-300 hover:text-white"
+                      className="inline-flex items-center gap-2 py-1.5 min-h-[36px] transition-colors duration-150 text-slate-300 hover:text-white"
                     >
-                      <span className="h-1 w-1 rounded-full bg-slate-500" />
+                      <span className="h-1 w-1 rounded-full bg-slate-400" />
                       <span>{link.name}</span>
                     </a>
                   ) : (
                     <NavLink
                       to={link.to}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 transition-colors duration-150 ${
+                        `inline-flex items-center gap-2 py-1.5 min-h-[36px] transition-colors duration-150 ${
                           isActive
                             ? "text-blue-400 font-semibold"
                             : "text-slate-300 hover:text-white"
                         }`
                       }
                     >
-                      <span className="h-1 w-1 rounded-full bg-slate-500" />
+                      <span className="h-1 w-1 rounded-full bg-slate-400" />
                       <span>{link.name}</span>
                     </NavLink>
                   )}
@@ -165,7 +165,8 @@ const Footer = () => {
               href="https://maps.app.goo.gl/Xa2cZMx3Dg8yqrB49"
               target="_blank"
               rel="noopener noreferrer"
-              className="group block text-xs text-slate-300 space-y-1 hover:text-white transition-colors"
+              aria-label="View ARCL Instruments Head Office Location on Google Maps"
+              className="group block text-xs text-slate-300 space-y-1.5 hover:text-white transition-colors py-1"
             >
               <div className="flex items-start gap-2">
                 <TbMapPin size={16} className="text-blue-400 shrink-0 mt-0.5" />
@@ -173,7 +174,7 @@ const Footer = () => {
                   Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1 text-[11px] text-blue-400 group-hover:underline pt-0.5">
+              <span className="inline-flex items-center gap-1 text-[11px] text-blue-400 group-hover:underline pt-0.5 min-h-[32px]">
                 Directions <HiArrowUpRight size={10} />
               </span>
             </a>
@@ -192,20 +193,22 @@ const Footer = () => {
                 <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Head Office:
                 </p>
-                <div className="flex flex-col gap-1 pl-1">
+                <div className="flex flex-col gap-1.5 pl-1">
                   <a
                     href="tel:+918169695728"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
+                    aria-label="Call ARCL Head Office at +91 8169695728"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-emerald-400 transition-colors"
                   >
-                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <TbPhone size={14} className="text-emerald-400 shrink-0" />
                     <span>+91 8169695728</span>
                   </a>
                   <a
                     href="mailto:arclinstruments@gmail.com"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
+                    aria-label="Email ARCL Head Office at arclinstruments@gmail.com"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
-                    <TbMail size={13} className="text-blue-400 shrink-0" />
-                    <span className="truncate">arclinstruments@gmail.com / info@arclinstruments.com</span>
+                    <TbMail size={14} className="text-blue-400 shrink-0" />
+                    <span className="truncate">arclinstruments@gmail.com</span>
                   </a>
                 </div>
               </div>
@@ -215,19 +218,21 @@ const Footer = () => {
                 <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Sales Department:
                 </p>
-                <div className="flex flex-col gap-1 pl-1">
+                <div className="flex flex-col gap-1.5 pl-1">
                   <a
                     href="tel:+918369458583"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
+                    aria-label="Call ARCL Sales at +91 8369458583"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-emerald-400 transition-colors"
                   >
-                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <TbPhone size={14} className="text-emerald-400 shrink-0" />
                     <span>+91 8369458583</span>
                   </a>
                   <a
                     href="mailto:abhinav@arclinstruments.com"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
+                    aria-label="Email ARCL Sales at abhinav@arclinstruments.com"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
-                    <TbMail size={13} className="text-blue-400 shrink-0" />
+                    <TbMail size={14} className="text-blue-400 shrink-0" />
                     <span className="truncate">abhinav@arclinstruments.com</span>
                   </a>
                 </div>
@@ -238,19 +243,21 @@ const Footer = () => {
                 <p className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">
                   Calibration Department:
                 </p>
-                <div className="flex flex-col gap-1 pl-1">
+                <div className="flex flex-col gap-1.5 pl-1">
                   <a
                     href="tel:+916205691085"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition-colors"
+                    aria-label="Call ARCL Calibration at +91 6205691085"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-emerald-400 transition-colors"
                   >
-                    <TbPhone size={13} className="text-emerald-400 shrink-0" />
+                    <TbPhone size={14} className="text-emerald-400 shrink-0" />
                     <span>+91 6205691085</span>
                   </a>
                   <a
                     href="mailto:rupak@arclinstruments.com"
-                    className="flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors truncate"
+                    aria-label="Email ARCL Calibration at rupak@arclinstruments.com"
+                    className="inline-flex items-center gap-2 py-1 min-h-[36px] text-slate-300 hover:text-blue-400 transition-colors truncate"
                   >
-                    <TbMail size={13} className="text-blue-400 shrink-0" />
+                    <TbMail size={14} className="text-blue-400 shrink-0" />
                     <span className="truncate">rupak@arclinstruments.com</span>
                   </a>
                 </div>
@@ -260,7 +267,8 @@ const Footer = () => {
             <div className="pt-2">
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3.5 py-1.5 text-xs font-semibold shadow hover:from-blue-500 hover:to-cyan-500 transition-all duration-200 text-white"
+                aria-label="Request Technical Quote or Inquire with ARCL Instruments"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3.5 py-2 min-h-[40px] text-xs font-semibold shadow hover:from-blue-500 hover:to-cyan-500 transition-all duration-200 text-white"
               >
                 Request Quote / Inquire
                 <HiArrowUpRight size={12} />
@@ -273,28 +281,28 @@ const Footer = () => {
         {/* Regional Testing Hubs & Key Service Locations */}
         <div className="mt-8 pt-6 border-t border-slate-800/60">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+            <div className="flex items-center gap-2 text-slate-300 font-semibold uppercase tracking-wider text-[11px]">
               <TbMapPin className="text-blue-400 shrink-0" size={14} />
               <span>Civil Lab Equipment Hubs:</span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-300">
-              <Link to="/civil-lab-equipment-mumbai" className="hover:text-blue-400 transition-colors">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-300">
+              <Link to="/civil-lab-equipment-mumbai" className="hover:text-blue-400 transition-colors py-1.5 inline-block">
                 Civil Lab Equipment Mumbai
               </Link>
               <span className="text-slate-600">•</span>
-              <Link to="/civil-lab-equipment-navi-mumbai" className="hover:text-blue-400 transition-colors">
+              <Link to="/civil-lab-equipment-navi-mumbai" className="hover:text-blue-400 transition-colors py-1.5 inline-block">
                 Civil Lab Equipment Navi Mumbai
               </Link>
               <span className="text-slate-600">•</span>
-              <Link to="/civil-lab-equipment-thane" className="hover:text-blue-400 transition-colors">
+              <Link to="/civil-lab-equipment-thane" className="hover:text-blue-400 transition-colors py-1.5 inline-block">
                 Civil Lab Equipment Thane
               </Link>
               <span className="text-slate-600">•</span>
-              <Link to="/calibration-services" className="hover:text-blue-400 transition-colors">
+              <Link to="/calibration-services" className="hover:text-blue-400 transition-colors py-1.5 inline-block">
                 NABL Calibration Services
               </Link>
               <span className="text-slate-600">•</span>
-              <Link to="/standards" className="hover:text-blue-400 transition-colors">
+              <Link to="/standards" className="hover:text-blue-400 transition-colors py-1.5 inline-block">
                 IS / ASTM Testing Standards
               </Link>
             </div>
@@ -314,7 +322,7 @@ const Footer = () => {
                 All rights reserved.
               </span>
               <span className="hidden sm:inline text-slate-600">|</span>
-              <Link to="/privacy-policy" className="text-slate-400 hover:text-white transition-colors underline-offset-2 hover:underline font-medium">
+              <Link to="/privacy-policy" className="text-slate-300 hover:text-white transition-colors underline-offset-2 hover:underline font-medium py-1">
                 Privacy Policy
               </Link>
             </div>
@@ -329,7 +337,8 @@ const Footer = () => {
                 href="https://www.linkedin.com/in/abhi1224/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400"
+                aria-label="LinkedIn profile of Abhishek Verma"
+                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400 py-1"
               >
                 <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded bg-[#0077b5] text-[10px] sm:text-xs font-bold text-white shadow-xs group-hover:scale-110 transition-transform">
                   in
@@ -343,7 +352,8 @@ const Footer = () => {
                 href="https://www.linkedin.com/in/harsh-mishra-4829a82aa/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400"
+                aria-label="LinkedIn profile of Harsh Mishra"
+                className="group inline-flex items-center gap-1.5 font-bold text-white transition-all duration-300 hover:text-cyan-400 py-1"
               >
                 <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded bg-[#0077b5] text-[10px] sm:text-xs font-bold text-white shadow-xs group-hover:scale-110 transition-transform">
                   in

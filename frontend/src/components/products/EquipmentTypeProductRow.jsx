@@ -87,7 +87,7 @@ const EquipmentTypeProductRow = ({
             <h2 className="text-xl sm:text-2xl font-black text-[#021C57] tracking-tight">
               {typeName}
             </h2>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">
+            <p className="text-xs text-slate-700 font-medium mt-0.5">
               Showing 1 flagship instrument per represented category ({section.products.length} categories represented)
             </p>
           </div>

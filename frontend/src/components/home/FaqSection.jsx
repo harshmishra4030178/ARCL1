@@ -151,11 +151,11 @@ const FaqSection = () => {
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                      <span className="inline-flex items-center gap-1.5 text-blue-600 font-semibold">
+                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-slate-700">
+                      <span className="inline-flex items-center gap-1.5 text-blue-700 font-semibold">
                         <ShieldCheck size={13} /> Verified Supplier Answer
                       </span>
-                      <span className="bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-500">
+                      <span className="bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full font-bold text-slate-800">
                         {faq.category}
                       </span>
                     </div>
@@ -172,7 +172,7 @@ const FaqSection = () => {
             <h3 className="font-bold text-[#021C57] text-base">
               Have a specific technical requirement or tender inquiry?
             </h3>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-slate-700 font-medium">
               Our engineering specialists in Navi Mumbai are ready to assist you with custom quotes and calibration.
             </p>
           </div>

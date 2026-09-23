@@ -183,41 +183,41 @@ const Home = ({ initialShowcase = [] }) => {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
                 <Link to="/categories/concrete-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Concrete Testing</span>
-                  <span className="text-[10px] text-gray-500">CTM, Moulds, Slump</span>
+                  <span className="text-[10px] text-slate-600 font-medium">CTM, Moulds, Slump</span>
                 </Link>
                 <Link to="/categories/soil-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Soil Testing</span>
-                  <span className="text-[10px] text-gray-500">CBR, Direct Shear, SPT</span>
+                  <span className="text-[10px] text-slate-600 font-medium">CBR, Direct Shear, SPT</span>
                 </Link>
                 <Link to="/categories/aggregate-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Aggregate Testing</span>
-                  <span className="text-[10px] text-gray-500">Sieve Shakers, Impact</span>
+                  <span className="text-[10px] text-slate-600 font-medium">Sieve Shakers, Impact</span>
                 </Link>
                 <Link to="/categories/bitumen-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Bitumen Testing</span>
-                  <span className="text-[10px] text-gray-500">Ductility, Penetrometer</span>
+                  <span className="text-[10px] text-slate-600 font-medium">Ductility, Penetrometer</span>
                 </Link>
                 <Link to="/categories/cement-testing-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Cement Testing</span>
-                  <span className="text-[10px] text-gray-500">Vicat, Le-Chatelier</span>
+                  <span className="text-[10px] text-slate-600 font-medium">Vicat, Le-Chatelier</span>
                 </Link>
                 <Link to="/categories/surveying-instruments" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">Surveying Equipment</span>
-                  <span className="text-[10px] text-gray-500">Total Station, Auto Level</span>
+                  <span className="text-[10px] text-slate-600 font-medium">Total Station, Auto Level</span>
                 </Link>
                 <Link to="/categories/non-destructive-testing-ndt-equipment" className="p-3 bg-white hover:bg-blue-50 border border-gray-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-gray-800 group-hover:text-[#021C57] block">NDT Instruments</span>
-                  <span className="text-[10px] text-gray-500">Rebound Hammer, UPV</span>
+                  <span className="text-[10px] text-slate-600 font-medium">Rebound Hammer, UPV</span>
                 </Link>
                 <Link to="/calibration-services" className="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl text-center transition group shadow-2xs">
                   <span className="text-xs font-bold text-emerald-900 block">Calibration Services</span>
-                  <span className="text-[10px] text-emerald-700">NABL Traceable</span>
+                  <span className="text-[10px] text-emerald-800 font-medium">NABL Traceable</span>
                 </Link>
               </div>
 
               {/* Local Service Hub Links */}
               <div className="pt-3 border-t border-gray-200/70 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span className="text-gray-500 font-medium">Dedicated Regional Testing Hubs:</span>
+                <span className="text-slate-700 font-semibold">Dedicated Regional Testing Hubs:</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <Link to="/civil-lab-equipment-mumbai" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
                     Mumbai Equipment Hub →

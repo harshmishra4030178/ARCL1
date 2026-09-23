@@ -98,14 +98,9 @@ const ProductCard = ({ product }) => {
           
           {/* CATEGORY & EQUIPMENT & SKU BADGES */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold text-[#021C57] bg-blue-50/90 border border-blue-100">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#021C57]" />
-              {categoryName}
-            </span> */}
-
             {equipmentTypeName && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-medium text-slate-500 bg-slate-100">
-                <Layers size={9} className="text-slate-400" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold text-slate-800 bg-slate-100 border border-slate-200">
+                <Layers size={9} className="text-slate-600" />
                 {equipmentTypeName}
               </span>
             )}
@@ -131,9 +126,9 @@ const ProductCard = ({ product }) => {
               {specsEntries.slice(0, 2).map(([k, v], idx) => (
                 <div
                   key={idx}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/70 text-[9px] sm:text-[10px] text-slate-700"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/70 text-[9px] sm:text-[10px] text-slate-800"
                 >
-                  <span className="text-slate-400 font-normal">{formatTitleCase(k)}:</span>
+                  <span className="text-slate-700 font-semibold">{formatTitleCase(k)}:</span>
                   <span className="font-bold truncate max-w-[80px]">{String(v)}</span>
                 </div>
               ))}
@@ -148,6 +143,7 @@ const ProductCard = ({ product }) => {
           {/* Main Action: View Details */}
           <Link
             to={`/products/${product.slug}`}
+            aria-label={`View technical specifications and details for ${product.name}`}
             className="flex-1 group/btn py-2 px-3 bg-[#021C57] hover:bg-[#032980] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 shadow-xs active:scale-[0.98]"
           >
             <span>Details</span>
@@ -163,6 +159,7 @@ const ProductCard = ({ product }) => {
               addItem(product, 1);
             }}
             title={isInCart(product._id) ? "In Quote Basket (Click to add +1)" : "Add to Quote Basket"}
+            aria-label={isInCart(product._id) ? `In Quote Basket: ${product.name}` : `Add ${product.name} to Quote Basket`}
             className={`p-2 rounded-xl border transition cursor-pointer shrink-0 active:scale-95 ${
               isInCart(product._id)
                 ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs"
@@ -180,6 +177,7 @@ const ProductCard = ({ product }) => {
           <Link
             to={`/products/${product.slug}/catalog`}
             title="Download PDF Catalog Brochure"
+            aria-label={`Download PDF Catalog Brochure for ${product.name}`}
             className="p-2 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-[#021C57] border border-slate-200 rounded-xl transition cursor-pointer shrink-0"
           >
             <FileText className="w-4 h-4 text-blue-600" />
@@ -193,6 +191,7 @@ const ProductCard = ({ product }) => {
             target="_blank"
             rel="noopener noreferrer"
             title="WhatsApp Quote"
+            aria-label={`Get instant WhatsApp Quote for ${product.name}`}
             className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition cursor-pointer shrink-0"
           >
             <MessageCircle className="w-4 h-4 text-emerald-600" />

@@ -426,7 +426,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 {product.productCode && (
                   <div className="bg-white border border-blue-200 rounded-2xl p-3.5 shadow-2xs flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
                         Product Code / SKU
                       </span>
                       <span className="text-xs sm:text-sm font-mono font-extrabold text-[#021C57]">
@@ -442,7 +442,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                 {product.hsnCode && (
                   <div className="bg-white border border-emerald-200 rounded-2xl p-3.5 shadow-2xs flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
                         HSN Code
                       </span>
                       <span className="text-xs sm:text-sm font-mono font-extrabold text-emerald-800">
@@ -462,19 +462,19 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
               <div className="bg-white border border-gray-200/70 p-3.5 rounded-2xl text-center space-y-1">
                 <Truck className="w-5 h-5 text-blue-600 mx-auto" />
                 <div className="text-[11px] font-bold text-gray-800">Fast Delivery</div>
-                <div className="text-[10px] text-gray-400">Safe & reliable dispatch</div>
+                <div className="text-[10px] text-slate-600">Safe & reliable dispatch</div>
               </div>
 
               <div className="bg-white border border-gray-200/70 p-3.5 rounded-2xl text-center space-y-1">
                 <BadgeCheck className="w-5 h-5 text-emerald-600 mx-auto" />
                 <div className="text-[11px] font-bold text-gray-800">Quality Tested</div>
-                <div className="text-[10px] text-gray-400">Tested before dispatch</div>
+                <div className="text-[10px] text-slate-600">Tested before dispatch</div>
               </div>
 
               <div className="bg-white border border-gray-200/70 p-3.5 rounded-2xl text-center space-y-1">
                 <Building2 className="w-5 h-5 text-amber-600 mx-auto" />
                 <div className="text-[11px] font-bold text-gray-800">Pan-India Support</div>
-                <div className="text-[10px] text-gray-400">On-site engineer setup</div>
+                <div className="text-[10px] text-slate-600">On-site engineer setup</div>
               </div>
             </div>
 
@@ -496,7 +496,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                   <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug">
                     Scan on Mobile for Instant Specs & Verification
                   </h4>
-                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                  <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
                     Point your mobile camera to view full specifications, share this model with colleagues, or save for lab inspection.
                   </p>
 
@@ -558,7 +558,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
 
             {/* DESCRIPTION */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-5 shadow-2xs">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
                 Operational Overview
               </h3>
               <p className="text-gray-600 text-sm sm:text-base leading-relaxed">
@@ -571,7 +571,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
             {/* SPECIFICATIONS TEASER (FIRST 4 SPECS) */}
             {product.specifications && Object.keys(product.specifications).length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 uppercase tracking-wide">
                   <span>Key Specifications</span>
                   <button
                     suppressHydrationWarning
@@ -580,7 +580,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                       const elem = document.getElementById("product-tabs");
                       if (elem) elem.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="text-blue-600 hover:underline cursor-pointer lowercase"
+                    className="text-blue-600 hover:underline cursor-pointer lowercase font-semibold"
                   >
                     view all {Object.keys(product.specifications).length} specs →
                   </button>
@@ -594,7 +594,7 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                         key={key}
                         className="bg-white border border-gray-200/80 p-3 rounded-xl shadow-2xs"
                       >
-                        <div className="text-[11px] font-bold text-gray-400 truncate uppercase">
+                        <div className="text-[11px] font-bold text-slate-700 truncate uppercase">
                           {formatTitleCase(key)}
                         </div>
                         <div className="text-xs font-bold text-[#021C57] truncate mt-0.5">
