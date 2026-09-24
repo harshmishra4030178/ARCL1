@@ -875,6 +875,33 @@ export default function StandardsDirectoryPage() {
           ))}
         </div>
 
+        {/* REGIONAL TESTING HUB CALLOUT */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-[#021C57] flex items-center gap-2">
+              <Building2 className="text-blue-600" size={18} /> Setting Up a Civil Testing Laboratory in Mumbai &amp; Maharashtra?
+            </h3>
+            <p className="text-xs text-slate-600">
+              ARCL Instruments manufactures complete, certified IS/ASTM testing outfits with on-site NABL calibration across Mumbai, Navi Mumbai, and Thane.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+            <Link
+              to="/civil-lab-equipment-mumbai"
+              className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3.5 py-2 rounded-xl transition"
+            >
+              Civil Lab Equipment in Mumbai →
+            </Link>
+            <Link
+              to="/calibration-services"
+              className="text-xs font-bold text-white bg-[#021C57] hover:bg-blue-900 px-3.5 py-2 rounded-xl transition shadow-2xs"
+            >
+              NABL Calibration Services
+            </Link>
+          </div>
+        </div>
+
       </main>
 
     </div>

@@ -250,7 +250,7 @@ const Home = ({ initialShowcase = [] }) => {
                 <span className="text-slate-700 font-semibold">Dedicated Regional Testing Hubs:</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <Link to="/civil-lab-equipment-mumbai" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
-                    Mumbai Equipment Hub →
+                    Civil Lab Equipment in Mumbai →
                   </Link>
                   <Link to="/civil-lab-equipment-navi-mumbai" className="font-bold text-[#021C57] hover:underline bg-white px-3 py-1 rounded-lg border border-gray-200">
                     Navi Mumbai Office &amp; Lab →
