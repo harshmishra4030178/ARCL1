@@ -963,14 +963,42 @@ const ProductDetailsPage = ({ initialSlug, initialProduct }) => {
                   ].map((std) => (
                     <div
                       key={std.code}
-                      className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl space-y-2"
+                      className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl space-y-2 flex flex-col justify-between"
                     >
-                      <div className="inline-block px-2.5 py-1 rounded-md bg-[#021C57] text-white font-bold text-xs">
-                        {std.code}
+                      <div className="space-y-2">
+                        <div className="inline-block px-2.5 py-1 rounded-md bg-[#021C57] text-white font-bold text-xs">
+                          {std.code}
+                        </div>
+                        <p className="text-xs text-gray-600 leading-relaxed">{std.desc}</p>
                       </div>
-                      <p className="text-xs text-gray-600 leading-relaxed">{std.desc}</p>
                     </div>
                   ))}
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center sm:text-left">
+                    <h4 className="text-xs sm:text-sm font-bold text-[#021C57]">
+                      Need Official Test Code Guidelines or NABL Calibration?
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Explore detailed test apparatus requirements, loading pace rates, and calibration verification.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Link
+                      to="/standards"
+                      className="text-xs font-bold text-[#021C57] bg-white hover:bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
+                    >
+                      IS Standards Hub →
+                    </Link>
+                    <Link
+                      to="/calibration-services"
+                      className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl transition shadow-2xs"
+                    >
+                      NABL Calibration →
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}

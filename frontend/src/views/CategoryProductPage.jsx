@@ -19,6 +19,10 @@ import {
   FileCheck2,
   ShieldCheck,
   Award,
+  BookOpen,
+  HelpCircle,
+  PhoneCall,
+  ArrowRight,
 } from "lucide-react";
 import { formatTitleCase } from "../utils/stringUtils.js";
 
@@ -27,7 +31,7 @@ import { formatTitleCase } from "../utils/stringUtils.js";
  */
 const normalizeKey = (k) => String(k || "").toLowerCase().replace(/[\s_-]+/g, "").trim();
 
-const CategoryProductPage = ({ initialSlug, initialCategory, initialProducts }) => {
+const CategoryProductPage = ({ initialSlug, initialCategory, initialProducts, seoData }) => {
   const routeParams = useParams();
   const slug = initialSlug || routeParams?.slug;
   const navigate = useNavigate();
@@ -618,8 +622,130 @@ const CategoryProductPage = ({ initialSlug, initialCategory, initialProducts }) 
         </section>
       )}
 
+      {/* ================= TESTING STANDARDS & REGIONAL HUBS (SEO & INTERNAL LINKING) ================= */}
+      <section className="max-w-[1600px] mx-auto px-4 md:px-10 pt-10 space-y-8">
+        
+        {/* STANDARDS COMPLIANCE CARD */}
+        <div className="bg-gradient-to-r from-slate-900 via-[#021C57] to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-md grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div className="lg:col-span-8 space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+              <BookOpen size={13} />
+              Testing Standards & Regulatory Compliance
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white">
+              Manufactured in Strict Compliance with Indian & International Standards
+            </h3>
+            <p className="text-blue-100 text-xs sm:text-sm leading-relaxed">
+              Every instrument in the {formatTitleCase(categoryData?.name || slug)} category is engineered to conform to BIS (Bureau of Indian Standards), ASTM International, BS, and AASHTO test methods with NABL-traceable calibration.
+            </p>
+            {seoData?.standards && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs font-semibold text-blue-200">Applicable Standards:</span>
+                {seoData.standards.map((std, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono border border-white/15 transition"
+                  >
+                    {std}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-3">
+            <Link
+              to="/standards"
+              className="w-full bg-amber-400 hover:bg-amber-500 text-slate-950 font-black py-3 px-4 rounded-xl text-center text-xs transition shadow-sm flex items-center justify-center gap-2"
+            >
+              <BookOpen size={14} />
+              <span>Explore Standards Directory</span>
+            </Link>
+            <Link
+              to="/calibration-services"
+              className="w-full bg-white/15 hover:bg-white/25 text-white font-bold py-3 px-4 rounded-xl text-center text-xs transition border border-white/25 flex items-center justify-center gap-2"
+            >
+              <ShieldCheck size={14} className="text-emerald-400" />
+              <span>NABL Calibration Support</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* CATEGORY FREQUENTLY ASKED QUESTIONS */}
+        {seoData?.faqs && seoData.faqs.length > 0 && (
+          <div className="bg-white rounded-3xl border border-gray-200/90 p-6 md:p-8 shadow-xs space-y-6">
+            <div className="space-y-1">
+              <h3 className="text-lg sm:text-xl font-bold text-[#021C57] flex items-center gap-2">
+                <HelpCircle className="text-blue-600" size={20} />
+                Frequently Asked Questions ({formatTitleCase(categoryData?.name || slug)})
+              </h3>
+              <p className="text-xs text-gray-500">
+                Answers to common technical specifications, standards compliance, and procurement queries.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {seoData.faqs.map((faq, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4.5 space-y-2"
+                >
+                  <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug">
+                    {faq.question}
+                  </h4>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    {faq.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* REGIONAL B2B SUPPLY HUBS LINKING */}
+        <div className="bg-white rounded-3xl border border-gray-200/90 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Building2 className="text-blue-600" size={16} /> Direct Factory Delivery & Service Hubs
+            </h4>
+            <p className="text-xs text-gray-500">
+              Same-day courier dispatch and on-site engineering support across Mumbai, Navi Mumbai, Thane, and Maharashtra.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Link
+              to="/civil-lab-equipment-mumbai"
+              className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition"
+            >
+              Mumbai Hub →
+            </Link>
+            <Link
+              to="/civil-lab-equipment-navi-mumbai"
+              className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition"
+            >
+              Navi Mumbai HQ →
+            </Link>
+            <Link
+              to="/civil-lab-equipment-thane"
+              className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition"
+            >
+              Thane Region →
+            </Link>
+            <Link
+              to="/contact"
+              className="text-xs font-bold text-white bg-[#021C57] hover:bg-blue-900 px-3.5 py-1.5 rounded-xl transition shadow-2xs"
+            >
+              Contact Sales Desk
+            </Link>
+          </div>
+        </div>
+
+      </section>
+
     </div>
   );
 };
 
 export default CategoryProductPage;
+

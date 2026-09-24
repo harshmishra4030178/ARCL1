@@ -63,7 +63,7 @@ export default async function sitemap() {
     }
     if (blogRes && blogRes.ok) {
       const blogData = await blogRes.json();
-      blogs = blogData?.data || [];
+      blogs = blogData?.data?.blogs || blogData?.data || [];
     }
   } catch (error) {
     console.warn("Sitemap API fetch warning:", error.message);
