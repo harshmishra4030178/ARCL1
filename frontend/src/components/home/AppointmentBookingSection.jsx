@@ -1,9 +1,173 @@
 "use client";
 
-import React, { useState } from "react";
-import { Clock, CheckCircle2, Calendar } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Clock, CheckCircle2 } from "lucide-react";
 import { createContact } from "../../api/contactApi.js";
 import { toast } from "react-toastify";
+
+/**
+ * High-performance animated interactive Plexus / Constellation Canvas
+ * Renders smooth floating particles and dynamic interconnected lines matching high-tech lab aesthetics.
+ */
+function PlexusCanvas() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationFrameId;
+    let width = 0;
+    let height = 0;
+
+    const resize = () => {
+      if (!canvas || !canvas.parentElement) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    const particleCount = isMobile ? 32 : 65;
+    const maxDistance = isMobile ? 105 : 145;
+
+    const colors = ["#38bdf8", "#60a5fa", "#e0f2fe", "#f59e0b", "#93c5fd"];
+
+    const particles = Array.from({ length: particleCount }, () => ({
+      x: Math.random() * (width || 800),
+      y: Math.random() * (height || 500),
+      vx: (Math.random() - 0.5) * 0.75,
+      vy: (Math.random() - 0.5) * 0.75,
+      radius: Math.random() * 2 + 1.5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      pulse: Math.random() * Math.PI * 2,
+      pulseSpeed: 0.02 + Math.random() * 0.02,
+    }));
+
+    const mouse = { x: null, y: null, maxDist: 150 };
+
+    const handleMouseMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    };
+
+    const handleMouseLeave = () => {
+      mouse.x = null;
+      mouse.y = null;
+    };
+
+    const parent = canvas.parentElement;
+    if (parent) {
+      parent.addEventListener("mousemove", handleMouseMove);
+      parent.addEventListener("mouseleave", handleMouseLeave);
+    }
+
+    let isVisible = true;
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+    });
+    observer.observe(canvas);
+
+    const render = () => {
+      if (!isVisible) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Update positions & draw connections
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        p.x += p.vx;
+        p.y += p.vy;
+        p.pulse += p.pulseSpeed;
+
+        if (p.x < 0) p.x = width;
+        else if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        else if (p.y > height) p.y = 0;
+
+        // Dynamic plexus connecting lines
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const dx = p.x - p2.x;
+          const dy = p.y - p2.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < maxDistance) {
+            const alpha = (1 - dist / maxDistance) * 0.35;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
+            ctx.lineWidth = 0.9;
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        }
+
+        // Interactive mouse connection
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = p.x - mouse.x;
+          const dy = p.y - mouse.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < mouse.maxDist) {
+            const alpha = (1 - dist / mouse.maxDist) * 0.55;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(245, 158, 11, ${alpha})`;
+            ctx.lineWidth = 1.2;
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+          }
+        }
+
+        // Draw node with pulsating glow
+        const currentRadius = p.radius + Math.sin(p.pulse) * 0.6;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1, currentRadius), 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = p.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("resize", resize);
+      if (parent) {
+        parent.removeEventListener("mousemove", handleMouseMove);
+        parent.removeEventListener("mouseleave", handleMouseLeave);
+      }
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="absolute inset-0 w-full h-full pointer-events-none z-[2]"
+    />
+  );
+}
 
 export default function AppointmentBookingSection() {
   const [formData, setFormData] = useState({
@@ -72,7 +236,7 @@ export default function AppointmentBookingSection() {
           {/* 1. Authentic Laboratory Background Image */}
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity scale-105 pointer-events-none"
+            className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity scale-105 pointer-events-none z-0"
             style={{
               backgroundImage: `url('/assets/appointment-bg.webp')`,
             }}
@@ -81,64 +245,20 @@ export default function AppointmentBookingSection() {
           {/* 2. Deep Navy Blue Gradient Overlay */}
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-r from-[#06183d]/95 via-[#082255]/85 to-[#05173a]/90 pointer-events-none"
+            className="absolute inset-0 bg-gradient-to-r from-[#06183d]/95 via-[#082255]/85 to-[#05173a]/90 pointer-events-none z-[1]"
           />
 
-          {/* 3. Constellation / Plexus Geometric Web SVG Overlay */}
-          <svg
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full pointer-events-none opacity-35"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient id="plexusGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-                <stop offset="50%" stopColor="#818cf8" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.3" />
-              </linearGradient>
-            </defs>
-            {/* Constellation lines */}
-            <g stroke="url(#plexusGrad)" strokeWidth="1" fill="none">
-              <line x1="80" y1="60" x2="220" y2="140" />
-              <line x1="220" y1="140" x2="380" y2="80" />
-              <line x1="380" y1="80" x2="490" y2="190" />
-              <line x1="220" y1="140" x2="290" y2="280" />
-              <line x1="490" y1="190" x2="390" y2="340" />
-              <line x1="290" y1="280" x2="390" y2="340" />
-              <line x1="390" y1="340" x2="560" y2="310" />
-              <line x1="490" y1="190" x2="620" y2="110" />
-              <line x1="620" y1="110" x2="780" y2="160" />
-              <line x1="560" y1="310" x2="680" y2="380" />
-              <line x1="780" y1="160" x2="720" y2="290" />
-              <line x1="680" y1="380" x2="720" y2="290" />
-              <line x1="140" y1="260" x2="220" y2="140" />
-              <line x1="140" y1="260" x2="290" y2="280" />
-            </g>
-            {/* Constellation glowing nodes */}
-            <g fill="#bae6fd">
-              <circle cx="80" cy="60" r="2.5" />
-              <circle cx="220" cy="140" r="3.5" fill="#38bdf8" />
-              <circle cx="380" cy="80" r="2.5" />
-              <circle cx="490" cy="190" r="3" fill="#e0f2fe" />
-              <circle cx="290" cy="280" r="3.5" fill="#38bdf8" />
-              <circle cx="390" cy="340" r="2.5" />
-              <circle cx="560" cy="310" r="3" />
-              <circle cx="620" cy="110" r="2.5" />
-              <circle cx="780" cy="160" r="3.5" fill="#38bdf8" />
-              <circle cx="720" cy="290" r="2.5" />
-              <circle cx="680" cy="380" r="3" />
-              <circle cx="140" cy="260" r="2" />
-            </g>
-          </svg>
+          {/* 3. Live Animated Interactive Plexus Constellation Graphics */}
+          <PlexusCanvas />
 
           {/* 4. Ambient Glows */}
           <div
             aria-hidden="true"
-            className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500/15 blur-3xl pointer-events-none"
+            className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500/15 blur-3xl pointer-events-none z-[1]"
           />
           <div
             aria-hidden="true"
-            className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-amber-500/10 blur-3xl pointer-events-none"
+            className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-amber-500/10 blur-3xl pointer-events-none z-[1]"
           />
 
           {/* Content Grid */}
@@ -149,7 +269,7 @@ export default function AppointmentBookingSection() {
               
               {/* Badge: • Book an Appointment */}
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0d234a]/75 backdrop-blur-md border border-white/15 text-xs sm:text-sm font-semibold text-white shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#e5a93c]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#e5a93c] animate-pulse" />
                 <span>Book an Appointment</span>
               </div>
 
