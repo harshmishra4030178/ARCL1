@@ -10,6 +10,7 @@ import { useProductStore } from "../store/useProductStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import EquipmentTypeProductRow from "../components/products/EquipmentTypeProductRow.jsx";
 import FaqSection from "../components/home/FaqSection.jsx";
+import AppointmentBookingSection from "../components/home/AppointmentBookingSection.jsx";
 import { formatTitleCase } from "../utils/stringUtils.js";
 import { toast } from "react-toastify";
 import {
@@ -444,7 +445,10 @@ const Home = ({ initialShowcase = [] }) => {
       {/* 5. FREQUENTLY ASKED QUESTIONS (FAQ SECTION) */}
       <FaqSection />
 
-      {/* 6. GLOBAL INTERACTION CTA */}
+      {/* 6. BOOK RESEARCH TESTING APPOINTMENT SECTION */}
+      <AppointmentBookingSection />
+
+      {/* 7. GLOBAL INTERACTION CTA */}
       <section className="w-full bg-gray-50 py-16 px-4">
         <div className="max-w-5xl mx-auto bg-gradient-to-r from-[#021C57] to-[#043399] rounded-3xl shadow-xl p-8 md:p-14 text-center text-white space-y-6">
           <h2 className="text-2xl md:text-4xl font-bold leading-snug">
