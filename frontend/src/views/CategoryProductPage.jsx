@@ -27,19 +27,26 @@ import { formatTitleCase } from "../utils/stringUtils.js";
  */
 const normalizeKey = (k) => String(k || "").toLowerCase().replace(/[\s_-]+/g, "").trim();
 
-const CategoryProductPage = ({ initialSlug }) => {
+const CategoryProductPage = ({ initialSlug, initialCategory, initialProducts }) => {
   const routeParams = useParams();
-  const slug = initialSlug || routeParams.slug;
+  const slug = initialSlug || routeParams?.slug;
   const navigate = useNavigate();
   const {
-    categoryProducts,
-    categoryData,
+    categoryProducts: storeProducts,
+    categoryData: storeCategory,
     fetchProductsByCategory,
     categoryProductsLoading,
     loading: globalLoading,
   } = useProductStore();
 
-  const loading = categoryProductsLoading || globalLoading;
+  const categoryProducts =
+    storeProducts && storeProducts.length > 0
+      ? storeProducts
+      : (Array.isArray(initialProducts) ? initialProducts : []);
+
+  const categoryData = storeCategory || initialCategory || null;
+
+  const loading = categoryProducts.length === 0 && (categoryProductsLoading || globalLoading);
 
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("latest");
@@ -47,24 +54,43 @@ const CategoryProductPage = ({ initialSlug }) => {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("features"); // 'features' | 'applications' | 'howItWorks' | 'specs'
 
-  // If a category contains 1 single product, immediately redirect to that product's full details page
+  // If a category contains 1 single specific product (and is not an equipment category), redirect to that product's full details page
   useEffect(() => {
-    if (!loading && categoryProducts && categoryProducts.length === 1) {
+    const broadEquipmentSlugs = [
+      "concrete-testing-equipment",
+      "soil-testing-equipment",
+      "aggregate-testing-equipment",
+      "bitumen-testing-equipment",
+      "cement-testing-equipment",
+      "surveying-instruments",
+      "non-destructive-testing-ndt-equipment",
+      "laboratory-glassware-accessories",
+      "scientific-instruments",
+    ];
+
+    if (!broadEquipmentSlugs.includes(slug) && !loading && categoryProducts && categoryProducts.length === 1) {
       const singleProd = categoryProducts[0];
-      if (singleProd?.slug) {
+      if (singleProd?.slug && singleProd.slug !== slug) {
         navigate(`/products/${singleProd.slug}`, { replace: true });
       }
     }
-  }, [loading, categoryProducts, navigate]);
+  }, [loading, categoryProducts, navigate, slug]);
 
   useEffect(() => {
     if (slug) {
+      if (initialCategory || (initialProducts && initialProducts.length > 0)) {
+        useProductStore.setState({
+          categoryProducts: initialProducts || [],
+          categoryData: initialCategory || null,
+          categoryProductsLoading: false,
+        });
+      }
       fetchProductsByCategory(slug);
       setSelectedFilters({});
       setSearch("");
       setSort("latest");
     }
-  }, [slug]);
+  }, [slug, initialCategory, initialProducts, fetchProductsByCategory]);
 
   // Handle filter checkbox toggle
   const handleFilterToggle = (filterKey, value) => {

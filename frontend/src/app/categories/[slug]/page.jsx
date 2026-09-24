@@ -19,8 +19,11 @@ async function getCategoryData(slug) {
       fetch(`${BACKEND_URL}/client/products/category/${slug}`, { next: { revalidate: 60 } }).catch(() => null),
     ]);
 
-    const category = catRes && catRes.ok ? (await catRes.json())?.data : null;
-    const products = prodRes && prodRes.ok ? (await prodRes.json())?.data : [];
+    const catJson = catRes && catRes.ok ? await catRes.json() : null;
+    const prodJson = prodRes && prodRes.ok ? await prodRes.json() : null;
+
+    const category = catJson?.data || prodJson?.category || null;
+    const products = prodJson?.products || prodJson?.data || [];
     return { category, products };
   } catch (error) {
     return { category: null, products: [] };
@@ -30,7 +33,7 @@ async function getCategoryData(slug) {
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const slug = resolvedParams?.slug;
-  const { category } = await getCategoryData(slug);
+  const { category, products } = await getCategoryData(slug);
 
   const name = category?.name || slug?.replace(/-/g, " ");
   let title = `${name} Manufacturer & Supplier | ARCL Instruments`;
@@ -86,8 +89,26 @@ export default async function CategoryDetailPage({ params }) {
   const slug = resolvedParams?.slug;
   const { category, products } = await getCategoryData(slug);
 
-  // If this category represents 1 single product, instantly redirect on the server with ZERO delay/flicker
-  if (products && products.length === 1 && products[0]?.slug) {
+  // If this category represents 1 single specific machine item (not a broad classification), redirect to that product
+  const broadEquipmentSlugs = [
+    "concrete-testing-equipment",
+    "soil-testing-equipment",
+    "aggregate-testing-equipment",
+    "bitumen-testing-equipment",
+    "cement-testing-equipment",
+    "surveying-instruments",
+    "non-destructive-testing-ndt-equipment",
+    "laboratory-glassware-accessories",
+    "scientific-instruments",
+  ];
+
+  if (
+    !broadEquipmentSlugs.includes(slug) &&
+    products &&
+    products.length === 1 &&
+    products[0]?.slug &&
+    products[0]?.slug !== slug
+  ) {
     redirect(`/products/${products[0].slug}`);
   }
 
@@ -151,7 +172,11 @@ export default async function CategoryDetailPage({ params }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(categoryJsonLd) }}
       />
-      <CategoryProductClient initialSlug={slug} />
+      <CategoryProductClient
+        initialSlug={slug}
+        initialCategory={category}
+        initialProducts={products}
+      />
     </>
   );
 }

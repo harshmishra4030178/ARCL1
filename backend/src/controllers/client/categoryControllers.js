@@ -1,7 +1,6 @@
 import Category from "../../models/category.js";
 import EquipmentType from "../../models/equipmentType.js";
 import Product from "../../models/product.js";
-import slugify from "slugify";
 
 /**
  * @desc    Get All Categories (Client - only active)
@@ -40,18 +39,50 @@ export const getCategories = async (req, res) => {
 };
 
 /**
- * @desc    Get Single Category By Slug with Filters (Client)
+ * @desc    Get Single Category or EquipmentType By Slug (Client)
  * @route   GET /api/v1/client/categories/:slug
  * @access  Public
  */
 export const getCategory = async (req, res) => {
   try {
-    const category = await Category.findOne({
-      slug: req.params.slug,
+    const rawSlug = req.params.slug ? String(req.params.slug).trim().toLowerCase() : "";
+    let category = await Category.findOne({
+      slug: rawSlug,
       isActive: true,
     }).populate("equipmentType", "name slug");
 
     if (!category) {
+      const eqSlugVariants = [
+        rawSlug,
+        rawSlug.replace(/-equipment$/, "-equipments"),
+        rawSlug.replace(/-equipments$/, "-equipment"),
+        rawSlug.replace(/^bitumen-testing-equipment$/, "bitumen-and-asphalt-testing-equipments"),
+        rawSlug.replace(/^bitumen-testing-equipments$/, "bitumen-and-asphalt-testing-equipments"),
+        rawSlug.replace(/^non-destructive-testing-ndt-equipment$/, "ndt-equipments"),
+        rawSlug.replace(/^surveying-instruments$/, "surveying-equipments"),
+      ];
+
+      const eqType = await EquipmentType.findOne({
+        $or: [
+          { slug: { $in: eqSlugVariants } },
+          { name: { $regex: new RegExp(`^${rawSlug.replace(/[-_]+/g, "[ -]")}`, "i") } }
+        ],
+        isActive: true,
+      });
+
+      if (eqType) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            _id: eqType._id,
+            name: eqType.name,
+            slug: req.params.slug,
+            description: `Precision ${eqType.name} designed to comply with national and international quality testing standards.`,
+            equipmentType: eqType,
+          },
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: "Category not found",
@@ -78,8 +109,22 @@ export const getCategory = async (req, res) => {
  */
 export const getCategoriesByEquipmentType = async (req, res) => {
   try {
+    const cleanSlug = String(req.params.slug).trim().toLowerCase();
+    const eqSlugVariants = [
+      cleanSlug,
+      cleanSlug.replace(/-equipment$/, "-equipments"),
+      cleanSlug.replace(/-equipments$/, "-equipment"),
+      cleanSlug.replace(/^bitumen-testing-equipment$/, "bitumen-and-asphalt-testing-equipments"),
+      cleanSlug.replace(/^bitumen-testing-equipments$/, "bitumen-and-asphalt-testing-equipments"),
+      cleanSlug.replace(/^non-destructive-testing-ndt-equipment$/, "ndt-equipments"),
+      cleanSlug.replace(/^surveying-instruments$/, "surveying-equipments"),
+    ];
+
     const equipmentType = await EquipmentType.findOne({
-      slug: req.params.slug,
+      $or: [
+        { slug: { $in: eqSlugVariants } },
+        { name: { $regex: new RegExp(`^${cleanSlug.replace(/[-_]+/g, "[ -]")}`, "i") } }
+      ],
       isActive: true,
     });
 
@@ -125,7 +170,6 @@ export const getFeaturedCategoriesWithProducts = async (req, res) => {
       .populate("equipmentType", "name slug")
       .sort({ createdAt: -1 });
 
-    // For each featured category, fetch its active products
     const showcase = await Promise.all(
       featuredCategories.map(async (cat) => {
         const products = await Product.find({

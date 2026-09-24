@@ -133,7 +133,7 @@ export const getProducts = async (req, res) => {
     if (category && category.trim()) {
       let catId = category;
       if (!category.match(/^[0-9a-fA-F]{24}$/)) {
-        const cat = await Category.findOne({ slug: category });
+        const cat = await Category.findOne({ slug: category.trim().toLowerCase() });
         if (cat) {
           catId = cat._id;
         } else {
@@ -143,17 +143,34 @@ export const getProducts = async (req, res) => {
       filter.category = catId;
     }
 
-    // Filter by Equipment Type (slug, name, or ObjectId)
+    // Filter by Equipment Type (slug, name, or ObjectId with intelligent alias resolution)
     if (equipmentType && equipmentType.trim()) {
       let eqId = null;
       if (equipmentType.match(/^[0-9a-fA-F]{24}$/)) {
         eqId = equipmentType;
       } else {
-        const cleanEq = equipmentType.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const rawEq = equipmentType.trim();
+        const cleanEq = rawEq.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const lowerEq = rawEq.toLowerCase();
+
+        const eqSlugVariants = [
+          lowerEq,
+          lowerEq.replace(/-equipment$/, "-equipments"),
+          lowerEq.replace(/-equipments$/, "-equipment"),
+          lowerEq.replace(/\+/g, "-"),
+          lowerEq.replace(/\s+/g, "-"),
+          lowerEq.replace(/^bitumen-testing-equipment$/, "bitumen-and-asphalt-testing-equipments"),
+          lowerEq.replace(/^bitumen-testing-equipments$/, "bitumen-and-asphalt-testing-equipments"),
+          lowerEq.replace(/^non-destructive-testing-ndt-equipment$/, "ndt-equipments"),
+          lowerEq.replace(/^ndt-testing-equipment$/, "ndt-equipments"),
+          lowerEq.replace(/^surveying-instruments$/, "surveying-equipments"),
+        ];
+
         const eq = await EquipmentType.findOne({
           $or: [
-            { slug: equipmentType.trim().toLowerCase() },
+            { slug: { $in: eqSlugVariants } },
             { name: { $regex: `^${cleanEq}$`, $options: "i" } },
+            { name: { $regex: `^${cleanEq.replace(/[\s\-_+]+/g, ".*")}`, $options: "i" } },
           ],
         });
         if (eq) {
@@ -170,7 +187,6 @@ export const getProducts = async (req, res) => {
         const catIds = categoriesInType.map((c) => c._id);
 
         if (filter.category) {
-          // If category already specified, ensure it belongs to catIds
           if (Array.isArray(filter.category.$in)) {
             filter.category.$in = filter.category.$in.filter((id) =>
               catIds.some((cid) => String(cid) === String(id))
@@ -180,7 +196,6 @@ export const getProducts = async (req, res) => {
           filter.category = { $in: catIds };
         }
       } else {
-        // Requested equipment type does not exist, return empty array immediately
         return res.status(200).json({ success: true, count: 0, data: [] });
       }
     }
@@ -251,7 +266,7 @@ export const getProducts = async (req, res) => {
 };
 
 /**
- * @desc    Get Products By Category Slug (Client - for Category Product Listing Page with Dynamic Filters)
+ * @desc    Get Products By Category or EquipmentType Slug (Client - for Category Listing Page)
  * @route   GET /api/v1/client/products/category/:slug
  * @access  Public
  */
@@ -267,7 +282,7 @@ export const getProductsByCategory = async (req, res) => {
       });
     }
 
-    const cleanSlug = String(slug).trim();
+    const cleanSlug = String(slug).trim().toLowerCase();
     let category = null;
 
     if (cleanSlug.match(/^[0-9a-fA-F]{24}$/)) {
@@ -284,7 +299,58 @@ export const getProductsByCategory = async (req, res) => {
       }).populate("equipmentType", "name slug");
     }
 
+    // 🌟 If NOT found as a single category, check if cleanSlug matches an EquipmentType (e.g. bitumen-testing-equipment, ndt-equipments, concrete-testing-equipment, etc.)
     if (!category) {
+      const eqSlugVariants = [
+        cleanSlug,
+        cleanSlug.replace(/-equipment$/, "-equipments"),
+        cleanSlug.replace(/-equipments$/, "-equipment"),
+        cleanSlug.replace(/^bitumen-testing-equipment$/, "bitumen-and-asphalt-testing-equipments"),
+        cleanSlug.replace(/^bitumen-testing-equipments$/, "bitumen-and-asphalt-testing-equipments"),
+        cleanSlug.replace(/^non-destructive-testing-ndt-equipment$/, "ndt-equipments"),
+        cleanSlug.replace(/^non-destructive-testing-ndt-equipments$/, "ndt-equipments"),
+        cleanSlug.replace(/^ndt-testing-equipment$/, "ndt-equipments"),
+        cleanSlug.replace(/^surveying-instruments$/, "surveying-equipments"),
+      ];
+
+      const eqType = await EquipmentType.findOne({
+        $or: [
+          { slug: { $in: eqSlugVariants } },
+          { name: { $regex: new RegExp(`^${cleanSlug.replace(/[-_]+/g, "[ -]")}`, "i") } }
+        ],
+        isActive: true,
+      });
+
+      if (eqType) {
+        const categoriesInType = await Category.find({
+          equipmentType: eqType._id,
+          isActive: true,
+        }).select("_id");
+
+        const catIds = categoriesInType.map((c) => c._id);
+        const products = await Product.find({
+          category: { $in: catIds },
+          isActive: true,
+        })
+          .populate(categoryPopulateConfig)
+          .sort({ isFeatured: -1, createdAt: -1 });
+
+        const resolvedProducts = products.map(resolveProductInheritance);
+
+        return res.status(200).json({
+          success: true,
+          category: {
+            _id: eqType._id,
+            name: eqType.name,
+            slug: slug,
+            description: `Complete range of precision ${eqType.name} manufactured and supplied by ARCL Instruments Private Limited with NABL traceable calibration.`,
+            equipmentType: eqType,
+          },
+          products: resolvedProducts,
+          count: resolvedProducts.length,
+        });
+      }
+
       return res.status(200).json({
         success: true,
         category: null,
@@ -353,16 +419,33 @@ export const getProduct = async (req, res) => {
       isActive: true,
     }).populate(categoryPopulateConfig);
 
-    // Fallback: If not found, try case-insensitive regex on slug or name
+    // Fallback: If not found, try normalized regex matching on slug or name
     if (!product) {
       const escaped = lowerSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const namePattern = lowerSlug.replace(/[-_]+/g, " ");
       product = await Product.findOne({
         $or: [
           { slug: { $regex: `^${escaped}$`, $options: "i" } },
+          { slug: { $regex: escaped, $options: "i" } },
+          { name: { $regex: `^${namePattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
           { productCode: { $regex: `^${escaped}$`, $options: "i" } },
         ],
         isActive: true,
       }).populate(categoryPopulateConfig);
+    }
+
+    // Fallback 2: Check if slug matches a Category
+    if (!product) {
+      const cat = await Category.findOne({
+        slug: lowerSlug,
+        isActive: true,
+      });
+      if (cat) {
+        product = await Product.findOne({
+          category: cat._id,
+          isActive: true,
+        }).populate(categoryPopulateConfig);
+      }
     }
 
     // Fallback: If inactive product is being inspected (e.g. from preview)
@@ -422,7 +505,7 @@ export const getRelatedProducts = async (req, res) => {
       }
     }
 
-    // 1. Strictly query products belonging ONLY to the SAME Equipment Type group
+    // Strictly query products belonging ONLY to the SAME Equipment Type group
     const related = await Product.find({
       category: { $in: categoryIds },
       _id: { $ne: product._id },
@@ -582,4 +665,3 @@ export const getHomeShowcase = async (req, res) => {
     });
   }
 };
-
