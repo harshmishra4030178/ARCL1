@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Clock, CheckCircle2 } from "lucide-react";
 import { createContact } from "../../api/contactApi.js";
-import { toast } from "react-toastify";
 
 /**
  * High-performance animated interactive Plexus / Constellation Canvas
@@ -191,6 +190,7 @@ export default function AppointmentBookingSection() {
     e.preventDefault();
 
     if (!formData.firstName.trim() || !formData.email.trim() || !formData.phone.trim()) {
+      const { toast } = await import("react-toastify");
       toast.error("Please fill all required fields (*)");
       return;
     }
@@ -207,6 +207,7 @@ export default function AppointmentBookingSection() {
       };
 
       await createContact(payload);
+      const { toast } = await import("react-toastify");
       toast.success("Appointment scheduled successfully! Our technical engineers will contact you soon.");
       setSubmitted(true);
       setFormData({
@@ -219,6 +220,7 @@ export default function AppointmentBookingSection() {
       });
     } catch (err) {
       console.error(err);
+      const { toast } = await import("react-toastify");
       toast.error(err.response?.data?.message || "Failed to schedule appointment. Please try again.");
     } finally {
       setLoading(false);

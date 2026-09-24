@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import Carousel from "../components/Carousel.jsx";
 const trustImg = "/assets/why-us/trust.png";
 const qualityImg = "/assets/why-us/quality.png";
@@ -9,18 +10,20 @@ import { Link, NavLink } from "../utils/navigation.jsx";
 import { useProductStore } from "../store/useProductStore.js";
 import { useEquipmentTypeStore } from "../store/useEquipmentTypeStore.js";
 import EquipmentTypeProductRow from "../components/products/EquipmentTypeProductRow.jsx";
-import FaqSection from "../components/home/FaqSection.jsx";
-import AppointmentBookingSection from "../components/home/AppointmentBookingSection.jsx";
-import { formatTitleCase } from "../utils/stringUtils.js";
-import { toast } from "react-toastify";
+
+const FaqSection = dynamic(() => import("../components/home/FaqSection.jsx"), {
+  ssr: true,
+});
+const AppointmentBookingSection = dynamic(
+  () => import("../components/home/AppointmentBookingSection.jsx"),
+  { ssr: true }
+);
+
 import {
   ArrowRight,
   Sparkles,
   Award,
   Layers,
-  ChevronRight,
-  SlidersHorizontal,
-  Check,
   Move,
 } from "lucide-react";
 
@@ -66,8 +69,10 @@ const Home = ({ initialShowcase = [] }) => {
     try {
       const equipmentTypesToOrder = newList.map((item) => item.equipmentType);
       await reorderEquipmentTypes(equipmentTypesToOrder);
+      const { toast } = await import("react-toastify");
       toast.success("Showcase sections order saved! ✨");
     } catch (err) {
+      const { toast } = await import("react-toastify");
       toast.error("Failed to save showcase order.");
     } finally {
       setIsSavingOrder(false);
@@ -282,8 +287,6 @@ const Home = ({ initialShowcase = [] }) => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 self-start md:self-auto flex-wrap">
-            
-
             <Link
               to="/products"
               className="inline-flex items-center justify-center gap-2 bg-[#021C57] hover:bg-[#043399] text-white text-xs sm:text-sm font-bold px-7 py-3.5 rounded-2xl transition duration-200 shadow-md shrink-0 cursor-pointer"

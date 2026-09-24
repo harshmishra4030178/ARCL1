@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Navbar from "../components/Navbar";
@@ -8,6 +8,7 @@ import Footer from "../components/Footer";
 import { useVisitorTracker } from "../hooks/useVisitorTracker";
 import { initClientErrorLogger } from "../utils/clientErrorLogger.js";
 import { ErrorBoundary } from "../components/common/ErrorBoundary.jsx";
+
 const ToastWrapper = dynamic(
   () => import("../components/common/ToastWrapper"),
   { ssr: false }
@@ -35,9 +36,19 @@ const FloatingContactButtons = dynamic(
 
 export default function ClientLayout({ children }) {
   useVisitorTracker();
+  const [mountIdleWidgets, setMountIdleWidgets] = useState(false);
 
   useEffect(() => {
     initClientErrorLogger();
+
+    // Mount background floating widgets during browser idle to avoid blocking the main thread during initial page load
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(() => setMountIdleWidgets(true), { timeout: 1200 });
+      return () => window.cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(() => setMountIdleWidgets(true), 800);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const pathname = usePathname();
@@ -48,7 +59,7 @@ export default function ClientLayout({ children }) {
     return (
       <ErrorBoundary>
         <Suspense fallback={null}>
-          <ToastWrapper />
+          {mountIdleWidgets && <ToastWrapper />}
           {children}
         </Suspense>
       </ErrorBoundary>
@@ -58,15 +69,19 @@ export default function ClientLayout({ children }) {
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        <ToastWrapper />
         <Navbar />
         {children}
         <Footer />
-        <QuoteCartDrawer />
-        <FloatingQuoteCartButton />
-        <CompareFloatingBar />
-        <ArclAiAssistant />
-        <FloatingContactButtons />
+        {mountIdleWidgets && (
+          <>
+            <ToastWrapper />
+            <QuoteCartDrawer />
+            <FloatingQuoteCartButton />
+            <CompareFloatingBar />
+            <ArclAiAssistant />
+            <FloatingContactButtons />
+          </>
+        )}
       </Suspense>
     </ErrorBoundary>
   );
