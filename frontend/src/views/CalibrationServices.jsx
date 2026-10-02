@@ -1454,7 +1454,9 @@ function Calibration() {
                   onClick={() => {
                     const sNo = trackResult.serialNo || trackResult.records?.certificateNo || "";
                     const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-                    window.open(`${base}/client/calibration/download-document?docType=${selectedDocType || "certificate"}&download=true&serialNo=${encodeURIComponent(sNo)}`, "_blank");
+                    const dcNo = trackResult.dcNo || "";
+                    const comp = trackResult.clientCompany || "";
+                    window.open(`${base}/client/calibration/download-document?docType=${selectedDocType || "certificate"}&download=true&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(dcNo)}&clientCompany=${encodeURIComponent(comp)}`, "_blank");
                   }}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
                   title="Download and save this official PDF document"

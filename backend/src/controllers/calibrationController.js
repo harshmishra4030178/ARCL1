@@ -16,6 +16,8 @@ const isValidMongoId = (id) => {
   return Boolean(id && typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id);
 };
 
+export const escapeRegex = (s) => String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Calibration Due Date: 1 Year validity minus 1 day rule (e.g. 02-10-2026 -> 01-10-2027)
 export const calculateDefaultDueDate = (calibDate) => {
   if (!calibDate) return new Date();
@@ -1070,11 +1072,20 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
 
     // Query all batch instruments for this DC No / Client
     let notifBatchRecords = [];
-    if (targetRecord?.dcNo && targetRecord?.clientCompany) {
+    const notifDcClean = String(targetRecord?.dcNo || req.body?.dcNo || "").trim();
+    const notifCompClean = String(targetRecord?.clientCompany || req.body?.clientCompany || "").trim();
+
+    if (notifDcClean && notifDcClean !== "-" && notifDcClean !== "N/A" && notifCompClean) {
       notifBatchRecords = await CalibrationRecord.find({
-        dcNo: targetRecord.dcNo,
-        clientCompany: targetRecord.clientCompany,
+        dcNo: { $regex: `^\\s*${escapeRegex(notifDcClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: `^\\s*${escapeRegex(notifCompClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (notifBatchRecords.length <= 1 && notifDcClean && notifDcClean !== "-" && notifDcClean !== "N/A") {
+      const byDc = await CalibrationRecord.find({
+        dcNo: { $regex: `^\\s*${escapeRegex(notifDcClean)}\\s*$`, $options: "i" },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byDc.length > notifBatchRecords.length) notifBatchRecords = byDc;
     }
     if (!notifBatchRecords.length && targetRecord) {
       notifBatchRecords = [targetRecord];
@@ -1083,8 +1094,8 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
       itemNo: idx + 1,
       instrument: r.instrument || "Measuring Instrument",
       serialNo: r.serialNo || "-",
-      make: r.make || "",
-      modelNo: r.modelNo || "",
+      make: (r.make && r.make !== "ARCL" && r.make !== "ARCL Instruments") ? r.make : (r.make || ""),
+      modelNo: (r.modelNo && r.modelNo !== "GEN-01" && r.modelNo !== "ARCL-CTM-2000") ? r.modelNo : (r.modelNo || ""),
       instrumentRange: r.instrumentRange || "-",
       stickerCheck: r.records?.stickerCheck ?? true,
       remarks: r.remarks || "Standard NABL Calibration Required",
@@ -1215,7 +1226,21 @@ export const sendSpecificDocumentNotification = async (req, res, next) => {
 // 10. Public Document Downloader / PDF Viewer Endpoint
 export const downloadDocument = async (req, res, next) => {
   try {
-    const { id, recordId, serialNo, certificateNo, invoiceNo, quotationNo, proformaNo, poNo, docType = "certificate", format, download } = req.query;
+    const {
+      id,
+      recordId,
+      serialNo,
+      certificateNo,
+      invoiceNo,
+      quotationNo,
+      proformaNo,
+      poNo,
+      dcNo: queryDcNo,
+      clientCompany: queryCompany,
+      docType = "certificate",
+      format,
+      download,
+    } = req.query;
 
     const targetId = id || recordId;
     let record = null;
@@ -1224,16 +1249,23 @@ export const downloadDocument = async (req, res, next) => {
     }
 
     if (!record) {
-      const cleanSn = String(serialNo || quotationNo || invoiceNo || proformaNo || poNo || (targetId && !String(targetId).startsWith("cand-") ? targetId : "")).trim();
+      const cleanSn = String(
+        serialNo ||
+          quotationNo ||
+          invoiceNo ||
+          proformaNo ||
+          poNo ||
+          (targetId && !String(targetId).startsWith("cand-") ? targetId : "")
+      ).trim();
       if (cleanSn && cleanSn !== "null" && cleanSn !== "undefined") {
         record = await CalibrationRecord.findOne({
           $or: [
-            { serialNo: { $regex: `^${cleanSn}$`, $options: "i" } },
-            { "taxInvoiceData.invoiceNo": { $regex: `^${cleanSn}$`, $options: "i" } },
-            { "quotationData.quotationNo": { $regex: `^${cleanSn}$`, $options: "i" } },
-            { "proformaData.piNo": { $regex: `^${cleanSn}$`, $options: "i" } },
-            { "proformaData.proformaNo": { $regex: `^${cleanSn}$`, $options: "i" } },
-            { "poData.poNo": { $regex: `^${cleanSn}$`, $options: "i" } },
+            { serialNo: { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
+            { "taxInvoiceData.invoiceNo": { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
+            { "quotationData.quotationNo": { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
+            { "proformaData.piNo": { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
+            { "proformaData.proformaNo": { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
+            { "poData.poNo": { $regex: `^${escapeRegex(cleanSn)}$`, $options: "i" } },
           ],
         }).lean();
       }
@@ -1241,8 +1273,17 @@ export const downloadDocument = async (req, res, next) => {
 
     if (!record && certificateNo) {
       record = await CalibrationRecord.findOne({
-        "records.certificateNo": { $regex: `^${certificateNo.trim()}$`, $options: "i" },
+        "records.certificateNo": { $regex: `^${escapeRegex(certificateNo.trim())}$`, $options: "i" },
       }).lean();
+    }
+
+    if (!record && queryDcNo) {
+      const dcClean = String(queryDcNo).trim();
+      if (dcClean && dcClean !== "-" && dcClean !== "N/A") {
+        record = await CalibrationRecord.findOne({
+          dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+        }).sort({ srNo: 1, createdAt: 1 }).lean();
+      }
     }
 
     if (!record && (docType === "tax_invoice" || docType === "invoice")) {
@@ -1264,11 +1305,30 @@ export const downloadDocument = async (req, res, next) => {
 
     // Fetch all batch records sharing the same DC No & Client Company (or single record)
     let batchRecords = [];
-    if (record?.dcNo && record?.clientCompany) {
+    const dcClean = String(record?.dcNo || queryDcNo || "").trim();
+    const compClean = String(record?.clientCompany || queryCompany || "").trim();
+
+    if (dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
       batchRecords = await CalibrationRecord.find({
-        dcNo: record.dcNo,
-        clientCompany: record.clientCompany,
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
+      const byDc = await CalibrationRecord.find({
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byDc.length > batchRecords.length) batchRecords = byDc;
+    }
+    if (batchRecords.length <= 1 && compClean && record?.createdAt) {
+      const cDate = new Date(record.createdAt);
+      const tStart = new Date(cDate.getTime() - 15 * 60 * 1000);
+      const tEnd = new Date(cDate.getTime() + 15 * 60 * 1000);
+      const byTime = await CalibrationRecord.find({
+        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
+        createdAt: { $gte: tStart, $lte: tEnd },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byTime.length > batchRecords.length) batchRecords = byTime;
     }
     if (!batchRecords.length && record) {
       batchRecords = [record];
@@ -1278,8 +1338,8 @@ export const downloadDocument = async (req, res, next) => {
       itemNo: idx + 1,
       instrument: r.instrument || "Measuring Instrument",
       serialNo: r.serialNo || "-",
-      make: r.make || "",
-      modelNo: r.modelNo || "",
+      make: (r.make && r.make !== "ARCL" && r.make !== "ARCL Instruments") ? r.make : (r.make || ""),
+      modelNo: (r.modelNo && r.modelNo !== "GEN-01" && r.modelNo !== "ARCL-CTM-2000") ? r.modelNo : (r.modelNo || ""),
       instrumentRange: r.instrumentRange || "-",
       stickerCheck: r.records?.stickerCheck ?? true,
       remarks: r.remarks || "Standard NABL Calibration Required",
@@ -1534,11 +1594,20 @@ export const getQuotationData = async (req, res, next) => {
     }
 
     let batchRecords = [];
-    if (record?.dcNo && record?.clientCompany) {
+    const dcClean = String(record?.dcNo || "").trim();
+    const compClean = String(record?.clientCompany || "").trim();
+
+    if (dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
       batchRecords = await CalibrationRecord.find({
-        dcNo: record.dcNo,
-        clientCompany: record.clientCompany,
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
+      const byDc = await CalibrationRecord.find({
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byDc.length > batchRecords.length) batchRecords = byDc;
     }
     if (!batchRecords.length && record) {
       batchRecords = [record];
@@ -1662,11 +1731,20 @@ export const getTaxInvoiceData = async (req, res, next) => {
     if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
 
     let batchRecords = [];
-    if (record?.dcNo && record?.clientCompany) {
+    const dcClean = String(record?.dcNo || "").trim();
+    const compClean = String(record?.clientCompany || "").trim();
+
+    if (dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
       batchRecords = await CalibrationRecord.find({
-        dcNo: record.dcNo,
-        clientCompany: record.clientCompany,
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
+      const byDc = await CalibrationRecord.find({
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byDc.length > batchRecords.length) batchRecords = byDc;
     }
     if (!batchRecords.length && record) {
       batchRecords = [record];
@@ -1782,11 +1860,20 @@ export const getProformaData = async (req, res, next) => {
     if (!record) record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
 
     let batchRecords = [];
-    if (record?.dcNo && record?.clientCompany) {
+    const dcClean = String(record?.dcNo || "").trim();
+    const compClean = String(record?.clientCompany || "").trim();
+
+    if (dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
       batchRecords = await CalibrationRecord.find({
-        dcNo: record.dcNo,
-        clientCompany: record.clientCompany,
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+    }
+    if (batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
+      const byDc = await CalibrationRecord.find({
+        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (byDc.length > batchRecords.length) batchRecords = byDc;
     }
     if (!batchRecords.length && record) {
       batchRecords = [record];

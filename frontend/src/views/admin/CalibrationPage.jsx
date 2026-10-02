@@ -4470,27 +4470,60 @@ export default function CalibrationPageView() {
   };
 
   // Open Document Modal
-  const openDocViewer = (docType, record) => {
+  const openDocViewer = (docType, target) => {
+    let primary = target?.primaryRecord || (target?.items ? target.items[0] : target) || {};
+    let batchItems = Array.isArray(target?.items) && target.items.length > 0 ? target.items : null;
+    let matchedBatch = target?.items ? target : null;
+
+    if (!batchItems && primary) {
+      matchedBatch = groupedBatches.find(
+        (b) =>
+          (primary._id && b.items?.some((it) => it._id === primary._id)) ||
+          (primary.id && b.items?.some((it) => it.id === primary.id)) ||
+          (primary.dcNo && primary.dcNo !== "-" && b.dcNo === primary.dcNo && b.clientCompany === primary.clientCompany)
+      );
+      if (matchedBatch && Array.isArray(matchedBatch.items) && matchedBatch.items.length > 0) {
+        batchItems = matchedBatch.items;
+      } else {
+        const dcClean = String(primary.dcNo || "").trim().toLowerCase();
+        const compClean = String(primary.clientCompany || "").trim().toLowerCase();
+        if (dcClean && dcClean !== "-" && compClean) {
+          const matching = records.filter(
+            (r) =>
+              String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+              String(r.clientCompany || "").trim().toLowerCase() === compClean
+          );
+          if (matching.length > 0) batchItems = matching;
+        }
+      }
+    }
+
+    if (!batchItems || batchItems.length === 0) {
+      batchItems = [primary];
+    }
+
     if (docType === "quotation") {
-      handleOpenQuotationEditor(record);
+      handleOpenQuotationEditor(primary);
       return;
     }
     if (docType === "tax_invoice" || docType === "invoice") {
-      handleOpenTaxInvoiceEditor(record);
+      handleOpenTaxInvoiceEditor(primary);
       return;
     }
     if (docType === "pi" || docType === "proforma_invoice") {
-      handleOpenProformaEditor(record);
+      handleOpenProformaEditor(primary);
       return;
     }
     if (docType === "po" || docType === "purchase_order") {
-      handleOpenPoEditor(record);
+      handleOpenPoEditor(primary);
       return;
     }
     // Fallback for certificate / observation sheet / srf
     setSelectedDoc({
       type: docType,
-      record,
+      record: primary,
+      batch: matchedBatch,
+      items: batchItems,
     });
     setIsDocModalOpen(true);
   };
@@ -5506,7 +5539,7 @@ export default function CalibrationPageView() {
                             <div className="flex items-center gap-1 mt-1">
                               <button
                                 type="button"
-                                onClick={() => openDocViewer("srf", r)}
+                                onClick={() => openDocViewer("srf", batch)}
                                 className="text-amber-700 hover:text-amber-900 flex items-center gap-0.5 cursor-pointer text-[9px] font-bold bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
                                 title={`View Inward SRF Slip (${batchItems.length} Equipments PDF)`}
                               >
@@ -8980,19 +9013,23 @@ export default function CalibrationPageView() {
 
             {/* Dynamic Document Simulation (SRF Inward vs Certificate) */}
             {(() => {
-              const docBatchInstruments = selectedDoc.record
-                ? records.filter(
+              let instrumentsList = selectedDoc.items || selectedDoc.batch?.items;
+              if (!instrumentsList || instrumentsList.length === 0) {
+                const dcClean = String(selectedDoc.record?.dcNo || "").trim().toLowerCase();
+                const compClean = String(selectedDoc.record?.clientCompany || "").trim().toLowerCase();
+                if (dcClean && dcClean !== "-" && compClean) {
+                  instrumentsList = records.filter(
                     (r) =>
-                      (selectedDoc.record.dcNo &&
-                        r.dcNo === selectedDoc.record.dcNo &&
-                        r.clientCompany === selectedDoc.record.clientCompany) ||
-                      r._id === selectedDoc.record._id
-                  )
-                : [];
-              const instrumentsList =
-                docBatchInstruments.length > 0
-                  ? docBatchInstruments
-                  : [selectedDoc.record || {}];
+                      String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+                      String(r.clientCompany || "").trim().toLowerCase() === compClean
+                  );
+                } else if (selectedDoc.record?._id) {
+                  instrumentsList = records.filter((r) => r._id === selectedDoc.record._id);
+                }
+              }
+              if (!instrumentsList || instrumentsList.length === 0) {
+                instrumentsList = [selectedDoc.record || {}];
+              }
 
               if (selectedDoc.type === "srf") {
                 return (
@@ -9322,7 +9359,7 @@ export default function CalibrationPageView() {
                   <FaPrint /> Print Certificate
                 </button>
                 <a
-                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=${selectedDoc.type || "certificate"}&download=true&serialNo=${encodeURIComponent(selectedDoc.record?.serialNo || "")}&id=${selectedDoc.record?._id || ""}`}
+                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=${selectedDoc.type || "certificate"}&download=true&serialNo=${encodeURIComponent(selectedDoc.record?.serialNo || "")}&id=${selectedDoc.record?._id || ""}&dcNo=${encodeURIComponent(selectedDoc.record?.dcNo || "")}&clientCompany=${encodeURIComponent(selectedDoc.record?.clientCompany || "")}`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
