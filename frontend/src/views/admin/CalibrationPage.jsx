@@ -133,6 +133,48 @@ const toSafeLocaleDate = (d, fallback = "-", locale = "en-GB", options) => {
   }
 };
 
+// Calibration Due Date (+1 Year validity minus 1 day rule: e.g. 02-10-2026 -> 01-10-2027)
+const calcCalibrationDueDate = (calibDateStr, fallback = "") => {
+  if (!calibDateStr) return fallback;
+  try {
+    const cleanStr = String(calibDateStr).slice(0, 10);
+    const parts = cleanStr.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      const [y, m, d] = parts;
+      const target = new Date(y + 1, m - 1, d - 1);
+      const resYear = target.getFullYear();
+      const resMonth = String(target.getMonth() + 1).padStart(2, "0");
+      const resDay = String(target.getDate()).padStart(2, "0");
+      return `${resYear}-${resMonth}-${resDay}`;
+    }
+    const d = new Date(calibDateStr);
+    if (!isNaN(d.getTime())) {
+      d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      const resYear = d.getFullYear();
+      const resMonth = String(d.getMonth() + 1).padStart(2, "0");
+      const resDay = String(d.getDate()).padStart(2, "0");
+      return `${resYear}-${resMonth}-${resDay}`;
+    }
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+// Duplicate Serial Number detection helper across instruments list
+const findDuplicateSerialNumbers = (instruments = []) => {
+  const counts = {};
+  if (!Array.isArray(instruments)) return counts;
+  instruments.forEach((inst) => {
+    const s = String(inst?.serialNo || "").trim().toLowerCase();
+    if (s) {
+      counts[s] = (counts[s] || 0) + 1;
+    }
+  });
+  return counts;
+};
+
 // ==========================================
 // SCIENTIFIC & ENGINEERING CALCULATORS COMPONENT
 // ==========================================
@@ -1066,20 +1108,23 @@ export default function CalibrationPageView() {
   });
 
   // Default Equipment Row & Form State for Calibration SRF & Pipeline
-  const createDefaultInstrumentRow = () => ({
-    id: "inst_" + Math.random().toString(36).substring(2, 9),
-    instrument: "",
-    make: "",
-    modelNo: "",
-    serialNo: "",
-    instrumentRange: "",
-    calibrationDate: new Date().toISOString().slice(0, 10),
-    calibrationDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    stage: "Instrument Received",
-    paymentStatus: "Paid",
-    stickerCheck: true,
-    remarks: "",
-  });
+  const createDefaultInstrumentRow = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return {
+      id: "inst_" + Math.random().toString(36).substring(2, 9),
+      instrument: "",
+      make: "",
+      modelNo: "",
+      serialNo: "",
+      instrumentRange: "",
+      calibrationDate: todayStr,
+      calibrationDueDate: calcCalibrationDueDate(todayStr),
+      stage: "Instrument Received",
+      paymentStatus: "Paid",
+      stickerCheck: true,
+      remarks: "",
+    };
+  };
 
   const initialFormData = {
     clientCompany: "",
@@ -1100,6 +1145,25 @@ export default function CalibrationPageView() {
   const [websiteProducts, setWebsiteProducts] = useState([]);
   const [equipmentTypesList, setEquipmentTypesList] = useState([]);
   const [customSavedEquipments, setCustomSavedEquipments] = useState(() => getStoredCustomEquipment());
+
+  // Real-time Duplicate Serial Number Trackers for Modals
+  const addSerialCounts = useMemo(
+    () => findDuplicateSerialNumbers(formData?.instruments || []),
+    [formData?.instruments]
+  );
+  const hasAddSerialDuplicates = useMemo(
+    () => Object.values(addSerialCounts).some((c) => c > 1),
+    [addSerialCounts]
+  );
+
+  const editSerialCounts = useMemo(
+    () => findDuplicateSerialNumbers(editFormData?.instruments || []),
+    [editFormData?.instruments]
+  );
+  const hasEditSerialDuplicates = useMemo(
+    () => Object.values(editSerialCounts).some((c) => c > 1),
+    [editSerialCounts]
+  );
 
   // Unified auto-suggestion pool combining DB Records, Website Products, NABL Catalog, LocalStorage & Live Form Entries
   const unifiedEquipmentSuggestions = useMemo(() => {
@@ -2391,22 +2455,7 @@ export default function CalibrationPageView() {
       const updated = [...prev.instruments];
       const item = { ...updated[index], [field]: value };
       if (field === "calibrationDate" && value) {
-        try {
-          const parts = String(value).slice(0, 10).split("-");
-          if (parts.length === 3 && parts[0].length === 4) {
-            const nextYear = parseInt(parts[0], 10) + 1;
-            item.calibrationDueDate = `${nextYear}-${parts[1]}-${parts[2]}`;
-          } else {
-            const d = new Date(value);
-            if (!isNaN(d.getTime())) {
-              d.setFullYear(d.getFullYear() + 1);
-              const y = d.getFullYear();
-              const m = String(d.getMonth() + 1).padStart(2, "0");
-              const day = String(d.getDate()).padStart(2, "0");
-              item.calibrationDueDate = `${y}-${m}-${day}`;
-            }
-          }
-        } catch (e) {}
+        item.calibrationDueDate = calcCalibrationDueDate(value);
       }
       updated[index] = item;
       return { ...prev, instruments: updated };
@@ -2456,9 +2505,9 @@ export default function CalibrationPageView() {
     // Check duplicate serial numbers within batch
     const serialSet = new Set();
     for (let i = 0; i < items.length; i++) {
-      const s = items[i].serialNo.trim().toLowerCase();
+      const s = String(items[i].serialNo || "").trim().toLowerCase();
       if (serialSet.has(s)) {
-        toast.error(`Duplicate Serial Number "${items[i].serialNo}" in form (Row #${i + 1})`);
+        toast.error(`⚠️ Duplicate Serial Number "${items[i].serialNo}" detected in Row #${i + 1}. Each equipment must have a unique Serial Number / Asset Tag.`);
         return;
       }
       serialSet.add(s);
@@ -2513,6 +2562,17 @@ export default function CalibrationPageView() {
       }
     }
 
+    // Check duplicate serial numbers within batch
+    const serialSet = new Set();
+    for (let i = 0; i < items.length; i++) {
+      const s = String(items[i].serialNo || "").trim().toLowerCase();
+      if (serialSet.has(s)) {
+        toast.error(`⚠️ Duplicate Serial Number "${items[i].serialNo}" detected in Row #${i + 1}. Each equipment must have a unique Serial Number / Asset Tag.`);
+        return;
+      }
+      serialSet.add(s);
+    }
+
     try {
       await updateCalibrationBatchApi(editFormData);
       toast.success(
@@ -2536,22 +2596,7 @@ export default function CalibrationPageView() {
       const updated = [...prev.instruments];
       const item = { ...updated[index], [field]: value };
       if (field === "calibrationDate" && value) {
-        try {
-          const parts = String(value).slice(0, 10).split("-");
-          if (parts.length === 3 && parts[0].length === 4) {
-            const nextYear = parseInt(parts[0], 10) + 1;
-            item.calibrationDueDate = `${nextYear}-${parts[1]}-${parts[2]}`;
-          } else {
-            const d = new Date(value);
-            if (!isNaN(d.getTime())) {
-              d.setFullYear(d.getFullYear() + 1);
-              const y = d.getFullYear();
-              const m = String(d.getMonth() + 1).padStart(2, "0");
-              const day = String(d.getDate()).padStart(2, "0");
-              item.calibrationDueDate = `${y}-${m}-${day}`;
-            }
-          }
-        } catch (e) {}
+        item.calibrationDueDate = calcCalibrationDueDate(value);
       }
       updated[index] = item;
       return { ...prev, instruments: updated };
@@ -2679,13 +2724,26 @@ export default function CalibrationPageView() {
       batchItems = target.items;
       primary = target.primaryRecord || target.items[0];
     } else {
-      const matching = records.filter(
-        (r) =>
-          (target.dcNo && r.dcNo && r.dcNo === target.dcNo && r.clientCompany === target.clientCompany) ||
-          r._id === target._id
+      // Find matching batch group if target is a record within a groupedBatch
+      const matchedBatch = groupedBatches.find(
+        (b) =>
+          (target._id && b.items?.some((it) => it._id === target._id)) ||
+          (target.id && b.items?.some((it) => it.id === target.id)) ||
+          (target.dcNo && target.dcNo !== "-" && b.dcNo === target.dcNo && b.clientCompany === target.clientCompany)
       );
-      batchItems = matching.length > 0 ? matching : [target];
-      primary = batchItems[0] || target;
+
+      if (matchedBatch && Array.isArray(matchedBatch.items) && matchedBatch.items.length > 0) {
+        batchItems = matchedBatch.items;
+        primary = matchedBatch.primaryRecord || matchedBatch.items[0];
+      } else {
+        const matching = records.filter(
+          (r) =>
+            (target.dcNo && target.dcNo !== "-" && r.dcNo && r.dcNo === target.dcNo && r.clientCompany === target.clientCompany) ||
+            (target._id && r._id === target._id)
+        );
+        batchItems = matching.length > 0 ? matching : [target];
+        primary = batchItems[0] || target;
+      }
     }
 
     setEditFormData({
@@ -2700,27 +2758,31 @@ export default function CalibrationPageView() {
       sentToLab: (primary.sentToLab && !String(primary.sentToLab).includes("Metrology") && !String(primary.sentToLab).includes("Central")) ? primary.sentToLab : "ARCL Calibration Lab",
       invoiceSharedDate: toSafeIsoDate(primary.invoiceSharedDate, ""),
       deletedItemIds: [],
-      instruments: batchItems.map((it) => ({
-        _id: it._id || it.id,
-        id: it._id || it.id || "inst_" + Math.random().toString(36).slice(2, 9),
-        instrument: it.instrument || "",
-        make: it.make && it.make !== "ARCL" && it.make !== "ARCL Instruments" ? it.make : "",
-        modelNo: it.modelNo && it.modelNo !== "GEN-01" && it.modelNo !== "ARCL-CTM-2000" ? it.modelNo : "",
-        serialNo: it.serialNo || "",
-        instrumentRange: it.instrumentRange || "",
-        calibrationDate: toSafeIsoDate(it.calibrationDate, toSafeIsoDate(new Date())),
-        calibrationDueDate: toSafeIsoDate(it.calibrationDueDate, ""),
-        stage: it.stage || "Instrument Received",
-        paymentStatus: it.commercialDocs?.paymentStatus || it.paymentStatus || "Paid",
-        stickerCheck:
-          it.records?.stickerCheck !== undefined
-            ? it.records.stickerCheck
-            : it.stickerCheck !== undefined
-            ? it.stickerCheck
-            : true,
-        certificateNo: it.records?.certificateNo || it.certificateNo || "",
-        remarks: it.remarks || "",
-      })),
+      instruments: batchItems.map((it) => {
+        const cDate = toSafeIsoDate(it.calibrationDate, toSafeIsoDate(new Date()));
+        const dDate = toSafeIsoDate(it.calibrationDueDate, calcCalibrationDueDate(cDate));
+        return {
+          _id: it._id || it.id,
+          id: it._id || it.id || "inst_" + Math.random().toString(36).slice(2, 9),
+          instrument: it.instrument || "",
+          make: it.make && it.make !== "ARCL" && it.make !== "ARCL Instruments" ? it.make : "",
+          modelNo: it.modelNo && it.modelNo !== "GEN-01" && it.modelNo !== "ARCL-CTM-2000" ? it.modelNo : "",
+          serialNo: it.serialNo || "",
+          instrumentRange: it.instrumentRange || "",
+          calibrationDate: cDate,
+          calibrationDueDate: dDate,
+          stage: it.stage || "Instrument Received",
+          paymentStatus: it.commercialDocs?.paymentStatus || it.paymentStatus || "Paid",
+          stickerCheck:
+            it.records?.stickerCheck !== undefined
+              ? it.records.stickerCheck
+              : it.stickerCheck !== undefined
+              ? it.stickerCheck
+              : true,
+          certificateNo: it.records?.certificateNo || it.certificateNo || "",
+          remarks: it.remarks || "",
+        };
+      }),
     });
     setIsEditModalOpen(true);
   };
@@ -5702,7 +5764,7 @@ export default function CalibrationPageView() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenEdit(r)}
+                                    onClick={() => handleOpenEdit(batch)}
                                     className="p-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 rounded-lg transition shadow-2xs cursor-pointer"
                                     title="Edit Inward Batch / Instrument Details"
                                   >
@@ -8183,82 +8245,119 @@ export default function CalibrationPageView() {
                   </div>
                 </div>
 
+                {/* Duplicate Serial Alert Banner */}
+                {hasAddSerialDuplicates && (
+                  <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-2.5 text-rose-900 text-xs font-semibold animate-pulse">
+                    <FaExclamationTriangle className="text-rose-600 text-base shrink-0" />
+                    <div>
+                      <span className="font-extrabold text-rose-800">Duplicate Serial Number Alert: </span>
+                      Multiple equipment rows have identical Serial Numbers. Each instrument must have a distinct, unique Serial Number / Asset Tag.
+                    </div>
+                  </div>
+                )}
+
                 {/* List of Equipment Cards */}
                 <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1">
-                  {formData.instruments.map((inst, index) => (
-                    <div
-                      key={inst.id || index}
-                      className="p-3.5 bg-white rounded-2xl border border-gray-200 hover:border-blue-300 transition shadow-xs space-y-3 relative"
-                    >
-                      {/* Equipment Card Header */}
-                      <div className="flex items-center justify-between bg-slate-100/70 -mx-3.5 -mt-3.5 px-3.5 py-2 rounded-t-2xl border-b border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-[11px] flex items-center justify-center">
-                            {index + 1}
-                          </span>
-                          <span className="font-black text-gray-800 text-xs">
-                            {inst.instrument ? inst.instrument : `Equipment #${index + 1}`}
-                          </span>
-                          {inst.serialNo && (
-                            <span className="font-mono text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                              S/N: {inst.serialNo}
+                  {formData.instruments.map((inst, index) => {
+                    const sVal = String(inst.serialNo || "").trim().toLowerCase();
+                    const isDuplicateSerial = Boolean(sVal && addSerialCounts[sVal] > 1);
+
+                    return (
+                      <div
+                        key={inst.id || index}
+                        className={`p-3.5 bg-white rounded-2xl border transition shadow-xs space-y-3 relative ${
+                          isDuplicateSerial ? "border-rose-400 ring-2 ring-rose-200" : "border-gray-200 hover:border-blue-300"
+                        }`}
+                      >
+                        {/* Equipment Card Header */}
+                        <div className={`flex items-center justify-between -mx-3.5 -mt-3.5 px-3.5 py-2 rounded-t-2xl border-b ${
+                          isDuplicateSerial ? "bg-rose-50 border-rose-200" : "bg-slate-100/70 border-gray-200"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-6 h-6 rounded-full text-white font-black text-[11px] flex items-center justify-center ${
+                              isDuplicateSerial ? "bg-rose-600" : "bg-blue-600"
+                            }`}>
+                              {index + 1}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleDuplicateInstrumentRow(index)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs cursor-pointer"
-                            title="Duplicate this equipment row"
-                          >
-                            <FaCopy />
-                          </button>
-                          {formData.instruments.length > 1 && (
+                            <span className="font-black text-gray-800 text-xs">
+                              {inst.instrument ? inst.instrument : `Equipment #${index + 1}`}
+                            </span>
+                            {inst.serialNo && (
+                              <span className={`font-mono text-[10px] px-2 py-0.5 rounded border font-bold ${
+                                isDuplicateSerial
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200"
+                              }`}>
+                                S/N: {inst.serialNo} {isDuplicateSerial && "⚠️ DUPLICATE"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleRemoveInstrumentRow(index)}
-                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs cursor-pointer"
-                              title="Remove this equipment row"
+                              onClick={() => handleDuplicateInstrumentRow(index)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs cursor-pointer"
+                              title="Duplicate this equipment row"
                             >
-                              <FaTrashAlt />
+                              <FaCopy />
                             </button>
-                          )}
+                            {formData.instruments.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveInstrumentRow(index)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs cursor-pointer"
+                                title="Remove this equipment row"
+                              >
+                                <FaTrashAlt />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Row 1: Name & Serial No */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label className="font-bold text-gray-700 flex items-center justify-between">
-                            <span>Instrument / Equipment Name *</span>
-                            <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
-                          </label>
-                          <EquipmentAutocompleteInput
-                            value={inst.instrument}
-                            onChange={(val) => handleInstrumentFieldChange(index, "instrument", val)}
-                            onSelectEquipment={(sugg) => handleSelectSuggestionForInstrument(index, sugg)}
-                            suggestions={unifiedEquipmentSuggestions}
-                            required
-                            placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
-                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
-                          />
+                        {/* Row 1: Name & Serial No */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="font-bold text-gray-700 flex items-center justify-between">
+                              <span>Instrument / Equipment Name *</span>
+                              <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
+                            </label>
+                            <EquipmentAutocompleteInput
+                              value={inst.instrument}
+                              onChange={(val) => handleInstrumentFieldChange(index, "instrument", val)}
+                              onSelectEquipment={(sugg) => handleSelectSuggestionForInstrument(index, sugg)}
+                              suggestions={unifiedEquipmentSuggestions}
+                              required
+                              placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
+                              className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-gray-700 flex items-center justify-between">
+                              <span>Serial No. (Unique Asset Tag) *</span>
+                              <span className={`text-[10px] font-mono font-bold ${isDuplicateSerial ? "text-rose-600" : "text-blue-600"}`}>
+                                {isDuplicateSerial ? "⚠️ DUPLICATE SERIAL" : "Unique ID"}
+                              </span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. CTM-2026-998 / VC-348"
+                              value={inst.serialNo}
+                              onChange={(e) => handleInstrumentFieldChange(index, "serialNo", e.target.value)}
+                              className={`w-full mt-1 p-2 rounded-xl focus:ring-2 font-mono font-bold ${
+                                isDuplicateSerial
+                                  ? "bg-rose-50/70 border-2 border-rose-500 text-rose-800 focus:ring-rose-400"
+                                  : "bg-gray-50/50 border border-gray-300 text-blue-700 focus:ring-blue-500"
+                              }`}
+                            />
+                            {isDuplicateSerial && (
+                              <p className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1 animate-pulse">
+                                <FaExclamationTriangle className="text-xs shrink-0" />
+                                Duplicate Serial Number "{inst.serialNo}" entered in another row!
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <label className="font-bold text-gray-700 flex items-center justify-between">
-                            <span>Serial No. (Unique Asset Tag) *</span>
-                            <span className="text-[10px] text-blue-600 font-mono">Unique ID</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. CTM-2026-998 / VC-348"
-                            value={inst.serialNo}
-                            onChange={(e) => handleInstrumentFieldChange(index, "serialNo", e.target.value)}
-                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700"
-                          />
-                        </div>
-                      </div>
 
                       {/* Row 2: Make, Model, Range */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -8366,7 +8465,8 @@ export default function CalibrationPageView() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
 
                 {/* Quick Add Button below list */}
@@ -8589,82 +8689,119 @@ export default function CalibrationPageView() {
                   </div>
                 </div>
 
+                {/* Duplicate Serial Alert Banner */}
+                {hasEditSerialDuplicates && (
+                  <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-2.5 text-rose-900 text-xs font-semibold animate-pulse">
+                    <FaExclamationTriangle className="text-rose-600 text-base shrink-0" />
+                    <div>
+                      <span className="font-extrabold text-rose-800">Duplicate Serial Number Alert: </span>
+                      Multiple equipment rows in this batch have identical Serial Numbers. Each instrument must have a distinct, unique Serial Number / Asset Tag.
+                    </div>
+                  </div>
+                )}
+
                 {/* List of Equipment Cards */}
                 <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1">
-                  {(editFormData.instruments || []).map((inst, index) => (
-                    <div
-                      key={inst.id || inst._id || index}
-                      className="p-3.5 bg-white rounded-2xl border border-gray-200 hover:border-blue-300 transition shadow-xs space-y-3 relative"
-                    >
-                      {/* Equipment Card Header */}
-                      <div className="flex items-center justify-between bg-slate-100/70 -mx-3.5 -mt-3.5 px-3.5 py-2 rounded-t-2xl border-b border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-[11px] flex items-center justify-center">
-                            {index + 1}
-                          </span>
-                          <span className="font-black text-gray-800 text-xs">
-                            {inst.instrument ? inst.instrument : `Equipment #${index + 1}`}
-                          </span>
-                          {inst.serialNo && (
-                            <span className="font-mono text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                              S/N: {inst.serialNo}
+                  {(editFormData.instruments || []).map((inst, index) => {
+                    const sVal = String(inst.serialNo || "").trim().toLowerCase();
+                    const isDuplicateSerial = Boolean(sVal && editSerialCounts[sVal] > 1);
+
+                    return (
+                      <div
+                        key={inst.id || inst._id || index}
+                        className={`p-3.5 bg-white rounded-2xl border transition shadow-xs space-y-3 relative ${
+                          isDuplicateSerial ? "border-rose-400 ring-2 ring-rose-200" : "border-gray-200 hover:border-blue-300"
+                        }`}
+                      >
+                        {/* Equipment Card Header */}
+                        <div className={`flex items-center justify-between -mx-3.5 -mt-3.5 px-3.5 py-2 rounded-t-2xl border-b ${
+                          isDuplicateSerial ? "bg-rose-50 border-rose-200" : "bg-slate-100/70 border-gray-200"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-6 h-6 rounded-full text-white font-black text-[11px] flex items-center justify-center ${
+                              isDuplicateSerial ? "bg-rose-600" : "bg-blue-600"
+                            }`}>
+                              {index + 1}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleDuplicateEditInstrumentRow(index)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs cursor-pointer"
-                            title="Duplicate this equipment row"
-                          >
-                            <FaCopy />
-                          </button>
-                          {editFormData.instruments.length > 1 && (
+                            <span className="font-black text-gray-800 text-xs">
+                              {inst.instrument ? inst.instrument : `Equipment #${index + 1}`}
+                            </span>
+                            {inst.serialNo && (
+                              <span className={`font-mono text-[10px] px-2 py-0.5 rounded border font-bold ${
+                                isDuplicateSerial
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200"
+                              }`}>
+                                S/N: {inst.serialNo} {isDuplicateSerial && "⚠️ DUPLICATE"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleRemoveEditInstrumentRow(index)}
-                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs cursor-pointer"
-                              title="Remove this equipment row"
+                              onClick={() => handleDuplicateEditInstrumentRow(index)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs cursor-pointer"
+                              title="Duplicate this equipment row"
                             >
-                              <FaTrashAlt />
+                              <FaCopy />
                             </button>
-                          )}
+                            {editFormData.instruments.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditInstrumentRow(index)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs cursor-pointer"
+                                title="Remove this equipment row"
+                              >
+                                <FaTrashAlt />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Row 1: Name & Serial No */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label className="font-bold text-gray-700 flex items-center justify-between">
-                            <span>Instrument / Equipment Name *</span>
-                            <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
-                          </label>
-                          <EquipmentAutocompleteInput
-                            value={inst.instrument || ""}
-                            onChange={(val) => handleEditInstrumentFieldChange(index, "instrument", val)}
-                            onSelectEquipment={(sugg) => handleSelectEditSuggestionForInstrument(index, sugg)}
-                            suggestions={unifiedEquipmentSuggestions}
-                            required
-                            placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
-                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
-                          />
+                        {/* Row 1: Name & Serial No */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="font-bold text-gray-700 flex items-center justify-between">
+                              <span>Instrument / Equipment Name *</span>
+                              <span className="text-[10px] text-gray-400 font-normal">e.g. Compression Testing Machine</span>
+                            </label>
+                            <EquipmentAutocompleteInput
+                              value={inst.instrument || ""}
+                              onChange={(val) => handleEditInstrumentFieldChange(index, "instrument", val)}
+                              onSelectEquipment={(sugg) => handleSelectEditSuggestionForInstrument(index, sugg)}
+                              suggestions={unifiedEquipmentSuggestions}
+                              required
+                              placeholder="Type or select equipment (e.g. Compression Testing Machine...)"
+                              className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-gray-700 flex items-center justify-between">
+                              <span>Serial No. (Unique Asset Tag) *</span>
+                              <span className={`text-[10px] font-mono font-bold ${isDuplicateSerial ? "text-rose-600" : "text-blue-600"}`}>
+                                {isDuplicateSerial ? "⚠️ DUPLICATE SERIAL" : "Unique ID"}
+                              </span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. CTM-2026-998 / VC-348"
+                              value={inst.serialNo || ""}
+                              onChange={(e) => handleEditInstrumentFieldChange(index, "serialNo", e.target.value)}
+                              className={`w-full mt-1 p-2 rounded-xl focus:ring-2 font-mono font-bold ${
+                                isDuplicateSerial
+                                  ? "bg-rose-50/70 border-2 border-rose-500 text-rose-800 focus:ring-rose-400"
+                                  : "bg-gray-50/50 border border-gray-300 text-blue-700 focus:ring-blue-500"
+                              }`}
+                            />
+                            {isDuplicateSerial && (
+                              <p className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1 animate-pulse">
+                                <FaExclamationTriangle className="text-xs shrink-0" />
+                                Duplicate Serial Number "{inst.serialNo}" entered in another row!
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <label className="font-bold text-gray-700 flex items-center justify-between">
-                            <span>Serial No. (Unique Asset Tag) *</span>
-                            <span className="text-[10px] text-blue-600 font-mono">Unique ID</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. CTM-2026-998 / VC-348"
-                            value={inst.serialNo || ""}
-                            onChange={(e) => handleEditInstrumentFieldChange(index, "serialNo", e.target.value)}
-                            className="w-full mt-1 p-2 bg-gray-50/50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-blue-700"
-                          />
-                        </div>
-                      </div>
 
                       {/* Row 2: Make, Model, Range */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -8772,7 +8909,8 @@ export default function CalibrationPageView() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
 
                 {/* Quick Add Button below list */}

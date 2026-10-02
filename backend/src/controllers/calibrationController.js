@@ -16,6 +16,20 @@ const isValidMongoId = (id) => {
   return Boolean(id && typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id);
 };
 
+// Calibration Due Date: 1 Year validity minus 1 day rule (e.g. 02-10-2026 -> 01-10-2027)
+export const calculateDefaultDueDate = (calibDate) => {
+  if (!calibDate) return new Date();
+  try {
+    const d = new Date(calibDate);
+    if (isNaN(d.getTime())) return new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    d.setDate(d.getDate() - 1);
+    return d;
+  } catch (e) {
+    return new Date();
+  }
+};
+
 // No automatic sample seeding - Admin adds genuine records
 export const seedInitialCalibrationData = async () => {};
 
@@ -295,7 +309,7 @@ export const createCalibrationRecord = async (req, res, next) => {
       const calibDate = it.calibrationDate ? new Date(it.calibrationDate) : new Date();
       const dueDate = it.calibrationDueDate
         ? new Date(it.calibrationDueDate)
-        : new Date(calibDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+        : calculateDefaultDueDate(calibDate);
 
       return {
         srNo: idxCount,
@@ -421,6 +435,22 @@ export const updateCalibrationBatch = async (req, res, next) => {
       }
     }
 
+    // Check duplicate serial numbers within submitted instruments
+    const seenSerials = new Set();
+    for (let i = 0; i < instruments.length; i++) {
+      const it = instruments[i];
+      const sNo = (it.serialNo || "").trim();
+      if (sNo) {
+        if (seenSerials.has(sNo.toLowerCase())) {
+          throw new ApiError(
+            400,
+            `Duplicate Serial Number "${sNo}" detected in Row #${i + 1}. Each equipment must have a unique Serial Number.`
+          );
+        }
+        seenSerials.add(sNo.toLowerCase());
+      }
+    }
+
     // 2. Process all instruments (Update existing or Insert new)
     const results = [];
     const currentCount = await CalibrationRecord.countDocuments();
@@ -434,7 +464,7 @@ export const updateCalibrationBatch = async (req, res, next) => {
       const calibDate = it.calibrationDate ? new Date(it.calibrationDate) : new Date();
       const dueDate = it.calibrationDueDate
         ? new Date(it.calibrationDueDate)
-        : new Date(calibDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+        : calculateDefaultDueDate(calibDate);
 
       const updateData = {
         instrument: instName,
@@ -923,7 +953,7 @@ export const sendCertificateDeliveryNotification = async (req, res, next) => {
     const sNo = serialNo || targetRecord?.serialNo || "N/A";
     const certNo = certificateNo || targetRecord?.records?.certificateNo || "ARCL-CAL-2026-001";
     const calDate = calibrationDate || targetRecord?.calibrationDate || new Date();
-    const dueDate = calibrationDueDate || targetRecord?.calibrationDueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const dueDate = calibrationDueDate || targetRecord?.calibrationDueDate || calculateDefaultDueDate(calDate);
 
     // Send Real Email with full record
     let emailRes = null;
@@ -1266,7 +1296,7 @@ export const downloadDocument = async (req, res, next) => {
     const certNo = record?.records?.certificateNo || (certificateNo ? certificateNo.trim().toUpperCase() : "ARCL-CAL-2026-HM01");
     const dcNo = record?.dcNo || "DC/26-27/0188";
     const calDate = record?.calibrationDate || new Date();
-    const dueDate = record?.calibrationDueDate || record?.dueDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const dueDate = record?.calibrationDueDate || record?.dueDate || calculateDefaultDueDate(calDate);
     const challanDate = record?.challanDate || record?.inwardDate || calDate;
     const rawSentToLab = record?.sentToLab || "ARCL Calibration Lab";
     const sentToLab = String(rawSentToLab).includes("Metrology") || String(rawSentToLab).includes("Central") ? "ARCL Calibration Lab" : rawSentToLab;
