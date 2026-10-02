@@ -1372,6 +1372,82 @@ export default function CalibrationPageView() {
     toast.info("Item row removed.");
   };
 
+  const handleOpenPoEditor = (rec = null) => {
+    setPoRecordId(rec?._id || rec?.id || null);
+    if (rec) {
+      let batchList = [];
+      if (Array.isArray(rec.items) && rec.items.length > 0) {
+        batchList = rec.items;
+      } else {
+        const dcClean = String(rec.dcNo || "").trim().toLowerCase();
+        const compClean = String(rec.clientCompany || "").trim().toLowerCase();
+        if (dcClean && dcClean !== "-" && compClean) {
+          batchList = records.filter(
+            (r) =>
+              String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+              String(r.clientCompany || "").trim().toLowerCase() === compClean
+          );
+        }
+        if (batchList.length === 0) {
+          batchList = [rec.primaryRecord || rec];
+        }
+      }
+
+      const dynamicPoItems = batchList.map((r, idx) => {
+        const makeTrim = String(r?.make || "").trim();
+        const modelTrim = String(r?.modelNo || "").trim();
+        const makeModelStr = [makeTrim, modelTrim].filter(Boolean).join(" / ");
+        const subInfo = makeModelStr ? `Make/Model: ${makeModelStr} | ` : "";
+        const rate = 500;
+        const qty = 1;
+        const baseAmt = rate * qty;
+        const cgstAmt = baseAmt * 0.09;
+        const sgstAmt = baseAmt * 0.09;
+        const grossAmt = baseAmt + cgstAmt + sgstAmt;
+
+        return {
+          slNo: String(idx + 1),
+          itemCode: "9000" + (130 + idx),
+          description: `${r?.instrument || "Calibration Equipment"} (${subInfo}S/N: ${r?.serialNo || "-"})`,
+          hsnCode: "998346",
+          reqDate: toSafeLocaleDate(r?.calibrationDate, "27-07-2026"),
+          uom: "EA",
+          qty: qty,
+          rate: rate,
+          cgstPct: 9,
+          cgstAmt: cgstAmt,
+          sgstPct: 9,
+          sgstAmt: sgstAmt,
+          igstPct: 0,
+          igstAmt: 0,
+          grossAmt: grossAmt,
+        };
+      });
+
+      if (rec.poData && rec.poData.items && rec.poData.items.length === batchList.length) {
+        setPoForm({
+          ...rec.poData,
+          buyerCompany: rec.poData.buyerCompany || rec.clientCompany || "",
+          buyerAddress: rec.poData.buyerAddress || rec.clientAddress || "",
+          buyerGstin: rec.poData.buyerGstin || rec.clientGst || "",
+          dcNo: rec.dcNo || rec.poData.dcNo || "",
+        });
+      } else {
+        setPoForm((prev) => ({
+          ...prev,
+          poNo: `01242500${String(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-4) || "0572"}`,
+          poDate: toSafeLocaleDate(rec.calibrationDate, "12-Apr-2026"),
+          buyerCompany: rec.clientCompany || prev.buyerCompany,
+          buyerAddress: rec.clientAddress || prev.buyerAddress,
+          buyerGstin: rec.clientGst || prev.buyerGstin,
+          dcNo: rec.dcNo || "",
+          items: dynamicPoItems.length > 0 ? dynamicPoItems : prev.items,
+        }));
+      }
+    }
+    setIsPoModalOpen(true);
+  };
+
   // Handlers for Proforma Invoice Items Editing
   const handleProformaItemChange = (index, field, value) => {
     setProformaForm((prev) => {
@@ -1563,18 +1639,33 @@ export default function CalibrationPageView() {
   const handleOpenTaxInvoiceEditor = (rec = null) => {
     setTaxInvoiceRecordId(rec?._id || rec?.id || null);
     if (rec) {
-      const batchList = records.filter(
-        (r) =>
-          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
-          r._id === rec._id
-      );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+      let batchList = [];
+      if (Array.isArray(rec.items) && rec.items.length > 0) {
+        batchList = rec.items;
+      } else {
+        const dcClean = String(rec.dcNo || "").trim().toLowerCase();
+        const compClean = String(rec.clientCompany || "").trim().toLowerCase();
+        if (dcClean && dcClean !== "-" && compClean) {
+          batchList = records.filter(
+            (r) =>
+              String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+              String(r.clientCompany || "").trim().toLowerCase() === compClean
+          );
+        }
+        if (batchList.length === 0) {
+          batchList = [rec.primaryRecord || rec];
+        }
+      }
+
+      const dynamicItems = batchList.map((r, idx) => {
         const makeTrim = String(r?.make || "").trim();
-        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
+        const modelTrim = String(r?.modelNo || "").trim();
+        const makeModelStr = [makeTrim, modelTrim].filter(Boolean).join(" / ");
+        const subInfo = makeModelStr ? `Make/Model: ${makeModelStr} | ` : "";
         return {
           itemNo: idx + 1,
           name: `${r?.instrument || "Calibration Equipment"} - Calibration & Testing`,
-          subText: `NABL Accredited Metrological Calibration (${makeStr}S/N: ${r?.serialNo || "-"})`,
+          subText: `NABL Accredited Metrological Calibration (${subInfo}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           taxRate: "18%",
           qty: 1,
@@ -1585,12 +1676,13 @@ export default function CalibrationPageView() {
         };
       });
 
-      if (rec.taxInvoiceData && rec.taxInvoiceData.items && rec.taxInvoiceData.items.length > 0) {
+      if (rec.taxInvoiceData && rec.taxInvoiceData.items && rec.taxInvoiceData.items.length === batchList.length) {
         setTaxInvoiceForm({
           ...rec.taxInvoiceData,
           clientCompany: rec.taxInvoiceData.clientCompany || rec.clientCompany || "",
           clientAddress: rec.taxInvoiceData.clientAddress || rec.clientAddress || "",
           clientGstin: rec.taxInvoiceData.clientGstin || rec.clientGst || "",
+          dcNo: rec.dcNo || rec.taxInvoiceData.dcNo || "",
         });
       } else {
         setTaxInvoiceForm((prev) => ({
@@ -1601,6 +1693,7 @@ export default function CalibrationPageView() {
           clientCompany: rec.clientCompany || prev.clientCompany,
           clientAddress: rec.clientAddress || prev.clientAddress,
           clientGstin: rec.clientGst || prev.clientGstin,
+          dcNo: rec.dcNo || "",
           items: dynamicItems,
         }));
       }
@@ -1613,18 +1706,33 @@ export default function CalibrationPageView() {
   const handleOpenProformaEditor = (rec = null) => {
     setProformaRecordId(rec?._id || rec?.id || null);
     if (rec) {
-      const batchList = records.filter(
-        (r) =>
-          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
-          r._id === rec._id
-      );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+      let batchList = [];
+      if (Array.isArray(rec.items) && rec.items.length > 0) {
+        batchList = rec.items;
+      } else {
+        const dcClean = String(rec.dcNo || "").trim().toLowerCase();
+        const compClean = String(rec.clientCompany || "").trim().toLowerCase();
+        if (dcClean && dcClean !== "-" && compClean) {
+          batchList = records.filter(
+            (r) =>
+              String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+              String(r.clientCompany || "").trim().toLowerCase() === compClean
+          );
+        }
+        if (batchList.length === 0) {
+          batchList = [rec.primaryRecord || rec];
+        }
+      }
+
+      const dynamicItems = batchList.map((r, idx) => {
         const makeTrim = String(r?.make || "").trim();
-        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
+        const modelTrim = String(r?.modelNo || "").trim();
+        const makeModelStr = [makeTrim, modelTrim].filter(Boolean).join(" / ");
+        const subInfo = makeModelStr ? `Make/Model: ${makeModelStr} | ` : "";
         return {
           itemNo: idx + 1,
           name: `${r?.instrument || "Calibration Instrument"} - Calibration`,
-          subText: `NABL Proforma Scope (${makeStr}S/N: ${r?.serialNo || "-"})`,
+          subText: `NABL Proforma Scope (${subInfo}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           rate: 1000,
           qty: 1,
@@ -1633,12 +1741,13 @@ export default function CalibrationPageView() {
         };
       });
 
-      if (rec.proformaData && rec.proformaData.items && rec.proformaData.items.length > 0) {
+      if (rec.proformaData && rec.proformaData.items && rec.proformaData.items.length === batchList.length) {
         setProformaForm({
           ...rec.proformaData,
           buyerCompany: rec.proformaData.buyerCompany || rec.clientCompany || "",
           buyerAddress: rec.proformaData.buyerAddress || rec.clientAddress || "",
           buyerGstin: rec.proformaData.buyerGstin || rec.clientGst || "",
+          dcNo: rec.dcNo || rec.proformaData.dcNo || "",
         });
       } else {
         setProformaForm((prev) => ({
@@ -1648,6 +1757,7 @@ export default function CalibrationPageView() {
           buyerCompany: rec.clientCompany || prev.buyerCompany,
           buyerAddress: rec.clientAddress || prev.buyerAddress,
           buyerGstin: rec.clientGst || prev.buyerGstin,
+          dcNo: rec.dcNo || "",
           items: dynamicItems,
         }));
       }
@@ -1660,18 +1770,33 @@ export default function CalibrationPageView() {
   const handleOpenQuotationEditor = (rec = null) => {
     if (rec) {
       setQuotationRecordId(rec._id || rec.id);
-      const batchList = records.filter(
-        (r) =>
-          (rec.dcNo && r.dcNo === rec.dcNo && r.clientCompany === rec.clientCompany) ||
-          r._id === rec._id
-      );
-      const dynamicItems = (batchList.length > 0 ? batchList : [rec]).map((r, idx) => {
+      let batchList = [];
+      if (Array.isArray(rec.items) && rec.items.length > 0) {
+        batchList = rec.items;
+      } else {
+        const dcClean = String(rec.dcNo || "").trim().toLowerCase();
+        const compClean = String(rec.clientCompany || "").trim().toLowerCase();
+        if (dcClean && dcClean !== "-" && compClean) {
+          batchList = records.filter(
+            (r) =>
+              String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+              String(r.clientCompany || "").trim().toLowerCase() === compClean
+          );
+        }
+        if (batchList.length === 0) {
+          batchList = [rec.primaryRecord || rec];
+        }
+      }
+
+      const dynamicItems = batchList.map((r, idx) => {
         const makeTrim = String(r?.make || "").trim();
-        const makeStr = makeTrim ? `Make: ${makeTrim} | ` : "";
+        const modelTrim = String(r?.modelNo || "").trim();
+        const makeModelStr = [makeTrim, modelTrim].filter(Boolean).join(" / ");
+        const subInfo = makeModelStr ? `Make/Model: ${makeModelStr} | ` : "";
         return {
           itemNo: idx + 1,
           name: `${r?.instrument || "Calibration Instrument"} - Calibration`,
-          subText: `NABL Traceable Report (${makeStr}S/N: ${r?.serialNo || "-"})`,
+          subText: `NABL Traceable Report (${subInfo}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           rate: 1000,
           qty: 1,
@@ -1680,7 +1805,7 @@ export default function CalibrationPageView() {
         };
       });
 
-      if (rec.quotationData && rec.quotationData.items && rec.quotationData.items.length > 0) {
+      if (rec.quotationData && rec.quotationData.items && rec.quotationData.items.length === batchList.length) {
         setQuotationForm({
           ...rec.quotationData,
           billTo: {
@@ -1691,6 +1816,7 @@ export default function CalibrationPageView() {
             phone: rec.quotationData.billTo?.phone || rec.clientPhone || "",
             email: rec.quotationData.billTo?.email || rec.clientEmail || "",
           },
+          dcNo: rec.dcNo || rec.quotationData.dcNo || "",
         });
       } else {
         setQuotationForm({
@@ -1706,6 +1832,7 @@ export default function CalibrationPageView() {
             phone: rec.clientPhone || "+91 8009559900",
             email: rec.clientEmail || "arclinstruments@gmail.com",
           },
+          dcNo: rec.dcNo || "",
           items: dynamicItems,
           cgstRate: 9.0,
           sgstRate: 9.0,
@@ -5548,7 +5675,7 @@ export default function CalibrationPageView() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenSendDocModal("srf", r)}
+                                onClick={() => handleOpenSendDocModal("srf", batch)}
                                 className="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
                                 title="Send SRF Slip to Customer (Email/WhatsApp)"
                               >
@@ -5571,7 +5698,7 @@ export default function CalibrationPageView() {
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <button
-                                onClick={() => openDocViewer("quotation", r)}
+                                onClick={() => openDocViewer("quotation", batch)}
                                 className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
                                 title={`View Quotation PDF (${batch.items.length} Equipments)`}
                               >
@@ -5580,7 +5707,7 @@ export default function CalibrationPageView() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenSendDocModal("quotation", r)}
+                                onClick={() => handleOpenSendDocModal("quotation", batch)}
                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
                                 title="Send Quotation PDF to Customer (Mail/WhatsApp)"
                               >
@@ -5610,7 +5737,7 @@ export default function CalibrationPageView() {
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <button
                                     type="button"
-                                    onClick={() => handleViewPoDocument(r)}
+                                    onClick={() => handleViewPoDocument(batch)}
                                     className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition flex items-center gap-1 cursor-pointer active:scale-95"
                                     title={`Open & View Uploaded PO (${r.commercialDocs?.poFileName || "Custom PO"})`}
                                   >
@@ -5619,7 +5746,7 @@ export default function CalibrationPageView() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenSendDocModal("po", r)}
+                                    onClick={() => handleOpenSendDocModal("po", batch)}
                                     className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
                                     title="Send Uploaded PO to Customer via Email/WhatsApp"
                                   >
@@ -5671,7 +5798,7 @@ export default function CalibrationPageView() {
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <button
-                                onClick={() => openDocViewer("pi", r)}
+                                onClick={() => openDocViewer("pi", batch)}
                                 className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
                                 title="View Proforma Invoice"
                               >
@@ -5680,7 +5807,7 @@ export default function CalibrationPageView() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenSendDocModal("pi", r)}
+                                onClick={() => handleOpenSendDocModal("pi", batch)}
                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
                                 title="Send Proforma Invoice to Customer"
                               >
@@ -5691,7 +5818,7 @@ export default function CalibrationPageView() {
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <button
-                                onClick={() => openDocViewer("tax_invoice", r)}
+                                onClick={() => openDocViewer("tax_invoice", batch)}
                                 className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
                                 title="View Tax Invoice"
                               >
@@ -5700,7 +5827,7 @@ export default function CalibrationPageView() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenSendDocModal("tax_invoice", r)}
+                                onClick={() => handleOpenSendDocModal("tax_invoice", batch)}
                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
                                 title="Send Tax Invoice PDF to Customer (Mail/WhatsApp)"
                               >
@@ -5730,7 +5857,7 @@ export default function CalibrationPageView() {
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <button
-                                onClick={() => openDocViewer("certificate", r)}
+                                onClick={() => openDocViewer("certificate", batch)}
                                 className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
                                 title="View Official Calibration Certificate"
                               >
@@ -5739,7 +5866,7 @@ export default function CalibrationPageView() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenSendDocModal("certificate", r)}
+                                onClick={() => handleOpenSendDocModal("certificate", batch)}
                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
                                 title="Send NABL Certificate PDF to Customer"
                               >
@@ -5789,7 +5916,7 @@ export default function CalibrationPageView() {
                                 <>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenSendDocModal("all", r)}
+                                    onClick={() => handleOpenSendDocModal("all", batch)}
                                     className="p-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-lg transition shadow-2xs cursor-pointer"
                                     title="Send All SRF & Calibration Documents to Customer (Mail/WhatsApp)"
                                   >
@@ -9423,7 +9550,7 @@ export default function CalibrationPageView() {
                     const sNo = taxInvoiceForm.invoiceNo || "ARCL/26-27/74";
                     const recId = savedId || taxInvoiceRecordId || "";
                     const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-                    window.open(`${base}/client/calibration/download-document?docType=tax_invoice&download=true&recordId=${recId}&invoiceNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&t=${Date.now()}`, "_blank");
+                    window.open(`${base}/client/calibration/download-document?docType=tax_invoice&download=true&recordId=${recId}&invoiceNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(taxInvoiceForm.dcNo || "")}&clientCompany=${encodeURIComponent(taxInvoiceForm.clientCompany || "")}&t=${Date.now()}`, "_blank");
                   }}
                   className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
                 >
@@ -9828,7 +9955,7 @@ export default function CalibrationPageView() {
 
               <div className="flex items-center gap-2 flex-wrap">
                 <a
-                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=po&download=true`}
+                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=po&download=true&recordId=${poRecordId || ""}&serialNo=${encodeURIComponent(poForm.poNo || "")}&dcNo=${encodeURIComponent(poForm.dcNo || "")}&clientCompany=${encodeURIComponent(poForm.buyerCompany || "")}`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95"
@@ -10069,7 +10196,7 @@ export default function CalibrationPageView() {
                     const sNo = proformaForm.piNo || "ARCL/PI/26-27/08";
                     const recId = savedId || proformaRecordId || "";
                     const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-                    window.open(`${base}/client/calibration/download-document?docType=pi&download=true&recordId=${recId}&proformaNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&t=${Date.now()}`, "_blank");
+                    window.open(`${base}/client/calibration/download-document?docType=pi&download=true&recordId=${recId}&proformaNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(proformaForm.dcNo || "")}&clientCompany=${encodeURIComponent(proformaForm.clientCompany || proformaForm.buyerCompany || "")}&t=${Date.now()}`, "_blank");
                   }}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
                 >
@@ -10485,7 +10612,7 @@ export default function CalibrationPageView() {
                     const sNo = quotationForm.quotationNo || "ARCL/QTN/26-27/47";
                     const recId = savedId || quotationRecordId || "";
                     const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
-                    window.open(`${base}/client/calibration/download-document?docType=quotation&download=true&recordId=${recId}&quotationNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&t=${Date.now()}`, "_blank");
+                    window.open(`${base}/client/calibration/download-document?docType=quotation&download=true&recordId=${recId}&quotationNo=${encodeURIComponent(sNo)}&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(quotationForm.dcNo || "")}&clientCompany=${encodeURIComponent(quotationForm.billTo?.companyName || "")}&t=${Date.now()}`, "_blank");
                   }}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
                 >

@@ -1367,15 +1367,132 @@ export const downloadDocument = async (req, res, next) => {
       return res.status(200).json(new ApiResponse(200, { record, batchInstruments, docType, title: docType }, "Document data retrieved"));
     }
 
-    // Generate Official Real Binary PDF Buffer
+    // Generate Official Real Binary PDF Buffer with ALL Batch Instruments
     let customDocData = null;
+
+    const dynamicInvoiceItems = batchInstruments.map((inst, i) => {
+      const makeModelStr = [inst.make, inst.modelNo].filter(Boolean).join(" / ");
+      return {
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration & Testing`,
+        subText: `NABL Accredited Metrological Calibration (${makeModelStr ? `Make/Model: ${makeModelStr} | ` : ""}S/N: ${inst.serialNo || "-"})`,
+        hsnSac: "998346",
+        taxRate: "18%",
+        qty: 1,
+        qtyUnit: "NOS",
+        rate: 5000,
+        per: "NOS",
+        amount: 5000,
+      };
+    });
+
+    const dynamicQuotationItems = batchInstruments.map((inst, i) => {
+      const makeModelStr = [inst.make, inst.modelNo].filter(Boolean).join(" / ");
+      return {
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration`,
+        subText: `NABL Traceable Report (${makeModelStr ? `Make/Model: ${makeModelStr} | ` : ""}S/N: ${inst.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      };
+    });
+
+    const dynamicPiItems = batchInstruments.map((inst, i) => {
+      const makeModelStr = [inst.make, inst.modelNo].filter(Boolean).join(" / ");
+      return {
+        itemNo: i + 1,
+        name: `${inst.instrument} - Calibration`,
+        subText: `NABL Proforma Scope (${makeModelStr ? `Make/Model: ${makeModelStr} | ` : ""}S/N: ${inst.serialNo || "-"})`,
+        hsnSac: "998346",
+        rate: 1000,
+        qty: 1,
+        qtyUnit: "NOS",
+        amount: 1000,
+      };
+    });
+
+    const dynamicPoItems = batchInstruments.map((inst, idx) => {
+      const makeModelStr = [inst.make, inst.modelNo].filter(Boolean).join(" / ");
+      return {
+        slNo: String(idx + 1),
+        itemCode: `9000${100 + idx}`,
+        description: `${inst.instrument} (NABL Calibrated)\n${makeModelStr ? `Make/Model: ${makeModelStr} | ` : ""}S/N: ${inst.serialNo || "-"}`,
+        hsnCode: "998346",
+        reqDate: challanDate instanceof Date ? challanDate.toLocaleDateString("en-GB") : String(challanDate),
+        uom: "EA",
+        qty: "1",
+        rate: "1000.00",
+        cgstPct: "9",
+        cgstAmt: "90.00",
+        sgstPct: "9",
+        sgstAmt: "90.00",
+        igstPct: "0",
+        igstAmt: "0.00",
+        grossAmt: "1180.00",
+      };
+    });
+
     if (docType === "quotation") {
-      customDocData = record?.quotationData && Array.isArray(record.quotationData.items) && record.quotationData.items.length > 0 ? record.quotationData : null;
+      const qd = record?.quotationData;
+      const qdItems = Array.isArray(qd?.items) ? qd.items : [];
+      const hasFullItems = qdItems.length === batchInstruments.length && qdItems.length > 0;
+      customDocData = {
+        quotationNo: qd?.quotationNo || `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+        quotationDate: qd?.quotationDate || (calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate)),
+        validityDate: qd?.validityDate || (dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate)),
+        placeOfSupply: qd?.placeOfSupply || "27-MAHARASHTRA",
+        billTo: {
+          companyName: qd?.billTo?.companyName || comp,
+          gstin: qd?.billTo?.gstin || clientGst,
+          address: qd?.billTo?.address || clientAddress,
+          cityStatePin: qd?.billTo?.cityStatePin || "Thane, MAHARASHTRA, 421503",
+          phone: qd?.billTo?.phone || phone,
+          email: qd?.billTo?.email || email,
+        },
+        items: hasFullItems ? qdItems : dynamicQuotationItems,
+        cgstRate: qd?.cgstRate !== undefined ? qd.cgstRate : 9.0,
+        sgstRate: qd?.sgstRate !== undefined ? qd.sgstRate : 9.0,
+      };
     } else if (docType === "tax_invoice" || docType === "invoice") {
-      customDocData = record?.taxInvoiceData && Array.isArray(record.taxInvoiceData.items) && record.taxInvoiceData.items.length > 0 ? record.taxInvoiceData : null;
+      const td = record?.taxInvoiceData;
+      const tdItems = Array.isArray(td?.items) ? td.items : [];
+      const hasFullItems = tdItems.length === batchInstruments.length && tdItems.length > 0;
+      customDocData = {
+        invoiceNo: td?.invoiceNo || `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+        invoiceDate: td?.invoiceDate || (calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate)),
+        dueDate: td?.dueDate || (dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate)),
+        placeOfSupply: td?.placeOfSupply || "27-MAHARASHTRA",
+        clientCompany: td?.clientCompany || comp,
+        clientAddress: td?.clientAddress || clientAddress,
+        clientGstin: td?.clientGstin || clientGst,
+        items: hasFullItems ? tdItems : dynamicInvoiceItems,
+      };
     } else if (docType === "pi" || docType === "proforma_invoice") {
-      customDocData = record?.proformaData && Array.isArray(record.proformaData.items) && record.proformaData.items.length > 0 ? record.proformaData : null;
-    } else if (docType === "po") {
+      const pd = record?.proformaData;
+      const pdItems = Array.isArray(pd?.items) ? pd.items : [];
+      const hasFullItems = pdItems.length === batchInstruments.length && pdItems.length > 0;
+      customDocData = {
+        piNo: pd?.piNo || pd?.proformaNo || `ARCL/PI/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+        piDate: pd?.piDate || (calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate)),
+        placeOfSupply: pd?.placeOfSupply || "27-MAHARASHTRA",
+        buyerCompany: pd?.buyerCompany || comp,
+        buyerAddress: pd?.buyerAddress || clientAddress,
+        buyerGstin: pd?.buyerGstin || clientGst,
+        billTo: {
+          companyName: pd?.billTo?.companyName || pd?.buyerCompany || comp,
+          gstin: pd?.billTo?.gstin || pd?.buyerGstin || clientGst,
+          address: pd?.billTo?.address || pd?.buyerAddress || clientAddress,
+          phone: pd?.billTo?.phone || phone,
+          email: pd?.billTo?.email || email,
+        },
+        items: hasFullItems ? pdItems : dynamicPiItems,
+        cgstRate: pd?.cgstRate !== undefined ? pd.cgstRate : 9.0,
+        sgstRate: pd?.sgstRate !== undefined ? pd.sgstRate : 9.0,
+      };
+    } else if (docType === "po" || docType === "purchase_order") {
       let poUrl = record?.commercialDocs?.poFileUrl || record?.commercialDocs?.poRaised;
       if (!poUrl && record?.dcNo && record?.clientCompany) {
         const siblingWithPo = await CalibrationRecord.findOne({
@@ -1403,7 +1520,7 @@ export const downloadDocument = async (req, res, next) => {
         }
       }
 
-      if (poUrl && poUrl.trim()) {
+      if (poUrl && poUrl.trim() && poUrl !== "/docs/sample-po.pdf") {
         if (poUrl.startsWith("http://") || poUrl.startsWith("https://")) {
           try {
             const resp = await fetch(poUrl);
@@ -1434,13 +1551,21 @@ export const downloadDocument = async (req, res, next) => {
           return res.status(200).send(buffer);
         }
       }
-      
-      return res.status(404).send(
-        `<!DOCTYPE html><html><body style="font-family: sans-serif; text-align: center; padding: 50px;"><h2>⚠️ No PO Uploaded Yet</h2><p>Aapne is equipment ke liye abhi custom PO document upload nahi kiya hai. Kripya Admin Panel se <strong>"Upload PO"</strong> button par click karke gallery se PDF/Image upload karein.</p></body></html>`
-      );
-    }
 
-    if (docType === "srf") {
+      const poData = record?.poData || {};
+      customDocData = {
+        poNo: poData.poNo || `PO/${new Date().getFullYear()}/${sNo.replace(/[^0-9]/g, "").slice(-4) || "1850"}`,
+        poDate: poData.poDate || (challanDate instanceof Date ? challanDate.toLocaleDateString("en-GB") : String(challanDate)),
+        supplierName: "ARCL INSTRUMENTS PRIVATE LIMITED",
+        supplierAddress: "Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708",
+        supplierGstin: "27AATCA7874C1ZB",
+        buyerCompany: comp,
+        buyerAddress: clientAddress,
+        buyerGstin: clientGst,
+        contactPerson: person,
+        items: dynamicPoItems,
+      };
+    } else if (docType === "srf") {
       customDocData = {
         srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${String(sNo || "").replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
         calibrationDate: calDate,
@@ -1454,86 +1579,6 @@ export const downloadDocument = async (req, res, next) => {
         dcNo: dcNo,
         sentToLab: sentToLab,
         instruments: batchInstruments,
-      };
-    } else if (!customDocData && (docType === "tax_invoice" || docType === "invoice")) {
-      const dynamicInvoiceItems = batchInstruments.map((inst, i) => ({
-        itemNo: i + 1,
-        name: `${inst.instrument} - Calibration & Testing`,
-        subText: `NABL Accredited Metrological Calibration (Make: ${inst.make} | S/N: ${inst.serialNo})`,
-        hsnSac: "998346",
-        taxRate: "18%",
-        qty: 1,
-        qtyUnit: "NOS",
-        rate: 5000,
-        per: "NOS",
-        amount: 5000,
-      }));
-
-      customDocData = {
-        invoiceNo: `ARCL/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "074"}`,
-        invoiceDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
-        dueDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
-        placeOfSupply: "27-MAHARASHTRA",
-        clientCompany: comp,
-        clientAddress: clientAddress,
-        clientGstin: clientGst,
-        items: dynamicInvoiceItems,
-      };
-    } else if (!customDocData && docType === "quotation") {
-      const dynamicQuotationItems = batchInstruments.map((inst, i) => ({
-        itemNo: i + 1,
-        name: `${inst.instrument} - Calibration`,
-        subText: `NABL Traceable Report (Make: ${inst.make} | S/N: ${inst.serialNo})`,
-        hsnSac: "998346",
-        rate: 1000,
-        qty: 1,
-        qtyUnit: "NOS",
-        amount: 1000,
-      }));
-
-      customDocData = {
-        quotationNo: `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
-        quotationDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
-        validityDate: dueDate instanceof Date ? dueDate.toLocaleDateString("en-GB") : String(dueDate),
-        placeOfSupply: "27-MAHARASHTRA",
-        billTo: {
-          companyName: comp,
-          gstin: clientGst,
-          address: clientAddress,
-          cityStatePin: "Thane, MAHARASHTRA, 421503",
-          phone: phone,
-          email: email,
-        },
-        items: dynamicQuotationItems,
-        cgstRate: 9.0,
-        sgstRate: 9.0,
-      };
-    } else if (!customDocData && (docType === "pi" || docType === "proforma_invoice")) {
-      const dynamicPiItems = batchInstruments.map((inst, i) => ({
-        itemNo: i + 1,
-        name: `${inst.instrument} - Calibration`,
-        subText: `NABL Proforma Scope (Make: ${inst.make} | S/N: ${inst.serialNo})`,
-        hsnSac: "998346",
-        rate: 1000,
-        qty: 1,
-        qtyUnit: "NOS",
-        amount: 1000,
-      }));
-
-      customDocData = {
-        piNo: `ARCL/PI/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "088"}`,
-        piDate: calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate),
-        placeOfSupply: "27-MAHARASHTRA",
-        billTo: {
-          companyName: comp,
-          gstin: clientGst,
-          address: clientAddress,
-          phone: phone,
-          email: email,
-        },
-        items: dynamicPiItems,
-        cgstRate: 9.0,
-        sgstRate: 9.0,
       };
     }
 
@@ -1626,22 +1671,25 @@ export const getQuotationData = async (req, res, next) => {
       };
     });
 
-    const quotationData = record?.quotationData || {
-      quotationNo: `ARCL/QTN/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
-      quotationDate: record?.calibrationDate || new Date(),
-      validityDate: record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
-      placeOfSupply: "27-MAHARASHTRA",
+    const hasMatchingItems = record?.quotationData?.items && Array.isArray(record.quotationData.items) && record.quotationData.items.length === batchRecords.length && record.quotationData.items.length > 0;
+
+    const quotationData = {
+      ...(record?.quotationData || {}),
+      quotationNo: record?.quotationData?.quotationNo || `ARCL/QTN/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+      quotationDate: record?.quotationData?.quotationDate || record?.calibrationDate || new Date(),
+      validityDate: record?.quotationData?.validityDate || record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
+      placeOfSupply: record?.quotationData?.placeOfSupply || "27-MAHARASHTRA",
       billTo: {
-        companyName: record?.clientCompany || "Valued Client",
-        gstin: record?.clientGst || "27AAOCR3275P1ZH",
-        address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
-        cityStatePin: "Thane, MAHARASHTRA, 421503",
-        phone: record?.clientPhone || "+91 8009559900",
-        email: record?.clientEmail || "arclinstruments@gmail.com",
+        companyName: record?.quotationData?.billTo?.companyName || record?.clientCompany || "Valued Client",
+        gstin: record?.quotationData?.billTo?.gstin || record?.clientGst || "27AAOCR3275P1ZH",
+        address: record?.quotationData?.billTo?.address || record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+        cityStatePin: record?.quotationData?.billTo?.cityStatePin || "Thane, MAHARASHTRA, 421503",
+        phone: record?.quotationData?.billTo?.phone || record?.clientPhone || "+91 8009559900",
+        email: record?.quotationData?.billTo?.email || record?.clientEmail || "arclinstruments@gmail.com",
       },
-      items: dynamicItems,
-      cgstRate: 9.0,
-      sgstRate: 9.0,
+      items: hasMatchingItems ? record.quotationData.items : dynamicItems,
+      cgstRate: record?.quotationData?.cgstRate !== undefined ? record.quotationData.cgstRate : 9.0,
+      sgstRate: record?.quotationData?.sgstRate !== undefined ? record.quotationData.sgstRate : 9.0,
     };
 
     return res.status(200).json(
@@ -1765,15 +1813,18 @@ export const getTaxInvoiceData = async (req, res, next) => {
       };
     });
 
-    const taxInvoiceData = record?.taxInvoiceData || {
-      invoiceNo: `ARCL/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
-      invoiceDate: record?.calibrationDate || new Date(),
-      dueDate: record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
-      placeOfSupply: "27-MAHARASHTRA",
-      clientCompany: record?.clientCompany || "Valued Client",
-      clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
-      clientGstin: record?.clientGst || "27AAOCR3275P1ZH",
-      items: dynamicItems,
+    const hasMatchingInvoiceItems = record?.taxInvoiceData?.items && Array.isArray(record.taxInvoiceData.items) && record.taxInvoiceData.items.length === batchRecords.length && record.taxInvoiceData.items.length > 0;
+
+    const taxInvoiceData = {
+      ...(record?.taxInvoiceData || {}),
+      invoiceNo: record?.taxInvoiceData?.invoiceNo || `ARCL/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "074"}`,
+      invoiceDate: record?.taxInvoiceData?.invoiceDate || record?.calibrationDate || new Date(),
+      dueDate: record?.taxInvoiceData?.dueDate || record?.calibrationDueDate || new Date(Date.now() + 30 * 86400000),
+      placeOfSupply: record?.taxInvoiceData?.placeOfSupply || "27-MAHARASHTRA",
+      clientCompany: record?.taxInvoiceData?.clientCompany || record?.clientCompany || "Valued Client",
+      clientAddress: record?.taxInvoiceData?.clientAddress || record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+      clientGstin: record?.taxInvoiceData?.clientGstin || record?.clientGst || "27AAOCR3275P1ZH",
+      items: hasMatchingInvoiceItems ? record.taxInvoiceData.items : dynamicItems,
     };
 
     return res.status(200).json(
@@ -1892,20 +1943,26 @@ export const getProformaData = async (req, res, next) => {
       };
     });
 
-    const proformaData = record?.proformaData || {
-      piNo: `ARCL/PI/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
-      piDate: record?.calibrationDate || new Date(),
-      placeOfSupply: "27-MAHARASHTRA",
+    const hasMatchingPiItems = record?.proformaData?.items && Array.isArray(record.proformaData.items) && record.proformaData.items.length === batchRecords.length && record.proformaData.items.length > 0;
+
+    const proformaData = {
+      ...(record?.proformaData || {}),
+      piNo: record?.proformaData?.piNo || record?.proformaData?.proformaNo || `ARCL/PI/26-27/${(record?.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "088"}`,
+      piDate: record?.proformaData?.piDate || record?.calibrationDate || new Date(),
+      placeOfSupply: record?.proformaData?.placeOfSupply || "27-MAHARASHTRA",
+      buyerCompany: record?.proformaData?.buyerCompany || record?.clientCompany || "Valued Client",
+      buyerAddress: record?.proformaData?.buyerAddress || record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+      buyerGstin: record?.proformaData?.buyerGstin || record?.clientGst || "27AAOCR3275P1ZH",
       billTo: {
-        companyName: record?.clientCompany || "Valued Client",
-        gstin: record?.clientGst || "27AAOCR3275P1ZH",
-        address: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
-        phone: record?.clientPhone || "+91 8009559900",
-        email: record?.clientEmail || "arclinstruments@gmail.com",
+        companyName: record?.proformaData?.billTo?.companyName || record?.proformaData?.buyerCompany || record?.clientCompany || "Valued Client",
+        gstin: record?.proformaData?.billTo?.gstin || record?.proformaData?.buyerGstin || record?.clientGst || "27AAOCR3275P1ZH",
+        address: record?.proformaData?.billTo?.address || record?.proformaData?.buyerAddress || record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+        phone: record?.proformaData?.billTo?.phone || record?.clientPhone || "+91 8009559900",
+        email: record?.proformaData?.billTo?.email || record?.clientEmail || "arclinstruments@gmail.com",
       },
-      items: dynamicItems,
-      cgstRate: 9.0,
-      sgstRate: 9.0,
+      items: hasMatchingPiItems ? record.proformaData.items : dynamicItems,
+      cgstRate: record?.proformaData?.cgstRate !== undefined ? record.proformaData.cgstRate : 9.0,
+      sgstRate: record?.proformaData?.sgstRate !== undefined ? record.proformaData.sgstRate : 9.0,
     };
 
     return res.status(200).json(
