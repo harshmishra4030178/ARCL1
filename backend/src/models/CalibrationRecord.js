@@ -63,7 +63,6 @@ const calibrationRecordSchema = new mongoose.Schema(
       type: String,
       required: [true, "Serial number is required"],
       trim: true,
-      unique: true,
       index: true,
     },
     instrumentRange: {
