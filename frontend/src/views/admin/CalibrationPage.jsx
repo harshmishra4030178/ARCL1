@@ -4060,11 +4060,24 @@ export default function CalibrationPageView() {
     });
   };
 
+  const appendItemToDocForm = (setForm, fallbackItems, itemFactory, indexField = "itemNo") => {
+    setForm((prev) => {
+      const currentItems = (Array.isArray(prev.items) ? prev.items : fallbackItems).map((i) => ({ ...i }));
+      const newItem = itemFactory(currentItems);
+      const updated = [...currentItems, newItem].map((item, idx) => ({
+        ...item,
+        [indexField]: indexField === "slNo" ? String(idx + 1) : idx + 1,
+      }));
+      return { ...prev, items: updated };
+    });
+  };
+
   const handleAddPoItem = () => {
-    setPoForm((prev) => {
-      const currentItems = (Array.isArray(prev.items) ? prev.items : []).map((i) => ({ ...i }));
-      const newItem = {
-        slNo: "1",
+    appendItemToDocForm(
+      setPoForm,
+      [],
+      (currentItems) => ({
+        slNo: String(currentItems.length + 1),
         itemCode: "9000" + (130 + currentItems.length),
         description: "New Calibration Instrument (NABL Calibration)",
         hsnCode: "998346",
@@ -4079,11 +4092,10 @@ export default function CalibrationPageView() {
         igstPct: 0,
         igstAmt: 0,
         grossAmt: 590,
-      };
-      const updated = [newItem, ...currentItems].map((item, idx) => ({ ...item, slNo: String(idx + 1) }));
-      return { ...prev, items: updated };
-    });
-    toast.success("New row added at the top of Purchase Order!");
+      }),
+      "slNo"
+    );
+    toast.success("New row added at the bottom of Purchase Order!");
   };
 
   const handleRemovePoItem = (index) => {
@@ -4187,22 +4199,17 @@ export default function CalibrationPageView() {
   };
 
   const handleAddProformaItem = () => {
-    setProformaForm((prev) => {
-      const currentItems = (Array.isArray(prev.items) ? prev.items : defaultProforma26Items).map((i) => ({ ...i }));
-      const newItem = {
-        itemNo: 1,
-        name: "New Calibration Item",
-        subText: "NABL Third party Report",
-        hsnSac: "998346",
-        qty: 1,
-        qtyUnit: "NOS",
-        rate: 500,
-        amount: 500,
-      };
-      const updated = [newItem, ...currentItems].map((item, idx) => ({ ...item, itemNo: idx + 1 }));
-      return { ...prev, items: updated };
-    });
-    toast.success("New item row added at the top of Proforma Invoice!");
+    appendItemToDocForm(setProformaForm, defaultProforma26Items, (currentItems) => ({
+      itemNo: currentItems.length + 1,
+      name: "New Calibration Item",
+      subText: "NABL Third party Report",
+      hsnSac: "998346",
+      qty: 1,
+      qtyUnit: "NOS",
+      rate: 500,
+      amount: 500,
+    }));
+    toast.success("New item row added at the bottom of Proforma Invoice!");
   };
 
   const handleRemoveProformaItem = (index) => {
@@ -4280,24 +4287,19 @@ export default function CalibrationPageView() {
   };
 
   const handleAddTaxInvoiceItem = () => {
-    setTaxInvoiceForm((prev) => {
-      const currentItems = (Array.isArray(prev.items) ? prev.items : defaultTaxInvoice26Items).map((i) => ({ ...i }));
-      const newItem = {
-        itemNo: 1,
-        name: "New Calibration Instrument",
-        subText: "NABL Third party Report",
-        hsnSac: "998346",
-        taxRate: "18%",
-        qty: 1,
-        qtyUnit: "NOS",
-        rate: 500,
-        per: "NOS",
-        amount: 500,
-      };
-      const updated = [newItem, ...currentItems].map((item, idx) => ({ ...item, itemNo: idx + 1 }));
-      return { ...prev, items: updated };
-    });
-    toast.success("New item row added at the top of Tax Invoice!");
+    appendItemToDocForm(setTaxInvoiceForm, defaultTaxInvoice26Items, (currentItems) => ({
+      itemNo: currentItems.length + 1,
+      name: "New Calibration Instrument",
+      subText: "NABL Third party Report",
+      hsnSac: "998346",
+      taxRate: "18%",
+      qty: 1,
+      qtyUnit: "NOS",
+      rate: 500,
+      per: "NOS",
+      amount: 500,
+    }));
+    toast.success("New item row added at the bottom of Tax Invoice!");
   };
 
   const handleRemoveTaxInvoiceItem = (index) => {
@@ -4651,22 +4653,17 @@ export default function CalibrationPageView() {
   };
 
   const handleAddQuotationItem = () => {
-    setQuotationForm((prev) => {
-      const currentItems = (Array.isArray(prev.items) ? prev.items : defaultStandard37Items).map((i) => ({ ...i }));
-      const newItem = {
-        itemNo: 1,
-        name: "New Calibration Instrument",
-        subText: "NABL Third party Report",
-        hsnSac: "998346",
-        rate: 500,
-        qty: 1,
-        qtyUnit: "NOS",
-        amount: 500,
-      };
-      const updated = [newItem, ...currentItems].map((it, idx) => ({ ...it, itemNo: idx + 1 }));
-      return { ...prev, items: updated };
-    });
-    toast.success("New item row added at the top of Quotation!");
+    appendItemToDocForm(setQuotationForm, defaultStandard37Items, (currentItems) => ({
+      itemNo: currentItems.length + 1,
+      name: "New Calibration Instrument",
+      subText: "NABL Third party Report",
+      hsnSac: "998346",
+      rate: 500,
+      qty: 1,
+      qtyUnit: "NOS",
+      amount: 500,
+    }));
+    toast.success("New item row added at the bottom of Quotation!");
   };
 
   const handleRemoveQuotationItem = (index) => {
