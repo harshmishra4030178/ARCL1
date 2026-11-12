@@ -37,6 +37,7 @@ import {
   FaCode,
   FaTerminal,
   FaBug,
+  FaMoneyCheckAlt,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -1387,14 +1388,20 @@ const UserManagementPage = () => {
                   </span>
                   <button
                     type="button"
-                    onClick={() =>
-                      handleSelectAllModule(
-                        "salary",
-                        ["view", "create", "edit", "delete", "process"],
-                        !grantPermissions?.salary?.view
-                      )
-                    }
-                    className="text-xs text-blue-400 hover:underline"
+                    onClick={() => {
+                      const nextVal = !(grantPermissions?.salary?.view ?? true);
+                      setGrantPermissions((prev) => ({
+                        ...prev,
+                        salary: {
+                          view: nextVal,
+                          create: nextVal,
+                          edit: nextVal,
+                          delete: nextVal,
+                          process: nextVal,
+                        },
+                      }));
+                    }}
+                    className="text-xs text-blue-400 hover:underline cursor-pointer"
                   >
                     Toggle All
                   </button>
@@ -1404,7 +1411,7 @@ const UserManagementPage = () => {
                     <input
                       type="checkbox"
                       checked={grantPermissions?.salary?.view ?? true}
-                      onChange={() => handleGrantCheckboxChange("salary", "view")}
+                      onChange={() => toggleGrantPerm("salary", "view")}
                       className="rounded text-blue-600 focus:ring-0"
                     />
                     <span>View Payroll Ledger &amp; Salary Slips</span>
@@ -1413,7 +1420,7 @@ const UserManagementPage = () => {
                     <input
                       type="checkbox"
                       checked={grantPermissions?.salary?.create ?? true}
-                      onChange={() => handleGrantCheckboxChange("salary", "create")}
+                      onChange={() => toggleGrantPerm("salary", "create")}
                       className="rounded text-blue-600 focus:ring-0"
                     />
                     <span>Generate Payroll &amp; Add Slips</span>
@@ -1422,7 +1429,7 @@ const UserManagementPage = () => {
                     <input
                       type="checkbox"
                       checked={grantPermissions?.salary?.edit ?? true}
-                      onChange={() => handleGrantCheckboxChange("salary", "edit")}
+                      onChange={() => toggleGrantPerm("salary", "edit")}
                       className="rounded text-blue-600 focus:ring-0"
                     />
                     <span>Edit Slips, Attendance &amp; Deductions</span>
@@ -1431,7 +1438,7 @@ const UserManagementPage = () => {
                     <input
                       type="checkbox"
                       checked={grantPermissions?.salary?.delete ?? true}
-                      onChange={() => handleGrantCheckboxChange("salary", "delete")}
+                      onChange={() => toggleGrantPerm("salary", "delete")}
                       className="rounded text-blue-600 focus:ring-0"
                     />
                     <span>Delete Draft Salary Slips</span>
@@ -1440,7 +1447,7 @@ const UserManagementPage = () => {
                     <input
                       type="checkbox"
                       checked={grantPermissions?.salary?.process ?? true}
-                      onChange={() => handleGrantCheckboxChange("salary", "process")}
+                      onChange={() => toggleGrantPerm("salary", "process")}
                       className="rounded text-blue-600 focus:ring-0"
                     />
                     <span>Disburse &amp; Mark Paid (UTR/Bank)</span>
@@ -2489,21 +2496,27 @@ const UserManagementPage = () => {
                 </div>
 
                 {/* 11. Salary & Monthly Payroll (5) */}
-                <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+                <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs sm:col-span-2">
                   <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2.5">
                     <span className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
                       <FaMoneyCheckAlt className="text-emerald-600" /> Salary &amp; Monthly Payroll (5)
                     </span>
                     <button
                       type="button"
-                      onClick={() =>
-                        handleToggleEditModule(
-                          "salary",
-                          ["view", "create", "edit", "delete", "process"],
-                          !editFormPermissions?.salary?.view
-                        )
-                      }
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 hover:underline"
+                      onClick={() => {
+                        const nextVal = !(modalPermissions?.salary?.view ?? true);
+                        setModalPermissions((prev) => ({
+                          ...prev,
+                          salary: {
+                            view: nextVal,
+                            create: nextVal,
+                            edit: nextVal,
+                            delete: nextVal,
+                            process: nextVal,
+                          },
+                        }));
+                      }}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer"
                     >
                       Toggle All
                     </button>
@@ -2512,8 +2525,8 @@ const UserManagementPage = () => {
                     <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={editFormPermissions?.salary?.view ?? true}
-                        onChange={() => handleEditCheckboxChange("salary", "view")}
+                        checked={modalPermissions?.salary?.view ?? true}
+                        onChange={() => toggleModalPerm("salary", "view")}
                         className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
                       <span>View Payroll Ledger &amp; Salary Slips</span>
@@ -2521,8 +2534,8 @@ const UserManagementPage = () => {
                     <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={editFormPermissions?.salary?.create ?? true}
-                        onChange={() => handleEditCheckboxChange("salary", "create")}
+                        checked={modalPermissions?.salary?.create ?? true}
+                        onChange={() => toggleModalPerm("salary", "create")}
                         className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
                       <span>Generate Payroll &amp; Add Slips</span>
@@ -2530,8 +2543,8 @@ const UserManagementPage = () => {
                     <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={editFormPermissions?.salary?.edit ?? true}
-                        onChange={() => handleEditCheckboxChange("salary", "edit")}
+                        checked={modalPermissions?.salary?.edit ?? true}
+                        onChange={() => toggleModalPerm("salary", "edit")}
                         className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
                       <span>Edit Slips, Attendance &amp; Deductions</span>
@@ -2539,8 +2552,8 @@ const UserManagementPage = () => {
                     <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={editFormPermissions?.salary?.delete ?? true}
-                        onChange={() => handleEditCheckboxChange("salary", "delete")}
+                        checked={modalPermissions?.salary?.delete ?? true}
+                        onChange={() => toggleModalPerm("salary", "delete")}
                         className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
                       <span>Delete Draft Salary Slips</span>
@@ -2548,8 +2561,8 @@ const UserManagementPage = () => {
                     <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={editFormPermissions?.salary?.process ?? true}
-                        onChange={() => handleEditCheckboxChange("salary", "process")}
+                        checked={modalPermissions?.salary?.process ?? true}
+                        onChange={() => toggleModalPerm("salary", "process")}
                         className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
                       <span>Disburse &amp; Mark Paid (UTR/Bank)</span>
