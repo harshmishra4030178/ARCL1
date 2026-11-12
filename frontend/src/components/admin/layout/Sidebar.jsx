@@ -20,6 +20,7 @@ import {
   FaFileInvoiceDollar,
   FaReceipt,
   FaMoneyCheckAlt,
+  FaEnvelopeOpenText,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -32,6 +33,7 @@ const allMenuItems = [
   { name: "Sales Portal", path: "/admin/sales", icon: <FaFileInvoiceDollar />, module: "sales" },
   { name: "Calibration Portal", path: "/admin/calibration", icon: <FaCertificate />, module: "calibration" },
   { name: "Payment Verifications", path: "/admin/calibration/payments", icon: <FaMoneyBillWave />, module: "calibration", action: "payments" },
+  { name: "Envelope Designer", path: "/admin/envelope", icon: <FaEnvelopeOpenText /> },
   { name: "Company Expenses", path: "/admin/expenses", icon: <FaReceipt />, module: "expenses" },
   { name: "Salary & Payroll", path: "/admin/salary", icon: <FaMoneyCheckAlt />, module: "salary" },
   { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen />, module: "blogs" },

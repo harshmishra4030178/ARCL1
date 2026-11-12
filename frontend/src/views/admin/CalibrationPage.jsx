@@ -6,7 +6,14 @@ import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import OfficialNablCertificate from "../../components/calibration/OfficialNablCertificate.jsx";
+import EnvelopeSheetPreview from "../../components/calibration/EnvelopeSheetPreview.jsx";
 import { buildCustomerQrVerifyUrl, computeCustomerQrSignature, normalizeCustomerKey } from "../../utils/customerQr.js";
+import {
+  DEFAULT_ENVELOPE_CONFIG,
+  downloadEnvelopePdf,
+  generateCustomerEnvelopeQrPng,
+  getEnvelopePdfBlobUrl,
+} from "../../utils/envelopePdfGenerator.js";
 import {
   FaCertificate,
   FaFilePdf,
@@ -1502,6 +1509,9 @@ export default function CalibrationPageView() {
   const [obsInputMode, setObsInputMode] = useState("manual");
   const [activeVoiceCellKey, setActiveVoiceCellKey] = useState("");
   const [customerQrModal, setCustomerQrModal] = useState(null);
+  const [customerEnvelopeModal, setCustomerEnvelopeModal] = useState(null);
+  const [isExportingCustomerEnvelope, setIsExportingCustomerEnvelope] = useState(false);
+  const customerEnvelopeQrInputRef = useRef(null);
   const obsAssistantSectionRef = useRef(null);
 
   // Custom Categories & PDF Compression States
@@ -9727,6 +9737,84 @@ export default function CalibrationPageView() {
     }
   };
 
+  const resolveCustomerEnvelopePayload = async (target) => {
+    const primary = target?.primaryRecord || (Array.isArray(target?.items) ? target.items[0] : target) || {};
+    const companyName = String(target?.clientCompany || primary?.clientCompany || "Valued Client").trim();
+    const custKey = normalizeCustomerKey(companyName);
+    const allCustRecords = (records || []).filter((r) => normalizeCustomerKey(r?.clientCompany) === custKey);
+    const pool = [...(Array.isArray(target?.items) ? target.items : []), primary, ...allCustRecords].filter(Boolean);
+    const anchorRec = pool.find((r) => /^[a-f0-9]{24}$/i.test(String(r?._id || ""))) || primary;
+    const primaryId = String(anchorRec?._id || anchorRec?.id || "").trim();
+
+    const firstNonEmpty = (getter) => {
+      for (const item of pool) {
+        const val = String(getter(item) || "").trim();
+        if (val && val !== "-" && val !== "N/A") return val;
+      }
+      return "";
+    };
+
+    const recipient = {
+      companyName,
+      contactPerson: firstNonEmpty((it) => it?.clientContactPerson || it?.contactPerson),
+      address: firstNonEmpty((it) => it?.clientAddress || it?.observationData?.clientAddress),
+      phone: firstNonEmpty((it) => it?.clientPhone),
+    };
+
+    const verifyUrl =
+      primaryId && /^[a-f0-9]{24}$/i.test(primaryId)
+        ? buildCustomerQrVerifyUrl({ recordId: primaryId, clientCompany: companyName })
+        : "";
+    const autoQrImage = verifyUrl ? await generateCustomerEnvelopeQrPng(verifyUrl) : null;
+    const authorizedCount = allCustRecords.filter((r) => isRecordCertificateAuthorized(r)).length;
+
+    return {
+      clientCompany: companyName,
+      dcNo: target?.dcNo || primary?.dcNo || "-",
+      signature: computeCustomerQrSignature(companyName),
+      verifyUrl,
+      recipient,
+      qrImage: autoQrImage,
+      autoQrImage,
+      authorizedCount,
+      totalCount: allCustRecords.length || 1,
+    };
+  };
+
+  const handlePrintCustomerEnvelope = async (target) => {
+    try {
+      setIsExportingCustomerEnvelope(true);
+      const envData = await resolveCustomerEnvelopePayload(target);
+      const blobUrl = await getEnvelopePdfBlobUrl({
+        config: DEFAULT_ENVELOPE_CONFIG,
+        recipient: envData.recipient,
+        qrImage: envData.qrImage,
+      });
+      await handlePrintPdf(blobUrl);
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(blobUrl);
+        } catch (cleanupErr) {
+          console.warn("Envelope print blob cleanup skipped:", cleanupErr?.message);
+        }
+      }, 120000);
+    } catch (err) {
+      console.error("Customer envelope print failed:", err);
+      toast.error("Failed to prepare 280 × 124 mm envelope for printing.");
+    } finally {
+      setIsExportingCustomerEnvelope(false);
+    }
+  };
+
+  const handleOpenCustomerEnvelopeModal = async (target) => {
+    try {
+      const envData = await resolveCustomerEnvelopePayload(target);
+      setCustomerEnvelopeModal(envData);
+    } catch {
+      toast.error("Failed to prepare customer envelope preview.");
+    }
+  };
+
   const handlePrintCalibrationDoc = (docType, target, options = {}) => {
     if (isClientRenderedCertDoc(docType)) {
       let items = resolveCertExportItems(target, options);
@@ -11406,7 +11494,7 @@ export default function CalibrationPageView() {
                   <th colSpan="5" className="bg-amber-800 border-r border-amber-700 p-2">
                     3. COMMERCIAL DOCUMENTS
                   </th>
-                  <th colSpan="3" className="bg-indigo-900 border-r border-indigo-800 p-2">
+                  <th colSpan="4" className="bg-indigo-900 border-r border-indigo-800 p-2">
                     4. RECORDS
                   </th>
                   <th rowSpan="2" className="bg-slate-900 p-2 align-middle">
@@ -11442,13 +11530,14 @@ export default function CalibrationPageView() {
                   <th className="p-2.5 border-r border-gray-200 text-center">Certification</th>
                   <th className="p-2.5 border-r border-gray-200 text-center">Record (Excel)</th>
                   <th className="p-2.5 border-r border-gray-200 text-center">Sticker Check</th>
+                  <th className="p-2.5 border-r border-gray-200 text-center">Envelope</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
                 {srfBatches.length === 0 ? (
                   <tr>
-                    <td colSpan="22" className="p-12 text-center text-gray-500 bg-slate-50/40">
+                    <td colSpan="23" className="p-12 text-center text-gray-500 bg-slate-50/40">
                       <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto">
                         <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shadow-inner">
                           <FaLock />
@@ -12071,6 +12160,30 @@ export default function CalibrationPageView() {
                               )}
                             </button>
                           </td>
+                          <td className="p-2 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1 min-w-[105px]">
+                              <div className="flex items-center gap-1 justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCustomerEnvelopeModal(batch)}
+                                  className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-50 text-[#021C57] hover:bg-[#021C57] hover:text-white border border-blue-200 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  title="Preview & download 280 × 124 mm customer envelope (auto TO address & unique Customer QR)"
+                                >
+                                  <FaEye className="text-[9px]" /> View
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintCustomerEnvelope(batch)}
+                                  disabled={isExportingCustomerEnvelope}
+                                  className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-purple-50 text-purple-800 hover:bg-purple-700 hover:text-white border border-purple-200 transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                                  title="Direct print 280 × 124 mm envelope at 100% actual size"
+                                >
+                                  <FaPrint className="text-[9px]" /> Print
+                                </button>
+                              </div>
+                              <span className="text-[8.5px] font-mono text-slate-500">28 × 12.4 cm</span>
+                            </div>
+                          </td>
 
                           {/* Action */}
                           <td className="p-2.5 text-center">
@@ -12143,7 +12256,7 @@ export default function CalibrationPageView() {
                         {/* Expandable Sub-Row with Payment Installment Ledger History for this Batch */}
                         {expandedBatchPaymentKeys.has(batch.batchKey) && (
                           <tr className="bg-indigo-50/40 border-b-2 border-indigo-300 animate-fadeIn">
-                            <td colSpan={22} className="p-3 sm:p-4">
+                            <td colSpan={23} className="p-3 sm:p-4">
                               <div className="bg-white rounded-2xl border border-indigo-200 p-4 shadow-sm space-y-3">
                                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5 flex-wrap gap-2">
                                   <div className="flex items-center gap-2">
@@ -12242,7 +12355,7 @@ export default function CalibrationPageView() {
                         {/* Expandable Sub-Row with Breakdown of All Individual Equipments in this Batch */}
                         {isExpanded && (
                           <tr className="bg-slate-50/90 border-b-2 border-blue-300 animate-fadeIn">
-                            <td colSpan={22} className="p-4">
+                            <td colSpan={23} className="p-4">
                               <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-sm space-y-3">
                                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                                   <div className="flex items-center gap-2">
@@ -26898,6 +27011,280 @@ export default function CalibrationPageView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Per-Customer Auto-Filled 280 x 124 mm Envelope Preview & Direct Print Modal */}
+      {customerEnvelopeModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+          <input
+            ref={customerEnvelopeQrInputRef}
+            type="file"
+            accept="image/png,.png"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              const isPng = file.type === "image/png" || String(file.name || "").toLowerCase().endsWith(".png");
+              if (!isPng) {
+                toast.error("Please select a valid PNG QR image (.png).");
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = String(reader.result || "");
+                const img = new Image();
+                img.onload = () => {
+                  setCustomerEnvelopeModal((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          qrImage: {
+                            dataUrl,
+                            width: img.naturalWidth || img.width,
+                            height: img.naturalHeight || img.height,
+                            fileName: file.name,
+                            fileSizeKb: Math.max(1, Math.round(file.size / 1024)),
+                          },
+                        }
+                      : null
+                  );
+                  toast.success("Custom QR PNG applied to 3.2 × 3.2 cm envelope slot!");
+                };
+                img.src = dataUrl;
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="px-5 py-4 bg-gradient-to-r from-[#021C57] via-[#0B2A72] to-slate-900 text-white flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
+                  <FaFilePdf /> Customer Envelope • Exact 28.0 × 12.4 cm (280 × 124 mm) Landscape
+                </div>
+                <h3 className="font-black text-sm sm:text-base truncate mt-0.5">
+                  {customerEnvelopeModal.clientCompany}
+                  {customerEnvelopeModal.dcNo && customerEnvelopeModal.dcNo !== "-" ? ` • DC: ${customerEnvelopeModal.dcNo}` : ""}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerEnvelopeModal(null)}
+                className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white cursor-pointer shrink-0"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50">
+              {/* Scaled 280 x 124 mm Live Preview */}
+              <div className="bg-slate-200/70 rounded-2xl border border-slate-300 p-3 sm:p-4 flex justify-center overflow-x-auto">
+                <div
+                  style={{
+                    width: `${280 * (96 / 25.4) * 0.76}px`,
+                    height: `${124 * (96 / 25.4) * 0.76}px`,
+                    position: "relative",
+                    flexShrink: 0,
+                  }}
+                >
+                  <EnvelopeSheetPreview
+                    config={DEFAULT_ENVELOPE_CONFIG}
+                    recipient={customerEnvelopeModal.recipient}
+                    qrImage={customerEnvelopeModal.qrImage}
+                    scale={0.76}
+                    elementId="arcl-customer-envelope-modal-preview"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Editable TO Details + QR Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white p-4 rounded-2xl border border-slate-200 text-xs">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">TO — Company Name</label>
+                    <input
+                      type="text"
+                      value={customerEnvelopeModal.recipient?.companyName || ""}
+                      onChange={(e) =>
+                        setCustomerEnvelopeModal((prev) =>
+                          prev ? { ...prev, recipient: { ...prev.recipient, companyName: e.target.value } } : null
+                        )
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-[#021C57] font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">TO — Contact / Phone</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Attn Name"
+                        value={customerEnvelopeModal.recipient?.contactPerson || ""}
+                        onChange={(e) =>
+                          setCustomerEnvelopeModal((prev) =>
+                            prev ? { ...prev, recipient: { ...prev.recipient, contactPerson: e.target.value } } : null
+                          )
+                        }
+                        className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-[#021C57]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Phone"
+                        value={customerEnvelopeModal.recipient?.phone || ""}
+                        onChange={(e) =>
+                          setCustomerEnvelopeModal((prev) =>
+                            prev ? { ...prev, recipient: { ...prev.recipient, phone: e.target.value } } : null
+                          )
+                        }
+                        className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-[#021C57]"
+                      />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-700 mb-1">TO — Recipient Address</label>
+                    <textarea
+                      rows={2}
+                      value={customerEnvelopeModal.recipient?.address || ""}
+                      onChange={(e) =>
+                        setCustomerEnvelopeModal((prev) =>
+                          prev ? { ...prev, recipient: { ...prev.recipient, address: e.target.value } } : null
+                        )
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-[#021C57]"
+                    />
+                  </div>
+                </div>
+
+                {/* Auto Customer QR Controls */}
+                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-black text-[#021C57] flex items-center gap-1">
+                      <FaQrcode className="text-blue-600" /> Customer Envelope QR (3.2×3.2cm)
+                    </div>
+                    <p className="text-[10.5px] text-slate-600">
+                      Authorized Certificates Linked:{" "}
+                      <strong className="text-emerald-700">{customerEnvelopeModal.authorizedCount}</strong> /{" "}
+                      {customerEnvelopeModal.totalCount}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {customerEnvelopeModal.qrImage?.dataUrl && (
+                      <a
+                        href={customerEnvelopeModal.qrImage.dataUrl}
+                        download={`ARCL_Customer_QR_${customerEnvelopeModal.clientCompany.replace(/[^a-zA-Z0-9]+/g, "_")}.png`}
+                        className="px-2.5 py-1.5 bg-[#021C57] hover:bg-blue-900 text-white rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1"
+                      >
+                        <FaDownload /> QR PNG
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => customerEnvelopeQrInputRef.current?.click()}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <FaUpload /> Custom PNG
+                    </button>
+                    {customerEnvelopeModal.autoQrImage &&
+                      customerEnvelopeModal.qrImage?.dataUrl !== customerEnvelopeModal.autoQrImage?.dataUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCustomerEnvelopeModal((prev) =>
+                              prev ? { ...prev, qrImage: prev.autoQrImage } : null
+                            )
+                          }
+                          className="px-2 py-1.5 bg-amber-100 text-amber-900 rounded-lg text-[10.5px] font-bold cursor-pointer"
+                        >
+                          Restore Auto QR
+                        </button>
+                      )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-500 font-mono">
+                Size: <strong>280 × 124 mm</strong> (100% Actual Size) • ID: <strong>{customerEnvelopeModal.signature}</strong>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomerEnvelopeModal(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
+                {customerEnvelopeModal.verifyUrl && (
+                  <a
+                    href={customerEnvelopeModal.verifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+                  >
+                    <FaQrcode /> Test QR Portal
+                  </a>
+                )}
+                <button
+                  type="button"
+                  disabled={isExportingCustomerEnvelope}
+                  onClick={async () => {
+                    try {
+                      setIsExportingCustomerEnvelope(true);
+                      const safeName = customerEnvelopeModal.clientCompany.replace(/[^a-zA-Z0-9]+/g, "_");
+                      await downloadEnvelopePdf(
+                        {
+                          config: DEFAULT_ENVELOPE_CONFIG,
+                          recipient: customerEnvelopeModal.recipient,
+                          qrImage: customerEnvelopeModal.qrImage,
+                        },
+                        `ARCL_Envelope_${safeName}_280x124mm.pdf`
+                      );
+                      toast.success("Customer 280 × 124 mm Envelope PDF downloaded!");
+                    } catch {
+                      toast.error("Failed to download envelope PDF.");
+                    } finally {
+                      setIsExportingCustomerEnvelope(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <FaDownload /> Download PDF (280×124mm)
+                </button>
+                <button
+                  type="button"
+                  disabled={isExportingCustomerEnvelope}
+                  onClick={async () => {
+                    try {
+                      setIsExportingCustomerEnvelope(true);
+                      const blobUrl = await getEnvelopePdfBlobUrl({
+                        config: DEFAULT_ENVELOPE_CONFIG,
+                        recipient: customerEnvelopeModal.recipient,
+                        qrImage: customerEnvelopeModal.qrImage,
+                      });
+                      await handlePrintPdf(blobUrl);
+                      setTimeout(() => {
+                        try {
+                          URL.revokeObjectURL(blobUrl);
+                        } catch (cleanupErr) {
+                          console.warn("Modal envelope blob cleanup skipped:", cleanupErr?.message);
+                        }
+                      }, 120000);
+                    } catch {
+                      toast.error("Failed to print envelope.");
+                    } finally {
+                      setIsExportingCustomerEnvelope(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md"
+                >
+                  <FaPrint /> Direct Print (280×124mm)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
