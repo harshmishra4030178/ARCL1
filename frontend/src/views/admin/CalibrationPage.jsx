@@ -4,7 +4,9 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
+import QRCode from "qrcode";
 import OfficialNablCertificate from "../../components/calibration/OfficialNablCertificate.jsx";
+import { buildCustomerQrVerifyUrl, computeCustomerQrSignature, normalizeCustomerKey } from "../../utils/customerQr.js";
 import {
   FaCertificate,
   FaFilePdf,
@@ -1499,6 +1501,7 @@ export default function CalibrationPageView() {
   const [obsExactSheetValues, setObsExactSheetValues] = useState({});
   const [obsInputMode, setObsInputMode] = useState("manual");
   const [activeVoiceCellKey, setActiveVoiceCellKey] = useState("");
+  const [customerQrModal, setCustomerQrModal] = useState(null);
   const obsAssistantSectionRef = useRef(null);
 
   // Custom Categories & PDF Compression States
@@ -9674,6 +9677,52 @@ export default function CalibrationPageView() {
     };
   }, [pdfExportJob]);
 
+  const openCustomerQrModal = async (target) => {
+    const primary = target?.primaryRecord || (Array.isArray(target?.items) ? target.items[0] : target) || {};
+    const companyName = String(target?.clientCompany || primary?.clientCompany || "Valued Client").trim();
+    const custKey = normalizeCustomerKey(companyName);
+    const allCustRecords = (records || []).filter((r) => normalizeCustomerKey(r?.clientCompany) === custKey);
+    const anchorRec = allCustRecords.find((r) => /^[a-f0-9]{24}$/i.test(String(r?._id || ""))) || primary;
+    const primaryId = String(anchorRec?._id || anchorRec?.id || "").trim();
+    if (!primaryId || !/^[a-f0-9]{24}$/i.test(primaryId)) {
+      toast.warning("Pehle customer ka inward record save karein, tab auto-generated QR banega.");
+      return;
+    }
+    const calibratedItems = allCustRecords.filter((r) => {
+      const obs = r?.observationData || {};
+      const auth = r?.authorizationData || {};
+      const obsSt = String(obs.status || "").toLowerCase();
+      const authSt = String(auth.status || "").toLowerCase();
+      if (obsSt === "rejected" || authSt === "rejected" || obsSt === "draft") return false;
+      const metaOnly = new Set(["sno", "srno", "sr_no", "slno", "rowno", "id", "_id", "key", "unit", "nominal", "setpoint", "target", "standard", "parameter", "label", "range", "tolerance", "spec", "remarks"]);
+      const hasReadings = Array.isArray(obs.readings) && obs.readings.some((row) => row && Object.entries(row).some(([k, v]) => !metaOnly.has(String(k).toLowerCase()) && v !== null && v !== undefined && String(v).trim() !== "" && String(v).trim() !== "-"));
+      const hasExact = obs.exactSheetValues && Object.values(obs.exactSheetValues).some((v) => v !== null && v !== undefined && String(v).trim() !== "" && String(v).trim() !== "-" && String(v).trim().toLowerCase() !== String(r?.instrumentRange || obs.range || "").trim().toLowerCase());
+      if (!hasReadings && !hasExact) return false;
+      return authSt === "approved" || obsSt === "submitted" || obsSt === "authorized" || ["Calibration Done", "Quality Reviewed", "Certificate Uploaded", "Delivered to Client"].includes(r?.stage);
+    });
+    const verifyUrl = buildCustomerQrVerifyUrl({ recordId: primaryId, clientCompany: companyName });
+    const sig = computeCustomerQrSignature(companyName);
+    try {
+      const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+        errorCorrectionLevel: "M",
+        width: 320,
+        margin: 2,
+        color: { dark: "#021C57", light: "#ffffff" },
+      });
+      setCustomerQrModal({
+        clientCompany: companyName,
+        signature: sig,
+        verifyUrl,
+        qrDataUrl,
+        totalCount: allCustRecords.length || 1,
+        calibratedCount: calibratedItems.length,
+        pendingCount: Math.max(0, (allCustRecords.length || 1) - calibratedItems.length),
+      });
+    } catch {
+      toast.error("Failed to generate customer QR code.");
+    }
+  };
+
   const handlePrintCalibrationDoc = (docType, target, options = {}) => {
     if (isClientRenderedCertDoc(docType)) {
       const items = resolveCertExportItems(target, options);
@@ -11980,6 +12029,14 @@ export default function CalibrationPageView() {
                           {/* Action */}
                           <td className="p-2.5 text-center">
                             <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openCustomerQrModal(batch)}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-800 border border-amber-300 rounded-lg text-[10px] font-black transition shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                                title="Open this customer's unique auto-generated QR (shows ONLY their calibrated certificates)"
+                              >
+                                <FaQrcode className="text-[11px]" /> QR
+                              </button>
                               {canEdit && (
                                 <>
                                   <button
@@ -15117,6 +15174,14 @@ export default function CalibrationPageView() {
                             </button>
 
                             {/* View Observation Sheet PDF */}
+                            <button
+                              type="button"
+                              onClick={() => openCustomerQrModal(r)}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs transition cursor-pointer border border-amber-300"
+                              title="Open Customer Unique Auto-Generated QR Code"
+                            >
+                              <FaQrcode />
+                            </button>
                             <button
                               type="button"
                               onClick={() => openDocViewer("observation_sheet", r)}
@@ -21555,6 +21620,7 @@ export default function CalibrationPageView() {
                     )}
 
                     <OfficialNablCertificate
+                      key={rec?._id || rec?.id || itemIdx}
                       rec={rec}
                       itemIdx={itemIdx}
                       isObsDoc={isObsDoc}
@@ -26786,6 +26852,79 @@ export default function CalibrationPageView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Generated Unique Per-Customer QR Code Modal */}
+      {customerQrModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border-2 border-[#021C57]/20">
+            <div className="px-5 py-4 bg-gradient-to-r from-[#021C57] to-blue-900 text-white flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                  <FaQrcode /> Unique Customer Auto-Generated QR
+                </div>
+                <h3 className="font-black text-sm truncate mt-0.5">{customerQrModal.clientCompany}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerQrModal(null)}
+                className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white cursor-pointer"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 text-center">
+              <div className="inline-block p-3 rounded-2xl border-4 border-[#FA9703] bg-white shadow-md">
+                <img
+                  src={customerQrModal.qrDataUrl}
+                  alt={`QR Code for ${customerQrModal.clientCompany}`}
+                  className="w-52 h-52 object-contain mx-auto"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold">
+                  Calibrated Reports: <span className="font-black">{customerQrModal.calibratedCount}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold">
+                  Pending Calibration: <span className="font-black">{customerQrModal.pendingCount}</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                Is QR ko scan karne par <strong>sirf {customerQrModal.clientCompany}</strong> ke wahi certificates dikhenge jinka calibration &amp; observation complete ho chuka hai. Pending items calibration hone ke baad automatic isme jud jayenge.
+              </p>
+              <div className="text-[10px] font-mono text-slate-500 break-all bg-slate-100 p-2 rounded-lg">
+                Customer ID: <strong>{customerQrModal.signature}</strong>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <a
+                  href={customerQrModal.qrDataUrl}
+                  download={`ARCL_QR_${customerQrModal.clientCompany.replace(/[^a-zA-Z0-9]+/g, "_")}.png`}
+                  className="flex-1 py-2.5 px-3 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5"
+                >
+                  <FaDownload /> Download QR
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(customerQrModal.verifyUrl);
+                    toast.success("Customer QR Portal link copied!");
+                  }}
+                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold cursor-pointer border border-slate-300"
+                >
+                  Copy Link
+                </button>
+                <a
+                  href={customerQrModal.verifyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Open Portal
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -4,6 +4,24 @@ export const normalizeCustomerKey = (companyName) =>
     .toLowerCase()
     .replace(/\s+/g, " ");
 
+export const computeCustomerQrSignature = (companyName) => {
+  const norm = normalizeCustomerKey(companyName);
+  if (!norm) return "";
+  const input = `ARCL-NABL-CC4313::${norm}`;
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 ^= ch;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 ^= ch + (i + 1) * 31;
+    h2 = Math.imul(h2, 0x85ebca6b);
+  }
+  const p1 = (h1 >>> 0).toString(16).padStart(8, "0");
+  const p2 = (h2 >>> 0).toString(16).padStart(8, "0");
+  return `${p1}${p2}`.slice(0, 12);
+};
+
 export const getDatePrefixYYMMDD = (dateInput) => {
   const dt = dateInput ? new Date(dateInput) : new Date();
   const safeDt = Number.isNaN(dt.getTime()) ? new Date() : dt;

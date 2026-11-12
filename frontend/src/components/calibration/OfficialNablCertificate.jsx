@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { computeCustomerQrSignature } from "../../utils/customerQr.js";
 
 const buildOrangeQrSvgDataUrl = (text) => {
   try {
@@ -125,6 +126,8 @@ export default function OfficialNablCertificate({
         paramsObj.set("sn", String(rec.serialNo).trim());
       }
     }
+    const ck = computeCustomerQrSignature(rec?.clientCompany);
+    if (ck) paramsObj.set("ck", ck);
     if (isObsDoc) paramsObj.set("doc", "obs");
     const qs = paramsObj.toString();
     const rel = qs ? `/certificate-verify?${qs}` : "/certificate-verify";
@@ -147,13 +150,13 @@ export default function OfficialNablCertificate({
       verifyRelativePath: rel,
       verifyFullUrl: `${cleanBase}${rel}`,
     };
-  }, [rec?._id, rec?.id, rec?.recordId, rec?.serialNo, cNo, ulrNo, isObsDoc]);
+  }, [rec?._id, rec?.id, rec?.recordId, rec?.serialNo, rec?.clientCompany, cNo, ulrNo, isObsDoc]);
 
   const qrSvgDataUrl = useMemo(
     () => buildOrangeQrSvgDataUrl(verifyFullUrl),
     [verifyFullUrl]
   );
-  const [qrPngDataUrl, setQrPngDataUrl] = useState("");
+  const [qrPngState, setQrPngState] = useState({ url: "", dataUrl: "" });
 
   useEffect(() => {
     let active = true;
@@ -164,13 +167,15 @@ export default function OfficialNablCertificate({
       color: { dark: "#FA9703", light: "#ffffff" },
     })
       .then((url) => {
-        if (active && url) setQrPngDataUrl(url);
+        if (active && url) setQrPngState({ url: verifyFullUrl, dataUrl: url });
       })
       .catch(() => {});
     return () => {
       active = false;
     };
   }, [verifyFullUrl]);
+
+  const activeQrImgSrc = qrPngState.url === verifyFullUrl && qrPngState.dataUrl ? qrPngState.dataUrl : qrSvgDataUrl;
   const isLegacyPlaceholderSigner = (v) =>
     /^(|rupak\s*kumar|quality\s*manager|authorized\s*signatory|technical\s*manager.*|dr\.?\s*r\.?\s*k\.?\s*verma.*)$/i.test(
       String(v || "").trim()
@@ -671,7 +676,7 @@ export default function OfficialNablCertificate({
             }}
           >
             <img
-              src={qrPngDataUrl || qrSvgDataUrl}
+              src={activeQrImgSrc}
               alt="Scan for NABL Certificate, Scope & ARCL Website"
               style={{ width: "80px", height: "80px", objectFit: "contain", display: "block" }}
             />

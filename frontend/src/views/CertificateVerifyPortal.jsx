@@ -37,6 +37,8 @@ const normalizeVerifyCompany = (name) =>
 export default function CertificateVerifyPortal() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id") || searchParams.get("recordId") || "";
+  const custParam = searchParams.get("cust") || "";
+  const ckParam = searchParams.get("ck") || "";
   const certParam = searchParams.get("cert") || searchParams.get("certificateNo") || "";
   const ulrParam = searchParams.get("ulr") || searchParams.get("ulrNo") || "";
   const snParam = searchParams.get("sn") || searchParams.get("serialNo") || "";
@@ -60,6 +62,8 @@ export default function CertificateVerifyPortal() {
     try {
       const params = {
         id: queryOverrides.id ?? idParam,
+        cust: queryOverrides.cust ?? custParam,
+        ck: queryOverrides.ck ?? ckParam,
         cert: queryOverrides.cert ?? certParam,
         ulr: queryOverrides.ulr ?? ulrParam,
         sn: queryOverrides.sn ?? snParam,
@@ -75,7 +79,7 @@ export default function CertificateVerifyPortal() {
     } finally {
       setLoading(false);
     }
-  }, [idParam, certParam, ulrParam, snParam, docParam]);
+  }, [idParam, custParam, ckParam, certParam, ulrParam, snParam, docParam]);
 
   useEffect(() => {
     fetchVerification();
@@ -312,17 +316,47 @@ export default function CertificateVerifyPortal() {
             Loading official certificate &amp; NABL lab scope verification details...
           </div>
         ) : cert?.found ? (
-          <div className="bg-white rounded-2xl border-2 border-emerald-500/40 shadow-sm p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
-              <div className="text-[10px] font-bold uppercase text-emerald-800">Instrument / Equipment</div>
+          <div
+            className={`bg-white rounded-2xl border-2 shadow-sm p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs ${
+              cert.isPendingCalibration ? "border-amber-400/70" : "border-emerald-500/40"
+            }`}
+          >
+            <div
+              className={`p-3 rounded-xl border ${
+                cert.isPendingCalibration
+                  ? "bg-amber-50/70 border-amber-200"
+                  : "bg-emerald-50/70 border-emerald-200"
+              }`}
+            >
+              <div
+                className={`text-[10px] font-bold uppercase ${
+                  cert.isPendingCalibration ? "text-amber-800" : "text-emerald-800"
+                }`}
+              >
+                {cert.isCustomerQrMode ? "Customer Verification Portal" : "Instrument / Equipment"}
+              </div>
               <div className="font-black text-slate-900 text-sm mt-0.5">{cert.instrument}</div>
-              <div className="text-[11px] font-mono text-slate-600 mt-0.5">S/N: <strong>{cert.serialNo}</strong></div>
+              <div className="text-[11px] font-mono text-slate-600 mt-0.5">
+                {cert.serialNo && cert.serialNo !== "-" ? (
+                  <>
+                    S/N: <strong>{cert.serialNo}</strong>
+                  </>
+                ) : (
+                  <>Calibrated Reports: <strong>{customerCertificates.length}</strong></>
+                )}
+              </div>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <div className="text-[10px] font-bold uppercase text-slate-500">Certificate &amp; ULR No.</div>
-              <div className="font-mono font-black text-[#021C57] text-sm mt-0.5">{cert.certificateNo || "Issued"}</div>
+              <div
+                className={`font-mono font-black text-sm mt-0.5 ${
+                  cert.isPendingCalibration ? "text-amber-700" : "text-[#021C57]"
+                }`}
+              >
+                {cert.isPendingCalibration ? "Pending Calibration" : cert.certificateNo || "Issued"}
+              </div>
               <div className="text-[11px] font-mono text-teal-700 font-bold mt-0.5">
-                {cert.ulrNo ? `ULR: ${cert.ulrNo}` : `DC: ${cert.dcNo}`}
+                {!cert.isPendingCalibration && cert.ulrNo ? `ULR: ${cert.ulrNo}` : `DC: ${cert.dcNo || "-"}`}
               </div>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
@@ -333,9 +367,18 @@ export default function CertificateVerifyPortal() {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <div className="text-[10px] font-bold uppercase text-slate-500">Validity &amp; Signatory</div>
               <div className="font-bold text-slate-900 text-xs mt-0.5">
-                Cal: {formatDisplayDate(cert.calibrationDate)} • Due: <span className="text-emerald-700">{formatDisplayDate(cert.calibrationDueDate)}</span>
+                {cert.isPendingCalibration ? (
+                  <span className="text-amber-700">Calibration &amp; Observation Pending</span>
+                ) : (
+                  <>
+                    Cal: {formatDisplayDate(cert.calibrationDate)} • Due:{" "}
+                    <span className="text-emerald-700">{formatDisplayDate(cert.calibrationDueDate)}</span>
+                  </>
+                )}
               </div>
-              <div className="text-[11px] text-slate-600 mt-0.5 truncate">Approved: <strong>{cert.authorizedBy}</strong></div>
+              <div className="text-[11px] text-slate-600 mt-0.5 truncate">
+                {cert.isPendingCalibration ? "Status:" : "Approved:"} <strong>{cert.authorizedBy}</strong>
+              </div>
             </div>
           </div>
         ) : (

@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import QRCode from "qrcode";
+import { computeCustomerQrSignature } from "./srfGenerator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2037,6 +2038,10 @@ export const buildCertificateVerifyUrl = (data = {}, isObservation = false) => {
     if (data.serialNo && String(data.serialNo).trim() !== "-") {
       params.set("sn", String(data.serialNo).trim());
     }
+  }
+  const ck = computeCustomerQrSignature(data.clientCompany);
+  if (ck) {
+    params.set("ck", ck);
   }
   if (isObservation) {
     params.set("doc", "obs");

@@ -27,6 +27,7 @@ import {
 } from "../utils/ulrGenerator.js";
 import {
   allocateNextSrfNo,
+  computeCustomerQrSignature,
   ensureUniqueSrfNumbersForRecords,
   extractRecordSrfNo,
   findDbSrfState,
@@ -4488,6 +4489,7 @@ const READING_META_ONLY_KEYS = new Set([
   "sno",
   "srno",
   "sr_no",
+  "slno",
   "rowno",
   "rowindex",
   "rowkey",
@@ -4497,6 +4499,25 @@ const READING_META_ONLY_KEYS = new Set([
   "isheader",
   "istotal",
   "unit",
+  "nominal",
+  "setpoint",
+  "target",
+  "standard",
+  "std",
+  "stdvalue",
+  "parameter",
+  "label",
+  "description",
+  "spec",
+  "specification",
+  "tolerance",
+  "range",
+  "leastcount",
+  "remarks",
+  "note",
+  "formula",
+  "serialno",
+  "instrument",
 ]);
 
 const hasRealObservationValues = (docRecord) => {
@@ -4517,10 +4538,24 @@ const hasRealObservationValues = (docRecord) => {
   }
 
   if (obs.exactSheetValues && typeof obs.exactSheetValues === "object") {
+    const autoMetaVals = new Set(
+      [
+        docRecord.instrumentRange,
+        obs.range,
+        docRecord.serialNo,
+        docRecord.dcNo,
+        obs.formatNo,
+        obs.inwardNo,
+      ]
+        .map((x) => String(x ?? "").trim().toLowerCase())
+        .filter(Boolean)
+    );
     const hasFilledExactCell = Object.values(obs.exactSheetValues).some((v) => {
       if (v === null || v === undefined || typeof v === "boolean") return false;
       const s = String(v).trim();
-      return s !== "" && s !== "-";
+      if (!s || s === "-") return false;
+      if (autoMetaVals.has(s.toLowerCase())) return false;
+      return true;
     });
     if (hasFilledExactCell) return true;
   }
@@ -4545,8 +4580,6 @@ const COMPLETED_CALIBRATION_STAGES = new Set([
   "quality reviewed",
   "certificate uploaded",
   "delivered to client",
-  "invoice sent",
-  "invoice generated",
 ]);
 
 const isRecordCalibratedAndObserved = (docRecord) => {
@@ -4630,10 +4663,12 @@ const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
     clientCompany: docRecord.clientCompany || "Valued Client",
     dcNo: docRecord.dcNo || "-",
     srfNo: docRecord.inwardRegister?.srfNo || docRecord.srfNo || "",
-    calibrationDate: obs.calibrationDate || docRecord.calibrationDate || null,
-    calibrationDueDate: obs.calibrationDueDate || docRecord.calibrationDueDate || null,
-    issueDate: obs.issueDate || auth.authorizedAt || docRecord.calibrationDate || null,
-    authorizedBy: auth.authorizedBy || obs.reviewedBy || "Authorized Technical Signatory",
+    calibrationDate: readyForReport ? obs.calibrationDate || docRecord.calibrationDate || null : null,
+    calibrationDueDate: readyForReport ? obs.calibrationDueDate || docRecord.calibrationDueDate || null : null,
+    issueDate: readyForReport ? obs.issueDate || auth.authorizedAt || docRecord.calibrationDate || null : null,
+    authorizedBy: readyForReport
+      ? auth.authorizedBy || obs.reviewedBy || "Authorized Technical Signatory"
+      : "Pending Calibration",
     discipline: obs.discipline || params.discipline || "Mechanical Calibration",
     calibrationMethod: obs.calibrationMethod || "",
     referenceStandard: obs.referenceStandard || "",
@@ -4648,8 +4683,11 @@ const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
 
 export const verifyCalibrationCertificate = async (req, res, next) => {
   try {
-    const { id, recordId, cert, ulr, sn, doc } = req.query || {};
-    const targetId = String(id || recordId || "").trim();
+    const { id, recordId, cust, ck, cert, ulr, sn, doc } = req.query || {};
+    const custId = String(cust || "").trim();
+    const isCustomerQrMode = Boolean(custId && isValidMongoId(custId));
+    const targetId = isCustomerQrMode ? custId : String(id || recordId || "").trim();
+    const expectedSig = String(ck || "").trim().toLowerCase();
 
     let record = null;
     if (isValidMongoId(targetId)) {
@@ -4692,6 +4730,14 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
       }
       if (orClauses.length > 0) {
         record = await CalibrationRecord.findOne({ $or: orClauses }).sort({ calibrationDate: -1, _id: -1 }).lean();
+      }
+    }
+
+    // Validate cryptographic customer signature when present in QR URL
+    if (record && expectedSig) {
+      const actualSig = computeCustomerQrSignature(record.clientCompany);
+      if (!actualSig || actualSig !== expectedSig) {
+        record = null;
       }
     }
 
@@ -4784,7 +4830,7 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
         const summary = buildVerifyCertificateSummary(d, idStr === currentIdStr && isObsOnly);
         return {
           ...summary,
-          isCurrentScan: idStr === currentIdStr,
+          isCurrentScan: isCustomerQrMode ? idStr === String(mergedDocs[0]?._id) : idStr === currentIdStr,
           isSameBatch: Boolean(
             currentDcNorm &&
               strictlyMatchesScannedCustomer(d, record) &&
@@ -4792,6 +4838,54 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
           ),
         };
       });
+
+      if (isCustomerQrMode) {
+        if (customerCertificates.length > 0) {
+          certificateSummary = {
+            ...customerCertificates[0],
+            isCustomerQrMode: true,
+          };
+          const calInstWords = String(certificateSummary.instrument || "")
+            .toLowerCase()
+            .split(/[\s,/()-]+/)
+            .filter((w) => w.length > 2 && !["and", "the", "for", "with", "type", "digital"].includes(w));
+          matchedScopeItems = activeScopeItems.filter((item) => {
+            const pLower = String(item?.parameter || "").toLowerCase();
+            return calInstWords.some((kw) => pLower.includes(kw));
+          });
+        } else {
+          certificateSummary = {
+            found: true,
+            isCustomerQrMode: true,
+            isPendingCalibration: true,
+            recordId: String(record._id),
+            srNo: 1,
+            isObservationDoc: false,
+            isCertified: false,
+            statusLabel: "Calibration / Observation Pending",
+            certificateNo: "",
+            ulrNo: "",
+            instrument: "Calibrated Equipment Portal",
+            make: "ARCL Instruments",
+            modelNo: "-",
+            serialNo: "-",
+            range: "-",
+            leastCount: "-",
+            clientCompany: record.clientCompany || "Valued Client",
+            dcNo: record.dcNo || "-",
+            srfNo: record.inwardRegister?.srfNo || record.srfNo || "",
+            calibrationDate: null,
+            calibrationDueDate: null,
+            issueDate: null,
+            authorizedBy: "Pending Calibration",
+            discipline: "NABL Calibration",
+            calibrationMethod: "",
+            referenceStandard: "",
+            pdfPath: "",
+            certificatePdfPath: "",
+          };
+        }
+      }
     }
 
     return res.status(200).json(
