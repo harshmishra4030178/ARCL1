@@ -2,9 +2,25 @@ import axios from "axios";
 import { reportClientError } from "../utils/clientErrorLogger.js";
 
 const getBaseURL = () => {
-  const envUrl =
-    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL);
+  let envUrl = "";
+  try {
+    if (typeof process !== "undefined" && process.env) {
+      envUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    }
+  } catch {
+    // Ignore when process is unavailable in strict browser builds
+  }
+  if (!envUrl && typeof import.meta !== "undefined" && import.meta.env) {
+    envUrl = import.meta.env.VITE_API_URL || "";
+  }
+
+  const normalizeEnvUrl = (raw) => {
+    let url = String(raw).trim().replace(/\/+$/, "");
+    if (url && !url.endsWith("/api/v1") && !url.includes("/api/")) {
+      url += "/api/v1";
+    }
+    return url;
+  };
 
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname || "";
@@ -18,18 +34,14 @@ const getBaseURL = () => {
       hostname.endsWith(".local");
 
     if (isLocal) {
-      if (envUrl && envUrl.includes("localhost")) {
-        return envUrl;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return envUrl ? normalizeEnvUrl(envUrl) : "http://localhost:5000/api/v1";
       }
       return `http://${hostname === "0.0.0.0" ? "localhost" : hostname}:5000/api/v1`;
     }
 
     if (envUrl) {
-      let url = String(envUrl).trim().replace(/\/+$/, "");
-      if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
-        url += "/api/v1";
-      }
-      return url;
+      return normalizeEnvUrl(envUrl);
     }
 
     return "https://arcl1-1.onrender.com/api/v1";
@@ -37,11 +49,7 @@ const getBaseURL = () => {
 
   // Server-side (SSR / Node.js)
   if (envUrl) {
-    let url = String(envUrl).trim().replace(/\/+$/, "");
-    if (!url.endsWith("/api/v1") && !url.includes("/api/")) {
-      url += "/api/v1";
-    }
-    return url;
+    return normalizeEnvUrl(envUrl);
   }
 
   return "http://127.0.0.1:5000/api/v1";
@@ -119,4 +127,5 @@ API.interceptors.response.use(
   }
 );
 
+export { getBaseURL };
 export default API;

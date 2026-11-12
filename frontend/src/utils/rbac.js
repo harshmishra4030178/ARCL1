@@ -22,7 +22,21 @@ export const hasModuleAccess = (user, moduleName, actionName = null) => {
   }
 
   if (actionName) {
-    return modPerms[actionName] === true;
+    if (modPerms[actionName] !== undefined) {
+      return modPerms[actionName] === true;
+    }
+    // Backward compatibility mappings for calibration module
+    if (moduleName === "calibration") {
+      if (actionName === "inward_register") {
+        if (modPerms.srf_history !== undefined) return modPerms.srf_history === true;
+        if (modPerms.create !== undefined) return modPerms.create === true;
+      }
+      if (actionName === "srf_history" && modPerms.create !== undefined) return modPerms.create === true;
+      if (actionName === "quotations" && modPerms.documents !== undefined) return modPerms.documents === true;
+      if (actionName === "reminders" && modPerms.dispatch !== undefined) return modPerms.dispatch === true;
+    }
+    // If user is admin and the key wasn't explicitly set to false, default to true
+    return user.role === "admin";
   }
 
   // Check if at least one permission is true in this module
@@ -31,8 +45,13 @@ export const hasModuleAccess = (user, moduleName, actionName = null) => {
 
 export const ROUTE_PERMISSIONS = [
   { prefix: "/admin/products", module: "products" },
+  { prefix: "/admin/inventory", module: "inventory" },
+  { prefix: "/admin/sales", module: "sales" },
   { prefix: "/admin/categories", module: "categories" },
   { prefix: "/admin/equipment-types", module: "equipmentTypes" },
+  { prefix: "/admin/calibration/payments", module: "calibration", action: "payments" },
+  { prefix: "/admin/expenses", module: "expenses" },
+  { prefix: "/admin/salary", module: "salary" },
   { prefix: "/admin/calibration", module: "calibration" },
   { prefix: "/admin/blogs", module: "blogs" },
   { prefix: "/admin/inquiry", module: "inquiries" },

@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
+import path from "node:path";
 import { API_VERSION } from "./constants.js";
-import { verifyAdmin, verifyUserManageAccess, checkModulePermission } from "./middlewares/authMiddleware.js";
+import { verifyAdmin, verifyUserManageAccess, checkModulePermission, verifyExpenseAccess } from "./middlewares/authMiddleware.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import ApiError from "./utils/ApiError.js";
 import ApiResponse from "./utils/ApiResponse.js";
@@ -21,6 +22,11 @@ import adminAnalyticsRoutes from "./routes/admin/analyticsRoutes.js";
 import adminBlogRoutes from "./routes/admin/blogRoutes.js";
 import adminErrorLogRoutes from "./routes/admin/errorLogRoutes.js";
 import adminCalibrationRoutes from "./routes/admin/calibrationRoutes.js";
+import adminPurchaseRoutes from "./routes/admin/purchaseRoutes.js";
+import adminInventoryRoutes from "./routes/admin/inventoryRoutes.js";
+import adminSalesRoutes from "./routes/admin/salesRoutes.js";
+import adminExpenseRoutes from "./routes/admin/expenseRoutes.js";
+import adminSalaryRoutes from "./routes/admin/salaryRoutes.js";
 import calibrationPaymentRoutes from "./routes/calibrationPaymentRoutes.js";
 
 // ================= CLIENT ROUTES =================
@@ -34,6 +40,7 @@ import clientAnalyticsRoutes from "./routes/client/analyticsRoutes.js";
 import clientBlogRoutes from "./routes/client/blogRoutes.js";
 import clientErrorLogRoutes from "./routes/client/errorLogRoutes.js";
 import clientCalibrationRoutes from "./routes/client/calibrationRoutes.js";
+import gstRoutes from "./routes/gstRoutes.js";
 
 const app = express();
 
@@ -41,6 +48,11 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static("public"));
+app.use(express.static(path.resolve(process.cwd(), "backend/public")));
+app.use(express.static(path.resolve(process.cwd(), "frontend/public")));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "backend/public/uploads")));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "frontend/public/uploads")));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "public/uploads")));
 // Dynamic & Robust CORS configuration
 const corsOptions = {
   origin: (origin, callback) => {
@@ -118,7 +130,18 @@ app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 app.use(`${ADMIN_API}/blogs`, verifyAdmin, checkModulePermission("blogs"), adminBlogRoutes);
 app.use(`${ADMIN_API}/error-logs`, verifyAdmin, adminErrorLogRoutes);
 app.use(`${ADMIN_API}/calibration`, adminCalibrationRoutes);
+app.use(`${ADMIN_API}/purchases`, adminPurchaseRoutes);
+app.use(`${ADMIN_API}/sales`, adminSalesRoutes);
+app.use(`${ADMIN_API}/inventory`, verifyAdmin, checkModulePermission("inventory"), adminInventoryRoutes);
+app.use(`${CLIENT_API}/purchases`, adminPurchaseRoutes);
+app.use(`${CLIENT_API}/sales`, adminSalesRoutes);
 app.use(`${ADMIN_API}/calibration-payment`, calibrationPaymentRoutes);
+app.use(`${ADMIN_API}/expenses`, verifyExpenseAccess, adminExpenseRoutes);
+app.use(`${CLIENT_API}/expenses`, verifyExpenseAccess, adminExpenseRoutes);
+app.use(`${API_VERSION}/expenses`, verifyExpenseAccess, adminExpenseRoutes);
+app.use(`${ADMIN_API}/salary`, verifyAdmin, adminSalaryRoutes);
+app.use(`${CLIENT_API}/salary`, adminSalaryRoutes);
+app.use(`${API_VERSION}/salary`, adminSalaryRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
@@ -131,7 +154,14 @@ app.use(`${CLIENT_API}/analytics`, clientAnalyticsRoutes);
 app.use(`${CLIENT_API}/blogs`, clientBlogRoutes);
 app.use(`${CLIENT_API}/error-logs`, clientErrorLogRoutes);
 app.use(`${CLIENT_API}/calibration`, clientCalibrationRoutes);
+app.use(`${API_VERSION}/calibration`, clientCalibrationRoutes);
 app.use(`${CLIENT_API}/calibration-payment`, calibrationPaymentRoutes);
+
+// GST Verification & State Lookup APIs (Public & Admin)
+app.use(`${CLIENT_API}/gst`, gstRoutes);
+app.use(`${ADMIN_API}/gst`, gstRoutes);
+app.use(`${API_VERSION}/gst`, gstRoutes);
+app.use(`/api/gst`, gstRoutes);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {

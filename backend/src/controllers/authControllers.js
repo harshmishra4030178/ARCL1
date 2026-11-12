@@ -1,7 +1,42 @@
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
+import { clearAdminUserCache } from "../middlewares/authMiddleware.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "arcl-super-secret-jwt-key-2026";
+
+const DEFAULT_FULL_PERMISSIONS = {
+  products: { create: true, edit: true, delete: true },
+  inventory: { view: true, create: true, edit: true, delete: true },
+  sales: { view: true, create: true, edit: true, delete: true },
+  calibration: {
+    dashboard: true,
+    quotations: true,
+    srf_history: true,
+    inward_register: true,
+    reminders: true,
+    observations: true,
+    authorization: true,
+    templates: true,
+    lab_profile: true,
+    payments: true,
+    financials: true,
+    edit: true,
+    delete: true,
+    create: true,
+    documents: true,
+    dispatch: true,
+  },
+  categories: { create: true, edit: true, delete: true },
+  equipmentTypes: { create: true, edit: true, delete: true },
+  blogs: { create: true, edit: true, delete: true },
+  inquiries: { view: true, edit: true, delete: true },
+  contacts: { view: true, delete: true },
+  subscribers: { view: true, edit: true, delete: true },
+  users: { manage: true, delete: true },
+  expenses: { view: true, create: true, edit: true, delete: true, approve: true },
+  salary: { view: true, create: true, edit: true, delete: true, process: true },
+  developer: { error_logs: true, api_health: true, system_config: true, audit_logs: true },
+};
 
 /**
  * Decode and extract info from Google JWT credential or payload
@@ -11,7 +46,12 @@ const parseGoogleCredential = (credential) => {
   try {
     const parts = credential.split(".");
     if (parts.length === 3) {
-      const payload = Buffer.from(parts[1], "base64").toString("utf-8");
+      let payload;
+      try {
+        payload = Buffer.from(parts[1], "base64url").toString("utf-8");
+      } catch {
+        payload = Buffer.from(parts[1], "base64").toString("utf-8");
+      }
       return JSON.parse(payload);
     }
   } catch (err) {
@@ -25,16 +65,15 @@ const parseGoogleCredential = (credential) => {
  */
 const getAuthorizedAdminEmails = () => {
   const emails = [];
-  if (process.env.ADMIN_EMAIL) {
-    process.env.ADMIN_EMAIL.split(",").forEach((e) => {
-      if (e.trim()) emails.push(e.trim().toLowerCase());
-    });
-  }
-  if (process.env.ADMIN_EMAILS) {
-    process.env.ADMIN_EMAILS.split(",").forEach((e) => {
-      if (e.trim()) emails.push(e.trim().toLowerCase());
-    });
-  }
+  [process.env.ADMIN_EMAIL, process.env.ADMIN_EMAILS, process.env.SUPER_ADMIN_EMAILS].forEach(
+    (raw) => {
+      if (raw) {
+        raw.split(",").forEach((e) => {
+          if (e.trim()) emails.push(e.trim().toLowerCase());
+        });
+      }
+    }
+  );
   return Array.from(new Set(emails));
 };
 
@@ -89,18 +128,8 @@ export const googleLogin = async (req, res) => {
       req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
     const userAgent = req.headers["user-agent"] || "";
 
-    // Default permissions setup for superadmin or admin (Total 26)
-    const defaultFullPermissions = {
-      products: { create: true, edit: true, delete: true }, // 3
-      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
-      categories: { create: true, edit: true, delete: true }, // 3
-      equipmentTypes: { create: true, delete: true }, // 2
-      blogs: { create: true, edit: true, delete: true }, // 3
-      inquiries: { view: true, edit: true, delete: true }, // 3
-      contacts: { view: true, delete: true }, // 2
-      subscribers: { view: true, edit: true, delete: true }, // 3
-      users: { manage: true, delete: true }, // 2
-    };
+    // Default permissions setup for superadmin or admin
+    const defaultFullPermissions = DEFAULT_FULL_PERMISSIONS;
 
     if (!user) {
       // If user does not exist:
@@ -164,7 +193,9 @@ export const googleLogin = async (req, res) => {
 
     // Check user role
     const hasAdminAccess =
-      user.role === "admin" || user.role === "superadmin";
+      user.role === "admin" ||
+      user.role === "superadmin" ||
+      user.role === "developer";
 
     if (!hasAdminAccess) {
       // User registered cleanly in database with 'user' role, but NOT allowed in Admin panel
@@ -172,14 +203,16 @@ export const googleLogin = async (req, res) => {
         success: false,
         isRegistered: true,
         isAdmin: false,
-        role: "user",
+        role: user.role || "user",
         email: user.email,
         name: user.name,
         picture: user.picture,
         message:
-          "Access Denied: You are registered with standard 'user' role. Only authorized Administrators can access this portal. Please contact the administrator to grant you access from the Users Management panel.",
+          "Access Denied: Only authorized Administrators or Developers can access this portal. Please contact the Super Administrator to grant you access from the Users Management panel.",
       });
     }
+
+    clearAdminUserCache(user._id);
 
     // Generate Admin JWT token
     const token = jwt.sign(
@@ -237,12 +270,18 @@ export const loginWithPassword = async (req, res) => {
     const cleanPassword = password.trim();
 
     // Check credentials for Super Admin securely via environment variables
-    const allowedSuperAdminEmails = (
-      process.env.SUPER_ADMIN_EMAILS ||
-      "abhinav@arclinstruments.com,abhinavtripathi32@gmail.com"
-    )
-      .split(",")
-      .map((e) => e.trim().toLowerCase());
+    const allowedSuperAdminEmails = Array.from(
+      new Set([
+        ...(
+          process.env.SUPER_ADMIN_EMAILS ||
+          "abhinav@arclinstruments.com,abhinavtripathi32@gmail.com"
+        )
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean),
+        ...getAuthorizedAdminEmails(),
+      ])
+    );
 
     const expectedSuperAdminPassword =
       process.env.SUPER_ADMIN_PASSWORD || "Abhi@arcl25";
@@ -258,17 +297,7 @@ export const loginWithPassword = async (req, res) => {
       });
     }
 
-    const defaultFullPermissions = {
-      products: { create: true, edit: true, delete: true },
-      categories: { create: true, edit: true, delete: true },
-      equipmentTypes: { create: true, edit: true, delete: true },
-      calibration: { create: true, edit: true, delete: true },
-      blogs: { create: true, edit: true, delete: true },
-      inquiries: { view: true, delete: true },
-      contacts: { view: true, delete: true },
-      subscribers: { view: true, delete: true },
-      users: { manage: true },
-    };
+    const defaultFullPermissions = DEFAULT_FULL_PERMISSIONS;
 
     // Find or create the super admin user in MongoDB
     let user = await User.findOne({ email: cleanEmail });
@@ -299,6 +328,8 @@ export const loginWithPassword = async (req, res) => {
       user.markModified("permissions");
       await user.save();
     }
+
+    clearAdminUserCache(user._id);
 
     // Generate JWT token (7 days validity)
     const token = jwt.sign(
@@ -345,17 +376,7 @@ export const getMe = async (req, res) => {
   try {
     const user = req.user;
 
-    const defaultFullPermissions = {
-      products: { create: true, edit: true, delete: true },
-      categories: { create: true, edit: true, delete: true },
-      equipmentTypes: { create: true, edit: true, delete: true },
-      calibration: { create: true, edit: true, delete: true },
-      blogs: { create: true, edit: true, delete: true },
-      inquiries: { view: true, delete: true },
-      contacts: { view: true, delete: true },
-      subscribers: { view: true, delete: true },
-      users: { manage: true },
-    };
+    const defaultFullPermissions = DEFAULT_FULL_PERMISSIONS;
 
     return res.status(200).json({
       success: true,
@@ -444,9 +465,9 @@ export const getActiveAdmins = async (req, res) => {
     // Away: active within last 2 minutes
     const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
 
-    // Fetch all active admin/superadmin users
+    // Fetch all active admin/superadmin/developer users
     const adminUsers = await User.find({
-      role: { $in: ["admin", "superadmin"] },
+      role: { $in: ["admin", "superadmin", "developer"] },
       isActive: true,
     })
       .select("name email picture role lastLogin lastActiveAt currentIp userAgent createdAt")

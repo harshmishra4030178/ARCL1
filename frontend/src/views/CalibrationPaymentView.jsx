@@ -20,6 +20,7 @@ import {
   FaArrowLeft,
   FaInfoCircle,
   FaDownload,
+  FaPrint,
   FaLock,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
@@ -103,6 +104,48 @@ export default function CalibrationPaymentView({ recordId }) {
       `${base}/client/calibration/download-document?docType=${encodeURIComponent(docType)}&download=true&serialNo=${encodeURIComponent(sNo)}&t=${Date.now()}`,
       "_blank"
     );
+  };
+
+  const handlePrintPdf = async (pdfUrl) => {
+    try {
+      const response = await fetch(pdfUrl);
+      if (!response.ok) throw new Error("Failed to fetch PDF");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const printFrame = document.createElement("iframe");
+      printFrame.style.position = "fixed";
+      printFrame.style.right = "0";
+      printFrame.style.bottom = "0";
+      printFrame.style.width = "0";
+      printFrame.style.height = "0";
+      printFrame.style.border = "none";
+      printFrame.src = blobUrl;
+      document.body.appendChild(printFrame);
+      printFrame.onload = () => {
+        setTimeout(() => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch (_) {
+            window.open(blobUrl, "_blank");
+          }
+        }, 500);
+      };
+      setTimeout(() => {
+        try {
+          document.body.removeChild(printFrame);
+          URL.revokeObjectURL(blobUrl);
+        } catch (_) {}
+      }, 120000);
+    } catch (_) {
+      window.open(pdfUrl, "_blank");
+    }
+  };
+
+  const handlePrintDoc = (docType = "tax_invoice") => {
+    const sNo = data?.calibrationRecord?.serialNo || data?.payment?.serialNo || recordId || "ARCL-CTM-9842";
+    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+    handlePrintPdf(`${base}/client/calibration/download-document?docType=${encodeURIComponent(docType)}&serialNo=${encodeURIComponent(sNo)}&t=${Date.now()}`);
   };
 
   const handleCopy = (text, fieldName) => {
@@ -323,30 +366,62 @@ export default function CalibrationPaymentView({ recordId }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleDownloadPdf("tax_invoice")}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
-              title="Download Tax Invoice with dual QR codes"
-            >
-              <FaFileInvoiceDollar /> Tax Invoice (PDF)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownloadPdf("certificate")}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
-              title="Download Calibration Certificate with dual QR codes"
-            >
-              <FaShieldAlt /> Calibration Certificate (PDF)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownloadPdf("srf")}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-              title="Download Service Request Form / Inward Slip"
-            >
-              <FaDownload /> SRF Slip (PDF)
-            </button>
+            <div className="inline-flex rounded-xl shadow-md overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf("tax_invoice")}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Download Tax Invoice with dual QR codes"
+              >
+                <FaFileInvoiceDollar /> Tax Invoice (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintDoc("tax_invoice")}
+                className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer border-l border-emerald-500"
+                title="Direct Print Tax Invoice (Exact same 1:1 PDF layout)"
+              >
+                <FaPrint /> Print
+              </button>
+            </div>
+
+            <div className="inline-flex rounded-xl shadow-md overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf("certificate")}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Download Calibration Certificate with dual QR codes"
+              >
+                <FaShieldAlt /> Calibration Certificate (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintDoc("certificate")}
+                className="px-2.5 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer border-l border-blue-500"
+                title="Direct Print Calibration Certificate (Exact same 1:1 PDF layout)"
+              >
+                <FaPrint /> Print
+              </button>
+            </div>
+
+            <div className="inline-flex rounded-xl shadow-md overflow-hidden border border-slate-700">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf("srf")}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Download Service Request Form / Inward Slip"
+              >
+                <FaDownload /> SRF Slip (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintDoc("srf")}
+                className="px-2.5 py-2 bg-slate-900 hover:bg-black text-slate-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer border-l border-slate-700"
+                title="Direct Print SRF Slip (Exact same 1:1 PDF layout)"
+              >
+                <FaPrint /> Print
+              </button>
+            </div>
           </div>
         </div>
 

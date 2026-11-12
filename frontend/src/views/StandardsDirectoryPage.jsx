@@ -7,6 +7,7 @@ import {
   BookOpen,
   CheckCircle2,
   Download,
+  Printer,
   MessageCircle,
   ShoppingBag,
   ArrowRight,
@@ -714,6 +715,15 @@ export default function StandardsDirectoryPage() {
                   >
                     <Download size={13} />
                     <span>Download Test BOQ</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadStandardPdf(std)}
+                    className="px-3.5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer active:scale-95"
+                    title="Direct Print Test Setup BOQ Estimate"
+                  >
+                    <Printer size={13} />
+                    <span>Print BOQ</span>
                   </button>
 
                   <button

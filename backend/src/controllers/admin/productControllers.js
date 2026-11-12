@@ -294,6 +294,14 @@ export const createProduct = async (req, res) => {
  * @route   GET /api/v1/admin/products
  * @access  Admin
  */
+let adminProductsCache = null;
+let adminProductsCacheExpiry = 0;
+
+export const invalidateProductCache = () => {
+  adminProductsCache = null;
+  adminProductsCacheExpiry = 0;
+};
+
 export const getProducts = async (req, res) => {
   try {
     const {
@@ -329,14 +337,29 @@ export const getProducts = async (req, res) => {
       ];
     }
 
+    const isDefaultQuery = !category && !search && typeof isActive === "undefined" && typeof isFeatured === "undefined" && sort === "createdAt" && order === "desc";
+    if (isDefaultQuery && adminProductsCache && adminProductsCacheExpiry > Date.now()) {
+      return res.status(200).json({
+        success: true,
+        count: adminProductsCache.length,
+        data: adminProductsCache,
+      });
+    }
+
     const sortOptions = {};
     sortOptions[sort] = order === "asc" ? 1 : -1;
 
     const products = await Product.find(filter)
       .populate(categoryPopulateConfig)
-      .sort(sortOptions);
+      .sort(sortOptions)
+      .lean();
 
     const resolvedProducts = products.map(resolveProductInheritance);
+
+    if (isDefaultQuery) {
+      adminProductsCache = resolvedProducts;
+      adminProductsCacheExpiry = Date.now() + 60000;
+    }
 
     return res.status(200).json({
       success: true,
@@ -629,6 +652,7 @@ export const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+invalidateProductCache();
 
     return res.status(200).json({
       success: true,

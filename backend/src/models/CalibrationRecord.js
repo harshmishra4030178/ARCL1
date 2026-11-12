@@ -1,4 +1,14 @@
 import mongoose from "mongoose";
+import {
+  allocateNextUlrNumbers,
+  extractRecordUlrNo,
+  normalizeUlrNo,
+} from "../utils/ulrGenerator.js";
+import {
+  allocateNextSrfNo,
+  extractRecordSrfNo,
+  getRecordReceiptDate,
+} from "../utils/srfGenerator.js";
 
 const calibrationRecordSchema = new mongoose.Schema(
   {
@@ -107,6 +117,19 @@ const calibrationRecordSchema = new mongoose.Schema(
         type: String,
         default: "/docs/sample-quotation.pdf",
       },
+      quotationStatus: {
+        type: String,
+        enum: ["Draft", "Sent to Client", "Under Review", "Approved", "PO Confirmed", "Invoiced", "Declined"],
+        default: "Draft",
+      },
+      quotationSentAt: {
+        type: Date,
+        default: null,
+      },
+      quotationApprovedAt: {
+        type: Date,
+        default: null,
+      },
       poRaised: {
         type: String,
         default: "",
@@ -137,6 +160,30 @@ const calibrationRecordSchema = new mongoose.Schema(
         default: "Paid",
         index: true,
       },
+      paymentMode: {
+        type: String,
+        default: "UPI",
+      },
+      totalAmount: {
+        type: Number,
+        default: 0,
+      },
+      paidAmount: {
+        type: Number,
+        default: 0,
+      },
+      dueAmount: {
+        type: Number,
+        default: 0,
+      },
+      transactionRef: {
+        type: String,
+        default: "",
+      },
+      payments: {
+        type: Array,
+        default: [],
+      },
       paymentDate: {
         type: Date,
         default: Date.now,
@@ -151,6 +198,12 @@ const calibrationRecordSchema = new mongoose.Schema(
         type: String,
         default: "ARCL-CAL-2026-001",
       },
+      ulrNo: {
+        type: String,
+        default: "",
+        trim: true,
+        index: true,
+      },
       recordExcel: {
         type: String,
         default: "/docs/calibration-records.xlsx",
@@ -162,7 +215,7 @@ const calibrationRecordSchema = new mongoose.Schema(
     },
     stage: {
       type: String,
-      default: "Calibration Done",
+      default: "Instrument Received",
       index: true,
     },
     draftStatus: {
@@ -184,6 +237,61 @@ const calibrationRecordSchema = new mongoose.Schema(
     proformaData: {
       type: mongoose.Schema.Types.Mixed,
       default: null,
+    },
+    observationData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    authorizationData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    labPermission: {
+      granted: {
+        type: Boolean,
+        default: false,
+      },
+      releaseDate: {
+        type: Date,
+        default: null,
+      },
+      grantedAt: {
+        type: Date,
+        default: null,
+      },
+      grantedBy: {
+        type: String,
+        default: "",
+      },
+      notes: {
+        type: String,
+        default: "",
+      },
+    },
+    srfNo: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
+    },
+    inwardRegister: {
+      srfDone: { type: Boolean, default: false },
+      srfDoneAt: { type: Date, default: null },
+      srfDoneBy: { type: String, default: "" },
+      srfNo: { type: String, default: "" },
+      inwardNo: { type: String, default: "" },
+      dateOfReceipt: { type: Date, default: null },
+      range: { type: String, default: "" },
+      unit: { type: String, default: "" },
+      leastCount: { type: String, default: "" },
+      dia: { type: String, default: "" },
+      makeModel: { type: String, default: "" },
+      calibrationDoneAt: { type: String, default: "Lab" },
+      certificateNo: { type: String, default: "" },
+      ulrNo: { type: String, default: "", trim: true, index: true },
+      deliveryCommittedDays: { type: Number, default: 2 },
+      dateOfDelivery: { type: Date, default: null },
+      remarks: { type: String, default: "" },
     },
     lastReminderSentAt: {
       type: Date,
@@ -210,6 +318,67 @@ calibrationRecordSchema.index({
   make: "text",
   dcNo: "text",
   clientCompany: "text",
+});
+
+// Auto-generate sequential 18-char unique ULR No whenever an inward/calibration record is created or saved without one
+calibrationRecordSchema.pre("save", async function () {
+  const existingUlr = extractRecordUlrNo(this);
+  let finalUlr = existingUlr;
+
+  if (!finalUlr) {
+    const [allocated] = await allocateNextUlrNumbers(1, {
+      CalibrationRecord: this.constructor,
+      mongoose,
+    });
+    finalUlr = allocated;
+  }
+
+  if (finalUlr) {
+    if (!this.records) this.records = {};
+    if (normalizeUlrNo(this.records.ulrNo) !== finalUlr) {
+      this.records.ulrNo = finalUlr;
+      this.markModified("records");
+    }
+    if (!this.inwardRegister) this.inwardRegister = {};
+    if (normalizeUlrNo(this.inwardRegister.ulrNo) !== finalUlr) {
+      this.inwardRegister.ulrNo = finalUlr;
+      this.markModified("inwardRegister");
+    }
+  }
+
+  // Auto-generate per-customer-batch sequential SRF No. (YYMMDD/NN) whenever a record is saved without one
+  if (!extractRecordSrfNo(this)) {
+    const dcClean = String(this.dcNo || "").trim();
+    const hasValidDc = dcClean && dcClean !== "-" && dcClean !== "N/A";
+    const siblingWithSrf =
+      this.clientCompany && hasValidDc
+        ? await this.constructor
+            .findOne({
+              _id: { $ne: this._id },
+              clientCompany: this.clientCompany,
+              dcNo: dcClean,
+              $or: [
+                { srfNo: { $exists: true, $ne: "" } },
+                { "inwardRegister.srfNo": { $exists: true, $ne: "" } },
+              ],
+            })
+            .select("srfNo inwardRegister.srfNo")
+            .lean()
+        : null;
+
+    const assignedSrf =
+      extractRecordSrfNo(siblingWithSrf) ||
+      (await allocateNextSrfNo(getRecordReceiptDate(this), {
+        CalibrationRecord: this.constructor,
+      }));
+
+    if (assignedSrf) {
+      this.srfNo = assignedSrf;
+      if (!this.inwardRegister) this.inwardRegister = {};
+      this.inwardRegister.srfNo = assignedSrf;
+      this.markModified("inwardRegister");
+    }
+  }
 });
 
 const CalibrationRecord =

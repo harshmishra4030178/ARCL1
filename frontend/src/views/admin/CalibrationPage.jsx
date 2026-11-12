@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
+import OfficialNablCertificate from "../../components/calibration/OfficialNablCertificate.jsx";
 import {
   FaCertificate,
   FaFilePdf,
   FaFileExcel,
+  FaFileInvoiceDollar,
   FaCheckCircle,
   FaTimesCircle,
   FaClock,
@@ -46,9 +50,35 @@ import {
   FaCheckSquare,
   FaUsers,
   FaMoneyBillWave,
+  FaCreditCard,
+  FaCoins,
+  FaChartLine,
+  FaWallet,
   FaMicrophone,
   FaMicrophoneSlash,
   FaVolumeUp,
+  FaStamp,
+  FaFlask,
+  FaCheckDouble,
+  FaAward,
+  FaTable,
+  FaFileCode,
+  FaFolderOpen,
+  FaMagic,
+  FaFileAlt,
+  FaSquare,
+  FaClipboardCheck,
+  FaUndo,
+  FaUnlock,
+  FaLock,
+  FaUserCheck,
+  FaColumns,
+  FaExternalLinkAlt,
+  FaEyeSlash,
+  FaExpand,
+  FaCompress,
+  FaCamera,
+  FaPaperclip,
 } from "react-icons/fa";
 import API from "../../api/axios.js";
 import {
@@ -57,6 +87,11 @@ import {
   createCalibrationRecordApi,
   updateCalibrationRecordApi,
   updateCalibrationBatchApi,
+  updateCalibrationPaymentApi,
+  updateCalibrationQuotationStatusApi,
+  releaseCalibrationEquipmentsApi,
+  markCalibrationSrfDoneApi,
+  updateInwardRegisterRowApi,
   deleteCalibrationRecordApi,
   clearAllCalibrationRecordsApi,
   sendCalibrationReminderApi,
@@ -80,6 +115,16 @@ import {
   resetNablLabScopeApi,
   uploadPoApi,
   deletePoApi,
+  saveCalibrationObservationApi,
+  authorizeCalibrationObservationApi,
+  getObservationTemplatesApi,
+  createObservationTemplateApi,
+  updateObservationTemplateApi,
+  deleteObservationTemplateApi,
+  parsePdfPreviewApi,
+  convertCloudinaryPdfToFormApi,
+  verifyGstApi,
+  syncTemplatesFromDirectoryApi,
 } from "../../api/calibrationApi.js";
 import { getProducts } from "../../api/productApi.js";
 import { getEquipmentTypes } from "../../api/equipmentTypeApi.js";
@@ -90,6 +135,9 @@ import {
   getStoredCustomEquipment,
 } from "../../data/calibrationEquipmentCatalog.js";
 import useVoiceInput from "../../hooks/useVoiceInput.js";
+import ExactSheetRenderer from "../../components/calibration/ExactSheetRenderer.jsx";
+import ObservationInputAssistant from "../../components/calibration/ObservationInputAssistant.jsx";
+import { evaluateTemplateWorkbookResults } from "../../utils/exactFormulaEngine.js";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { hasModuleAccess, isSuperAdmin } from "../../utils/rbac.js";
@@ -979,21 +1027,89 @@ export const defaultArclNablScope = [
 // ==========================================
 export default function CalibrationPageView() {
   const { user } = useAuthStore();
-  const canCreate = hasModuleAccess(user, "calibration", "create");
+  const canDashboard = hasModuleAccess(user, "calibration", "dashboard");
+  const canQuotations = hasModuleAccess(user, "calibration", "quotations");
+  const canSrfHistory = hasModuleAccess(user, "calibration", "srf_history");
+  const canInwardRegister = hasModuleAccess(user, "calibration", "inward_register");
+  const canReminders = hasModuleAccess(user, "calibration", "reminders");
+  const canObservations = hasModuleAccess(user, "calibration", "observations");
+  const canAuthorization = hasModuleAccess(user, "calibration", "authorization");
+  const canTemplates = hasModuleAccess(user, "calibration", "templates");
+  const canLabProfile = hasModuleAccess(user, "calibration", "lab_profile");
+  const canPayments = hasModuleAccess(user, "calibration", "payments");
+  const canFinancials = hasModuleAccess(user, "calibration", "financials");
+
   const canEdit = hasModuleAccess(user, "calibration", "edit");
   const canDelete = hasModuleAccess(user, "calibration", "delete");
+  const canCreate = canSrfHistory;
+
+  const permittedTabs = useMemo(() => {
+    const list = [];
+    if (canDashboard) list.push("dashboard");
+    if (canQuotations) list.push("quotations");
+    if (canSrfHistory) list.push("srf_history");
+    if (canInwardRegister) list.push("inward_register");
+    if (canReminders) list.push("reminders");
+    if (canObservations) list.push("observations");
+    if (canAuthorization) list.push("authorization");
+    if (canTemplates) list.push("templates");
+    if (canLabProfile) list.push("lab_profile");
+    if (canFinancials) list.push("financials");
+    return list;
+  }, [
+    canDashboard,
+    canQuotations,
+    canSrfHistory,
+    canInwardRegister,
+    canReminders,
+    canObservations,
+    canAuthorization,
+    canTemplates,
+    canLabProfile,
+    canFinancials,
+  ]);
 
   const [activeTab, setActiveTabState] = useState(() => {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("arcl_calibration_active_tab");
-        if (saved && ["dashboard", "srf_history", "reminders", "lab_profile"].includes(saved)) {
+        if (
+          saved &&
+          [
+            "dashboard",
+            "quotations",
+            "srf_history",
+            "inward_register",
+            "reminders",
+            "observations",
+            "authorization",
+            "templates",
+            "lab_profile",
+            "financials",
+          ].includes(saved)
+        ) {
           return saved;
         }
       } catch (e) {}
     }
     return "dashboard";
   });
+
+  // Section 11: Calibration Financials & Revenue Analytics State
+  const [finDatePreset, setFinDatePreset] = useState("all"); // 'today', 'yesterday', '7d', '1m', 'last_month', '3m', '1y', 'fy', 'all', 'custom'
+  const [finCustomStartDate, setFinCustomStartDate] = useState("");
+  const [finCustomEndDate, setFinCustomEndDate] = useState("");
+  const [finStatusFilter, setFinStatusFilter] = useState("all"); // 'all', 'Paid', 'Pending', 'Partial'
+  const [finClientFilter, setFinClientFilter] = useState("all");
+  const [finSearchTerm, setFinSearchTerm] = useState("");
+  const [finPage, setFinPage] = useState(1);
+
+  // Automatically keep activeTab on a permitted tab
+  useEffect(() => {
+    if (permittedTabs.length > 0 && !permittedTabs.includes(activeTab)) {
+      setActiveTabState(permittedTabs[0]);
+    }
+  }, [permittedTabs, activeTab]);
 
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
@@ -1019,6 +1135,40 @@ export default function CalibrationPageView() {
   const [stageFilter, setStageFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedClient, setSelectedClient] = useState("all");
+  const [srfCommercialFilter, setSrfCommercialFilter] = useState("done_only");
+  const [srfDateFilter, setSrfDateFilter] = useState("");
+  const [obsDateFilter, setObsDateFilter] = useState("");
+
+  // Per-Equipment Daily Lab Permission & Release Modal State
+  const [isLabPermissionModalOpen, setIsLabPermissionModalOpen] = useState(false);
+  const [labPermissionBatchKey, setLabPermissionBatchKey] = useState("");
+  const [selectedPermRecordIds, setSelectedPermRecordIds] = useState(new Set());
+  const [permReleaseDate, setPermReleaseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [permReleaseNotes, setPermReleaseNotes] = useState("");
+  const [permViewFilter, setPermViewFilter] = useState("all");
+  const [permSearchTerm, setPermSearchTerm] = useState("");
+  const [isSavingLabPermission, setIsSavingLabPermission] = useState(false);
+
+  // Section 4: Inward Register State & SRF Done / Edit Modals
+  const [inwardSearchTerm, setInwardSearchTerm] = useState("");
+  const [inwardClientFilter, setInwardClientFilter] = useState("all");
+  const [inwardDateFilter, setInwardDateFilter] = useState("");
+  const [inwardDoneAtFilter, setInwardDoneAtFilter] = useState("all");
+  const [inwardSortOrder, setInwardSortOrder] = useState("oldest"); // 'oldest' (Rank 1,2,3...) | 'newest'
+  const [isSrfDoneModalOpen, setIsSrfDoneModalOpen] = useState(false);
+  const [srfDoneTargetBatch, setSrfDoneTargetBatch] = useState(null);
+  const [srfDoneForm, setSrfDoneForm] = useState({
+    srfNo: "",
+    dateOfReceipt: new Date().toISOString().slice(0, 10),
+    calibrationDoneAt: "Lab",
+    deliveryCommittedDays: 2,
+    dateOfDelivery: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
+    remarks: "",
+  });
+  const [isSavingSrfDone, setIsSavingSrfDone] = useState(false);
+  const [isInwardEditModalOpen, setIsInwardEditModalOpen] = useState(false);
+  const [inwardEditForm, setInwardEditForm] = useState(null);
+  const [isSavingInwardEdit, setIsSavingInwardEdit] = useState(false);
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -1040,7 +1190,22 @@ export default function CalibrationPageView() {
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [quotationRecordId, setQuotationRecordId] = useState(null);
   const [quotationSaving, setQuotationSaving] = useState(false);
+  const hasOpenedQuotationEditorRef = useRef(false);
   const [expandedBatchKeys, setExpandedBatchKeys] = useState(new Set());
+  // Calibration Batch Payment & Installments Management Modal
+  const [isBatchPaymentModalOpen, setIsBatchPaymentModalOpen] = useState(false);
+  const [batchPaymentTarget, setBatchPaymentTarget] = useState(null);
+  const [savingBatchPayment, setSavingBatchPayment] = useState(false);
+  const [expandedBatchPaymentKeys, setExpandedBatchPaymentKeys] = useState(new Set());
+  const [batchPaymentForm, setBatchPaymentForm] = useState({
+    totalAmount: 0,
+    paidAmount: 0,
+    dueAmount: 0,
+    paymentStatus: "Paid",
+    paymentMode: "UPI",
+    transactionRef: "",
+    payments: [],
+  });
   const [isPoPreviewModalOpen, setIsPoPreviewModalOpen] = useState(false);
   const [poPreviewData, setPoPreviewData] = useState({
     url: "",
@@ -1106,6 +1271,2494 @@ export default function CalibrationPageView() {
     referralRate: 30,
     annualSubscriptionRate: 11000,
   });
+  // =========================================================================
+  // OBSERVATION WORKSHEET & QUALITY AUTHORIZATION STATES
+  // =========================================================================
+  const [selectedCertBatch, setSelectedCertBatch] = useState(null);
+  const [selectedObsInstrumentId, setSelectedObsInstrumentId] = useState("");
+  const [obsFilterClient, setObsFilterClient] = useState("all");
+  const [obsSearchTerm, setObsSearchTerm] = useState("");
+  const [obsStatusFilter, setObsStatusFilter] = useState("all"); // "all" | "quotation_done" | "pending" | "locked" | "approved"
+
+  const [obsWorksheetNo, setObsWorksheetNo] = useState("");
+  const [obsCalibratedBy, setObsCalibratedBy] = useState("VK");
+  const [obsCalibDate, setObsCalibDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [obsDueDate, setObsDueDate] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [obsIssueDate, setObsIssueDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [obsClientAddress, setObsClientAddress] = useState("");
+  const [obsMakeModel, setObsMakeModel] = useState("");
+  const [obsSerialNo, setObsSerialNo] = useState("");
+  const [obsRange, setObsRange] = useState("3000");
+  const [obsLeastCount, setObsLeastCount] = useState("0.1");
+  const [obsLocation, setObsLocation] = useState("");
+  const autoSyncedTemplateIdsRef = useRef(new Set());
+  const [obsConditionOfItem, setObsConditionOfItem] = useState("OK");
+  const [obsTemperature, setObsTemperature] = useState("29.4");
+  const [obsHumidity, setObsHumidity] = useState("56");
+  const [obsCalibrationMethod, setObsCalibrationMethod] = useState("ARCL-CP-16");
+  const [obsReferenceStandard, setObsReferenceStandard] = useState("IS : 1828-Part-1");
+  const [obsMasterDescription, setObsMasterDescription] = useState("Proving Ring");
+  const [obsMasterId, setObsMasterId] = useState("ARCL/PR/01/325132");
+  const [obsMasterCertNo, setObsMasterCertNo] = useState("SCPL/CC/3663/02/2025-2026");
+  const [obsMasterDueDate, setObsMasterDueDate] = useState("25/04/2028");
+  const [obsMasterTraceable, setObsMasterTraceable] = useState("NABL CC-2874");
+  const [obsMasterEquipments, setObsMasterEquipments] = useState([]);
+  const [obsMode, setObsMode] = useState("Compression");
+  const [obsDiscipline, setObsDiscipline] = useState("Mechanical Calibration (Force)");
+  const [obsCalibratedBySite, setObsCalibratedBySite] = useState("VK");
+  const [obsReadings, setObsReadings] = useState([]);
+  const [obsRemarks, setObsRemarks] = useState("The Calibration has been carried out without adjustment.");
+  const [obsInwardNo, setObsInwardNo] = useState("");
+  const [obsReceiptDate, setObsReceiptDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [obsFormatNo, setObsFormatNo] = useState("ARCL/OB/06");
+  const [obsFormatIssueNo, setObsFormatIssueNo] = useState("01");
+  const [obsFormatIssueDate, setObsFormatIssueDate] = useState("2026-07-01");
+  const [obsRepeatabilityMu, setObsRepeatabilityMu] = useState("");
+  const [obsRepeatabilityReadings, setObsRepeatabilityReadings] = useState(["", "", "", "", ""]);
+
+  const parseRepeatabilityToArray = (val) => {
+    if (Array.isArray(val)) {
+      const arr = val.map((x) => (x !== null && x !== undefined ? String(x) : ""));
+      while (arr.length < 5) arr.push("");
+      return arr.slice(0, 5);
+    }
+    if (typeof val === "string" && val.trim()) {
+      const parts = val.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      while (parts.length < 5) parts.push("");
+      return parts.slice(0, 5);
+    }
+    return ["", "", "", "", ""];
+  };
+
+  const handleRepeatabilityReadingChange = (idx, val) => {
+    setObsRepeatabilityReadings((prev) => {
+      const next = Array.isArray(prev) ? [...prev] : ["", "", "", "", ""];
+      while (next.length < 5) next.push("");
+      next[idx] = val;
+      const joined = next.filter((v) => v !== "" && v !== null && v !== undefined).join(", ");
+      setObsRepeatabilityMu(joined);
+      syncRepeatabilityToExactSheets(next, { onlyIfEmpty: false });
+      return next;
+    });
+  };
+
+  const repeatabilityStats = useMemo(() => {
+    const nums = (obsRepeatabilityReadings || [])
+      .map((v) => parseFloat(v))
+      .filter((n) => !isNaN(n));
+    if (nums.length === 0) return { count: 0, mean: "-", stdDev: "-" };
+    const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+    let stdDev = "-";
+    if (nums.length > 1) {
+      const variance = nums.reduce((acc, x) => acc + Math.pow(x - mean, 2), 0) / (nums.length - 1);
+      stdDev = Math.sqrt(variance).toFixed(5).replace(/\.?0+$/, "");
+    }
+    return {
+      count: nums.length,
+      mean: mean.toFixed(5).replace(/\.?0+$/, ""),
+      stdDev,
+    };
+  }, [obsRepeatabilityReadings]);
+  const [obsReviewedBy, setObsReviewedBy] = useState("Technical Manager");
+  const [isObsSaving, setIsObsSaving] = useState(false);
+  const [obsSubmissionSuccess, setObsSubmissionSuccess] = useState(null);
+  const [inspectionModalTab, setInspectionModalTab] = useState("calculation"); // "calculation" | "raw_observation"
+
+  const computeMetrologicalCalculations = (rec) => {
+    if (!rec) return { rows: [], amu: null, overallVerdict: "PASS", maxError: 0, reportTable: null, evaluatedReadings: [], formulaCells: [], liveValues: {} };
+    const obs = rec.observationData || {};
+    const matchedTemplate =
+      obsTemplates.find(
+        (t) =>
+          (obs.templateId && String(t._id) === String(obs.templateId)) ||
+          (rec.templateId && String(t._id) === String(rec.templateId)) ||
+          (obs.templateName && t.name && t.name.toLowerCase() === obs.templateName.toLowerCase())
+      ) ||
+      (typeof findTemplateForInstrument === "function" ? findTemplateForInstrument(rec, obsTemplates) : null) ||
+      null;
+
+    return evaluateTemplateWorkbookResults({
+      template: matchedTemplate,
+      observationData: obs,
+      record: rec,
+    });
+  };
+
+  // Multi-Print and Choice States
+  
+  const [printCertBatchModal, setPrintCertBatchModal] = useState(null);
+  const [selectedPrintEquipId, setSelectedPrintEquipId] = useState("");
+  const [selectedPrintEquipIds, setSelectedPrintEquipIds] = useState(new Set());
+  const [printModalSearch, setPrintModalSearch] = useState("");
+  const [dirSelectedEquipIds, setDirSelectedEquipIds] = useState(new Set());
+
+  // Default CTM Table Columns (Standard Baseline)
+  const defaultCtmColumns = [
+    { key: "nominal", label: "Nominal Force", unit: "KN", type: "number", minWidth: "100px" },
+    { key: "master", label: "Master True Load at Site EC", unit: "KN", type: "number", minWidth: "130px" },
+    { key: "indicated", label: "Average Indicated Load", unit: "KN", type: "number", minWidth: "130px" },
+    { key: "error", label: "Relative Indication Error", unit: "%", type: "calculated", minWidth: "120px" },
+    { key: "repeatability", label: "Relative Repeatability Error", unit: "%", type: "number", minWidth: "120px" },
+    { key: "uncertainty", label: "± Expanded Uncertainty", unit: "%rdg", type: "number", minWidth: "120px" },
+  ];
+
+  // Default Flakiness Gauge Format Data (1:1 Match with ARCL/OB/06 PDF)
+  const defaultFlakinessColumns = [
+    { key: "specification", label: "Specification", minWidth: "120px" },
+    { key: "gapSize", label: "Gap Size(mm) Per IS 2386-(part-1)-1993", minWidth: "200px" },
+    { key: "measuredGap", label: "As Measured Gap (mm)", minWidth: "180px" },
+  ];
+
+  const defaultFlakinessReadings = [
+    { specification: "63-50", gapSize: "33.9±0.1", measuredGap: "" },
+    { specification: "50-40", gapSize: "27±0.1", measuredGap: "" },
+    { specification: "40-31.5", gapSize: "21.5±0.1", measuredGap: "" },
+    { specification: "31.5-25", gapSize: "16.9±0.1", measuredGap: "" },
+    { specification: "25-20", gapSize: "13.5±0.1", measuredGap: "" },
+    { specification: "20-16", gapSize: "10.8±0.1", measuredGap: "" },
+    { specification: "16-12.5", gapSize: "8.55±0.1", measuredGap: "" },
+    { specification: "12.5-10", gapSize: "6.75±0.1", measuredGap: "" },
+    { specification: "10-6.3", gapSize: "4.89±0.1", measuredGap: "" },
+  ];
+
+  const isCorruptedTableColumns = (cols) => {
+    if (!Array.isArray(cols) || cols.length === 0) return true;
+    return cols.some((c) => {
+      const label = String(c?.label || c?.key || "").toLowerCase();
+      return (
+        label.includes("inward") ||
+        label.includes("recipt") ||
+        label.includes("receipt") ||
+        label.includes("format no") ||
+        label.includes("format issue") ||
+        label.includes("issue date") ||
+        label.includes("due date of calibration") ||
+        label.includes("condition of item") ||
+        label.includes("environmental condition") ||
+        label.includes("method of calibration") ||
+        label.includes("reference standard")
+      );
+    });
+  };
+
+  const isCorruptedReadings = (readings) => {
+    if (!Array.isArray(readings) || readings.length === 0) return true;
+    return readings.some((r) => {
+      if (!r || typeof r !== "object") return true;
+      const values = Object.values(r).map((v) => String(v || "").toLowerCase());
+      const keys = Object.keys(r).map((k) => String(k || "").toLowerCase());
+      return (
+        keys.some((k) => k.includes("inward") || k.includes("recipt") || k.includes("receipt") || k.includes("format")) ||
+        values.some(
+          (v) =>
+            v.includes("condition of item") ||
+            v.includes("environmental condition") ||
+            v.includes("method of calibration") ||
+            v.includes("reference standard") ||
+            v.includes("enter inward")
+        )
+      );
+    });
+  };
+
+  // Observation Format Templates & PDF-to-Form Studio States
+  const [obsTemplates, setObsTemplates] = useState([]);
+  const [obsTemplatesLoading, setObsTemplatesLoading] = useState(false);
+  const [activeObsTemplateId, setActiveObsTemplateId] = useState("");
+  const [obsTableColumns, setObsTableColumns] = useState([]);
+  const [obsInstrumentName, setObsInstrumentName] = useState("");
+  const [templateFilterCategory, setTemplateFilterCategory] = useState("all");
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [isTemplateUploadModalOpen, setIsTemplateUploadModalOpen] = useState(false);
+  const [templateUploadLoading, setTemplateUploadLoading] = useState(false);
+  const [templateParsingLoading, setTemplateParsingLoading] = useState(false);
+  const [viewingTemplatePdfUrl, setViewingTemplatePdfUrl] = useState(null);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [templateDeleteTarget, setTemplateDeleteTarget] = useState(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
+  const [obsViewMode, setObsViewMode] = useState("split"); // "split" | "stacked" | "form"
+  const [showObsPdfPreview, setShowObsPdfPreview] = useState(true);
+  const [activeObsPdfUrl, setActiveObsPdfUrl] = useState("");
+  const [isConvertingFromCloudinary, setIsConvertingFromCloudinary] = useState(false);
+  const [isDirectUploadingFile, setIsDirectUploadingFile] = useState(false);
+  const [excelActiveTab, setExcelActiveTab] = useState("obs"); // "obs" | "report" | "amu"
+  const [isSyncingFromDirectory, setIsSyncingFromDirectory] = useState(false);
+  const [dismissedReturnBanners, setDismissedReturnBanners] = useState({});
+  const [studioPreviewTemplate, setStudioPreviewTemplate] = useState(null);
+  const [studioPreviewTab, setStudioPreviewTab] = useState("obs");
+  const [studioStep3Tab, setStudioStep3Tab] = useState("exact");
+  const [reconvertingTemplateId, setReconvertingTemplateId] = useState(null);
+  const [obsShowAllColumns, setObsShowAllColumns] = useState(true);
+  const [obsExactMode, setObsExactMode] = useState(true);
+  const [obsExactSheetValues, setObsExactSheetValues] = useState({});
+  const [obsInputMode, setObsInputMode] = useState("manual");
+  const obsAssistantSectionRef = useRef(null);
+
+  // Custom Categories & PDF Compression States
+  const DEFAULT_OBS_CATEGORIES = [
+    "Force",
+    "Dimensional",
+    "Pressure",
+    "Thermal",
+    "Mass",
+    "Electrical",
+    "General",
+  ];
+
+  const [customCategories, setCustomCategories] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("arcl_custom_obs_categories");
+        return stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+  const [isAddingCategoryModal, setIsAddingCategoryModal] = useState(false);
+  const [pdfCompressionStats, setPdfCompressionStats] = useState(null);
+
+  const allObsCategories = useMemo(() => {
+    const set = new Set([...DEFAULT_OBS_CATEGORIES, ...customCategories]);
+    (obsTemplates || []).forEach((t) => {
+      if (t.equipmentType && t.equipmentType.trim()) {
+        set.add(t.equipmentType.trim());
+      }
+    });
+    return Array.from(set);
+  }, [customCategories, obsTemplates]);
+
+  const handleAddCategory = (categoryName) => {
+    const clean = (categoryName || newCategoryInput || "").trim();
+    if (!clean) {
+      toast.error("Please enter a category name");
+      return;
+    }
+    if (allObsCategories.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+      toast.info(`Category "${clean}" already exists`);
+      setTemplateFilterCategory(clean);
+      setNewCategoryInput("");
+      setIsAddingCategoryModal(false);
+      return;
+    }
+    const updated = [...customCategories, clean];
+    setCustomCategories(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("arcl_custom_obs_categories", JSON.stringify(updated));
+      } catch (e) {}
+    }
+    setTemplateFilterCategory(clean);
+    setTemplateForm((prev) => ({ ...prev, equipmentType: clean }));
+    setNewCategoryInput("");
+    setIsAddingCategoryModal(false);
+    toast.success(`Category "${clean}" added successfully! 🎉`);
+  };
+
+  const handleRemoveCustomCategory = (catToRemove, e) => {
+    e?.stopPropagation?.();
+    const updated = customCategories.filter((c) => c !== catToRemove);
+    setCustomCategories(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("arcl_custom_obs_categories", JSON.stringify(updated));
+      } catch (e) {}
+    }
+    if (templateFilterCategory === catToRemove) {
+      setTemplateFilterCategory("all");
+    }
+    toast.info(`Category "${catToRemove}" removed.`);
+  };
+
+  const defaultTemplateForm = {
+    name: "",
+    equipmentType: "General",
+    standardReference: "IS / ISO Metrology Standard",
+    calibrationMethod: "ARCL-CP-STANDARD",
+    mode: "Standard",
+    discipline: "General Metrology",
+    range: "",
+    leastCount: "",
+    conditionOfItem: "OK",
+    temperature: "25.0 ± 2°C",
+    humidity: "50 ± 10% RH",
+    formatNo: "ARCL/OB/01",
+    formatIssueNo: "01",
+    formatIssueDate: "",
+    masterDescription: "",
+    masterId: "",
+    masterCertNo: "",
+    masterDueDate: "",
+    masterTraceable: "NABL",
+    masterEquipments: [],
+    repeatabilityMu: "",
+    repeatabilityReadings: ["", "", "", "", ""],
+    sheetsSummary: [],
+    exactSheets: [],
+    exactSheetValues: {},
+    reportData: null,
+    amuData: null,
+    structureEdited: false,
+    tableColumns: [
+      { key: "sNo", label: "Sr. No.", unit: "", type: "text", minWidth: "70px" },
+      { key: "nominal", label: "Nominal Value", unit: "", type: "number", minWidth: "120px" },
+      { key: "reading1", label: "Observed Reading 1", unit: "", type: "number", minWidth: "120px" },
+      { key: "reading2", label: "Observed Reading 2", unit: "", type: "number", minWidth: "120px" },
+      { key: "average", label: "Average", unit: "", type: "formula", minWidth: "110px" },
+    ],
+    defaultReadings: [
+      { sNo: "1", nominal: "", reading1: "", reading2: "", average: "" },
+      { sNo: "2", nominal: "", reading1: "", reading2: "", average: "" },
+      { sNo: "3", nominal: "", reading1: "", reading2: "", average: "" },
+    ],
+    notes: "Calibrated according to standard reference metrological tolerances.",
+    pdfFile: null,
+  };
+
+  const [templateForm, setTemplateForm] = useState(defaultTemplateForm);
+
+  const fetchObsTemplates = async () => {
+    try {
+      setObsTemplatesLoading(true);
+      const res = await getObservationTemplatesApi();
+      const raw = res.data?.data;
+      const list = Array.isArray(raw) ? raw : (raw?.templates || []);
+      setObsTemplates(list);
+    } catch (err) {
+      console.warn("Failed to fetch observation templates:", err);
+    } finally {
+      setObsTemplatesLoading(false);
+    }
+  };
+
+  // Strict word-boundary matching helper without regex-escape pitfalls
+  const hasWordStrict = (text, word) => {
+    const t = " " + String(text || "").trim().toLowerCase() + " ";
+    const w = " " + String(word || "").trim().toLowerCase() + " ";
+    return t.includes(w);
+  };
+
+  // Helper to clean equipment & template names into comparable base names
+  const normalizeEquipName = (str) => {
+    return String(str || "")
+      .toLowerCase()
+      .replace(/\.[^/.]+$/, "") // strip file extension .xlsx / .pdf
+      .replace(/^\s*\d+(?:\s*-\s*[a-z0-9])?[\s._-]+/i, "") // strip leading index '10 ', '01 ', '06-A ', '8 -A '
+      .replace(/\s*-\s*calibration\s*$/i, "")
+      .replace(/\s*\(calibration\)\s*$/i, "")
+      .replace(/^observation\s+(of\s+)?/i, "")
+      .replace(/\s*observation\s*format\s*$/i, "")
+      .replace(/\s*format\s*$/i, "")
+      .replace(/\s*worksheet\s*$/i, "")
+      .replace(/[^a-z0-9]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // Dedicated Domain Equivalence Table for Metrology Equipments
+  const SPECIFIC_METROLOGY_MAPPINGS = [
+    // Mould sub-types (prioritized so Cube Mould matches 8-A Cube Mould, not Beam Mould)
+    { match: ["cube mould"], targets: ["cube mould"] },
+    { match: ["beam mould"], targets: ["beam mould"] },
+    { match: ["cylindrical mould", "cylinder mould"], targets: ["cylindrical mould"] },
+    { match: ["shrinkage mould"], targets: ["shrinkage mould"] },
+    { match: ["typical bar mould", "bar mould"], targets: ["typical bar mould"] },
+    { match: ["mortar mould"], targets: ["mortar mould"] },
+    { match: ["proctor mould"], targets: ["proctor mould"] },
+    { match: ["marshal mould", "marshall mould"], targets: ["marshal mould"] },
+    { match: ["vicat mould"], targets: ["vicat mould"] },
+    { match: ["le chartlier mould", "le chatelier mould"], targets: ["le chartlier mould"] },
+    { match: ["cbr mould"], targets: ["cbr mould"] },
+    { match: ["core cutter"], targets: ["core cutter"] },
+
+    // Force / Compression (CTM, UTM, Proving Ring -> Force 3000kN / 100kN)
+    { match: ["ctm", "compression testing", "compression machine", "utm", "tensile testing", "proving ring", "load cell", "force"], targets: ["force 3000kn", "force 100kn", "force"] },
+
+    // Speed / Centrifuge / Tachometer / RPM
+    { match: ["centrifuge", "tachometer", "stroboscope", "rpm", "speed indicator", "speed"], targets: ["rpm"] },
+
+    // Dimensional Gauges
+    { match: ["dial thickness gauge", "dial thickness"], targets: ["dial thickness gauge"] },
+    { match: ["dial gauge", "dial indicator", "plunger"], targets: ["dial gauge"] },
+    { match: ["vernier caliper", "digital caliper", "caliper", "height gauge"], targets: ["vernier caliper"] },
+    { match: ["micrometer", "screw gauge", "depth micrometer"], targets: ["micrometer"] },
+    { match: ["feeler gauge"], targets: ["feeler gauge"] },
+    { match: ["flakiness", "flaakiness"], targets: ["flaakiness gauge"] },
+    { match: ["elongation gauge"], targets: ["elongation gauge"] },
+    { match: ["measuring scale", "steel scale"], targets: ["measuring scale"] },
+    { match: ["radius gauge"], targets: ["radius gauge"] },
+    { match: ["wire gauge"], targets: ["wire gauge"] },
+    { match: ["coating thickness", "wet film thickness", "elcometer"], targets: ["coating thickness", "wet film thickness"] },
+    { match: ["ultrasonic thickness", "ultra sonic"], targets: ["ultra sonic thickness"] },
+    { match: ["lvdt"], targets: ["lvdt"] },
+
+    // Mass / Weighing Balance
+    { match: ["weighing balance", "weigh balance", "balance", "electronic balance", "mass balance"], targets: ["weighing balance"] },
+
+    // Thermal / Oven / Furnace
+    { match: ["muffle furnace", "furnace"], targets: ["muffle furnace"] },
+    { match: ["oven", "hot air oven", "temperature", "thermometer", "thermo"], targets: ["temptraure"] },
+
+    // Sieves
+    { match: ["test sieve", "sieve", "sieves", "wire cloth"], targets: ["test sieves wire cloth", "test sieves perforated"] },
+
+    // Civil / Geo / Lab Apparatus
+    { match: ["slump cone"], targets: ["slump cone"] },
+    { match: ["flow table"], targets: ["flow table"] },
+    { match: ["l box", "l-box"], targets: ["l box"] },
+    { match: ["v funnel", "v-funnel"], targets: ["v funnel"] },
+    { match: ["sand pouring"], targets: ["sand pouring"] },
+    { match: ["dlbd"], targets: ["dlbd"] },
+    { match: ["crushing value"], targets: ["crushing value"] },
+    { match: ["penetrometer"], targets: ["penetrometer"] },
+    { match: ["pressure gauge", "vacuum gauge", "pressure indicator"], targets: ["pressure gauge"] }
+  ];
+
+  // Scoring function to evaluate how well a template matches an instrument
+  const scoreTemplateMatch = (recordInst, templateName, templateEquipType = "") => {
+    const normRec = normalizeEquipName(recordInst);
+    const normTmpl = normalizeEquipName(templateName);
+    if (!normRec || !normTmpl) return 0;
+
+    // 1. Exact match
+    if (normRec === normTmpl) return 1000;
+
+    // 2. Specific metrology domain rules
+    for (const rule of SPECIFIC_METROLOGY_MAPPINGS) {
+      const recMatched = rule.match.some((m) => hasWordStrict(normRec, m) || normRec.includes(m));
+      if (recMatched) {
+        for (let tIdx = 0; tIdx < rule.targets.length; tIdx++) {
+          const target = rule.targets[tIdx];
+          if (hasWordStrict(normTmpl, target) || normTmpl.includes(target)) {
+            return 500 - tIdx * 10;
+          }
+        }
+      }
+    }
+
+    // 3. Substring matching
+    if (normRec.length >= 4 && normTmpl.includes(normRec)) return 200;
+    if (normTmpl.length >= 4 && normRec.includes(normTmpl)) return 150;
+
+    // 4. Token overlap
+    const recTokens = normRec.split(" ").filter((w) => w.length > 2);
+    const tmplTokens = normTmpl.split(" ").filter((w) => w.length > 2);
+    let overlapCount = 0;
+    for (const t of recTokens) {
+      if (tmplTokens.includes(t)) overlapCount++;
+    }
+    if (overlapCount > 0) return overlapCount * 20;
+
+    return 0;
+  };
+
+  const isEquipmentNameSame = (recordInst, templateName, templateEquipType) => {
+    return scoreTemplateMatch(recordInst, templateName, templateEquipType) > 0;
+  };
+
+  // Guess equipment category from instrument name
+  const guessCategoryFromInst = (name) => {
+    const s = String(name || "").toLowerCase();
+    if (s.includes("rpm") || s.includes("centrifuge") || s.includes("tachometer") || s.includes("rotating") || s.includes("speed")) {
+      return "Speed / RPM";
+    }
+    if (s.includes("oven") || s.includes("temp") || s.includes("furnace") || s.includes("bath") || s.includes("thermometer")) {
+      return "Thermal";
+    }
+    if (s.includes("weigh") || s.includes("balance") || s.includes("mass") || s.includes("scale")) {
+      return "Mass";
+    }
+    if (s.includes("pressure") || s.includes("vacuum") || s.includes("bar") || s.includes("psi") || s.includes("dwt")) {
+      return "Pressure";
+    }
+    if (s.includes("caliper") || s.includes("vernier") || s.includes("micrometer") || s.includes("flakiness") || s.includes("feeler") || s.includes("sieve") || s.includes("dial gauge") || s.includes("gauge") || s.includes("mould")) {
+      return "Dimensional";
+    }
+    if (s.includes("ctm") || s.includes("utm") || s.includes("compression") || s.includes("tensile") || s.includes("load cell") || s.includes("force") || s.includes("kn")) {
+      return "Force";
+    }
+    return "General";
+  };
+
+  // Intelligent Matcher: Quotation Equipment Name against 55+ Template Formats
+  const findTemplateForInstrument = (record, customTemplates = obsTemplates) => {
+    if (!record) return null;
+    const obs = record.observationData || {};
+    const tList = Array.isArray(customTemplates) ? customTemplates : [];
+    const inst = String(record.instrument || "").trim();
+
+    // 1. If explicitly saved templateId exists in tList, return it immediately!
+    if (obs.templateId) {
+      const found = tList.find((t) => String(t._id) === String(obs.templateId));
+      if (found) return found;
+    }
+
+    // 2. If explicitly saved templateName exists in tList, match by name!
+    if (obs.templateName) {
+      const foundByName = tList.find(
+        (t) => String(t.name || "").trim().toLowerCase() === String(obs.templateName).trim().toLowerCase()
+      );
+      if (foundByName) return foundByName;
+    }
+
+    // 3. Match using highest scoring template match
+    let bestTmpl = null;
+    let bestScore = 0;
+    for (const t of tList) {
+      const candidateNames = [t.name, t.pdfFileName].filter(Boolean);
+      for (const cName of candidateNames) {
+        const s = scoreTemplateMatch(inst, cName, t.equipmentType);
+        if (s > bestScore) {
+          bestScore = s;
+          bestTmpl = t;
+        }
+      }
+    }
+
+    if (bestScore > 0) return bestTmpl;
+
+    return null;
+  };
+  const allQuotationEquipmentNames = useMemo(() => {
+    const set = new Set();
+    (records || []).forEach((r) => {
+      const clean = String(r.instrument || "")
+        .replace(/\s*-\s*calibration\s*$/i, "")
+        .replace(/\s*\(calibration\)\s*$/i, "")
+        .trim();
+      if (clean) set.add(clean);
+    });
+    return Array.from(set);
+  }, [records]);
+
+  const handleSelectObservationTemplate = async (tmpl) => {
+    if (!tmpl) return;
+    setActiveObsTemplateId(tmpl._id);
+    if (tmpl.pdfUrl) {
+      setActiveObsPdfUrl(tmpl.pdfUrl);
+      setShowObsPdfPreview(true);
+    }
+    if (Array.isArray(tmpl.tableColumns) && tmpl.tableColumns.length > 0) {
+      setObsTableColumns(tmpl.tableColumns);
+    }
+    if (Array.isArray(tmpl.defaultReadings)) {
+      setObsReadings(tmpl.defaultReadings);
+    }
+    setObsExactSheetValues({});
+    if (Array.isArray(tmpl.exactSheets) && tmpl.exactSheets.length > 0) {
+      setObsExactMode(true);
+    }
+    if (tmpl.standardReference) setObsReferenceStandard(tmpl.standardReference);
+    if (tmpl.calibrationMethod) setObsCalibrationMethod(tmpl.calibrationMethod);
+    setObsMode(tmpl.parameters?.mode || "Standard");
+    setObsDiscipline(tmpl.equipmentType || tmpl.parameters?.discipline || "Metrology");
+    if (tmpl.parameters?.range) setObsRange(tmpl.parameters.range);
+    if (tmpl.parameters?.leastCount) setObsLeastCount(tmpl.parameters.leastCount);
+    setObsLocation(tmpl.parameters?.location || "");
+    if (tmpl.parameters?.temperature) setObsTemperature(tmpl.parameters.temperature);
+    if (tmpl.parameters?.humidity) setObsHumidity(tmpl.parameters.humidity);
+    if (tmpl.parameters?.conditionOfItem) setObsConditionOfItem(tmpl.parameters.conditionOfItem || "OK");
+    if (Array.isArray(tmpl.parameters?.masterEquipments) && tmpl.parameters.masterEquipments.length > 0) {
+      setObsMasterEquipments(tmpl.parameters.masterEquipments);
+      const first = tmpl.parameters.masterEquipments[0];
+      if (first.description) setObsMasterDescription(first.description);
+      if (first.idMark) setObsMasterId(first.idMark);
+      if (first.certNo) setObsMasterCertNo(first.certNo);
+      if (first.dueDate) setObsMasterDueDate(first.dueDate);
+      if (first.traceableBy) setObsMasterTraceable(first.traceableBy);
+    } else {
+      const singleList = [
+        {
+          description: tmpl.parameters?.masterDescription || tmpl.parameters?.masterEquipment || "",
+          idMark: tmpl.parameters?.masterId || "",
+          certNo: tmpl.parameters?.masterCertNo || "",
+          dueDate: tmpl.parameters?.masterDueDate || "",
+          traceableBy: tmpl.parameters?.masterTraceable || "",
+        }
+      ];
+      setObsMasterEquipments(singleList);
+      if (tmpl.parameters?.masterDescription || tmpl.parameters?.masterEquipment) {
+        setObsMasterDescription(tmpl.parameters.masterDescription || tmpl.parameters.masterEquipment);
+      }
+      if (tmpl.parameters?.masterId) setObsMasterId(tmpl.parameters.masterId);
+      if (tmpl.parameters?.masterCertNo) setObsMasterCertNo(tmpl.parameters.masterCertNo);
+      if (tmpl.parameters?.masterDueDate) setObsMasterDueDate(tmpl.parameters.masterDueDate);
+      if (tmpl.parameters?.masterTraceable) setObsMasterTraceable(tmpl.parameters.masterTraceable);
+    }
+    if (tmpl.parameters?.formatNo) setObsFormatNo(tmpl.parameters.formatNo);
+    if (tmpl.parameters?.formatIssueNo) setObsFormatIssueNo(tmpl.parameters.formatIssueNo);
+    if (tmpl.parameters?.formatIssueDate) setObsFormatIssueDate(tmpl.parameters.formatIssueDate);
+    if (tmpl.parameters?.repeatabilityReadings && Array.isArray(tmpl.parameters.repeatabilityReadings)) {
+      const arr = parseRepeatabilityToArray(tmpl.parameters.repeatabilityReadings);
+      setObsRepeatabilityReadings(arr);
+      setObsRepeatabilityMu(arr.filter(Boolean).join(", "));
+    } else if (tmpl.parameters?.repeatabilityMu) {
+      const arr = parseRepeatabilityToArray(tmpl.parameters.repeatabilityMu);
+      setObsRepeatabilityReadings(arr);
+      setObsRepeatabilityMu(tmpl.parameters.repeatabilityMu);
+    } else {
+      setObsRepeatabilityReadings(["", "", "", "", ""]);
+      setObsRepeatabilityMu("");
+    }
+
+    // Sync to active record immediately
+    if (activeObsRecord?._id) {
+      setRecords((prev) =>
+        prev.map((r) =>
+          r._id === activeObsRecord._id
+            ? {
+                ...r,
+                observationData: {
+                  ...(r.observationData || {}),
+                  templateId: tmpl._id,
+                  templateName: tmpl.name,
+                  equipmentType: tmpl.equipmentType,
+                  tableColumns: tmpl.tableColumns,
+                  readings: tmpl.defaultReadings || [],
+                  parameters: tmpl.parameters || {},
+                  pdfUrl: tmpl.pdfUrl || r.observationData?.pdfUrl,
+                },
+              }
+            : r
+        )
+      );
+    }
+    toast.success(`Observation format loaded: "${tmpl.name}"! ✨`);
+
+    // On-demand dynamic synchronization: Also upgrade older Excel/PDF templates lacking 1:1 exactSheets
+    const isExcelFormat = Boolean(
+      tmpl.fileType === "xlsx" ||
+      tmpl.pdfFileName?.match(/\.(xlsx|xls|csv)$/i) ||
+      tmpl.pdfUrl?.match(/\.(xlsx|xls|csv)$/i)
+    );
+    const missingExactSheets = !Array.isArray(tmpl.exactSheets) || tmpl.exactSheets.length === 0;
+    if (tmpl.pdfUrl && (!isExcelFormat || missingExactSheets)) {
+      try {
+        const res = await convertCloudinaryPdfToFormApi({ templateId: tmpl._id, pdfUrl: tmpl.pdfUrl });
+        const converted = res.data?.data;
+        if (converted) {
+          if (Array.isArray(converted.exactSheets) && converted.exactSheets.length > 0) {
+            setObsExactMode(true);
+          }
+          if (Array.isArray(converted.tableColumns) && converted.tableColumns.length > 0) {
+            setObsTableColumns(converted.tableColumns);
+          }
+          if (Array.isArray(converted.defaultReadings) && converted.defaultReadings.length > 0) {
+            setObsReadings(converted.defaultReadings);
+          }
+          if (converted.standardReference) setObsReferenceStandard(converted.standardReference);
+          if (converted.calibrationMethod) setObsCalibrationMethod(converted.calibrationMethod);
+          if (converted.parameters) {
+            const p = converted.parameters;
+            if (p.range !== undefined) setObsRange(p.range);
+            if (p.leastCount !== undefined) setObsLeastCount(p.leastCount);
+            if (p.location !== undefined) setObsLocation(p.location);
+            if (p.temperature) setObsTemperature(p.temperature);
+            if (p.humidity) setObsHumidity(p.humidity);
+            if (Array.isArray(p.masterEquipments) && p.masterEquipments.length > 0) {
+              setObsMasterEquipments(p.masterEquipments);
+              const first = p.masterEquipments[0];
+              if (first.description) setObsMasterDescription(first.description);
+              if (first.idMark) setObsMasterId(first.idMark);
+              if (first.certNo) setObsMasterCertNo(first.certNo);
+              if (first.dueDate) setObsMasterDueDate(first.dueDate);
+              if (first.traceableBy) setObsMasterTraceable(first.traceableBy);
+            } else {
+              if (p.masterDescription || p.masterEquipment) setObsMasterDescription(p.masterDescription || p.masterEquipment);
+              if (p.masterId) setObsMasterId(p.masterId);
+              if (p.masterCertNo) setObsMasterCertNo(p.masterCertNo);
+              if (p.masterDueDate) setObsMasterDueDate(p.masterDueDate);
+              if (p.masterTraceable) setObsMasterTraceable(p.masterTraceable);
+            }
+            if (p.formatNo) setObsFormatNo(p.formatNo);
+            if (p.formatIssueNo) setObsFormatIssueNo(p.formatIssueNo);
+            if (p.formatIssueDate) setObsFormatIssueDate(p.formatIssueDate);
+          }
+          setObsTemplates((prev) =>
+            prev.map((t) => (t._id === tmpl._id ? { ...t, ...converted } : t))
+          );
+        }
+      } catch (syncErr) {
+        console.warn("Background PDF auto-sync notice:", syncErr?.message);
+      }
+    }
+  };
+
+  const handleSelectActiveInstrument = (record) => {
+    if (!record) return;
+    setSelectedObsInstrumentId(record._id || record.id);
+
+    const matched = findTemplateForInstrument(record, obsTemplates);
+    const obs = record.observationData || {};
+
+    if (!matched) {
+      setActiveObsTemplateId("");
+      setActiveObsPdfUrl(obs.pdfUrl || "");
+      if (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0) {
+        setObsTableColumns(obs.tableColumns);
+        if (Array.isArray(obs.readings)) setObsReadings(obs.readings);
+      } else {
+        // Standard metrological observation columns
+        setObsTableColumns([
+          { key: "sNo", label: "S. No.", type: "text", minWidth: "60px" },
+          { key: "nominal", label: "Specified Nominal Value", type: "number", minWidth: "140px" },
+          { key: "observed", label: "Observed Reading", type: "number", minWidth: "130px" },
+          { key: "error", label: "Error", type: "formula", minWidth: "110px" },
+          { key: "uncertainty", label: "Expanded Uncertainty (±)", type: "number", minWidth: "140px" },
+        ]);
+        setObsReadings([
+          { sNo: "1", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
+          { sNo: "2", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
+          { sNo: "3", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
+        ]);
+      }
+      return;
+    }
+
+    setActiveObsTemplateId(matched._id);
+    setActiveObsPdfUrl(obs.pdfUrl || matched.pdfUrl || "");
+    setShowObsPdfPreview(true);
+
+    // Prioritize matched template's extracted columns from PDF
+    if (Array.isArray(matched.tableColumns) && matched.tableColumns.length > 0) {
+      setObsTableColumns(matched.tableColumns);
+      const hasMatchingUserReadings = Array.isArray(obs.readings) && obs.readings.length > 0 && String(obs.templateId) === String(matched._id);
+      setObsReadings(hasMatchingUserReadings ? obs.readings : (matched.defaultReadings || []));
+    } else if (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0) {
+      setObsTableColumns(obs.tableColumns);
+      if (Array.isArray(obs.readings)) setObsReadings(obs.readings);
+    }
+
+    if (matched.standardReference) setObsReferenceStandard(matched.standardReference);
+    if (matched.calibrationMethod) setObsCalibrationMethod(matched.calibrationMethod);
+    setObsMode(matched.parameters?.mode || "Standard");
+    setObsDiscipline(matched.equipmentType || matched.parameters?.discipline || "Metrology");
+    if (matched.parameters?.range) setObsRange(record.instrumentRange || matched.parameters.range);
+    if (matched.parameters?.leastCount) setObsLeastCount(record.leastCount || matched.parameters.leastCount);
+    if (Array.isArray(matched.parameters?.masterEquipments) && matched.parameters.masterEquipments.length > 0) {
+      setObsMasterEquipments(matched.parameters.masterEquipments);
+      const first = matched.parameters.masterEquipments[0];
+      if (first.description) setObsMasterDescription(first.description);
+      if (first.idMark) setObsMasterId(first.idMark);
+      if (first.certNo) setObsMasterCertNo(first.certNo);
+      if (first.dueDate) setObsMasterDueDate(first.dueDate);
+      if (first.traceableBy) setObsMasterTraceable(first.traceableBy);
+    } else {
+      if (matched.parameters?.masterDescription || matched.parameters?.masterEquipment) {
+        setObsMasterDescription(matched.parameters.masterDescription || matched.parameters.masterEquipment);
+      }
+      if (matched.parameters?.masterId) setObsMasterId(matched.parameters.masterId);
+      if (matched.parameters?.masterCertNo) setObsMasterCertNo(matched.parameters.masterCertNo);
+      if (matched.parameters?.masterDueDate) setObsMasterDueDate(matched.parameters.masterDueDate);
+      if (matched.parameters?.masterTraceable) setObsMasterTraceable(matched.parameters.masterTraceable);
+      setObsMasterEquipments([
+        {
+          description: matched.parameters?.masterDescription || matched.parameters?.masterEquipment || "",
+          idMark: matched.parameters?.masterId || "",
+          certNo: matched.parameters?.masterCertNo || "",
+          dueDate: matched.parameters?.masterDueDate || "",
+          traceableBy: matched.parameters?.masterTraceable || "",
+        }
+      ]);
+    }
+
+    toast.info(`Format loaded: "${matched.name}" for ${record.instrument}`, { autoClose: 2000 });
+  };
+
+  // Direct Format Upload (PDF / Excel) directly from Split View Left Panel or Drag-and-Drop
+  const handleDirectUploadObservationFile = async (file, customName = "") => {
+    if (!file) return;
+    const isAllowed = Boolean(file.name.match(/\.(pdf|xlsx|xls|csv)$/i));
+    if (!isAllowed) {
+      toast.error("Please upload a valid PDF or Excel (.xlsx / .xls) observation format file.");
+      return;
+    }
+
+    try {
+      setIsDirectUploadingFile(true);
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const instName = customName || activeObsRecord?.instrument || file.name.replace(/\.[^/.]+$/, "");
+      const cleanName = String(instName).replace(/\s*-\s*calibration\s*$/i, "").replace(/\s*\(calibration\)\s*$/i, "").trim();
+
+      fd.append("name", cleanName);
+      fd.append("equipmentType", guessCategoryFromInst(cleanName));
+      fd.append("standardReference", obsReferenceStandard || "IS / ISO Metrology Standard");
+      fd.append("calibrationMethod", obsCalibrationMethod || "ARCL-CP-STANDARD");
+      fd.append("parameters", JSON.stringify({
+        mode: obsMode || "Standard",
+        discipline: obsDiscipline || guessCategoryFromInst(cleanName),
+        range: obsRange || "",
+        leastCount: obsLeastCount || "",
+        temperature: obsTemperature || "25.0",
+        humidity: obsHumidity || "50",
+        conditionOfItem: obsConditionOfItem || "OK",
+        masterDescription: obsMasterDescription || "",
+        masterId: obsMasterId || "",
+        masterCertNo: obsMasterCertNo || "",
+        masterDueDate: obsMasterDueDate || "",
+        masterTraceable: obsMasterTraceable || "NABL",
+        masterEquipments: obsMasterEquipments || [],
+        formatNo: obsFormatNo || "",
+        formatIssueNo: obsFormatIssueNo || "",
+        formatIssueDate: obsFormatIssueDate || "",
+        repeatabilityMu: obsRepeatabilityMu || "",
+        repeatabilityReadings: obsRepeatabilityReadings || [],
+      }));
+
+      const res = await createObservationTemplateApi(fd);
+      const createdTmpl = res.data?.data;
+      if (createdTmpl) {
+        handleSelectObservationTemplate(createdTmpl);
+        setActiveObsPdfUrl(createdTmpl.pdfUrl);
+        setShowObsPdfPreview(true);
+
+        if (activeObsRecord?._id) {
+          setRecords((prev) =>
+            prev.map((r) =>
+              r._id === activeObsRecord._id
+                ? {
+                    ...r,
+                    observationData: {
+                      ...(r.observationData || {}),
+                      templateId: createdTmpl._id,
+                      templateName: createdTmpl.name,
+                      equipmentType: createdTmpl.equipmentType,
+                      tableColumns: createdTmpl.tableColumns || [],
+                      readings: createdTmpl.defaultReadings || [],
+                      parameters: createdTmpl.parameters || {},
+                      repeatabilityMu: createdTmpl.repeatabilityMu || createdTmpl.parameters?.repeatabilityMu || "",
+                      repeatabilityReadings: createdTmpl.repeatabilityReadings || createdTmpl.parameters?.repeatabilityReadings || ["", "", "", "", ""],
+                      pdfUrl: createdTmpl.pdfUrl,
+                    },
+                  }
+                : r
+            )
+          );
+        }
+        await fetchObsTemplates();
+        toast.success(`Format "${createdTmpl.name}" uploaded! Extracted ${createdTmpl.tableColumns?.length || 0} columns into live form! 🎉`);
+      }
+    } catch (err) {
+      console.error("Direct format upload error:", err);
+      toast.error(err.response?.data?.message || "Failed to upload and parse format.");
+    } finally {
+      setIsDirectUploadingFile(false);
+    }
+  };
+
+  const handleSyncMasterTemplates = async () => {
+    try {
+      setIsSyncingFromDirectory(true);
+      toast.info("Syncing all 55 ARCL Master Formats from D:\\ARCL OBSERVATION REPORT AMU... ⚡");
+      const res = await syncTemplatesFromDirectoryApi("D:\\ARCL OBSERVATION REPORT AMU");
+      const data = res.data?.data;
+      await fetchObsTemplates();
+      toast.success(
+        `✅ Master Sync Complete! ${data?.syncedCount || 55} ARCL formats loaded with Observation, Report, and AMU! 🎉`,
+        { autoClose: 4000 }
+      );
+    } catch (err) {
+      console.error("Master sync error:", err);
+      toast.error(err.response?.data?.message || "Failed to sync formats from D: drive.");
+    } finally {
+      setIsSyncingFromDirectory(false);
+    }
+  };
+
+  const handleTemplatePdfChange = async (e) => {
+    const rawFiles = Array.from(e.target.files || []);
+    if (!rawFiles.length) return;
+
+    // Bulk upload if user selected multiple files at once!
+    if (rawFiles.length > 1) {
+      const validFiles = rawFiles.filter((f) =>
+        Boolean(f.name.match(/\.(pdf|xlsx|xls|csv)$/i))
+      );
+      if (!validFiles.length) {
+        toast.error("No valid PDF or Excel (.xlsx / .xls) files selected.");
+        return;
+      }
+      try {
+        setTemplateParsingLoading(true);
+        toast.info(`Uploading & parsing ${validFiles.length} files in bulk... ⚡`);
+        let imported = 0;
+        for (let i = 0; i < validFiles.length; i++) {
+          const f = validFiles[i];
+          const cleanName = f.name.replace(/\.(pdf|xlsx|xls|csv)$/i, "").replace(/[_-]/g, " ").trim();
+          const fd = new FormData();
+          fd.append("file", f);
+          fd.append("name", cleanName);
+          fd.append("equipmentType", guessCategoryFromInst(cleanName));
+          fd.append("standardReference", "IS / ISO Metrology Standard");
+          fd.append("calibrationMethod", "ARCL-CP-STANDARD");
+          try {
+            await createObservationTemplateApi(fd);
+            imported++;
+          } catch (itemErr) {
+            console.warn(`Bulk import error for ${f.name}:`, itemErr.message);
+          }
+        }
+        await fetchObsTemplates();
+        toast.success(`🎉 Bulk Import Complete! ${imported} of ${validFiles.length} formats added successfully!`);
+      } catch (bulkErr) {
+        toast.error("Bulk upload encountered an issue: " + bulkErr.message);
+      } finally {
+        setTemplateParsingLoading(false);
+        e.target.value = "";
+      }
+      return;
+    }
+
+    const file = rawFiles[0];
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isExcel =
+      /\.(xlsx|xls|csv)$/i.test(file.name) ||
+      file.type.includes("sheet") ||
+      file.type.includes("excel") ||
+      file.type.includes("csv");
+
+    if (!isPdf && !isExcel) {
+      toast.error("Please upload a valid PDF or Excel (.xlsx / .xls) document format.");
+      return;
+    }
+    const cleanName = file.name
+      .replace(/\.(pdf|xlsx|xls|csv)$/i, "")
+      .replace(/[_-]/g, " ")
+      .trim();
+
+    setTemplateForm((prev) => ({
+      ...prev,
+      pdfFile: file,
+      name: prev.name || cleanName,
+    }));
+
+    try {
+      setTemplateParsingLoading(true);
+      const fd = new FormData();
+      fd.append("templatePdf", file);
+      fd.append("pdf", file);
+      fd.append("file", file);
+      const res = await parsePdfPreviewApi(fd);
+      if (res.data?.data) {
+        const p = res.data.data;
+        if (p.compression) setPdfCompressionStats(p.compression);
+        const extractedMasters = Array.isArray(p.parameters?.masterEquipments)
+          ? p.parameters.masterEquipments
+          : [];
+        const firstMst = extractedMasters[0] || {};
+        setTemplateForm((prev) => ({
+          ...prev,
+          name: p.equipmentName || p.name || prev.name || cleanName,
+          equipmentType: p.equipmentType || prev.equipmentType || "General",
+          standardReference: p.standardReference || "IS / ISO Metrology Standard",
+          calibrationMethod: p.calibrationMethod || "ARCL-CP-STANDARD",
+          mode: p.parameters?.mode || "Standard",
+          discipline: p.parameters?.discipline || p.equipmentType || "General Metrology",
+          range: p.parameters?.range ?? "",
+          leastCount: p.parameters?.leastCount ?? "",
+          conditionOfItem: p.parameters?.conditionOfItem || "OK",
+          temperature: p.parameters?.temperature || "25.0 ± 2°C",
+          humidity: p.parameters?.humidity || "50 ± 10% RH",
+          formatNo: p.parameters?.formatNo || "ARCL/OB/01",
+          formatIssueNo: p.parameters?.formatIssueNo || "01",
+          formatIssueDate: p.parameters?.formatIssueDate || "",
+          masterDescription: p.parameters?.masterDescription || p.parameters?.masterEquipment || firstMst.description || "",
+          masterId: p.parameters?.masterId || firstMst.idMark || "",
+          masterCertNo: p.parameters?.masterCertNo || firstMst.certNo || "",
+          masterDueDate: p.parameters?.masterDueDate || firstMst.dueDate || "",
+          masterTraceable: p.parameters?.masterTraceable || firstMst.traceableBy || "NABL",
+          masterEquipments: extractedMasters,
+          repeatabilityMu: p.repeatabilityMu || p.parameters?.repeatabilityMu || "",
+          repeatabilityReadings: Array.isArray(p.repeatabilityReadings || p.parameters?.repeatabilityReadings)
+            ? (p.repeatabilityReadings || p.parameters?.repeatabilityReadings)
+            : ["", "", "", "", ""],
+          sheetsSummary: Array.isArray(p.sheetsSummary) ? p.sheetsSummary : [],
+          exactSheets: Array.isArray(p.exactSheets) ? p.exactSheets : [],
+          exactSheetValues: {},
+          reportData: p.reportData || null,
+          amuData: p.amuData || null,
+          structureEdited: false,
+          tableColumns: Array.isArray(p.tableColumns) && p.tableColumns.length > 0 ? p.tableColumns : prev.tableColumns,
+          defaultReadings: Array.isArray(p.defaultReadings) ? p.defaultReadings : [],
+        }));
+        setStudioStep3Tab(Array.isArray(p.exactSheets) && p.exactSheets.length > 0 ? "exact" : "schema");
+        toast.success(`⚡ 1:1 Extracted "${p.equipmentName || p.name || cleanName}" (${p.tableColumns?.length || 0} columns, ${p.defaultReadings?.length || 0} rows)!`);
+      }
+    } catch (parseErr) {
+      console.warn("Format layout extraction notice:", parseErr);
+      toast.info("Document uploaded. You can customize the equipment name and columns below.");
+    } finally {
+      setTemplateParsingLoading(false);
+    }
+  };
+
+    const handleEditTemplate = (tmpl) => {
+    if (!tmpl) return;
+    setEditingTemplateId(tmpl._id);
+    const extractedMasters = Array.isArray(tmpl.parameters?.masterEquipments)
+      ? tmpl.parameters.masterEquipments
+      : [];
+    const firstMst = extractedMasters[0] || {};
+    setTemplateForm({
+      name: tmpl.name || "",
+      equipmentType: tmpl.equipmentType || "General",
+      standardReference: tmpl.standardReference || "IS / ISO Standard",
+      calibrationMethod: tmpl.calibrationMethod || "ARCL-CP-01",
+      mode: tmpl.parameters?.mode || "Standard",
+      discipline: tmpl.parameters?.discipline || tmpl.equipmentType || "General Metrology",
+      range: tmpl.parameters?.range || "",
+      leastCount: tmpl.parameters?.leastCount || "",
+      conditionOfItem: tmpl.parameters?.conditionOfItem || "OK",
+      temperature: tmpl.parameters?.temperature || "25.0 ± 2°C",
+      humidity: tmpl.parameters?.humidity || "50 ± 10% RH",
+      formatNo: tmpl.parameters?.formatNo || "ARCL/OB/01",
+      formatIssueNo: tmpl.parameters?.formatIssueNo || "01",
+      formatIssueDate: tmpl.parameters?.formatIssueDate || "",
+      masterDescription: tmpl.parameters?.masterDescription || tmpl.parameters?.masterEquipment || firstMst.description || "",
+      masterId: tmpl.parameters?.masterId || firstMst.idMark || "",
+      masterCertNo: tmpl.parameters?.masterCertNo || firstMst.certNo || "",
+      masterDueDate: tmpl.parameters?.masterDueDate || firstMst.dueDate || "",
+      masterTraceable: tmpl.parameters?.masterTraceable || firstMst.traceableBy || "NABL",
+      masterEquipments: extractedMasters,
+      repeatabilityMu: tmpl.repeatabilityMu || tmpl.parameters?.repeatabilityMu || "",
+      repeatabilityReadings: Array.isArray(tmpl.repeatabilityReadings || tmpl.parameters?.repeatabilityReadings)
+        ? (tmpl.repeatabilityReadings || tmpl.parameters?.repeatabilityReadings)
+        : ["", "", "", "", ""],
+      sheetsSummary: Array.isArray(tmpl.sheetsSummary) ? tmpl.sheetsSummary : [],
+      exactSheets: Array.isArray(tmpl.exactSheets) ? tmpl.exactSheets : [],
+      exactSheetValues: tmpl.exactSheetValues || {},
+      reportData: tmpl.reportData || null,
+      amuData: tmpl.amuData || null,
+      structureEdited: false,
+      tableColumns: Array.isArray(tmpl.tableColumns) && tmpl.tableColumns.length > 0 ? tmpl.tableColumns : defaultTemplateForm.tableColumns,
+      defaultReadings: Array.isArray(tmpl.defaultReadings) ? tmpl.defaultReadings : [],
+      notes: tmpl.notes || "",
+      pdfFile: null,
+    });
+    setStudioStep3Tab(Array.isArray(tmpl.exactSheets) && tmpl.exactSheets.length > 0 ? "exact" : "schema");
+    setPdfCompressionStats(null);
+    setIsTemplateUploadModalOpen(true);
+  };
+
+  const handleSaveObsTemplate = async (e) => {
+    e?.preventDefault?.();
+    if (!templateForm.name?.trim()) {
+      toast.error("Please enter Equipment / Format Name.");
+      return;
+    }
+    const columnsToSave = (templateForm.tableColumns && templateForm.tableColumns.length >= 1)
+      ? templateForm.tableColumns
+      : defaultTemplateForm.tableColumns;
+
+    try {
+      setTemplateUploadLoading(true);
+      const fd = new FormData();
+      if (templateForm.pdfFile) {
+        fd.append("templatePdf", templateForm.pdfFile);
+        fd.append("pdf", templateForm.pdfFile);
+        fd.append("file", templateForm.pdfFile);
+      }
+      fd.append("preserveEditedStructure", templateForm.structureEdited ? "true" : "false");
+      fd.append("name", templateForm.name.trim());
+      fd.append("equipmentType", templateForm.equipmentType || "General Metrology");
+      fd.append("standardReference", templateForm.standardReference || "IS / ISO Standard");
+      fd.append("calibrationMethod", templateForm.calibrationMethod || "ARCL-CP-01");
+      fd.append("formulaType", "percentage_error");
+      fd.append("notes", templateForm.notes || "");
+      fd.append("parameters", JSON.stringify({
+        mode: templateForm.mode || "Standard",
+        discipline: templateForm.discipline || templateForm.equipmentType,
+        range: templateForm.range || "",
+        leastCount: templateForm.leastCount || "",
+        conditionOfItem: templateForm.conditionOfItem || "OK",
+        temperature: templateForm.temperature || "25.0 ± 2°C",
+        humidity: templateForm.humidity || "50 ± 10% RH",
+        formatNo: templateForm.formatNo || "ARCL/OB/01",
+        formatIssueNo: templateForm.formatIssueNo || "01",
+        formatIssueDate: templateForm.formatIssueDate || "",
+        masterDescription: templateForm.masterDescription || "",
+        masterId: templateForm.masterId || "",
+        masterCertNo: templateForm.masterCertNo || "",
+        masterDueDate: templateForm.masterDueDate || "",
+        masterTraceable: templateForm.masterTraceable || "NABL",
+        masterEquipments: Array.isArray(templateForm.masterEquipments) && templateForm.masterEquipments.length > 0
+          ? templateForm.masterEquipments
+          : (templateForm.masterDescription || templateForm.masterId || templateForm.masterCertNo
+              ? [{
+                  description: templateForm.masterDescription || "",
+                  idMark: templateForm.masterId || "",
+                  certNo: templateForm.masterCertNo || "",
+                  dueDate: templateForm.masterDueDate || "",
+                  traceableBy: templateForm.masterTraceable || "NABL",
+                }]
+              : []),
+        repeatabilityMu: templateForm.repeatabilityMu || "",
+        repeatabilityReadings: Array.isArray(templateForm.repeatabilityReadings)
+          ? templateForm.repeatabilityReadings
+          : ["", "", "", "", ""],
+      }));
+      fd.append("tableColumns", JSON.stringify(columnsToSave));
+      fd.append("defaultReadings", JSON.stringify(templateForm.defaultReadings || []));
+      fd.append("exactSheetValues", JSON.stringify(templateForm.exactSheetValues || {}));
+
+      if (editingTemplateId) {
+        await updateObservationTemplateApi(editingTemplateId, fd);
+        toast.success(`Observation format "${templateForm.name}" updated successfully! 🎉`);
+      } else {
+        const createRes = await createObservationTemplateApi(fd);
+        const createdTmpl = createRes.data?.data;
+        if (createdTmpl) {
+          handleSelectObservationTemplate(createdTmpl);
+          if (activeObsRecord) {
+            setRecords((prev) =>
+              prev.map((r) =>
+                r._id === activeObsRecord._id
+                  ? {
+                      ...r,
+                      observationData: {
+                        ...(r.observationData || {}),
+                        templateId: createdTmpl._id,
+                        templateName: createdTmpl.name,
+                        equipmentType: createdTmpl.equipmentType,
+                        tableColumns: createdTmpl.tableColumns,
+                        readings: createdTmpl.defaultReadings || [],
+                        parameters: createdTmpl.parameters || {},
+                        pdfUrl: createdTmpl.pdfUrl || r.observationData?.pdfUrl,
+                      },
+                    }
+                  : r
+              )
+            );
+          }
+        }
+        toast.success(`Observation format "${templateForm.name}" created 1:1 and ready! 🎉`);
+      }
+      setIsTemplateUploadModalOpen(false);
+      setEditingTemplateId(null);
+      setTemplateForm(defaultTemplateForm);
+      await fetchObsTemplates();
+    } catch (saveErr) {
+      console.error("Failed to create template:", saveErr);
+      toast.error(saveErr.response?.data?.message || "Failed to create observation template.");
+    } finally {
+      setTemplateUploadLoading(false);
+    }
+  };
+
+  const handleReconvertStudioTemplate = async (tmpl) => {
+    if (!tmpl?._id && !tmpl?.pdfUrl) {
+      toast.warning("No attached Excel or PDF file found on this format.");
+      return;
+    }
+    try {
+      setReconvertingTemplateId(tmpl._id);
+      const res = await convertCloudinaryPdfToFormApi({
+        templateId: tmpl._id,
+        pdfUrl: tmpl.pdfUrl,
+      });
+      const converted = res.data?.data;
+      await fetchObsTemplates();
+      if (converted) {
+        if (studioPreviewTemplate && String(studioPreviewTemplate._id) === String(tmpl._id)) {
+          setStudioPreviewTemplate((prev) => (prev ? { ...prev, ...converted, _id: tmpl._id } : prev));
+        }
+        toast.success(
+          `⚡ "${tmpl.name}" re-converted 1:1! (${converted.tableColumns?.length || 0} columns, ${converted.defaultReadings?.length || 0} rows)`
+        );
+      }
+    } catch (err) {
+      console.error("Studio re-convert error:", err);
+      toast.error(err?.response?.data?.message || "Failed to re-convert format from attached file.");
+    } finally {
+      setReconvertingTemplateId(null);
+    }
+  };
+
+  const handleDeleteObsTemplate = async () => {
+    if (!templateDeleteTarget) return;
+    const targetId = templateDeleteTarget._id;
+    const targetName = templateDeleteTarget.name || templateDeleteTarget.equipmentName || 'Format';
+    try {
+      setIsDeletingTemplate(true);
+      setObsTemplates((prev) => prev.filter((t) => t._id !== targetId));
+      if (activeObsTemplateId === targetId) {
+        setActiveObsTemplateId("");
+      }
+      await deleteObservationTemplateApi(targetId);
+      toast.success(`Format "${targetName}" deleted successfully from database.`);
+      setTemplateDeleteTarget(null);
+      await fetchObsTemplates();
+    } catch (err) {
+      console.error("Failed to delete template:", err);
+      toast.error(err.response?.data?.message || "Failed to delete format template.");
+      await fetchObsTemplates();
+    } finally {
+      setIsDeletingTemplate(false);
+    }
+  };
+
+  const handleConvertCloudinaryPdfToForm = async (templateId, pdfUrl) => {
+    if (!templateId && !pdfUrl) {
+      toast.warning("Please select or upload an observation format PDF first.");
+      return;
+    }
+    try {
+      setIsConvertingFromCloudinary(true);
+      const res = await convertCloudinaryPdfToFormApi({ templateId, pdfUrl });
+      const converted = res.data?.data;
+      if (converted) {
+        if (Array.isArray(converted.tableColumns) && converted.tableColumns.length > 0) {
+          setObsTableColumns(converted.tableColumns);
+        }
+        if (Array.isArray(converted.defaultReadings) && converted.defaultReadings.length > 0) {
+          setObsReadings(converted.defaultReadings);
+        }
+        if (converted.standardReference) setObsReferenceStandard(converted.standardReference);
+        if (converted.calibrationMethod) setObsCalibrationMethod(converted.calibrationMethod);
+        if (converted.parameters) {
+          const p = converted.parameters;
+          if (p.mode) setObsMode(p.mode);
+          if (p.discipline) setObsDiscipline(p.discipline);
+          if (p.range) setObsRange(p.range);
+          if (p.leastCount) setObsLeastCount(p.leastCount);
+          if (p.temperature) setObsTemperature(p.temperature);
+          if (p.humidity) setObsHumidity(p.humidity);
+          if (p.masterDescription || p.masterEquipment) setObsMasterDescription(p.masterDescription || p.masterEquipment);
+          if (p.masterId) setObsMasterId(p.masterId);
+          if (p.masterCertNo) setObsMasterCertNo(p.masterCertNo);
+          if (p.masterDueDate) setObsMasterDueDate(p.masterDueDate);
+          if (p.masterTraceable) setObsMasterTraceable(p.masterTraceable);
+        }
+        if (converted.pdfUrl) {
+          setActiveObsPdfUrl(converted.pdfUrl);
+        }
+        if (activeObsRecord?._id) {
+          setRecords((prev) =>
+            prev.map((r) =>
+              r._id === activeObsRecord._id
+                ? {
+                    ...r,
+                    observationData: {
+                      ...(r.observationData || {}),
+                      tableColumns: converted.tableColumns || r.observationData?.tableColumns,
+                      readings: converted.defaultReadings || r.observationData?.readings,
+                      parameters: { ...(r.observationData?.parameters || {}), ...(converted.parameters || {}) },
+                      pdfUrl: converted.pdfUrl || r.observationData?.pdfUrl,
+                    },
+                  }
+                : r
+            )
+          );
+        }
+        toast.success(`⚡ Observation Form updated from Cloudinary PDF successfully! (${converted.tableColumns?.length || 0} columns, ${converted.defaultReadings?.length || 0} rows) 🚀`);
+        await fetchObsTemplates();
+      }
+    } catch (err) {
+      console.error("Cloudinary PDF conversion error:", err);
+      toast.error(err.response?.data?.message || "Failed to convert PDF from Cloudinary to form.");
+    } finally {
+      setIsConvertingFromCloudinary(false);
+    }
+  };
+
+  const togglePrintEquipSelection = (id) => {
+    setSelectedPrintEquipIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllPrintEquips = () => {
+    if (!printCertBatchModal?.items) return;
+    setSelectedPrintEquipIds(new Set(printCertBatchModal.items.map((it) => it._id || it.id)));
+  };
+
+  const clearAllPrintEquips = () => {
+    setSelectedPrintEquipIds(new Set());
+  };
+
+  const handleExecuteMultiPrint = () => {
+    if (!printCertBatchModal) return;
+    const items = printCertBatchModal.items || [];
+    const selectedArray = Array.from(selectedPrintEquipIds);
+    if (selectedArray.length === 0) {
+      toast.warning("Please select at least 1 equipment.");
+      return;
+    }
+    if (selectedArray.length === items.length) {
+      handlePrintCalibrationDoc("certificate", printCertBatchModal, { all: true });
+    } else if (selectedArray.length === 1) {
+      const single = items.find((it) => (it._id || it.id) === selectedArray[0]) || items[0];
+      handlePrintCalibrationDoc("certificate", single, { single: true });
+    } else {
+      handlePrintCalibrationDoc("certificate", printCertBatchModal, { selectedIds: selectedArray });
+    }
+    setPrintCertBatchModal(null);
+  };
+
+  const handleExecuteMultiDownload = () => {
+    if (!printCertBatchModal) return;
+    const items = printCertBatchModal.items || [];
+    const selectedArray = Array.from(selectedPrintEquipIds);
+    if (selectedArray.length === 0) {
+      toast.warning("Please select at least 1 equipment.");
+      return;
+    }
+    if (selectedArray.length === items.length) {
+      handleDownloadCalibrationDoc("certificate", printCertBatchModal, { all: true });
+    } else if (selectedArray.length === 1) {
+      const single = items.find((it) => (it._id || it.id) === selectedArray[0]) || items[0];
+      handleDownloadCalibrationDoc("certificate", single, { single: true });
+    } else {
+      handleDownloadCalibrationDoc("certificate", printCertBatchModal, { selectedIds: selectedArray });
+    }
+    setPrintCertBatchModal(null);
+  };
+
+  const handleExecuteMultiView = () => {
+    if (!printCertBatchModal) return;
+    const items = printCertBatchModal.items || [];
+    const selectedArray = Array.from(selectedPrintEquipIds);
+    if (selectedArray.length === 0) {
+      toast.warning("Please select at least 1 equipment.");
+      return;
+    }
+    const filteredItems = items.filter((it) => selectedArray.includes(it._id || it.id));
+    if (filteredItems.length === 1) {
+      openDocViewer("certificate", filteredItems[0]);
+    } else {
+      openDocViewer("certificate", {
+        ...printCertBatchModal,
+        items: filteredItems,
+        primaryRecord: filteredItems[0],
+      }, { viewMode: "all" });
+    }
+    setPrintCertBatchModal(null);
+  };
+
+  const handleExecuteMultiSend = () => {
+    if (!printCertBatchModal) return;
+    const items = printCertBatchModal.items || [];
+    const selectedArray = Array.from(selectedPrintEquipIds);
+    const filteredItems = items.filter((it) => selectedArray.includes(it._id || it.id));
+    handleOpenSendDocModal("certificate", {
+      ...printCertBatchModal,
+      items: filteredItems.length > 0 ? filteredItems : items,
+      primaryRecord: filteredItems[0] || items[0],
+    });
+    setPrintCertBatchModal(null);
+  };
+
+  const _oldHandleExecuteMultiPrint_unused = () => {
+    if (!printCertBatchModal) return;
+    const items = printCertBatchModal.items || [];
+    const selectedArray = Array.from(selectedPrintEquipIds);
+    if (selectedArray.length === 0) {
+      alert("Please select at least 1 equipment.");
+      return;
+    }
+    if (selectedArray.length === items.length) {
+      handlePrintCalibrationDoc("certificate", printCertBatchModal, { all: true });
+    } else if (selectedArray.length === 1) {
+      const single = items.find((it) => it._id === selectedArray[0]) || items[0];
+      handlePrintCalibrationDoc("certificate", single);
+    } else {
+      handlePrintCalibrationDoc("certificate", printCertBatchModal, { selectedIds: selectedArray });
+    }
+    setPrintCertBatchModal(null);
+  };
+
+  const toggleDirEquipSelection = (id) => {
+    setDirSelectedEquipIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllDirEquips = () => {
+    if (!selectedCertBatch?.items) return;
+    setDirSelectedEquipIds(new Set(selectedCertBatch.items.map((it) => it._id)));
+  };
+
+  const clearAllDirEquips = () => {
+    setDirSelectedEquipIds(new Set());
+  };
+
+  const handleExecuteDirMultiPrint = () => {
+    if (!selectedCertBatch) return;
+    const items = selectedCertBatch.items || [];
+    const selectedArray = Array.from(dirSelectedEquipIds);
+    if (selectedArray.length === 0) {
+      alert("Please select at least 1 equipment.");
+      return;
+    }
+    if (selectedArray.length === items.length) {
+      handlePrintCalibrationDoc("certificate", selectedCertBatch, { all: true });
+    } else if (selectedArray.length === 1) {
+      const single = items.find((it) => it._id === selectedArray[0]) || items[0];
+      handlePrintCalibrationDoc("certificate", single, { single: true });
+    } else {
+      handlePrintCalibrationDoc("certificate", selectedCertBatch, { selectedIds: selectedArray });
+    }
+  };
+
+  // Authorization Queue States
+  const [authFilter, setAuthFilter] = useState("all");
+  const [authSearch, setAuthSearch] = useState("");
+  const [inspectingObsRecord, setInspectingObsRecord] = useState(null);
+  const [authorizingRecord, setAuthorizingRecord] = useState(null);
+  // Locked strictly to the signed-in Gmail / Admin account; cannot be altered manually
+  const authSignatoryName = useMemo(() => {
+    const rawName = String(user?.name || "").trim();
+    const rawEmail = String(user?.email || "").trim().toLowerCase();
+    if (rawName) return rawName;
+    if (rawEmail) return rawEmail.split("@")[0];
+    return "Authorized Signatory";
+  }, [user]);
+  const authSignatoryEmail = useMemo(() => String(user?.email || "").trim().toLowerCase(), [user]);
+  const [authRemarks, setAuthRemarks] = useState("Observations verified against NABL ISO/IEC 17025 standards. All test points are within allowable accuracy limits. Certificate approved.");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isAuthProcessing, setIsAuthProcessing] = useState(false);
+  const [authCelebration, setAuthCelebration] = useState(null);
+
+  const getDefaultStandardReadings = (rec, cols) => {
+    const inst = String(rec?.instrument || "").toLowerCase();
+    if (inst.includes("flakiness") || inst.includes("thickness gauge")) {
+      return defaultFlakinessReadings;
+    }
+    const targetCols = (Array.isArray(cols) && cols.length > 0) ? cols : (Array.isArray(obsTableColumns) && obsTableColumns.length > 0 ? obsTableColumns : []);
+    if (targetCols.length > 0) {
+      return Array.from({ length: 5 }, () => {
+        const row = {};
+        targetCols.forEach((c) => {
+          row[c.key] = "";
+        });
+        return row;
+      });
+    }
+    return [];
+  };
+
+  // Helper to resolve current batch or record quotation status dynamically
+  const getBatchQuotationStatus = (batchOrRecord) => {
+    if (!batchOrRecord) return "Draft";
+    if (batchOrRecord.commercialDocs?.quotationStatus) {
+      return batchOrRecord.commercialDocs.quotationStatus;
+    }
+    if (batchOrRecord.quotationStatus) {
+      return batchOrRecord.quotationStatus;
+    }
+    const itemWithStatus = (batchOrRecord.items || []).find((i) => i?.commercialDocs?.quotationStatus);
+    if (itemWithStatus?.commercialDocs?.quotationStatus) {
+      return itemWithStatus.commercialDocs.quotationStatus;
+    }
+    if (batchOrRecord.commercialDocs?.poFileUrl) return "PO Confirmed";
+    return "Draft";
+  };
+
+  const isCommercialStatusDone = (batchOrRecord) => {
+    const status = getBatchQuotationStatus(batchOrRecord);
+    return status === "PO Confirmed" || status === "Approved" || status === "Invoiced";
+  };
+
+  // Single source of truth for Section 6 observation lock state:
+  // Once submitted or authorized, Calibration Engineers can strictly view-only
+  // until Section 7 Quality Authorization explicitly returns the sheet (`Rejected`).
+  const getObservationLockState = (rec) => {
+    if (!rec) {
+      return { isLocked: false, isAuthApproved: false, isReturned: false, obsStatus: "Draft" };
+    }
+    const obsStatus = String(rec.observationData?.status || "Draft");
+    const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+    const hasExactVals = Boolean(
+      rec.observationData?.exactSheetValues &&
+      Object.keys(rec.observationData.exactSheetValues).length > 0
+    );
+    const isAuthApproved = Boolean(
+      rec.authorizationData?.status === "Approved" &&
+      (hasReadings || hasExactVals || obsStatus === "Submitted" || obsStatus === "Authorized")
+    );
+    const isLocked = Boolean(
+      obsStatus === "Submitted" ||
+      obsStatus === "Authorized" ||
+      isAuthApproved
+    );
+    const isReturned = obsStatus === "Rejected";
+    return { isLocked, isAuthApproved, isReturned, obsStatus };
+  };
+
+  // Returns true if calibration has actually been submitted / certified / completed
+  const isRecordCalibratedOrSubmitted = (r) => {
+    if (!r) return false;
+    const obsSt = r.observationData?.status;
+    const authSt = r.authorizationData?.status;
+    if (authSt === "Approved" || obsSt === "Submitted" || obsSt === "Authorized") return true;
+    if (["Certificate Uploaded", "Invoice Sent"].includes(r.stage)) return true;
+    const hasReadings = Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0;
+    const hasIssuedCert = r.records?.certificateNo && r.records.certificateNo !== "ARCL-CAL-2026-001";
+    return Boolean(r.stage === "Calibration Done" && (hasReadings || hasIssuedCert));
+  };
+
+  // Per-equipment daily Lab Release Permission helper:
+  // - Already calibrated / submitted / certified records stay active & cannot be held
+  // - New or uncalibrated records start Held (granted: false) unless explicitly granted
+  const isRecordLabPermitted = (r) => {
+    if (!r) return false;
+    if (isRecordCalibratedOrSubmitted(r)) return true;
+    if (r.labPermission && r.labPermission.granted === true) return true;
+    return false;
+  };
+
+  const getRecordLabDate = (r) => {
+    return r?.labPermission?.releaseDate || r?.calibrationDate || r?.challanDate || null;
+  };
+
+  const toDateKeyYYYYMMDD = (val) => {
+    if (!val) return "";
+    try {
+      const dt = new Date(val);
+      if (isNaN(dt.getTime())) return "";
+      return dt.toISOString().slice(0, 10);
+    } catch {
+      return "";
+    }
+  };
+
+  // Live KPI Metrics for Technician Observation Dashboard
+  const obsKpiStats = useMemo(() => {
+    let quotationDoneCount = 0;
+    let pendingCount = 0;
+    let lockedCount = 0;
+    let approvedCount = 0;
+    let waitingCommercialCount = 0;
+    let waitingPermissionCount = 0;
+
+    records.forEach((r) => {
+      const obsStatus = r.observationData?.status || "Draft";
+      const hasReadings = Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0;
+      const isAuthApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+      const isQtnDone = isCommercialStatusDone(r);
+      const isPermitted = isRecordLabPermitted(r);
+
+      if (isQtnDone && isPermitted) {
+        quotationDoneCount++;
+        if (isAuthApproved) {
+          approvedCount++;
+        } else if (obsStatus === "Submitted" || obsStatus === "Authorized") {
+          lockedCount++;
+        } else {
+          pendingCount++;
+        }
+      } else if (isQtnDone && !isPermitted) {
+        waitingPermissionCount++;
+      } else {
+        waitingCommercialCount++;
+      }
+    });
+
+    const totalEquipments = quotationDoneCount;
+    const uniqueClients = new Set(
+      records.filter((r) => isCommercialStatusDone(r) && isRecordLabPermitted(r)).map((r) => r.clientCompany).filter(Boolean)
+    ).size;
+
+    return {
+      totalEquipments,
+      totalAllRecords: records.length,
+      uniqueClients,
+      quotationDoneCount,
+      waitingCommercialCount,
+      waitingPermissionCount,
+      pendingCount,
+      lockedCount,
+      approvedCount,
+    };
+  }, [records]);
+
+  // Filtered Records for Observation Queue & Workbench
+  const filteredObsRecords = useMemo(() => {
+    return records.filter((r) => {
+      const matchSearch =
+        !obsSearchTerm ||
+        String(r.instrument || "").toLowerCase().includes(obsSearchTerm.toLowerCase()) ||
+        String(r.serialNo || "").toLowerCase().includes(obsSearchTerm.toLowerCase()) ||
+        String(r.dcNo || "").toLowerCase().includes(obsSearchTerm.toLowerCase());
+      const matchClient = obsFilterClient === "all" || r.clientCompany === obsFilterClient;
+
+      if (!matchSearch || !matchClient) return false;
+
+      const obsStatus = r.observationData?.status || "Draft";
+      const hasReadings = Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0;
+      const isAuthApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+      const isQtnDone = isCommercialStatusDone(r);
+      const isPermitted = isRecordLabPermitted(r);
+
+      if (obsStatusFilter === "waiting_commercial") {
+        return !isQtnDone || !isPermitted;
+      }
+
+      // Strictly allow instruments into Observation queue ONLY when Commercial Status is Done AND Lab Permission is granted!
+      if (!isQtnDone || !isPermitted) return false;
+
+      if (obsDateFilter) {
+        const recDateKey = toDateKeyYYYYMMDD(getRecordLabDate(r));
+        if (recDateKey !== obsDateFilter) return false;
+      }
+
+      if (obsStatusFilter === "all" || obsStatusFilter === "quotation_done") return true;
+      if (obsStatusFilter === "pending") return !isAuthApproved && obsStatus !== "Submitted" && obsStatus !== "Authorized";
+      if (obsStatusFilter === "locked") return (obsStatus === "Submitted" || obsStatus === "Authorized") && !isAuthApproved;
+      if (obsStatusFilter === "approved") return isAuthApproved;
+
+      return true;
+    });
+  }, [records, obsSearchTerm, obsFilterClient, obsStatusFilter, obsDateFilter]);
+
+  const handleSelectObsStatusFilter = (filterKey) => {
+    setObsStatusFilter(filterKey);
+  };
+
+  const activeObsRecord = useMemo(() => {
+    if (!selectedObsInstrumentId) return null;
+    return records.find((r) => (r._id || r.id) === selectedObsInstrumentId) || null;
+  }, [records, selectedObsInstrumentId]);
+
+  // Auto-select first permitted equipment when entering observation workbench
+  useEffect(() => {
+    if (activeTab === "observations") {
+      if (!selectedObsInstrumentId && filteredObsRecords.length > 0) {
+        setSelectedObsInstrumentId(filteredObsRecords[0]._id || filteredObsRecords[0].id);
+      } else if (selectedObsInstrumentId && !filteredObsRecords.some((r) => (r._id || r.id) === selectedObsInstrumentId)) {
+        if (filteredObsRecords.length > 0) {
+          setSelectedObsInstrumentId(filteredObsRecords[0]._id || filteredObsRecords[0].id);
+        } else {
+          setSelectedObsInstrumentId("");
+        }
+      }
+    }
+  }, [activeTab, filteredObsRecords, selectedObsInstrumentId]);
+
+  useEffect(() => {
+    if (!activeObsRecord) return;
+    const obs = activeObsRecord.observationData || {};
+    const matched = findTemplateForInstrument(activeObsRecord, obsTemplates);
+    
+    // Determine template for this specific active record
+    const activeTmpl = (obs.templateId && obsTemplates.find((t) => String(t._id) === String(obs.templateId))) || matched || null;
+    const targetTmplId = activeTmpl?._id || "";
+
+    if (targetTmplId && targetTmplId !== activeObsTemplateId) {
+      setActiveObsTemplateId(targetTmplId);
+    }
+    const targetPdf = obs.pdfUrl || activeTmpl?.pdfUrl || "";
+    if (targetPdf && targetPdf !== activeObsPdfUrl) {
+      setActiveObsPdfUrl(targetPdf);
+      setShowObsPdfPreview(true);
+    }
+
+    // Automatically convert older saved templates that lack 1:1 exactSheets in background
+    if (
+      activeTmpl?._id &&
+      activeTmpl?.pdfUrl &&
+      (!Array.isArray(activeTmpl.exactSheets) || activeTmpl.exactSheets.length === 0) &&
+      !autoSyncedTemplateIdsRef.current.has(String(activeTmpl._id))
+    ) {
+      autoSyncedTemplateIdsRef.current.add(String(activeTmpl._id));
+      convertCloudinaryPdfToFormApi({ templateId: activeTmpl._id, pdfUrl: activeTmpl.pdfUrl })
+        .then((res) => {
+          const converted = res?.data?.data;
+          if (!converted) return;
+          setObsTemplates((prev) =>
+            prev.map((t) => (String(t._id) === String(activeTmpl._id) ? { ...t, ...converted } : t))
+          );
+          if (Array.isArray(converted.exactSheets) && converted.exactSheets.length > 0) {
+            setObsExactMode(true);
+          }
+          if (Array.isArray(converted.tableColumns) && converted.tableColumns.length > 0) {
+            setObsTableColumns(converted.tableColumns);
+          }
+          if (!Array.isArray(obs.readings) || obs.readings.length === 0) {
+            if (Array.isArray(converted.defaultReadings)) setObsReadings(converted.defaultReadings);
+          }
+          if (converted.parameters?.location !== undefined && !obs.location) {
+            setObsLocation(converted.parameters.location);
+          }
+          if (converted.parameters?.range !== undefined && !obs.range) {
+            setObsRange(converted.parameters.range || "");
+          }
+        })
+        .catch(() => {});
+    }
+
+    const effectiveLabDate = getRecordLabDate(activeObsRecord);
+    setObsInstrumentName(activeObsRecord.instrument || "");
+    setObsWorksheetNo(obs.worksheetNo || `WS-ARCL-2026-${activeObsRecord.serialNo || "001"}`);
+    setObsCalibratedBy(obs.calibratedBy || "VK");
+    setObsCalibDate(obs.calibrationDate ? new Date(obs.calibrationDate).toISOString().split("T")[0] : (effectiveLabDate ? new Date(effectiveLabDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]));
+    setObsDueDate(obs.calibrationDueDate ? new Date(obs.calibrationDueDate).toISOString().split("T")[0] : (activeObsRecord.calibrationDueDate ? new Date(activeObsRecord.calibrationDueDate).toISOString().split("T")[0] : ""));
+    setObsIssueDate(obs.issueDate ? new Date(obs.issueDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
+    setObsClientAddress(obs.clientAddress || activeObsRecord.clientAddress || "KTLR Project, Central Park Railway Station, Kharghar, Navi Mumbai.");
+    setObsMakeModel(obs.makeModel || [activeObsRecord.make, activeObsRecord.modelNo].filter(Boolean).join(" / ") || "ARCL");
+    setObsSerialNo(obs.serialNo || activeObsRecord.serialNo || "----/01");
+    setObsRange(obs.range || activeObsRecord.instrumentRange || activeTmpl?.parameters?.range || "Standard");
+    setObsLeastCount(obs.leastCount || activeObsRecord.leastCount || activeTmpl?.parameters?.leastCount || "0.01");
+    setObsLocation(obs.location || activeObsRecord.location || activeTmpl?.parameters?.location || "");
+    setObsConditionOfItem(obs.conditionOfItem || activeTmpl?.parameters?.conditionOfItem || "OK");
+    setObsTemperature(obs.temperature || activeTmpl?.parameters?.temperature || "25.0");
+    setObsHumidity(obs.humidity || activeTmpl?.parameters?.humidity || "50");
+    setObsCalibrationMethod(obs.calibrationMethod || activeTmpl?.calibrationMethod || "ARCL-CP-01");
+    setObsReferenceStandard(obs.referenceStandard || activeTmpl?.standardReference || "IS / ISO Standard");
+    const loadedMasterEquipments = (Array.isArray(obs.masterEquipments) && obs.masterEquipments.length > 0)
+      ? obs.masterEquipments
+      : (Array.isArray(activeTmpl?.parameters?.masterEquipments) && activeTmpl.parameters.masterEquipments.length > 0)
+      ? activeTmpl.parameters.masterEquipments
+      : [
+          {
+            description: obs.masterDescription || activeTmpl?.parameters?.masterDescription || activeTmpl?.parameters?.masterEquipment || "Standard Reference Master",
+            idMark: obs.masterId || activeTmpl?.parameters?.masterId || "ARCL/MST/01",
+            certNo: obs.masterCertNo || activeTmpl?.parameters?.masterCertNo || "CC/2026/01",
+            dueDate: obs.masterDueDate || activeTmpl?.parameters?.masterDueDate || "2027-12-31",
+            traceableBy: obs.masterTraceable || activeTmpl?.parameters?.masterTraceable || "NABL Accredited",
+          }
+        ];
+    setObsMasterEquipments(loadedMasterEquipments);
+    const primaryMaster = loadedMasterEquipments[0] || {};
+    setObsMasterDescription(primaryMaster.description || "Standard Reference Master");
+    setObsMasterId(primaryMaster.idMark || "ARCL/MST/01");
+    setObsMasterCertNo(primaryMaster.certNo || "CC/2026/01");
+    setObsMasterDueDate(primaryMaster.dueDate || "2027-12-31");
+    setObsMasterTraceable(primaryMaster.traceableBy || "NABL Accredited");
+    setObsMode(obs.mode || activeTmpl?.parameters?.mode || "Standard");
+    setObsDiscipline(activeTmpl?.equipmentType || obs.discipline || activeTmpl?.parameters?.discipline || "Metrology");
+    setObsCalibratedBySite(obs.calibratedBySite || obs.calibratedBy || "VK");
+    setObsRemarks(obs.remarks || "The Calibration has been carried out without adjustment.");
+    setObsInwardNo(obs.inwardNo || activeObsRecord.dcNo || activeObsRecord.serialNo || "-");
+    setObsReceiptDate(obs.receiptDate ? new Date(obs.receiptDate).toISOString().split("T")[0] : (activeObsRecord.challanDate ? new Date(activeObsRecord.challanDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]));
+    setObsFormatNo(obs.formatNo || activeTmpl?.parameters?.formatNo || "ARCL/OB/01");
+    setObsFormatIssueNo(obs.formatIssueNo || activeTmpl?.parameters?.formatIssueNo || "01");
+    setObsFormatIssueDate(obs.formatIssueDate || activeTmpl?.parameters?.formatIssueDate || "2026-07-01");
+    const repRaw = obs.repeatabilityReadings || obs.repeatabilityMu || activeTmpl?.parameters?.repeatabilityReadings || activeTmpl?.parameters?.repeatabilityMu || "";
+    const repParsed = parseRepeatabilityToArray(repRaw);
+    setObsRepeatabilityReadings(repParsed);
+    setObsRepeatabilityMu(Array.isArray(repRaw) ? repRaw.filter(Boolean).join(", ") : String(repRaw || ""));
+    setObsReviewedBy(obs.reviewedBy || "Technical Manager");
+    setObsExactSheetValues(
+      obs.exactSheetValues && typeof obs.exactSheetValues === "object"
+        ? obs.exactSheetValues
+        : {}
+    );
+    if (Array.isArray(activeTmpl?.exactSheets) && activeTmpl.exactSheets.length > 0) {
+      setObsExactMode(true);
+    }
+
+    // 1. If active template has defined PDF columns, ALWAYS use the active template's columns!
+    if (activeTmpl && Array.isArray(activeTmpl.tableColumns) && activeTmpl.tableColumns.length > 0) {
+      setObsTableColumns(activeTmpl.tableColumns);
+      // Keep typed user readings only if they match this exact template's column keys
+      const isSameTemplate = String(obs.templateId) === String(activeTmpl._id) || String(obs.templateName).toLowerCase() === String(activeTmpl.name).toLowerCase();
+      const firstColKey = activeTmpl.tableColumns[0]?.key;
+      const hasMatchingUserReadings = isSameTemplate && Array.isArray(obs.readings) && obs.readings.length > 0 && obs.readings[0]?.[firstColKey] !== undefined;
+
+      if (hasMatchingUserReadings) {
+        setObsReadings(obs.readings);
+      } else {
+        setObsReadings(Array.isArray(activeTmpl.defaultReadings) ? activeTmpl.defaultReadings : []);
+      }
+    } else if (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0 && !isCorruptedTableColumns(obs.tableColumns)) {
+      setObsTableColumns(obs.tableColumns);
+      if (Array.isArray(obs.readings) && obs.readings.length > 0) {
+        setObsReadings(obs.readings);
+      } else {
+        setObsReadings([]);
+      }
+    } else {
+      setObsTableColumns([]);
+      setObsReadings([]);
+    }
+    setObsSubmissionSuccess(null);
+  }, [activeObsRecord?._id, activeObsTemplateId, obsTemplates]);
+
+  const handleReadingChange = (index, field, value) => {
+    setObsReadings((prev) => {
+      const updated = Array.isArray(prev) ? [...prev] : [];
+      while (updated.length <= index) updated.push({});
+      const row = { ...(updated[index] || {}), [field]: value };
+
+      const num = (v) => {
+        if (v === undefined || v === null || v === "") return NaN;
+        const n = parseFloat(String(v).replace(/[^0-9.-]/g, ""));
+        return isNaN(n) ? NaN : n;
+      };
+
+      // 1. Universal Multi-Reading Average & Error Calculation (reading1, reading2, reading3)
+      const validReadings = [num(row.reading1), num(row.reading2), num(row.reading3)].filter((n) => !isNaN(n));
+      if (validReadings.length > 0) {
+        const sum = validReadings.reduce((acc, val) => acc + val, 0);
+        const avg = sum / validReadings.length;
+        const decimals = Math.max(
+          ...validReadings.map((n) => (String(n).split(".")[1] || "").length),
+          3
+        );
+        const avgFormatted = avg.toFixed(Math.min(decimals, 4));
+        row.average = avgFormatted;
+
+        const targetRef = !isNaN(num(row.nominal))
+          ? num(row.nominal)
+          : (!isNaN(num(row.standardValue))
+          ? num(row.standardValue)
+          : (!isNaN(num(row.standardWeight)) ? num(row.standardWeight) : NaN));
+
+        if (!isNaN(targetRef)) {
+          const err = (avg - targetRef).toFixed(Math.min(decimals, 4));
+          row.error = (parseFloat(err) >= 0 ? "+" : "") + err;
+        }
+      }
+
+      // 2. Mass (Weighing Balance)
+      if (row.standardWeight !== undefined && row.observedIndication !== undefined) {
+        const sw = num(row.standardWeight);
+        const obs = num(row.observedIndication);
+        if (!isNaN(sw) && !isNaN(obs)) {
+          const err = (obs - sw).toFixed(4);
+          row.error = (parseFloat(err) >= 0 ? "+" : "") + err;
+        }
+      }
+
+      // 3. Pressure (Pressure Gauge)
+      if (row.increasingLoad !== undefined && row.decreasingLoad !== undefined) {
+        const inc = num(row.increasingLoad);
+        const dec = num(row.decreasingLoad);
+        const nom = num(row.nominalPressure);
+        if (!isNaN(inc) && !isNaN(dec)) {
+          const mean = ((inc + dec) / 2).toFixed(2);
+          row.meanIndicated = mean;
+          row.hysteresis = Math.abs(inc - dec).toFixed(2);
+          if (!isNaN(nom) && nom !== 0) {
+            row.spanError = (((parseFloat(mean) - nom) / nom) * 100).toFixed(2);
+          }
+        }
+      }
+
+      // Speed / RPM (Centrifuge, Tachometer, Generator, Rotating machines)
+      if (row.masterRpm !== undefined || row.indicatedRpm !== undefined) {
+        const mstRpm = num(row.masterRpm);
+        const indRpm = num(row.indicatedRpm);
+        if (!isNaN(mstRpm) && !isNaN(indRpm)) {
+          const err = (indRpm - mstRpm).toFixed(1);
+          row.errorRpm = (parseFloat(err) >= 0 ? "+" : "") + err;
+        }
+      }
+
+      // Dynamic Formula Evaluation for custom or extracted columns
+      (obsTableColumns || []).forEach((col) => {
+        if (col.type === "formula" && col.formula && (row[col.key] === undefined || row[col.key] === "")) {
+          try {
+            let expr = col.formula;
+            let canEval = true;
+            const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+            for (const v of vars) {
+              const val = num(row[v]);
+              if (isNaN(val)) {
+                canEval = false;
+                break;
+              }
+              expr = expr.replace(new RegExp(`\\b${v}\\b`, "g"), `(${val})`);
+            }
+            if (canEval && /^[0-9+\-*/().\s]+$/.test(expr)) {
+              const res = Function(`"use strict"; return (${expr});`)();
+              if (typeof res === "number" && !isNaN(res)) {
+                row[col.key] = col.unit === "%" ? res.toFixed(2) : (res % 1 === 0 ? String(res) : res.toFixed(2));
+              }
+            }
+          } catch (e) {}
+        }
+      });
+
+      // 4. Force (CTM / UTM)
+      const m = num(row.master ?? row.masterLoad ?? row.nominal);
+      const ind = num(row.indicated ?? row.reading ?? row.average);
+      if (!isNaN(m) && !isNaN(ind) && m !== 0) {
+        const errCol = (obsTableColumns || []).find((col) => col.key === "error" || col.key === "indError");
+        if (errCol && (errCol.unit === "%" || !errCol.unit)) {
+          const err = (((ind - m) / m) * 100).toFixed(2);
+          if (row.error !== undefined || !row.indError) row.error = err;
+          if (row.indError !== undefined) row.indError = err;
+        } else if (errCol) {
+          const err = (ind - m).toFixed(3);
+          if (row.error !== undefined || !row.indError) row.error = err;
+          if (row.indError !== undefined) row.indError = err;
+        }
+      }
+
+      updated[index] = row;
+      return updated;
+    });
+  };
+
+  const getActiveObsExactTemplate = () =>
+    obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId)) ||
+    findTemplateForInstrument(activeObsRecord, obsTemplates);
+
+  const getExactRepeatabilityCells = (tmpl) => {
+    const sheets = tmpl?.exactSheets;
+    if (!Array.isArray(sheets) || sheets.length === 0) return [];
+    const found = [];
+    sheets.forEach((sh, shIdx) => {
+      if (found.length > 0) return;
+      const sName = sh.sheetName || `Sheet ${shIdx + 1}`;
+      const blockRows = Array.isArray(sh.blocks)
+        ? sh.blocks.flatMap((b) => (Array.isArray(b?.rows) ? b.rows : []))
+        : [];
+      for (const rw of blockRows) {
+        const cells = Array.isArray(rw?.cells) ? rw.cells : [];
+        const joined = cells.map((c) => `${c?.value ?? ""} ${c?.placeholder ?? ""}`).join(" ");
+        if (!/repeatability/i.test(joined)) continue;
+        cells.forEach((cell) => {
+          if (cell?.ref && cell.kind === "input" && found.length < 5) {
+            found.push({ cellKey: `${sName}!${cell.ref}`, ref: cell.ref, sheetName: sName, idx: found.length });
+          }
+        });
+        if (found.length > 0) break;
+      }
+    });
+    return found;
+  };
+
+  const syncRepeatabilityToExactSheets = (repArray = [], { onlyIfEmpty = false } = {}) => {
+    const repCells = getExactRepeatabilityCells(getActiveObsExactTemplate());
+    if (repCells.length === 0 || !Array.isArray(repArray)) return;
+
+    setObsExactSheetValues((prev) => {
+      let changed = false;
+      const next = { ...(prev || {}) };
+      repCells.forEach((rc, idx) => {
+        if (idx >= repArray.length) return;
+        const incomingVal = repArray[idx] !== undefined && repArray[idx] !== null ? String(repArray[idx]) : "";
+        const curVal = next[rc.cellKey] !== undefined && next[rc.cellKey] !== null ? String(next[rc.cellKey]).trim() : "";
+        if (onlyIfEmpty) {
+          if (curVal === "" && incomingVal.trim() !== "") {
+            next[rc.cellKey] = incomingVal;
+            changed = true;
+          }
+        } else if (next[rc.cellKey] !== incomingVal) {
+          next[rc.cellKey] = incomingVal;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  };
+
+  const handleExactCellChange = ({ cellKey, value, obsKey, obsRowIdx }) => {
+    setObsExactSheetValues((prev) => ({ ...(prev || {}), [cellKey]: value }));
+    if (obsKey && typeof obsRowIdx === "number" && obsRowIdx >= 0) {
+      setObsReadings((prev) => {
+        const next = Array.isArray(prev) ? [...prev] : [];
+        while (next.length <= obsRowIdx) next.push({});
+        next[obsRowIdx] = { ...(next[obsRowIdx] || {}), [obsKey]: value };
+        return next;
+      });
+      return;
+    }
+    const repCell = getExactRepeatabilityCells(getActiveObsExactTemplate()).find((rc) => rc.cellKey === cellKey);
+    if (repCell) {
+      setObsRepeatabilityReadings((prev) => {
+        const next = Array.isArray(prev) ? [...prev] : ["", "", "", "", ""];
+        while (next.length < 5) next.push("");
+        next[repCell.idx] = value;
+        setObsRepeatabilityMu(next.filter((v) => v !== "" && v !== null && v !== undefined).join(", "));
+        return next.slice(0, 5);
+      });
+    }
+  };
+
+  const handleExactAddExtraRow = (sheetName) => {
+    const key = `__extraRows__${sheetName}`;
+    setObsExactSheetValues((prev) => {
+      const existing = Array.isArray(prev?.[key]) ? prev[key] : [];
+      return { ...(prev || {}), [key]: [...existing, {}] };
+    });
+    handleAddReadingRow();
+  };
+
+  const handleExactRemoveExtraRow = (sheetName, exIdx) => {
+    const key = `__extraRows__${sheetName}`;
+    setObsExactSheetValues((prev) => {
+      const existing = Array.isArray(prev?.[key]) ? prev[key] : [];
+      return { ...(prev || {}), [key]: existing.filter((_, i) => i !== exIdx) };
+    });
+  };
+
+  // Sync cell updates into matching 1:1 exact sheet cells (if template uses exactSheets)
+  const syncMappedCellsToExactSheets = (cellUpdates = []) => {
+    const sheets = getActiveObsExactTemplate()?.exactSheets;
+    if (!Array.isArray(sheets) || sheets.length === 0 || cellUpdates.length === 0) return;
+
+    setObsExactSheetValues((prev) => {
+      const next = { ...(prev || {}) };
+      sheets.forEach((sh, shIdx) => {
+        const sName = sh.sheetName || `Sheet ${shIdx + 1}`;
+        const blockRows = Array.isArray(sh.blocks)
+          ? sh.blocks.flatMap((b) => (Array.isArray(b?.rows) ? b.rows : []))
+          : [];
+        blockRows.forEach((rw) => {
+          (rw?.cells || []).forEach((cell) => {
+            if (!cell?.ref || !cell.obsKey || typeof cell.obsRowIdx !== "number") return;
+            const hit = cellUpdates.find((u) => u.obsKey === cell.obsKey && u.obsRowIdx === cell.obsRowIdx);
+            if (hit) {
+              next[`${sName}!${cell.ref}`] = hit.value;
+            }
+          });
+        });
+      });
+      return next;
+    });
+  };
+
+  const applyObsMetadataUpdate = (meta = {}, repeatabilityArr = null, { onlyIfEmpty = false } = {}) => {
+    const isEmpty = (v) => v === undefined || v === null || String(v).trim() === "";
+    let appliedCount = 0;
+
+    if (meta.temperature && (!onlyIfEmpty || isEmpty(obsTemperature))) {
+      setObsTemperature(meta.temperature);
+      appliedCount += 1;
+    }
+    if (meta.humidity && (!onlyIfEmpty || isEmpty(obsHumidity))) {
+      setObsHumidity(meta.humidity);
+      appliedCount += 1;
+    }
+    if (meta.calibratedBySite && (!onlyIfEmpty || isEmpty(obsCalibratedBySite))) {
+      setObsCalibratedBySite(meta.calibratedBySite);
+      setObsCalibratedBy(meta.calibratedBySite);
+      appliedCount += 1;
+    }
+    if (meta.calibrationMethod && (!onlyIfEmpty || isEmpty(obsCalibrationMethod))) {
+      setObsCalibrationMethod(meta.calibrationMethod);
+      appliedCount += 1;
+    }
+    if (meta.referenceStandard && (!onlyIfEmpty || isEmpty(obsReferenceStandard))) {
+      setObsReferenceStandard(meta.referenceStandard);
+      appliedCount += 1;
+    }
+    if (meta.remarks && (!onlyIfEmpty || isEmpty(obsRemarks))) {
+      setObsRemarks(meta.remarks);
+      appliedCount += 1;
+    }
+    let repAppliedCount = 0;
+    if (Array.isArray(repeatabilityArr) && repeatabilityArr.length > 0) {
+      if (onlyIfEmpty) {
+        const nextRep = Array.isArray(obsRepeatabilityReadings) ? [...obsRepeatabilityReadings] : ["", "", "", "", ""];
+        while (nextRep.length < 5) nextRep.push("");
+        for (let i = 0; i < 5 && i < repeatabilityArr.length; i++) {
+          if (isEmpty(nextRep[i]) && !isEmpty(repeatabilityArr[i])) {
+            nextRep[i] = String(repeatabilityArr[i]);
+            appliedCount += 1;
+            repAppliedCount += 1;
+          }
+        }
+        const finalRep = nextRep.slice(0, 5);
+        setObsRepeatabilityReadings(finalRep);
+        setObsRepeatabilityMu(finalRep.filter(Boolean).join(", "));
+        syncRepeatabilityToExactSheets(finalRep, { onlyIfEmpty: true });
+      } else {
+        const padded = [...repeatabilityArr.slice(0, 5)];
+        while (padded.length < 5) padded.push("");
+        setObsRepeatabilityReadings(padded);
+        setObsRepeatabilityMu(padded.filter(Boolean).join(", "));
+        syncRepeatabilityToExactSheets(padded, { onlyIfEmpty: false });
+        repAppliedCount = padded.filter(Boolean).length;
+        appliedCount += 1;
+      }
+    }
+    return { appliedCount, repAppliedCount };
+  };
+
+  const handleApplyExtractedObservationData = (extracted = {}, options = {}) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return { rowsApplied: 0, repAppliedCount: 0 };
+    // Never overwrite existing fixed/pre-printed parameters or readings — fill ONLY unfilled boxes.
+    const metaSummary = applyObsMetadataUpdate(
+      extracted.metadata || {},
+      extracted.repeatabilityReadings || null,
+      { onlyIfEmpty: true }
+    );
+
+    if (extracted.exactSheetValues && Object.keys(extracted.exactSheetValues).length > 0) {
+      setObsExactSheetValues((prev) => {
+        const next = { ...(prev || {}) };
+        Object.entries(extracted.exactSheetValues).forEach(([cellKey, cellVal]) => {
+          const cur = next[cellKey];
+          if ((cur === undefined || cur === null || String(cur).trim() === "") && String(cellVal ?? "").trim() !== "") {
+            next[cellKey] = String(cellVal);
+          }
+        });
+        return next;
+      });
+    }
+
+    const colByKey = {};
+    (obsTableColumns || []).forEach((c) => {
+      if (c?.key) colByKey[c.key] = c;
+    });
+    const isColProtected = (k) => {
+      const col = colByKey[k];
+      if (!col) return false;
+      return Boolean(
+        col.readOnly ||
+        col.fixed ||
+        col.type === "calculated" ||
+        col.type === "formula"
+      );
+    };
+
+    const incomingRows = Array.isArray(extracted.readings) ? extracted.readings : [];
+    const exactSyncList = [];
+    let rowsApplied = 0;
+
+    if (incomingRows.length > 0) {
+      const nextRows = Array.isArray(obsReadings) ? [...obsReadings] : [];
+      incomingRows.forEach((srcRow, idx) => {
+        while (nextRows.length <= idx) nextRows.push({});
+        const mergedRow = { ...(nextRows[idx] || {}) };
+        let touchedRow = false;
+        Object.entries(srcRow || {}).forEach(([k, v]) => {
+          const incomingVal = v !== undefined && v !== null ? String(v).trim() : "";
+          const existingVal = mergedRow[k] !== undefined && mergedRow[k] !== null ? String(mergedRow[k]).trim() : "";
+          if (!isColProtected(k) && existingVal === "" && incomingVal !== "") {
+            mergedRow[k] = incomingVal;
+            exactSyncList.push({ obsRowIdx: idx, obsKey: k, value: incomingVal });
+            touchedRow = true;
+          }
+        });
+        nextRows[idx] = mergedRow;
+        if (touchedRow) rowsApplied += 1;
+      });
+      setObsReadings(nextRows);
+      if (exactSyncList.length > 0) {
+        syncMappedCellsToExactSheets(exactSyncList);
+      }
+    }
+
+    if (options.hardCopyFile && activeObsRecord?._id) {
+      setRecords((prev) =>
+        prev.map((rec) =>
+          rec._id === activeObsRecord._id
+            ? {
+                ...rec,
+                observationData: {
+                  ...(rec.observationData || {}),
+                  hardCopyScan: options.hardCopyFile,
+                },
+              }
+            : rec
+        )
+      );
+    }
+
+    return { rowsApplied, repAppliedCount: metaSummary?.repAppliedCount || 0 };
+  };
+
+  const handleUpdateScannedCell = (rowIdx, colKey, value) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return;
+    handleReadingChange(rowIdx, colKey, value);
+    syncMappedCellsToExactSheets([{ obsRowIdx: rowIdx, obsKey: colKey, value }]);
+  };
+
+  const handleUpdateScannedRepeatability = (repIdx, value) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return;
+    handleRepeatabilityReadingChange(repIdx, value);
+  };
+
+  // Voice strictly populates ONLY empty/unfilled cells; existing fixed/filled data is never modified.
+  const handleVoiceFillObservationCell = (rowIdx, colKey, value) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return false;
+    const currentVal = obsReadings?.[rowIdx]?.[colKey];
+    if (currentVal !== undefined && currentVal !== null && String(currentVal).trim() !== "") {
+      return false;
+    }
+    handleReadingChange(rowIdx, colKey, value);
+    syncMappedCellsToExactSheets([{ obsRowIdx: rowIdx, obsKey: colKey, value }]);
+    return true;
+  };
+
+  const handleVoiceRevertObservationCell = (rowIdx, colKey) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return;
+    handleReadingChange(rowIdx, colKey, "");
+    syncMappedCellsToExactSheets([{ obsRowIdx: rowIdx, obsKey: colKey, value: "" }]);
+  };
+
+  const handleVoiceUpdateObservationMeta = (metadata = {}, repeatabilityArr = null) => {
+    if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return { appliedCount: 0 };
+    return applyObsMetadataUpdate(metadata, repeatabilityArr, { onlyIfEmpty: true });
+  };
+
+  const openObservationAssistantMode = (mode) => {
+    setObsInputMode(mode);
+    setTimeout(() => {
+      obsAssistantSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 50);
+  };
+
+  const handleAddReadingRow = () => {
+    const cols = (Array.isArray(obsTableColumns) && obsTableColumns.length > 0) ? obsTableColumns : [];
+    const newRow = {};
+    cols.forEach((col) => {
+      newRow[col.key] = "";
+    });
+    setObsReadings((prev) => [...prev, newRow]);
+  };
+
+  const handleRemoveReadingRow = (index) => {
+    setObsReadings((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleResetStandardReadings = () => {
+    const tmpl = obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId));
+    if (tmpl && Array.isArray(tmpl.defaultReadings) && tmpl.defaultReadings.length > 0) {
+      setObsReadings(tmpl.defaultReadings);
+      toast.info(`Reset to default ${tmpl.defaultReadings.length} points for ${tmpl.name}.`);
+    } else if (activeObsRecord) {
+      setObsReadings(getDefaultStandardReadings(activeObsRecord, obsTableColumns));
+      toast.info("Reset to blank calibration observation rows.");
+    }
+  };
+
+  const fetchRecords = (...args) => fetchData(...args);
+
+  const handleUpdateInstrumentNameGlobally = (recordId, newName) => {
+    setObsInstrumentName(newName);
+    setRecords((prev) =>
+      prev.map((r) => {
+        if (r._id === recordId || r.id === recordId) {
+          const updatedItems = Array.isArray(r.quotationData?.items)
+            ? r.quotationData.items.map((it, idx) =>
+                idx === 0 ? { ...it, name: `${newName} - Calibration` } : it
+              )
+            : [];
+          return {
+            ...r,
+            instrument: newName,
+            quotationData: r.quotationData
+              ? { ...r.quotationData, items: updatedItems }
+              : r.quotationData,
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  const handleSaveObservation = async (status = "Draft") => {
+    if (!activeObsRecord) return;
+    if (getObservationLockState(activeObsRecord).isLocked) {
+      toast.error("Worksheet is LOCKED. Calibration Engineer cannot edit or unlock it until Quality Authorization (Section 7) returns it for correction. 🔒");
+      return;
+    }
+    if (!isCommercialStatusDone(activeObsRecord)) {
+      toast.error(`Cannot save observation: Commercial Status is not Approved yet (Current: ${getBatchQuotationStatus(activeObsRecord)}). Please mark Commercial Status as "Approved by Client" or "PO Confirmed" in Tab 2 (Quotations) first! 🔒`);
+      return;
+    }
+    if (!isRecordLabPermitted(activeObsRecord)) {
+      toast.error(`Cannot save observation: Equipment is held in Quotation and not permitted for today's calibration yet. Grant permission & date in Tab 2 (Quotations) first! 🔒`);
+      return;
+    }
+    try {
+      setIsObsSaving(true);
+      const chosenTemplate =
+        obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId)) ||
+        findTemplateForInstrument(activeObsRecord, obsTemplates) ||
+        null;
+      const currentInstrument = (obsInstrumentName || activeObsRecord.instrument || "").trim();
+      const draftObservation = {
+        instrument: currentInstrument,
+        worksheetNo: obsWorksheetNo,
+        inwardNo: obsInwardNo,
+        receiptDate: obsReceiptDate,
+        formatNo: obsFormatNo,
+        formatIssueNo: obsFormatIssueNo,
+        formatIssueDate: obsFormatIssueDate,
+        repeatabilityMu: obsRepeatabilityMu,
+        repeatabilityReadings: obsRepeatabilityReadings || [],
+        reviewedBy: obsReviewedBy,
+        templateId: activeObsTemplateId || chosenTemplate?._id || undefined,
+        templateName: chosenTemplate?.name || (obsTableColumns?.length ? "Dynamic Custom Format" : "Compression Testing Machine"),
+        tableColumns: obsTableColumns,
+        calibrationDate: obsCalibDate,
+        calibrationDueDate: obsDueDate,
+        issueDate: obsIssueDate,
+        clientAddress: obsClientAddress,
+        makeModel: obsMakeModel,
+        serialNo: obsSerialNo,
+        range: obsRange,
+        leastCount: obsLeastCount,
+        location: obsLocation,
+        conditionOfItem: obsConditionOfItem,
+        temperature: obsTemperature,
+        humidity: obsHumidity,
+        calibrationMethod: obsCalibrationMethod,
+        referenceStandard: obsReferenceStandard,
+        masterDescription: obsMasterDescription,
+        masterId: obsMasterId,
+        masterCertNo: obsMasterCertNo,
+        masterDueDate: obsMasterDueDate,
+        masterTraceable: obsMasterTraceable,
+        masterEquipments: obsMasterEquipments || [],
+        mode: obsMode,
+        discipline: obsDiscipline,
+        calibratedBySite: obsCalibratedBySite,
+        readings: obsReadings,
+        exactSheetValues: obsExactSheetValues,
+        hardCopyScan: activeObsRecord.observationData?.hardCopyScan || null,
+        hardCopyHistory: activeObsRecord.observationData?.hardCopyHistory || [],
+        remarks: obsRemarks,
+        status: status,
+      };
+      const evaluated = evaluateTemplateWorkbookResults({
+        template: chosenTemplate,
+        observationData: draftObservation,
+        record: activeObsRecord,
+      });
+      if (Array.isArray(evaluated.evaluatedReadings) && evaluated.evaluatedReadings.length > 0) {
+        draftObservation.readings = evaluated.evaluatedReadings;
+        setObsReadings(evaluated.evaluatedReadings);
+      }
+      draftObservation.computedReportTable = evaluated.reportTable || null;
+      draftObservation.computedAmu = evaluated.amu || null;
+
+      const payload = {
+        recordId: activeObsRecord._id,
+        observationData: draftObservation,
+      };
+      await saveCalibrationObservationApi(payload);
+      await fetchRecords();
+      setDismissedReturnBanners((prev) => ({ ...prev, [activeObsRecord._id]: true }));
+      setIsObsSaving(false);
+
+      if (status === "Submitted") {
+        setObsSubmissionSuccess({
+          message: "Observation worksheet submitted to Quality Authorization! The form is now LOCKED to prevent modifications.",
+          instrument: currentInstrument,
+          serialNo: activeObsRecord.serialNo,
+          dcNo: activeObsRecord.dcNo,
+        });
+        toast.success("✅ Observation worksheet submitted successfully! Form is now LOCKED.");
+      } else {
+        toast.success("Observation worksheet draft saved successfully!");
+      }
+    } catch (err) {
+      setIsObsSaving(false);
+      console.error("Failed to save observation:", err);
+      alert("Failed to save observation: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleApproveObservation = async (rec) => {
+    if (!rec) return;
+    try {
+      setIsAuthProcessing(true);
+      const calc = computeMetrologicalCalculations(rec);
+      const { rows: calculatedRows, amu, overallVerdict, reportTable, evaluatedReadings } = calc;
+      const res = await authorizeCalibrationObservationApi({
+        recordId: rec._id,
+        action: "approve",
+        authorizedBy: authSignatoryName,
+        remarks: authRemarks || `Calculations verified. Metrological status: ${overallVerdict}. Certificate issued.`,
+        calculatedResults: calculatedRows,
+        uncertaintyBudget: amu,
+        reportResultTable: reportTable,
+        evaluatedReadings,
+      });
+      const approvedRec = res?.data?.data;
+      if (approvedRec?._id) {
+        setRecords((prev) => prev.map((r) => (r._id === approvedRec._id ? approvedRec : r)));
+      }
+      await fetchRecords();
+      setIsAuthProcessing(false);
+      setAuthorizingRecord(null);
+
+      const certNo = approvedRec?.records?.certificateNo || "ARCL-CAL-2026-CERT";
+      const ulrNo = approvedRec?.records?.ulrNo || approvedRec?.inwardRegister?.ulrNo || approvedRec?.authorizationData?.ulrNo || "";
+      const srfNo = approvedRec?.inwardRegister?.srfNo || approvedRec?.srfNo || "";
+      setAuthCelebration({
+        certificateNo: certNo,
+        ulrNo,
+        srfNo,
+        instrument: rec.instrument,
+        serialNo: rec.serialNo,
+        dcNo: rec.dcNo,
+        clientCompany: rec.clientCompany,
+        recordId: rec._id,
+      });
+    } catch (err) {
+      setIsAuthProcessing(false);
+      console.error("Failed to authorize observation:", err);
+      alert("Authorization failed: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleRejectObservation = async (rec) => {
+    if (!rec) return;
+    try {
+      setIsAuthProcessing(true);
+      const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+      const isAlreadyApproved = Boolean(rec.authorizationData?.status === "Approved" && hasReadings);
+      await authorizeCalibrationObservationApi({
+        recordId: rec._id,
+        action: "reject",
+        authorizedBy: authSignatoryName,
+        rejectionReason: rejectionReason || (isAlreadyApproved ? "Certificate revoked for data correction." : "Returned for observation data correction."),
+        remarks: authRemarks,
+      });
+      await fetchRecords();
+      setIsAuthProcessing(false);
+      setIsRejectModalOpen(false);
+      setAuthorizingRecord(null);
+      setRejectionReason("");
+      setSelectedObsInstrumentId(rec._id);
+      setActiveTab("observations");
+      if (isAlreadyApproved) {
+        toast.success("Authorization revoked! Record reopened and UNLOCKED in Section 6 for correction 🔓");
+      } else {
+        toast.success("Observation returned for correction and UNLOCKED in Section 6! 🔓");
+      }
+    } catch (err) {
+      setIsAuthProcessing(false);
+      console.error("Failed to reject observation:", err);
+      toast.error("Action failed: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const obsCountPending = useMemo(() => {
+    return records.filter((r) => r.observationData?.status === "Draft" || !r.observationData).length;
+  }, [records]);
+
+  const authCountPending = useMemo(() => {
+    return records.filter((r) => r.observationData?.status === "Submitted").length;
+  }, [records]);
+
+  const authCountApproved = useMemo(() => {
+    return records.filter((r) =>
+      r.authorizationData?.status === "Approved" &&
+      Array.isArray(r.observationData?.readings) &&
+      r.observationData.readings.length > 0
+    ).length;
+  }, [records]);
+
+  const authCountRejected = useMemo(() => {
+    return records.filter((r) => r.authorizationData?.status === "Rejected" || r.observationData?.status === "Rejected").length;
+  }, [records]);
+
 
   // Default Equipment Row & Form State for Calibration SRF & Pipeline
   const createDefaultInstrumentRow = () => {
@@ -1136,10 +3789,77 @@ export default function CalibrationPageView() {
     dcNo: "",
     challanDate: new Date().toISOString().slice(0, 10),
     sentToLab: "ARCL Calibration Lab",
+    releaseImmediately: false,
     instruments: [createDefaultInstrumentRow()],
   };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [isVerifyingGstInCalibration, setIsVerifyingGstInCalibration] = useState(false);
+
+  // Auto-Fetch Company Name, Address, City & Pincode when GSTIN is filled
+  const handleAutoFetchGstInCalibration = async (rawGst, targetForm = "inward") => {
+    const clean = String(rawGst || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!clean || clean.length < 15) return;
+    try {
+      setIsVerifyingGstInCalibration(true);
+      const res = await verifyGstApi(clean);
+      const payload = res?.data?.data || res?.data;
+      if (res?.data?.success && payload) {
+        const comp = payload.companyName || payload.tradeName || payload.legalName || "";
+        const addr = payload.addr || payload.address?.line1 || (typeof payload.address === "string" ? payload.address : "");
+        const cityStatePin = `${payload.city || ""}, ${payload.state || ""}, ${payload.pincode || ""}`.replace(/^, |, $/g, "");
+        const fullAddr = addr ? (cityStatePin && !addr.includes(payload.pincode) ? `${addr}\n${cityStatePin}` : addr) : cityStatePin;
+        const finalGst = payload.gstin || clean;
+
+        if (targetForm === "inward") {
+          setFormData((prev) => ({
+            ...prev,
+            clientGst: finalGst,
+            clientCompany: comp || prev.clientCompany,
+            clientAddress: fullAddr || addr || prev.clientAddress,
+          }));
+        } else if (targetForm === "edit") {
+          setEditFormData((prev) => ({
+            ...prev,
+            clientGst: finalGst,
+            clientCompany: comp || prev.clientCompany,
+            clientAddress: fullAddr || addr || prev.clientAddress,
+          }));
+        } else if (targetForm === "tax_invoice") {
+          setTaxInvoiceForm((prev) => ({
+            ...prev,
+            clientGstin: finalGst,
+            clientCompany: comp || prev.clientCompany,
+            clientAddress: fullAddr || addr || prev.clientAddress,
+          }));
+        } else if (targetForm === "proforma") {
+          setProformaForm((prev) => ({
+            ...prev,
+            clientGstin: finalGst,
+            clientCompany: comp || prev.clientCompany,
+            clientAddress: fullAddr || addr || prev.clientAddress,
+          }));
+        } else if (targetForm === "quotation") {
+          setQuotationForm((prev) => ({
+            ...prev,
+            billTo: {
+              ...(prev.billTo || {}),
+              gstin: finalGst,
+              companyName: comp || prev.billTo?.companyName,
+              address: fullAddr || addr || prev.billTo?.address,
+            },
+          }));
+        }
+        toast.success(`GSTIN Verified: ${comp}`);
+      } else {
+        toast.warning(res?.data?.error || "GSTIN not verified on portal. Please enter details manually.");
+      }
+    } catch (err) {
+      toast.error("GST verification notice: Please enter details manually.");
+    } finally {
+      setIsVerifyingGstInCalibration(false);
+    }
+  };
 
   // Auto-Suggestion State for SRF & Calibration Equipment Selection
   const [websiteProducts, setWebsiteProducts] = useState([]);
@@ -1298,6 +4018,7 @@ export default function CalibrationPageView() {
     items: defaultProforma26Items,
   });
   const [quotationFilterSearch, setQuotationFilterSearch] = useState("");
+  const [quotationStatusFilter, setQuotationStatusFilter] = useState("all");
 
   const [quotationForm, setQuotationForm] = useState({
     quotationNo: "ARCL/QTN/26-27/47",
@@ -1767,16 +4488,26 @@ export default function CalibrationPageView() {
     setIsProformaInvoiceModalOpen(true);
   };
 
+  const handleCloseQuotationModal = () => {
+    setIsQuotationModalOpen(false);
+    setQuotationRecordId(null);
+  };
+
   const handleOpenQuotationEditor = (rec = null) => {
-    if (rec) {
-      setQuotationRecordId(rec._id || rec.id);
+    hasOpenedQuotationEditorRef.current = true;
+    if (rec && (rec._id || rec.id || rec.primaryRecord?._id || rec.items?.[0]?._id)) {
+      // Editing an existing quotation record or batch
+      const targetRec = rec;
+      const targetRecId = targetRec._id || targetRec.id || targetRec.primaryRecord?._id || targetRec.items?.[0]?._id;
+      setQuotationRecordId(targetRecId);
       let batchList = [];
-      if (Array.isArray(rec.items) && rec.items.length > 0) {
-        batchList = rec.items;
+      if (Array.isArray(targetRec.items) && targetRec.items.length > 0) {
+        batchList = targetRec.items;
       } else {
-        const dcClean = String(rec.dcNo || "").trim().toLowerCase();
-        const compClean = String(rec.clientCompany || "").trim().toLowerCase();
-        if (dcClean && dcClean !== "-" && compClean) {
+        const dcClean = String(targetRec.dcNo || "").trim().toLowerCase();
+        const compClean = String(targetRec.clientCompany || "").trim().toLowerCase();
+        const isGenericDc = !dcClean || dcClean === "-" || dcClean === "dc/25-26/0154";
+        if (!isGenericDc && compClean) {
           batchList = records.filter(
             (r) =>
               String(r.dcNo || "").trim().toLowerCase() === dcClean &&
@@ -1784,7 +4515,7 @@ export default function CalibrationPageView() {
           );
         }
         if (batchList.length === 0) {
-          batchList = [rec.primaryRecord || rec];
+          batchList = [targetRec.primaryRecord || targetRec];
         }
       }
 
@@ -1805,41 +4536,100 @@ export default function CalibrationPageView() {
         };
       });
 
-      if (rec.quotationData && rec.quotationData.items && rec.quotationData.items.length === batchList.length) {
+      const dcClean = String(targetRec.dcNo || "").trim().toLowerCase();
+      const compCleanLower = String(targetRec.clientCompany || "").trim().toLowerCase();
+      const isGenericDc = !dcClean || dcClean === "-" || dcClean === "dc/25-26/0154";
+      const existingQData =
+        targetRec.quotationData ||
+        (!isGenericDc
+          ? records.find((r) => {
+              if (!r?.quotationData) return false;
+              const rDc = String(r.dcNo || "").trim().toLowerCase();
+              const rComp = String(r.clientCompany || "").trim().toLowerCase();
+              return rDc === dcClean && rComp === compCleanLower;
+            })?.quotationData
+          : null);
+
+      if (existingQData && Array.isArray(existingQData.items) && existingQData.items.length > 0) {
         setQuotationForm({
-          ...rec.quotationData,
+          ...existingQData,
           billTo: {
-            ...rec.quotationData.billTo,
-            companyName: rec.quotationData.billTo?.companyName || rec.clientCompany || "",
-            gstin: rec.quotationData.billTo?.gstin || rec.clientGst || "",
-            address: rec.quotationData.billTo?.address || rec.clientAddress || "",
-            phone: rec.quotationData.billTo?.phone || rec.clientPhone || "",
-            email: rec.quotationData.billTo?.email || rec.clientEmail || "",
+            ...existingQData.billTo,
+            companyName: existingQData.billTo?.companyName || targetRec.clientCompany || "",
+            gstin: existingQData.billTo?.gstin || targetRec.clientGst || "",
+            address: existingQData.billTo?.address || targetRec.clientAddress || "",
+            phone: existingQData.billTo?.phone || targetRec.clientPhone || "",
+            email: existingQData.billTo?.email || targetRec.clientEmail || "",
           },
-          dcNo: rec.dcNo || rec.quotationData.dcNo || "",
+          dcNo: targetRec.dcNo || existingQData.dcNo || "",
         });
       } else {
         setQuotationForm({
-          quotationNo: `ARCL/QTN/26-27/${String(rec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
-          quotationDate: toSafeIsoDate(rec.calibrationDate, toSafeIsoDate(new Date())),
-          validityDate: toSafeIsoDate(rec.calibrationDueDate, toSafeIsoDate(Date.now() + 30 * 86400000)),
+          quotationNo: `ARCL/QTN/26-27/${String(targetRec.serialNo || "").replace(/[^0-9]/g, "").slice(-3) || "47"}`,
+          quotationDate: toSafeIsoDate(targetRec.calibrationDate, toSafeIsoDate(new Date())),
+          validityDate: toSafeIsoDate(targetRec.calibrationDueDate, toSafeIsoDate(Date.now() + 30 * 86400000)),
           placeOfSupply: "27-MAHARASHTRA",
           billTo: {
-            companyName: rec.clientCompany || "",
-            gstin: rec.clientGst || "27AAOCR3275P1ZH",
-            address: rec.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+            companyName: targetRec.clientCompany || "",
+            gstin: targetRec.clientGst || "27AAOCR3275P1ZH",
+            address: targetRec.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
             cityStatePin: "Thane, MAHARASHTRA, 421503",
-            phone: rec.clientPhone || "+91 8009559900",
-            email: rec.clientEmail || "arclinstruments@gmail.com",
+            phone: targetRec.clientPhone || "+91 8009559900",
+            email: targetRec.clientEmail || "arclinstruments@gmail.com",
           },
-          dcNo: rec.dcNo || "",
-          items: dynamicItems,
+          dcNo: targetRec.dcNo || "",
+          items: dynamicItems.length > 0 ? dynamicItems : [
+            {
+              itemNo: 1,
+              name: `${targetRec.instrument || "Precision Equipment"} - Calibration`,
+              subText: "NABL Traceable Calibration Report",
+              hsnSac: "998346",
+              rate: 1500,
+              qty: 1,
+              qtyUnit: "NOS",
+              amount: 1500,
+            }
+          ],
           cgstRate: 9.0,
           sgstRate: 9.0,
         });
       }
     } else {
+      // BRAND NEW QUOTATION: Explicitly clear target record ID and initialize clean template
       setQuotationRecordId(null);
+      const uniqueTs = Date.now().toString();
+      const seqNum = String((records?.length || 0) + 1).padStart(3, "0");
+      const newQuotationNum = `ARCL/QTN/26-27/${seqNum}-${uniqueTs.slice(-3)}`;
+      const newDcNum = `DC-${new Date().getFullYear()}-${uniqueTs.slice(-5)}`;
+      setQuotationForm({
+        quotationNo: newQuotationNum,
+        quotationDate: toSafeIsoDate(new Date()),
+        validityDate: toSafeIsoDate(Date.now() + 30 * 86400000),
+        placeOfSupply: "27-MAHARASHTRA",
+        billTo: {
+          companyName: "",
+          gstin: "",
+          address: "",
+          cityStatePin: "Navi Mumbai, MAHARASHTRA",
+          phone: "",
+          email: "",
+        },
+        dcNo: newDcNum,
+        items: [
+          {
+            itemNo: 1,
+            name: "Precision Equipment - Calibration",
+            subText: "NABL Traceable Calibration Report",
+            hsnSac: "998346",
+            rate: 1500,
+            qty: 1,
+            qtyUnit: "NOS",
+            amount: 1500,
+          },
+        ],
+        cgstRate: 9.0,
+        sgstRate: 9.0,
+      });
     }
     setIsQuotationModalOpen(true);
   };
@@ -1916,10 +4706,14 @@ export default function CalibrationPageView() {
   const handleSaveQuotation = async () => {
     try {
       setQuotationSaving(true);
+      const isNew = !quotationRecordId;
       const itemsToSave = Array.isArray(quotationForm.items) ? quotationForm.items : defaultStandard37Items;
       const res = await saveQuotationApi({
         recordId: quotationRecordId || undefined,
+        isNewQuotation: isNew,
         serialNo: quotationForm.quotationNo || undefined,
+        dcNo: quotationForm.dcNo || undefined,
+        clientCompany: quotationForm.billTo?.companyName || undefined,
         quotationData: {
           ...quotationForm,
           items: itemsToSave,
@@ -1929,12 +4723,59 @@ export default function CalibrationPageView() {
           totalAmount: quotationTotals.total,
         }
       });
-      const savedRecordId = res?.data?.data?.record?._id;
+      const savedRecord = res?.data?.data?.record;
+      const savedRecordId = savedRecord?._id;
       if (savedRecordId) {
         setQuotationRecordId(savedRecordId);
       }
-      toast.success("Official Quotation format saved successfully!");
-      fetchData(false);
+
+      const primaryNewName = itemsToSave[0]?.name ? itemsToSave[0].name.replace(/\s*-\s*Calibration$/i, "").trim() : "";
+
+      if (isNew && savedRecord) {
+        // Prepend all brand new quotation records so they appear immediately at top of Tab 2 without modifying older rows
+        const createdList =
+          Array.isArray(res?.data?.data?.createdRecords) && res.data.data.createdRecords.length > 0
+            ? res.data.data.createdRecords
+            : [savedRecord];
+        setRecords((prev) => {
+          const newIds = new Set(createdList.map((cr) => cr._id));
+          return [...createdList, ...prev.filter((r) => !newIds.has(r._id))];
+        });
+      } else {
+        // Propagate updated equipment names to local React state immediately for THIS edited quotation batch only
+        const targetRecId = savedRecordId || quotationRecordId;
+        const targetDc = String(quotationForm.dcNo || "").trim().toLowerCase();
+        const targetComp = String(quotationForm.billTo?.companyName || "").trim().toLowerCase();
+        const isGenericDc = !targetDc || targetDc === "-" || targetDc === "dc/25-26/0154";
+
+        setRecords((prev) =>
+          prev.map((rec) => {
+            const isIdMatch = targetRecId && (rec._id === targetRecId || rec.id === targetRecId);
+            const isDcMatch = !isGenericDc && String(rec.dcNo || "").trim().toLowerCase() === targetDc;
+            const isCompMatch = targetComp && String(rec.clientCompany || "").trim().toLowerCase() === targetComp;
+
+            if (isIdMatch || (isDcMatch && isCompMatch)) {
+              return {
+                ...rec,
+                instrument: primaryNewName || rec.instrument,
+                clientCompany: quotationForm.billTo?.companyName || rec.clientCompany,
+                quotationData: {
+                  ...quotationForm,
+                  items: itemsToSave,
+                },
+              };
+            }
+            return rec;
+          })
+        );
+      }
+
+      if (primaryNewName) {
+        setObsInstrumentName(primaryNewName);
+      }
+
+      await fetchData(false);
+      toast.success(isNew ? "New Calibration Quotation created successfully! ✨" : "Official Quotation & Quoted Equipments saved successfully! ✨");
       return savedRecordId || quotationRecordId;
     } catch (err) {
       console.error("Save quotation error:", err);
@@ -2092,7 +4933,7 @@ export default function CalibrationPageView() {
         getTaxInvoiceApi(),
         getProformaApi(),
       ]);
-      if (qRes.status === "fulfilled" && qRes.value?.data?.data?.quotationData) {
+      if (!hasOpenedQuotationEditorRef.current && qRes.status === "fulfilled" && qRes.value?.data?.data?.quotationData) {
         const qd = qRes.value.data.data.quotationData;
         setQuotationForm((prev) => ({
           ...prev,
@@ -2318,6 +5159,7 @@ export default function CalibrationPageView() {
     fetchAutoReminderStatus();
     fetchLabScope();
     fetchWebsiteEquipments();
+    fetchObsTemplates();
   }, []);
 
   useEffect(() => {
@@ -2365,7 +5207,26 @@ export default function CalibrationPageView() {
     });
   }, [records, searchTerm, stageFilter, paymentFilter, selectedClient]);
 
-  // Group filtered records by Batch (DC No + Client Company) so multiple products appear in 1 consolidated row
+  // Stable chronological Customer Arrival Rank (1st customer = Rank 1, 2nd = Rank 2, 3rd = Rank 3...)
+  const customerRankMap = useMemo(() => {
+    const sortedRecs = [...(Array.isArray(records) ? records : [])].sort((a, b) => {
+      const tA = new Date(a?.createdAt || a?.challanDate || a?.calibrationDate || 0).getTime() || 0;
+      const tB = new Date(b?.createdAt || b?.challanDate || b?.calibrationDate || 0).getTime() || 0;
+      if (tA !== tB) return tA - tB;
+      return (Number(a?.srNo) || 0) - (Number(b?.srNo) || 0);
+    });
+    const map = new Map();
+    let rank = 1;
+    sortedRecs.forEach((r) => {
+      const custKey = String(r?.clientCompany || "").trim().toLowerCase();
+      if (custKey && !map.has(custKey)) {
+        map.set(custKey, rank++);
+      }
+    });
+    return map;
+  }, [records]);
+
+  // Group filtered records by Batch (DC No + Client Company) in chronological arrival order (Rank 1, 2, 3...)
   const groupedBatches = useMemo(() => {
     const list = filteredRecords;
     const batchMap = new Map();
@@ -2373,20 +5234,18 @@ export default function CalibrationPageView() {
     list.forEach((r) => {
       const dcClean = String(r?.dcNo || "").trim();
       const compClean = String(r?.clientCompany || "External Client").trim();
-      const key =
-        dcClean && dcClean !== "-"
-          ? `${compClean.toLowerCase()}___${dcClean.toLowerCase()}`
-          : `${compClean.toLowerCase()}___${
-              r?.challanDate
-                ? toSafeLocaleDate(r.challanDate, "batch-date")
-                : r?.calibrationDate
-                ? toSafeLocaleDate(r.calibrationDate, "batch-date")
-                : "batch"
-            }`;
+      const qNoClean = String(r?.quotationData?.quotationNo || "").trim().toLowerCase();
+      const isGenericDc = !dcClean || dcClean === "-" || dcClean.toLowerCase() === "dc/25-26/0154";
+      const key = qNoClean
+        ? `${compClean.toLowerCase()}___${isGenericDc ? "qtn" : dcClean.toLowerCase()}___${qNoClean}`
+        : !isGenericDc
+        ? `${compClean.toLowerCase()}___${dcClean.toLowerCase()}`
+        : `${compClean.toLowerCase()}___${r?._id || r?.id || Math.random()}`;
 
       if (!batchMap.has(key)) {
         batchMap.set(key, {
           batchKey: key,
+          customerRank: customerRankMap.get(compClean.toLowerCase()) || null,
           primaryRecord: r,
           items: [],
           clientCompany: compClean,
@@ -2403,6 +5262,7 @@ export default function CalibrationPageView() {
           calibrationDate: r?.calibrationDate,
           calibrationDueDate: r?.calibrationDueDate,
           commercialDocs: r?.commercialDocs || {},
+          quotationData: r?.quotationData || null,
           stage: r?.stage || "Calibration Done",
           records: r?.records || {},
         });
@@ -2410,6 +5270,9 @@ export default function CalibrationPageView() {
       const existingBatch = batchMap.get(key);
       if (existingBatch) {
         existingBatch.items.push(r);
+        if (r?.quotationData) {
+          existingBatch.quotationData = r.quotationData;
+        }
         if (
           !existingBatch.commercialDocs?.poFileUrl &&
           (r?.commercialDocs?.poFileUrl || r?.commercialDocs?.poRaised)
@@ -2427,8 +5290,1057 @@ export default function CalibrationPageView() {
       }
     });
 
-    return Array.from(batchMap.values());
-  }, [filteredRecords]);
+    return Array.from(batchMap.values()).sort((a, b) => {
+      const aTime = new Date(a?.primaryRecord?.createdAt || a?.challanDate || a?.calibrationDate || 0).getTime() || 0;
+      const bTime = new Date(b?.primaryRecord?.createdAt || b?.challanDate || b?.calibrationDate || 0).getTime() || 0;
+      if (aTime !== bTime) return aTime - bTime;
+      return (a.customerRank || 999999) - (b.customerRank || 999999);
+    });
+  }, [filteredRecords, customerRankMap]);
+
+  // Batches displayed in SRF Master (Tab 3):
+  // Split strictly by Commercial Status Done + Lab Permitted + Permitted Release Date (YYYY-MM-DD)!
+  // So releasing 10 items on Day 1 and 15 items on Day 2 creates separate date-wise SRF batches automatically.
+  const srfBatches = useMemo(() => {
+    if (srfCommercialFilter !== "done_only") {
+      const base = groupedBatches || [];
+      if (!srfDateFilter) return base;
+      return base.filter((batch) =>
+        (batch.items || []).some((it) => toDateKeyYYYYMMDD(getRecordLabDate(it)) === srfDateFilter)
+      );
+    }
+
+    const srfMap = new Map();
+    (filteredRecords || []).forEach((r) => {
+      if (!isCommercialStatusDone(r) || !isRecordLabPermitted(r)) return;
+      const relDate = getRecordLabDate(r);
+      const relDateKey = toDateKeyYYYYMMDD(relDate) || "unscheduled";
+      if (srfDateFilter && relDateKey !== srfDateFilter) return;
+
+      const dcClean = String(r?.dcNo || "").trim();
+      const compClean = String(r?.clientCompany || "External Client").trim();
+      const qNoClean = String(r?.quotationData?.quotationNo || "").trim().toLowerCase();
+      const isGenericDc = !dcClean || dcClean === "-" || dcClean.toLowerCase() === "dc/25-26/0154";
+      const baseKey = qNoClean
+        ? `${compClean.toLowerCase()}___${isGenericDc ? "qtn" : dcClean.toLowerCase()}___${qNoClean}`
+        : !isGenericDc
+        ? `${compClean.toLowerCase()}___${dcClean.toLowerCase()}`
+        : `${compClean.toLowerCase()}___${r?._id || r?.id || Math.random()}`;
+      const dateSplitKey = `${baseKey}___DATE___${relDateKey}`;
+
+      if (!srfMap.has(dateSplitKey)) {
+        srfMap.set(dateSplitKey, {
+          batchKey: dateSplitKey,
+          baseBatchKey: baseKey,
+          customerRank: customerRankMap.get(compClean.toLowerCase()) || null,
+          releaseDateKey: relDateKey,
+          primaryRecord: r,
+          items: [],
+          clientCompany: compClean,
+          clientContactPerson: r?.clientContactPerson || "Quality Manager",
+          clientEmail: r?.clientEmail || "",
+          clientPhone: r?.clientPhone || "",
+          clientGst: r?.clientGst || "",
+          clientAddress: r?.clientAddress || "",
+          dcNo: r?.dcNo || "-",
+          challanDate: relDate || r?.challanDate,
+          sentToLab: r?.sentToLab || "ARCL Laboratory",
+          broughtToCompanyDate: r?.broughtToCompanyDate,
+          invoiceSharedDate: r?.invoiceSharedDate,
+          calibrationDate: relDate || r?.calibrationDate,
+          calibrationDueDate: r?.calibrationDueDate,
+          commercialDocs: r?.commercialDocs || {},
+          quotationData: r?.quotationData || null,
+          stage: r?.stage || "Under Calibration",
+          records: r?.records || {},
+        });
+      }
+      const existing = srfMap.get(dateSplitKey);
+      existing.items.push(r);
+      if (r?.quotationData && !existing.quotationData) {
+        existing.quotationData = r.quotationData;
+      }
+    });
+
+    return Array.from(srfMap.values()).sort((a, b) => {
+      const aTime = new Date(a.primaryRecord?.createdAt || a.challanDate || a.calibrationDate || 0).getTime() || 0;
+      const bTime = new Date(b.primaryRecord?.createdAt || b.challanDate || b.calibrationDate || 0).getTime() || 0;
+      if (aTime !== bTime) return aTime - bTime;
+      return (a.customerRank || 999999) - (b.customerRank || 999999);
+    });
+  }, [filteredRecords, groupedBatches, srfCommercialFilter, srfDateFilter, customerRankMap]);
+
+  const labPermissionBatch = useMemo(() => {
+    if (!labPermissionBatchKey) return null;
+    return (groupedBatches || []).find((b) => b.batchKey === labPermissionBatchKey) || null;
+  }, [groupedBatches, labPermissionBatchKey]);
+
+  const handleOpenLabPermissionModal = (batch) => {
+    if (!batch) return;
+    setLabPermissionBatchKey(batch.batchKey);
+    setSelectedPermRecordIds(new Set());
+    setPermReleaseDate(new Date().toISOString().slice(0, 10));
+    setPermReleaseNotes("");
+    setPermViewFilter("all");
+    setPermSearchTerm("");
+    setIsLabPermissionModalOpen(true);
+  };
+
+  const handleSubmitLabPermission = async (granted = true, overrideIds = null, overrideDate = null) => {
+    const targetIds = Array.isArray(overrideIds) && overrideIds.length > 0
+      ? overrideIds
+      : Array.from(selectedPermRecordIds);
+    if (targetIds.length === 0) {
+      toast.warning("Please select at least one equipment row first!");
+      return;
+    }
+    const chosenDate = overrideDate || permReleaseDate || new Date().toISOString().slice(0, 10);
+    try {
+      setIsSavingLabPermission(true);
+      const res = await releaseCalibrationEquipmentsApi({
+        recordIds: targetIds,
+        granted,
+        releaseDate: chosenDate,
+        notes: permReleaseNotes,
+      });
+      const updatedMap = new Map();
+      const updatedArr = res?.data?.data?.updatedRecords || [];
+      updatedArr.forEach((u) => {
+        if (u?._id) updatedMap.set(u._id, u);
+      });
+      if (updatedMap.size > 0) {
+        setRecords((prev) => prev.map((r) => updatedMap.get(r._id) || r));
+      }
+      setSelectedPermRecordIds(new Set());
+      await fetchData(false);
+      toast.success(
+        res?.data?.message ||
+          (granted
+            ? `Permission granted for ${targetIds.length} equipment(s) on ${chosenDate}!`
+            : `${targetIds.length} equipment(s) held back in Quotation.`)
+      );
+    } catch (err) {
+      console.error("Lab permission update failed:", err);
+      toast.error(err?.response?.data?.message || "Failed to update equipment permission");
+    } finally {
+      setIsSavingLabPermission(false);
+    }
+  };
+
+  // ==========================================
+  // SECTION 4: INWARD REGISTER HELPERS, GROUPING (EXACT EXCEL FORMAT) & ACTIONS
+  // ==========================================
+  const isRecordSrfDone = (r) => {
+    if (!r) return false;
+    if (r.inwardRegister?.srfDone === true) return true;
+    if (r.inwardRegister?.srfDone === false && r.inwardRegister?.srfDoneAt) return false;
+    if (r.authorizationData?.status === "Approved") return true;
+    if (r.stage === "Invoice Sent" || r.stage === "Certificate Uploaded") return true;
+    if (
+      r.stage === "Calibration Done" &&
+      ((Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0) ||
+        (r.records?.certificateNo && r.records.certificateNo !== "ARCL-CAL-2026-001"))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const isBatchSrfDone = (batch) => {
+    const items = Array.isArray(batch?.items) && batch.items.length > 0 ? batch.items : [batch?.primaryRecord || batch].filter(Boolean);
+    return items.length > 0 && items.every((it) => isRecordSrfDone(it));
+  };
+
+  const getBatchSrfNo = (batch) => {
+    const items = Array.isArray(batch?.items) && batch.items.length > 0 ? batch.items : [batch?.primaryRecord || batch].filter(Boolean);
+    const found = items.find((it) => it?.inwardRegister?.srfNo || it?.srfNo);
+    return found?.inwardRegister?.srfNo || found?.srfNo || "";
+  };
+
+  const splitRangeAndUnit = (rawRange = "") => {
+    const s = String(rawRange || "").trim();
+    if (!s || s === "-") return { range: "", unit: "" };
+    const match = s.match(/^([0-9.\-–/\s()ltr]+?)\s*([a-zA-Z°%²³µμ/]+)$/i);
+    if (match) {
+      return { range: match[1].trim(), unit: match[2].trim() };
+    }
+    return { range: s, unit: "" };
+  };
+
+  const formatExcelDate = (val) => {
+    if (!val) return "";
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch {
+      return "";
+    }
+  };
+
+  // All SRF-done rows grouped in exact ARCL Excel Inward Register hierarchy
+  const inwardRegisterData = useMemo(() => {
+    const doneRecords = (records || []).filter((r) => isRecordSrfDone(r));
+
+    // Track existing saved SRFs chronologically so different customers never collide on fallback /01
+    const srfOwnerCust = new Map();
+    const maxSeqByDatePrefix = new Map();
+    const doneSorted = [...doneRecords].sort((a, b) => {
+      const regA = a.inwardRegister || {};
+      const regB = b.inwardRegister || {};
+      const tA = new Date(regA.dateOfReceipt || a.labPermission?.releaseDate || a.calibrationDate || a.challanDate || a.createdAt || 0).getTime() || 0;
+      const tB = new Date(regB.dateOfReceipt || b.labPermission?.releaseDate || b.calibrationDate || b.challanDate || b.createdAt || 0).getTime() || 0;
+      if (tA !== tB) return tA - tB;
+      return (Number(a.srNo) || 0) - (Number(b.srNo) || 0);
+    });
+
+    doneSorted.forEach((r) => {
+      const savedSrf = String(r.inwardRegister?.srfNo || r.srfNo || "").trim();
+      if (!savedSrf) return;
+      const custKey = String(r.clientCompany || "").trim().toLowerCase();
+      const srfLow = savedSrf.toLowerCase();
+      if (!srfOwnerCust.has(srfLow)) {
+        srfOwnerCust.set(srfLow, custKey);
+      }
+      const m = savedSrf.match(/^(\d{6}\/)(\d+)$/);
+      if (m) {
+        const seqVal = parseInt(m[2], 10);
+        if (seqVal > (maxSeqByDatePrefix.get(m[1]) || 0)) {
+          maxSeqByDatePrefix.set(m[1], seqVal);
+        }
+      }
+    });
+
+    // Group by unique customer inward batch (never sharing one customer's SRF with another customer)
+    const groupMap = new Map();
+    doneSorted.forEach((r) => {
+      const reg = r.inwardRegister || {};
+      const receiptDt = reg.dateOfReceipt || r.labPermission?.releaseDate || r.calibrationDate || r.challanDate || r.createdAt;
+      const dtObj = receiptDt ? new Date(receiptDt) : new Date();
+      const yy = String(dtObj.getFullYear()).slice(-2);
+      const mm = String(dtObj.getMonth() + 1).padStart(2, "0");
+      const dd = String(dtObj.getDate()).padStart(2, "0");
+      const datePrefix = `${yy}${mm}${dd}/`;
+      const custKey = String(r.clientCompany || "").trim().toLowerCase();
+      const savedSrf = String(reg.srfNo || r.srfNo || "").trim();
+      const ownerOfSaved = savedSrf ? srfOwnerCust.get(savedSrf.toLowerCase()) : null;
+      const validSavedForCust = savedSrf && (!ownerOfSaved || ownerOfSaved === custKey) ? savedSrf : "";
+      const dcKey = String(r.dcNo || "").trim().toLowerCase();
+      const groupKey = validSavedForCust
+        ? `srf___${validSavedForCust.toLowerCase()}___${custKey}`
+        : `batch___${custKey}___${dcKey}___${yy}${mm}${dd}`;
+
+      if (!groupMap.has(groupKey)) {
+        let assignedGroupSrf = validSavedForCust;
+        if (!assignedGroupSrf) {
+          let nextSeq = (maxSeqByDatePrefix.get(datePrefix) || 0) + 1;
+          let cand = `${datePrefix}${String(nextSeq).padStart(2, "0")}`;
+          while (srfOwnerCust.has(cand.toLowerCase())) {
+            nextSeq += 1;
+            cand = `${datePrefix}${String(nextSeq).padStart(2, "0")}`;
+          }
+          maxSeqByDatePrefix.set(datePrefix, nextSeq);
+          srfOwnerCust.set(cand.toLowerCase(), custKey);
+          assignedGroupSrf = cand;
+        }
+        groupMap.set(groupKey, {
+          groupKey,
+          srfNo: assignedGroupSrf,
+          receiptDate: dtObj,
+          receiptDateKey: toDateKeyYYYYMMDD(dtObj),
+          customer: r.clientCompany || "",
+          address: r.clientAddress || "",
+          items: [],
+        });
+      }
+      groupMap.get(groupKey).items.push(r);
+    });
+
+    const sortedGroups = Array.from(groupMap.values()).sort((a, b) => {
+      const diff = new Date(a.receiptDate || 0).getTime() - new Date(b.receiptDate || 0).getTime();
+      if (diff !== 0) return inwardSortOrder === "newest" ? -diff : diff;
+      return inwardSortOrder === "newest"
+        ? String(b.srfNo).localeCompare(String(a.srfNo))
+        : String(a.srfNo).localeCompare(String(b.srfNo));
+    });
+
+    const flattenedRows = [];
+    let visibleGroupCounter = 0;
+
+    sortedGroups.forEach((grp) => {
+      // Filter items within this group
+      const matchingItems = grp.items.filter((r) => {
+        const reg = r.inwardRegister || {};
+        const doneAt = String(reg.calibrationDoneAt || (String(r.sentToLab || "").toLowerCase().includes("site") ? "Site" : "Lab")).trim();
+
+        if (inwardClientFilter !== "all" && r.clientCompany !== inwardClientFilter) return false;
+        if (inwardDateFilter && toDateKeyYYYYMMDD(reg.dateOfReceipt || grp.receiptDate) !== inwardDateFilter) return false;
+        if (inwardDoneAtFilter !== "all" && doneAt.toLowerCase() !== inwardDoneAtFilter.toLowerCase()) return false;
+
+        if (inwardSearchTerm) {
+          const q = inwardSearchTerm.toLowerCase().trim();
+          const fields = [
+            grp.srfNo,
+            reg.inwardNo,
+            r.clientCompany,
+            r.clientAddress,
+            r.instrument,
+            r.serialNo,
+            reg.certificateNo || r.records?.certificateNo,
+            reg.ulrNo || r.records?.ulrNo || r.authorizationData?.ulrNo,
+            reg.makeModel || [r.make, r.modelNo].join("/"),
+            reg.remarks || r.remarks,
+          ];
+          if (!fields.some((f) => String(f || "").toLowerCase().includes(q))) return false;
+        }
+        return true;
+      });
+
+      if (matchingItems.length === 0) return;
+      const srfGroupIdx = visibleGroupCounter++;
+
+      // Sort items by srNo / inwardNo / createdAt
+      matchingItems.sort((a, b) => {
+        const srDiff = (Number(a.srNo) || 0) - (Number(b.srNo) || 0);
+        if (srDiff !== 0) return srDiff;
+        return String(a.inwardRegister?.inwardNo || "").localeCompare(String(b.inwardRegister?.inwardNo || ""));
+      });
+
+      // Track distinct equipment groups for Inward No. & Certificate no blanking on consecutive sub-serials
+      let lastInwardNo = null;
+      let autoInwardCounter = 1;
+      const seenInstruments = new Map();
+
+      matchingItems.forEach((r, idx) => {
+        const reg = r.inwardRegister || {};
+        const instKey = String(r.instrument || `item-${idx}`).trim().toLowerCase();
+        if (!seenInstruments.has(instKey)) {
+          seenInstruments.set(instKey, `${grp.srfNo}-${String(autoInwardCounter).padStart(2, "0")}`);
+          autoInwardCounter++;
+        }
+        const rawInwardNo = String(reg.inwardNo || seenInstruments.get(instKey)).trim();
+        const isFirstInSrf = idx === 0;
+        const isLastInSrf = idx === matchingItems.length - 1;
+        const isFirstInInward = idx === 0 || rawInwardNo !== lastInwardNo;
+        lastInwardNo = rawInwardNo;
+
+        const { range: parsedRange, unit: parsedUnit } = splitRangeAndUnit(r.instrumentRange);
+        const rawRange = reg.range || parsedRange || "-";
+        const rawUnit = reg.unit || parsedUnit || "-";
+        const rawLeastCount = reg.leastCount || "-------";
+        const rawDia = reg.dia || "-------";
+        const rawMakeModel = reg.makeModel || [r.make, r.modelNo].filter((x) => x && x !== "-").join("/") || "ARCL/---";
+        const rawDoneAt = reg.calibrationDoneAt || (String(r.sentToLab || "").toLowerCase().includes("site") ? "Site" : "Lab");
+
+        const isCertified = r.authorizationData?.status === "Approved" || r.stage === "Calibration Done" || r.stage === "Certificate Uploaded";
+        const rawCertNo = reg.certificateNo || (isCertified ? r.records?.certificateNo || "" : "");
+        const rawUlrNo = reg.ulrNo || r.records?.ulrNo || r.authorizationData?.ulrNo || r.observationData?.ulrNo || "";
+
+        const rawReceiptDate = reg.dateOfReceipt || grp.receiptDate;
+        const rawDays = reg.deliveryCommittedDays !== undefined && reg.deliveryCommittedDays !== null ? reg.deliveryCommittedDays : 2;
+        const rawDeliveryDate = reg.dateOfDelivery || (rawReceiptDate ? new Date(new Date(rawReceiptDate).getTime() + Number(rawDays) * 86400000) : null);
+        const rawRemarks = reg.remarks !== undefined ? reg.remarks : (r.remarks || "");
+
+        flattenedRows.push({
+          id: r._id || r.id || `${grp.groupKey}-${idx}`,
+          rawRecord: r,
+          srfGroupIdx,
+          isFirstInSrf,
+          isLastInSrf,
+          isFirstInInward,
+          // Exact 18 Display Columns (including sequential 18-char ULR No right next to Certificate no)
+          displaySrfNo: isFirstInSrf ? grp.srfNo : "",
+          displayInwardNo: isFirstInInward ? rawInwardNo : "",
+          displayDateOfReceipt: isFirstInSrf ? formatExcelDate(rawReceiptDate) : "",
+          displayCustomer: isFirstInSrf ? (r.clientCompany || "") : "",
+          displayAddress: isFirstInSrf ? (r.clientAddress || "") : "",
+          instrumentName: r.instrument || "",
+          serialNo: r.serialNo || "",
+          range: rawRange,
+          unit: rawUnit,
+          leastCount: rawLeastCount,
+          dia: rawDia,
+          makeModel: rawMakeModel,
+          calibrationDoneAt: rawDoneAt,
+          displayCertificateNo: isFirstInInward ? rawCertNo : (reg.certificateNo && reg.certificateNo !== lastInwardNo ? reg.certificateNo : ""),
+          displayUlrNo: rawUlrNo,
+          displayDeliveryDays: isFirstInSrf ? rawDays : "",
+          displayDateOfDelivery: isFirstInSrf ? formatExcelDate(rawDeliveryDate) : "",
+          remarks: rawRemarks,
+          // Full raw values for editing
+          rawSrfNo: grp.srfNo,
+          rawInwardNo,
+          rawDateOfReceipt: rawReceiptDate,
+          rawCustomer: r.clientCompany || "",
+          rawAddress: r.clientAddress || "",
+          rawCertificateNo: rawCertNo,
+          rawUlrNo: rawUlrNo,
+          rawDeliveryDays: rawDays,
+          rawDateOfDelivery: rawDeliveryDate,
+        });
+      });
+    });
+
+    return {
+      totalDoneRecords: doneRecords.length,
+      totalGroups: visibleGroupCounter,
+      rows: flattenedRows,
+    };
+  }, [records, inwardSearchTerm, inwardClientFilter, inwardDateFilter, inwardDoneAtFilter, inwardSortOrder]);
+
+  const handleOpenSrfDoneModal = (batch) => {
+    if (!batch) return;
+    const items = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch].filter(Boolean);
+    const first = items[0] || {};
+    const receiptIso = toDateKeyYYYYMMDD(
+      first?.inwardRegister?.dateOfReceipt || first?.labPermission?.releaseDate || batch.calibrationDate || batch.challanDate || new Date()
+    ) || new Date().toISOString().slice(0, 10);
+
+    const dtObj = new Date(receiptIso);
+    const yy = String(dtObj.getFullYear()).slice(-2);
+    const mm = String(dtObj.getMonth() + 1).padStart(2, "0");
+    const dd = String(dtObj.getDate()).padStart(2, "0");
+    const prefix = `${yy}${mm}${dd}/`;
+    const batchCustKey = String(batch.clientCompany || first?.clientCompany || "").trim().toLowerCase();
+    const srfOwnerMap = new Map();
+    let maxSameDaySeq = 0;
+    records.forEach((r) => {
+      const s = String(r?.inwardRegister?.srfNo || r?.srfNo || "").trim();
+      if (!s) return;
+      const owner = String(r?.clientCompany || "").trim().toLowerCase();
+      if (!srfOwnerMap.has(s.toLowerCase())) {
+        srfOwnerMap.set(s.toLowerCase(), owner);
+      }
+      if (s.startsWith(prefix)) {
+        const tailNum = parseInt(s.slice(prefix.length), 10);
+        if (!Number.isNaN(tailNum) && tailNum > maxSameDaySeq) {
+          maxSameDaySeq = tailNum;
+        }
+      }
+    });
+    const rawBatchSrf = getBatchSrfNo(batch);
+    const existingBatchSrf =
+      rawBatchSrf &&
+      (!srfOwnerMap.has(rawBatchSrf.toLowerCase()) || srfOwnerMap.get(rawBatchSrf.toLowerCase()) === batchCustKey)
+        ? rawBatchSrf
+        : "";
+    let nextSrfSeq = maxSameDaySeq + 1;
+    let nextSuggested = `${prefix}${String(nextSrfSeq).padStart(2, "0")}`;
+    while (srfOwnerMap.has(nextSuggested.toLowerCase())) {
+      nextSrfSeq += 1;
+      nextSuggested = `${prefix}${String(nextSrfSeq).padStart(2, "0")}`;
+    }
+    const suggestedSrfNo = existingBatchSrf || nextSuggested;
+    const defaultDays = first?.inwardRegister?.deliveryCommittedDays ?? 2;
+    const defaultDelivIso = toDateKeyYYYYMMDD(
+      first?.inwardRegister?.dateOfDelivery || new Date(dtObj.getTime() + Number(defaultDays) * 86400000)
+    );
+
+    setSrfDoneTargetBatch(batch);
+    setSrfDoneForm({
+      srfNo: suggestedSrfNo,
+      dateOfReceipt: receiptIso,
+      calibrationDoneAt: first?.inwardRegister?.calibrationDoneAt || (String(batch.sentToLab || "").toLowerCase().includes("site") ? "Site" : "Lab"),
+      deliveryCommittedDays: defaultDays,
+      dateOfDelivery: defaultDelivIso,
+      remarks: first?.inwardRegister?.remarks || "",
+    });
+    setIsSrfDoneModalOpen(true);
+  };
+
+  const handleSubmitSrfDone = async (markAsDone = true) => {
+    if (!srfDoneTargetBatch) return;
+    const items = Array.isArray(srfDoneTargetBatch.items) && srfDoneTargetBatch.items.length > 0
+      ? srfDoneTargetBatch.items
+      : [srfDoneTargetBatch.primaryRecord || srfDoneTargetBatch].filter(Boolean);
+    const recordIds = items.map((it) => it._id || it.id).filter(Boolean);
+    if (recordIds.length === 0) {
+      toast.error("No valid records found in batch.");
+      return;
+    }
+
+    try {
+      setIsSavingSrfDone(true);
+      const res = await markCalibrationSrfDoneApi({
+        recordIds,
+        srfDone: markAsDone,
+        srfNo: srfDoneForm.srfNo,
+        dateOfReceipt: srfDoneForm.dateOfReceipt,
+        calibrationDoneAt: srfDoneForm.calibrationDoneAt,
+        deliveryCommittedDays: Number(srfDoneForm.deliveryCommittedDays) || 0,
+        dateOfDelivery: srfDoneForm.dateOfDelivery,
+        remarks: srfDoneForm.remarks,
+      });
+
+      const updatedArr = res?.data?.data?.updatedRecords || [];
+      if (updatedArr.length > 0) {
+        const map = new Map(updatedArr.map((u) => [u._id, u]));
+        setRecords((prev) => prev.map((r) => map.get(r._id) || r));
+      }
+      setIsSrfDoneModalOpen(false);
+      await fetchData(false);
+      toast.success(
+        res?.data?.message ||
+          (markAsDone
+            ? `✅ SRF Done! Added to Inward Register (${srfDoneForm.srfNo}).`
+            : "Unmarked SRF Done status.")
+      );
+      if (markAsDone && canInwardRegister) {
+        setActiveTab("inward_register");
+      }
+    } catch (err) {
+      console.error("Failed to mark SRF done:", err);
+      toast.error(err?.response?.data?.message || "Failed to update SRF Done status");
+    } finally {
+      setIsSavingSrfDone(false);
+    }
+  };
+
+  const handleOpenInwardEditModal = (rowObj) => {
+    if (!rowObj) return;
+    setInwardEditForm({
+      recordId: rowObj.rawRecord?._id || rowObj.id,
+      srfNo: rowObj.rawSrfNo || "",
+      inwardNo: rowObj.rawInwardNo || "",
+      dateOfReceipt: toDateKeyYYYYMMDD(rowObj.rawDateOfReceipt) || new Date().toISOString().slice(0, 10),
+      clientCompany: rowObj.rawCustomer || "",
+      clientAddress: rowObj.rawAddress || "",
+      instrument: rowObj.instrumentName || "",
+      serialNo: rowObj.serialNo || "",
+      range: rowObj.range === "-" ? "" : rowObj.range,
+      unit: rowObj.unit === "-" ? "" : rowObj.unit,
+      leastCount: rowObj.leastCount || "-------",
+      dia: rowObj.dia || "-------",
+      makeModel: rowObj.makeModel || "",
+      calibrationDoneAt: rowObj.calibrationDoneAt || "Lab",
+      certificateNo: rowObj.rawCertificateNo || "",
+      ulrNo: rowObj.rawUlrNo || "",
+      deliveryCommittedDays: rowObj.rawDeliveryDays ?? 2,
+      dateOfDelivery: toDateKeyYYYYMMDD(rowObj.rawDateOfDelivery) || "",
+      remarks: rowObj.remarks || "",
+    });
+    setIsInwardEditModalOpen(true);
+  };
+
+  const handleSaveInwardEdit = async (e) => {
+    e.preventDefault();
+    if (!inwardEditForm?.recordId) return;
+    try {
+      setIsSavingInwardEdit(true);
+      const res = await updateInwardRegisterRowApi(inwardEditForm.recordId, inwardEditForm);
+      const updated = res?.data?.data;
+      if (updated?._id) {
+        setRecords((prev) => prev.map((r) => (r._id === updated._id ? updated : r)));
+      }
+      setIsInwardEditModalOpen(false);
+      await fetchData(false);
+      toast.success("Inward Register row updated & saved! ✅");
+    } catch (err) {
+      console.error("Update inward register row error:", err);
+      toast.error(err?.response?.data?.message || "Failed to update Inward Register row");
+    } finally {
+      setIsSavingInwardEdit(false);
+    }
+  };
+
+  const handleExportInwardRegisterExcel = () => {
+    const aoa = [
+      [
+        "Inward Register",
+        "",
+        "",
+        "",
+        "",
+        "ARCL Instruments Private Limited",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        "SRF No.",
+        "Inward No.",
+        "Date of Receipt",
+        "Name of Customer",
+        "Address",
+        "Name of Instrument",
+        "Serial No./ Id. No.",
+        "Range",
+        "Unit",
+        "Least Count",
+        "Dia.",
+        "Make/Model",
+        "Calibration Done at",
+        "Certificate no",
+        "ULR No",
+        "Delivery Committed(Days)",
+        "Date of delivery",
+        "Remarks",
+      ],
+    ];
+
+    inwardRegisterData.rows.forEach((row) => {
+      aoa.push([
+        row.displaySrfNo,
+        row.displayInwardNo,
+        row.displayDateOfReceipt,
+        row.displayCustomer,
+        row.displayAddress,
+        row.instrumentName,
+        row.serialNo,
+        row.range,
+        row.unit,
+        row.leastCount,
+        row.dia,
+        row.makeModel,
+        row.calibrationDoneAt,
+        row.displayCertificateNo,
+        row.displayUlrNo,
+        row.displayDeliveryDays,
+        row.displayDateOfDelivery,
+        row.remarks,
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 13 },
+      { wch: 15 },
+      { wch: 14 },
+      { wch: 30 },
+      { wch: 38 },
+      { wch: 28 },
+      { wch: 20 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 11 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 20 },
+    ];
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 0, c: 5 }, e: { r: 0, c: 17 } },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inward Register");
+    XLSX.writeFile(wb, `ARCL_Inward_Register_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success("Official Inward Register exported as Excel (.xlsx) matching ARCL format! 📥");
+  };
+
+  const handlePrintInwardRegister = async () => {
+    if (!inwardRegisterData.rows.length) {
+      toast.info("No Inward Register entries available to print.");
+      return;
+    }
+
+    const esc = (val) =>
+      String(val ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    // Embed /assets/LOGO.png as Data URL so iframe srcdoc/PDF never misses the image
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    let logoSrc = `${origin}/assets/LOGO.png`;
+    try {
+      const logoRes = await fetch(`${origin}/assets/LOGO.png`);
+      if (logoRes.ok) {
+        const logoBlob = await logoRes.blob();
+        logoSrc = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result || logoSrc);
+          reader.onerror = () => resolve(logoSrc);
+          reader.readAsDataURL(logoBlob);
+        });
+      }
+    } catch {
+      // Fallback to absolute origin logo URL
+    }
+
+    const labCertNo = labProfileForm?.certificateNo || "CC-4313";
+    const labStd = labProfileForm?.accreditationStandard || "ISO/IEC 17025:2017";
+    const labTraceability =
+      labProfileForm?.masterTraceability ||
+      "National Physical Laboratory (NPL), New Delhi & ERTL";
+
+    const activeFilterParts = [];
+    if (inwardClientFilter && inwardClientFilter !== "all") {
+      activeFilterParts.push(`Customer: ${inwardClientFilter}`);
+    }
+    if (inwardDateFilter) {
+      activeFilterParts.push(`Receipt Date: ${formatExcelDate(inwardDateFilter)}`);
+    }
+    if (inwardDoneAtFilter && inwardDoneAtFilter !== "all") {
+      activeFilterParts.push(`Location: ${inwardDoneAtFilter}`);
+    }
+    if (inwardSearchTerm && inwardSearchTerm.trim()) {
+      activeFilterParts.push(`Search: "${inwardSearchTerm.trim()}"`);
+    }
+    const scopeSummary =
+      activeFilterParts.length > 0 ? activeFilterParts.join("  •  ") : "All Customers  •  Lab & Site";
+
+    const rowsHtml = inwardRegisterData.rows
+      .map((row, rIdx) => {
+        const isEvenGroup = row.srfGroupIdx % 2 === 0;
+        const rowBg = isEvenGroup ? "#ffffff" : "#f8fafc";
+        const groupTopBorder = row.isFirstInSrf && rIdx > 0 ? "border-top: 2px solid #334155;" : "";
+        const isSite = String(row.calibrationDoneAt || "").toLowerCase() === "site";
+        const doneAtBadge = isSite
+          ? `<span class="badge badge-site">${esc(row.calibrationDoneAt)}</span>`
+          : `<span class="badge badge-lab">${esc(row.calibrationDoneAt)}</span>`;
+
+        return `<tr style="background:${rowBg};${groupTopBorder}">
+          <td class="mono bold navy nowrap">${esc(row.displaySrfNo)}</td>
+          <td class="mono bold blue nowrap">${esc(row.displayInwardNo)}</td>
+          <td class="mono nowrap">${esc(row.displayDateOfReceipt)}</td>
+          <td class="bold">${esc(row.displayCustomer)}</td>
+          <td>${esc(row.displayAddress)}</td>
+          <td class="bold">${esc(row.instrumentName)}</td>
+          <td class="mono bold nowrap">${esc(row.serialNo)}</td>
+          <td class="mono center nowrap">${esc(row.range)}</td>
+          <td class="mono center nowrap">${esc(row.unit)}</td>
+          <td class="mono center nowrap">${esc(row.leastCount)}</td>
+          <td class="mono center nowrap">${esc(row.dia)}</td>
+          <td class="mono nowrap">${esc(row.makeModel)}</td>
+          <td class="center nowrap">${doneAtBadge}</td>
+          <td class="mono bold indigo nowrap">${esc(row.displayCertificateNo)}</td>
+          <td class="mono bold nowrap" style="color:#0f766e;">${esc(row.displayUlrNo)}</td>
+          <td class="mono center bold nowrap">${esc(row.displayDeliveryDays)}</td>
+          <td class="mono nowrap">${esc(row.displayDateOfDelivery)}</td>
+          <td>${esc(row.remarks)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const printedOn = new Date().toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ARCL Instruments Pvt. Ltd. — Official Inward Register</title>
+  <style>
+    @page { size: A4 landscape; margin: 7mm 7mm 9mm 7mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { margin: 0; font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 9px; color: #0f172a; background: #fff; }
+
+    /* Official Letterhead Card */
+    .letterhead {
+      display: table;
+      width: 100%;
+      border: 1.8px solid #021c57;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+    .lh-cell { display: table-cell; vertical-align: middle; padding: 8px 10px; }
+    .lh-logo {
+      width: 118px;
+      text-align: center;
+      background: #ffffff;
+      border-right: 1px solid #cbd5e1;
+    }
+    .lh-logo img {
+      max-width: 102px;
+      max-height: 58px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+    .lh-company { padding: 7px 14px; }
+    .company-name {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      color: #021c57;
+      margin: 0 0 2px 0;
+      line-height: 1.15;
+    }
+    .nabl-line {
+      display: inline-block;
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #047857;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 999px;
+      padding: 1.5px 8px;
+      margin-bottom: 4px;
+      letter-spacing: 0.25px;
+    }
+    .company-info { font-size: 8.5px; color: #334155; line-height: 1.4; margin: 0; }
+    .company-info strong { color: #0f172a; }
+
+    .lh-docbox {
+      width: 245px;
+      background: #021c57;
+      color: #ffffff;
+      padding: 8px 12px;
+      border-left: 3px solid #f59e0b;
+      vertical-align: middle;
+    }
+    .doc-kicker {
+      font-size: 7.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.1px;
+      color: #fcd34d;
+      margin-bottom: 2px;
+    }
+    .doc-title {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin: 0 0 4px 0;
+      color: #ffffff;
+    }
+    .doc-meta { font-size: 8px; color: #e2e8f0; line-height: 1.45; }
+    .doc-meta strong { color: #ffffff; }
+
+    .accent-bar {
+      height: 3px;
+      background: linear-gradient(90deg, #021c57 0%, #2563eb 65%, #f59e0b 100%);
+      border-radius: 2px;
+      margin-bottom: 5px;
+    }
+    .scope-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 8px;
+      color: #334155;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 3.5px 8px;
+      margin-bottom: 6px;
+    }
+
+    /* Register Table */
+    table.register { width: 100%; border-collapse: collapse; table-layout: auto; }
+    table.register thead { display: table-header-group; }
+    table.register tr { break-inside: avoid; page-break-inside: avoid; }
+    table.register th, table.register td {
+      border: 1px solid #94a3b8;
+      padding: 3.5px 4px;
+      vertical-align: top;
+      text-align: left;
+      line-height: 1.25;
+    }
+    .sheet-title-cell {
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 5px 8px;
+      letter-spacing: 0.3px;
+    }
+    .col-hdr th {
+      background: #dbeafe;
+      color: #021c57;
+      font-weight: 800;
+      font-size: 8.3px;
+      white-space: nowrap;
+      border-bottom: 1.5px solid #475569;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 8px;
+      font-weight: 800;
+    }
+    .badge-lab { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .badge-site { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+
+    /* Footer / Signatory */
+    .footer-box {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1.5px solid #94a3b8;
+      display: table;
+      width: 100%;
+      font-size: 8px;
+      color: #334155;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .footer-left { display: table-cell; vertical-align: bottom; width: 52%; line-height: 1.45; }
+    .footer-sign { display: table-cell; vertical-align: bottom; width: 24%; text-align: center; padding-top: 18px; }
+    .sign-line { border-top: 1px solid #475569; width: 85%; margin: 0 auto 2px auto; }
+
+    .mono { font-family: "Courier New", Consolas, monospace; }
+    .bold { font-weight: 700; }
+    .center { text-align: center; }
+    .nowrap { white-space: nowrap; }
+    .navy { color: #021c57; }
+    .blue { color: #1e3a8a; }
+    .indigo { color: #312e81; }
+  </style>
+</head>
+<body>
+  <div class="letterhead">
+    <div class="lh-cell lh-logo">
+      <img src="${esc(logoSrc)}" alt="ARCL Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';" />
+      <div style="display:none;border:2px solid #021c57;border-radius:6px;padding:6px 10px;text-align:center;">
+        <div style="font-size:15px;font-weight:900;color:#021c57;letter-spacing:1.5px;line-height:1;">ARCL</div>
+        <div style="font-size:7px;font-weight:700;color:#047857;margin-top:2px;">NABL ${esc(labCertNo)}</div>
+      </div>
+    </div>
+    <div class="lh-cell lh-company">
+      <div class="company-name">ARCL INSTRUMENTS PRIVATE LIMITED</div>
+      <div class="nabl-line">NABL ACCREDITED CALIBRATION LABORATORY (${esc(labCertNo)}) &nbsp;•&nbsp; ${esc(labStd)} &nbsp;•&nbsp; ISO 9001:2015</div>
+      <p class="company-info">
+        <strong>Calibration Lab &amp; Office:</strong> Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra, India<br/>
+        <strong>GSTIN:</strong> 27AATCA7874C1ZB &nbsp;|&nbsp; <strong>Phone:</strong> +91 8369458583 / +91 6205691085 &nbsp;|&nbsp; <strong>Email:</strong> arclinstruments@gmail.com &nbsp;|&nbsp; <strong>Web:</strong> www.arcl.in
+      </p>
+    </div>
+    <div class="lh-cell lh-docbox">
+      <div class="doc-kicker">Official Lab Record</div>
+      <div class="doc-title">Inward Register</div>
+      <div class="doc-meta">
+        <strong>Format No:</strong> ARCL/INW/01<br/>
+        <strong>SRF Batches:</strong> ${esc(inwardRegisterData.totalGroups)} &nbsp;|&nbsp; <strong>Equipments:</strong> ${esc(inwardRegisterData.totalDoneRecords)}<br/>
+        <strong>Printed On:</strong> ${esc(printedOn)}
+      </div>
+    </div>
+  </div>
+
+  <div class="accent-bar"></div>
+
+  <div class="scope-strip">
+    <span><strong>Register Scope:</strong> Sample Receipt, Instrument Details, Calibration Location &amp; Delivery Log (${esc(scopeSummary)})</span>
+    <span><strong>Order:</strong> ${esc(inwardSortOrder === "newest" ? "Newest First" : "Excel Chronological Order")}</span>
+  </div>
+
+  <table class="register">
+    <thead>
+      <tr>
+        <th colspan="5" class="sheet-title-cell">Inward Register (NABL Sample Receipt &amp; Traceability Log)</th>
+        <th colspan="13" class="sheet-title-cell" style="text-align:right;color:#fcd34d;">ARCL Instruments Private Limited • Airoli, Navi Mumbai</th>
+      </tr>
+      <tr class="col-hdr">
+        <th>SRF No.</th>
+        <th>Inward No.</th>
+        <th>Date of Receipt</th>
+        <th>Name of Customer</th>
+        <th>Address</th>
+        <th>Name of Instrument</th>
+        <th>Serial No./ Id. No.</th>
+        <th class="center">Range</th>
+        <th class="center">Unit</th>
+        <th class="center">Least Count</th>
+        <th class="center">Dia.</th>
+        <th>Make/Model</th>
+        <th class="center">Calibration Done at</th>
+        <th>Certificate no</th>
+        <th>ULR No</th>
+        <th class="center">Delivery Committed(Days)</th>
+        <th>Date of delivery</th>
+        <th>Remarks</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+    </tbody>
+  </table>
+
+  <div class="footer-box">
+    <div class="footer-left">
+      <strong>Traceability Statement:</strong> Standards used are traceable to ${esc(labTraceability)}.<br/>
+      <strong>Laboratory Address:</strong> ARCL Instruments Private Limited, Sector 8A, Airoli, Navi Mumbai - 400708 (Maharashtra).
+    </div>
+    <div class="footer-sign">
+      <div class="sign-line"></div>
+      <strong>Prepared By</strong><br/>Lab Inward Coordinator
+    </div>
+    <div class="footer-sign">
+      <div class="sign-line"></div>
+      <strong>Verified &amp; Approved By</strong><br/>Technical / Quality Manager (ARCL)
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.right = "0";
+    printFrame.style.bottom = "0";
+    printFrame.style.width = "0";
+    printFrame.style.height = "0";
+    printFrame.style.border = "0";
+    printFrame.style.opacity = "0";
+
+    let printed = false;
+    const cleanup = () => {
+      try {
+        if (printFrame.parentNode) printFrame.parentNode.removeChild(printFrame);
+      } catch {
+        // ignore cleanup error
+      }
+    };
+
+    const triggerFramePrint = () => {
+      if (printed) return;
+      printed = true;
+      setTimeout(() => {
+        try {
+          const win = printFrame.contentWindow;
+          if (!win) throw new Error("Print window unavailable");
+          win.onafterprint = cleanup;
+          win.focus();
+          win.print();
+        } catch {
+          cleanup();
+          const popup = window.open("", "_blank");
+          if (popup) {
+            popup.document.open();
+            popup.document.write(htmlContent);
+            popup.document.close();
+            popup.focus();
+            setTimeout(() => popup.print(), 300);
+          } else {
+            toast.error("Print blocked by browser popup settings. Please allow popups/print.");
+          }
+        }
+      }, 200);
+    };
+
+    printFrame.onload = triggerFramePrint;
+    printFrame.srcdoc = htmlContent;
+    document.body.appendChild(printFrame);
+    setTimeout(cleanup, 120000);
+  };
 
   const toggleExpandBatch = (batchKey) => {
     setExpandedBatchKeys((prev) => {
@@ -2442,16 +6354,480 @@ export default function CalibrationPageView() {
     });
   };
 
+  // [Re-declared in top scope as getBatchQuotationStatus & isCommercialStatusDone]
+
+  // Handler to update batch quotation status dynamically and persist to MongoDB
+  const handleUpdateBatchQuotationStatus = async (batch, newStatus) => {
+    if (!batch || !newStatus) return;
+    const batchItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch];
+    const recordIds = batchItems.map((it) => it._id || it.id).filter(Boolean);
+
+    // 1. Instant Optimistic UI Update
+    setRecords((prev) =>
+      prev.map((r) => {
+        const isMatch =
+          recordIds.includes(r._id) ||
+          recordIds.includes(r.id) ||
+          (batch.dcNo && batch.dcNo !== "-" && r.dcNo === batch.dcNo && r.clientCompany === batch.clientCompany);
+        if (isMatch) {
+          const isApproved = newStatus === "PO Confirmed" || newStatus === "Approved";
+          return {
+            ...r,
+            stage: isApproved && (r.stage === "Instrument Received" || r.stage === "Quotation Shared") ? "Under Calibration" : r.stage,
+            commercialDocs: {
+              ...(r.commercialDocs || {}),
+              quotationStatus: newStatus,
+              poRaised: isApproved ? (r.commercialDocs?.poRaised || "Confirmed by Client") : (newStatus === "Draft" ? "" : r.commercialDocs?.poRaised),
+            },
+          };
+        }
+        return r;
+      })
+    );
+
+    // 2. Persist in Database
+    try {
+      await updateCalibrationQuotationStatusApi({
+        batchId: batch.primaryRecord?._id,
+        dcNo: batch.dcNo,
+        clientCompany: batch.clientCompany,
+        recordIds,
+        quotationStatus: newStatus,
+      });
+      if (newStatus === "PO Confirmed" || newStatus === "Approved" || newStatus === "Invoiced") {
+        const hasPendingPermission = batchItems.some((it) => !isRecordLabPermitted(it));
+        if (hasPendingPermission) {
+          toast.success(
+            `🎉 Commercial Status Confirmed (${newStatus})! Now select which equipments have Lab Permission for today's date (or another date). 📅`,
+            { duration: 6000 }
+          );
+          handleOpenLabPermissionModal(batch);
+        } else {
+          toast.success(`🎉 Commercial Status Confirmed (${newStatus})! Permitted items are active in SRF Master & Observation Section! 🚀`, { duration: 6000 });
+        }
+      } else {
+        toast.info(`Quotation status set to "${newStatus}". Batch data will be held until Commercial Status is Approved or PO Confirmed.`, { duration: 5000 });
+      }
+    } catch (err) {
+      console.error("Failed to update quotation status:", err);
+      toast.error("Failed to update status on server: " + (err.response?.data?.message || err.message));
+      fetchData(false);
+    }
+  };
+
+  // Filtered Calibration Quotation batches for Tab 2 (1st customer = Rank 1, 2nd = Rank 2, 3rd = Rank 3...)
+  const filteredQuotationBatches = useMemo(() => {
+    return (groupedBatches || [])
+      .filter((batch) => {
+        if (quotationFilterSearch) {
+          const q = String(quotationFilterSearch).trim().toLowerCase();
+          const comp = String(batch.clientCompany || "").toLowerCase();
+          const dc = String(batch.dcNo || "").toLowerCase();
+          const qNo = String(batch.quotationData?.quotationNo || batch.primaryRecord?.quotationNo || "").toLowerCase();
+          const hasItem = (batch.items || []).some((it) =>
+            String(it.instrument || "").toLowerCase().includes(q) ||
+            String(it.serialNo || "").toLowerCase().includes(q) ||
+            String(it.modelNo || "").toLowerCase().includes(q) ||
+            String(it.make || "").toLowerCase().includes(q)
+          );
+          if (!comp.includes(q) && !dc.includes(q) && !qNo.includes(q) && !hasItem) {
+            return false;
+          }
+        }
+        if (quotationStatusFilter && quotationStatusFilter !== "all") {
+          const batchStatus = getBatchQuotationStatus(batch);
+          if (batchStatus !== quotationStatusFilter) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a?.primaryRecord?.createdAt || a?.items?.[0]?.createdAt || a?.challanDate || 0).getTime() || 0;
+        const bTime = new Date(b?.primaryRecord?.createdAt || b?.items?.[0]?.createdAt || b?.challanDate || 0).getTime() || 0;
+        if (aTime !== bTime) return aTime - bTime;
+        return (a.customerRank || 999999) - (b.customerRank || 999999);
+      });
+  }, [groupedBatches, quotationFilterSearch, quotationStatusFilter]);
+
+  // Quotation metrics for Tab 2 KPI cards
+  const quotationTabMetrics = useMemo(() => {
+    let totalQuotedValue = 0;
+    let poReceivedCount = 0;
+    let sentToClientCount = 0;
+    let draftCount = 0;
+    (groupedBatches || []).forEach((b) => {
+      let bTotal = 0;
+      if (b.quotationData?.grand || b.quotationData?.total || b.quotationData?.totalAmount) {
+        bTotal = Number(b.quotationData.grand || b.quotationData.total || b.quotationData.totalAmount || 0);
+      } else {
+        const qItems = Array.isArray(b.quotationData?.items) && b.quotationData.items.length > 0 ? b.quotationData.items : (b.items || []);
+        if (qItems.length > 0) {
+          const sum = qItems.reduce((acc, it) => acc + (Number(it.amount) || (Number(it.rate || 1000) * Number(it.qty || 1))), 0);
+          bTotal = Math.round(sum * 1.18);
+        } else {
+          bTotal = 1180;
+        }
+      }
+      totalQuotedValue += bTotal;
+
+      const st = getBatchQuotationStatus(b);
+      if (st === "PO Confirmed") poReceivedCount++;
+      else if (st === "Sent to Client") sentToClientCount++;
+      else draftCount++;
+    });
+    return {
+      totalBatches: groupedBatches.length,
+      totalQuotedValue,
+      poReceivedCount,
+      sentToClientCount,
+      draftCount,
+    };
+  }, [groupedBatches]);
+
+  // =========================================================================
+  // SECTION 11: CALIBRATION FINANCIALS & REVENUE ANALYTICS COMPUTATIONS
+  // =========================================================================
+  const finDateRange = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    if (finDatePreset === "today") {
+      return { start: todayStart, end: todayEnd, label: "Today (1 Day)" };
+    }
+    if (finDatePreset === "yesterday") {
+      const yStart = new Date(todayStart);
+      yStart.setDate(yStart.getDate() - 1);
+      const yEnd = new Date(todayEnd);
+      yEnd.setDate(yEnd.getDate() - 1);
+      return { start: yStart, end: yEnd, label: "Yesterday" };
+    }
+    if (finDatePreset === "7d") {
+      const start7d = new Date(todayStart);
+      start7d.setDate(start7d.getDate() - 6);
+      return { start: start7d, end: todayEnd, label: "Last 7 Days" };
+    }
+    if (finDatePreset === "1m") {
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      return { start: startMonth, end: todayEnd, label: "This Month (1 Month)" };
+    }
+    if (finDatePreset === "last_month") {
+      const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      const endLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      return { start: startLastMonth, end: endLastMonth, label: "Last Month" };
+    }
+    if (finDatePreset === "3m") {
+      const start3m = new Date(todayStart);
+      start3m.setMonth(start3m.getMonth() - 3);
+      return { start: start3m, end: todayEnd, label: "Last 3 Months" };
+    }
+    if (finDatePreset === "1y") {
+      const start1y = new Date(todayStart);
+      start1y.setFullYear(start1y.getFullYear() - 1);
+      return { start: start1y, end: todayEnd, label: "1 Year / 12 Months" };
+    }
+    if (finDatePreset === "fy") {
+      const currYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const startFy = new Date(currYear, 3, 1, 0, 0, 0, 0);
+      const endFy = new Date(currYear + 1, 2, 31, 23, 59, 59, 999);
+      return { start: startFy, end: endFy, label: `FY ${currYear}-${currYear + 1}` };
+    }
+    if (finDatePreset === "custom" && finCustomStartDate) {
+      const cStart = new Date(finCustomStartDate + "T00:00:00");
+      const cEnd = finCustomEndDate ? new Date(finCustomEndDate + "T23:59:59.999") : todayEnd;
+      return {
+        start: cStart,
+        end: cEnd,
+        label: `${cStart.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} to ${cEnd.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`,
+      };
+    }
+    return { start: null, end: null, label: "All Time (Complete History)" };
+  }, [finDatePreset, finCustomStartDate, finCustomEndDate]);
+
+  // Overall Lifetime Financial Metrics (All Batches)
+  const overallFinancialMetrics = useMemo(() => {
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let totalDue = 0;
+    let paidBatchesCount = 0;
+    let partialBatchesCount = 0;
+    let pendingBatchesCount = 0;
+
+    (groupedBatches || []).forEach((b) => {
+      const docs = b.commercialDocs || {};
+      let bTotal = Number(docs.totalAmount || 0);
+      if (!bTotal) {
+        if (b.quotationData?.grand || b.quotationData?.total || b.quotationData?.totalAmount) {
+          bTotal = Number(b.quotationData.grand || b.quotationData.total || b.quotationData.totalAmount || 0);
+        } else {
+          bTotal = (b.items?.length || 1) * 1180;
+        }
+      }
+      const bPaid = Number(docs.paidAmount || (docs.paymentStatus === "Paid" ? bTotal : 0));
+      const bDue = docs.dueAmount !== undefined && docs.dueAmount !== null ? Number(docs.dueAmount) : Math.max(0, bTotal - bPaid);
+      const bStatus = docs.paymentStatus || (bDue <= 0 && bTotal > 0 ? "Paid" : bPaid > 0 ? "Partial" : "Pending");
+
+      totalBilled += bTotal;
+      totalPaid += bPaid;
+      totalDue += bDue;
+
+      if (bStatus === "Paid") paidBatchesCount++;
+      else if (bStatus === "Partial") partialBatchesCount++;
+      else pendingBatchesCount++;
+    });
+
+    const collectionRate = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 100;
+
+    return {
+      totalBilled,
+      totalPaid,
+      totalDue,
+      paidBatchesCount,
+      partialBatchesCount,
+      pendingBatchesCount,
+      collectionRate,
+    };
+  }, [groupedBatches]);
+
+  // Period-Filtered Batches & Period Metrics
+  const { filteredFinBatches, periodFinancialMetrics, clientWiseFinancials, modeBreakdown } = useMemo(() => {
+    let periodBilled = 0;
+    let periodPaid = 0;
+    let periodDue = 0;
+    let periodPaidCount = 0;
+    let periodPartialCount = 0;
+    let periodPendingCount = 0;
+
+    const modes = {
+      UPI: { amount: 0, count: 0 },
+      NEFT: { amount: 0, count: 0 },
+      Cash: { amount: 0, count: 0 },
+      Cheque: { amount: 0, count: 0 },
+      Credit: { amount: 0, count: 0 },
+    };
+
+    const clientMap = new Map();
+
+    const result = (groupedBatches || []).filter((b) => {
+      const docs = b.commercialDocs || {};
+      let bTotal = Number(docs.totalAmount || 0);
+      if (!bTotal) {
+        if (b.quotationData?.grand || b.quotationData?.total || b.quotationData?.totalAmount) {
+          bTotal = Number(b.quotationData.grand || b.quotationData.total || b.quotationData.totalAmount || 0);
+        } else {
+          bTotal = (b.items?.length || 1) * 1180;
+        }
+      }
+      const bPaid = Number(docs.paidAmount || (docs.paymentStatus === "Paid" ? bTotal : 0));
+      const bDue = docs.dueAmount !== undefined && docs.dueAmount !== null ? Number(docs.dueAmount) : Math.max(0, bTotal - bPaid);
+      const bStatus = docs.paymentStatus || (bDue <= 0 && bTotal > 0 ? "Paid" : bPaid > 0 ? "Partial" : "Pending");
+      const bMode = docs.paymentMode || "UPI";
+
+      // Date check
+      if (finDateRange.start && finDateRange.end) {
+        const batchDates = [
+          docs.paymentDate ? new Date(docs.paymentDate) : null,
+          b.invoiceSharedDate ? new Date(b.invoiceSharedDate) : null,
+          b.challanDate ? new Date(b.challanDate) : null,
+          b.calibrationDate ? new Date(b.calibrationDate) : null,
+          b.primaryRecord?.createdAt ? new Date(b.primaryRecord.createdAt) : null,
+        ].filter(Boolean);
+
+        const isMatch = batchDates.some((d) => d >= finDateRange.start && d <= finDateRange.end);
+        if (!isMatch) return false;
+      }
+
+      // Status Filter
+      if (finStatusFilter !== "all") {
+        if (String(bStatus).toLowerCase() !== String(finStatusFilter).toLowerCase()) return false;
+      }
+
+      // Client Filter
+      if (finClientFilter !== "all") {
+        if (String(b.clientCompany || "").toLowerCase() !== String(finClientFilter).toLowerCase()) return false;
+      }
+
+      // Search Term
+      if (finSearchTerm) {
+        const term = finSearchTerm.toLowerCase().trim();
+        const comp = String(b.clientCompany || "").toLowerCase();
+        const dc = String(b.dcNo || "").toLowerCase();
+        const itemsMatch = (b.items || []).some(
+          (i) =>
+            String(i.instrument || "").toLowerCase().includes(term) ||
+            String(i.serialNo || "").toLowerCase().includes(term)
+        );
+        if (!comp.includes(term) && !dc.includes(term) && !itemsMatch) return false;
+      }
+
+      // Accumulate
+      periodBilled += bTotal;
+      periodPaid += bPaid;
+      periodDue += bDue;
+
+      if (bStatus === "Paid") periodPaidCount++;
+      else if (bStatus === "Partial") periodPartialCount++;
+      else periodPendingCount++;
+
+      // Mode Accumulate
+      const mKey = bMode.includes("NEFT") || bMode.includes("Bank") || bMode.includes("RTGS")
+        ? "NEFT"
+        : bMode.includes("Cash")
+        ? "Cash"
+        : bMode.includes("Cheque")
+        ? "Cheque"
+        : bMode.includes("PO") || bMode.includes("Credit")
+        ? "Credit"
+        : "UPI";
+
+      if (modes[mKey]) {
+        modes[mKey].amount += bPaid;
+        modes[mKey].count += 1;
+      }
+
+      // Client Accumulate
+      const cName = b.clientCompany || "Client";
+      if (!clientMap.has(cName)) {
+        clientMap.set(cName, {
+          company: cName,
+          billed: 0,
+          paid: 0,
+          due: 0,
+          batches: 0,
+          instruments: 0,
+          phone: b.clientPhone || "",
+          email: b.clientEmail || "",
+        });
+      }
+      const cData = clientMap.get(cName);
+      cData.billed += bTotal;
+      cData.paid += bPaid;
+      cData.due += bDue;
+      cData.batches += 1;
+      cData.instruments += (b.items?.length || 1);
+
+      return true;
+    });
+
+    const periodRate = periodBilled > 0 ? Math.round((periodPaid / periodBilled) * 100) : 100;
+    const avgTicket = result.length > 0 ? Math.round(periodBilled / result.length) : 0;
+
+    return {
+      filteredFinBatches: result,
+      periodFinancialMetrics: {
+        periodBilled,
+        periodPaid,
+        periodDue,
+        periodPaidCount,
+        periodPartialCount,
+        periodPendingCount,
+        periodRate,
+        avgTicket,
+        totalBatches: result.length,
+      },
+      clientWiseFinancials: Array.from(clientMap.values()).sort((a, b) => b.billed - a.billed),
+      modeBreakdown: modes,
+    };
+  }, [groupedBatches, finDateRange, finStatusFilter, finClientFilter, finSearchTerm]);
+
+  // Export Financials to CSV
+  const handleExportFinancialsCsv = () => {
+    const headers = [
+      "Sl No",
+      "Date",
+      "Client Company",
+      "Contact Person",
+      "Phone",
+      "DC / Batch No",
+      "Instrument / Items",
+      "Billed Value (INR)",
+      "Amount Received - Paid (INR)",
+      "Pending Due (INR)",
+      "Payment Mode",
+      "Payment Status",
+      "Quotation Status",
+    ];
+
+    const rows = filteredFinBatches.map((b, idx) => {
+      const docs = b.commercialDocs || {};
+      let bTotal = Number(docs.totalAmount || 0);
+      if (!bTotal) {
+        if (b.quotationData?.grand || b.quotationData?.total || b.quotationData?.totalAmount) {
+          bTotal = Number(b.quotationData.grand || b.quotationData.total || b.quotationData.totalAmount || 0);
+        } else {
+          bTotal = (b.items?.length || 1) * 1180;
+        }
+      }
+      const bPaid = Number(docs.paidAmount || (docs.paymentStatus === "Paid" ? bTotal : 0));
+      const bDue = docs.dueAmount !== undefined && docs.dueAmount !== null ? Number(docs.dueAmount) : Math.max(0, bTotal - bPaid);
+      const bStatus = docs.paymentStatus || (bDue <= 0 && bTotal > 0 ? "Paid" : bPaid > 0 ? "Partial" : "Pending");
+      const itemsStr = (b.items || []).map((i) => `${i.instrument || "Item"} (${i.serialNo || "-"})`).join("; ");
+      const dateStr = docs.paymentDate
+        ? new Date(docs.paymentDate).toLocaleDateString("en-IN")
+        : b.challanDate
+        ? new Date(b.challanDate).toLocaleDateString("en-IN")
+        : "-";
+
+      return [
+        idx + 1,
+        `"${dateStr}"`,
+        `"${(b.clientCompany || "").replace(/"/g, '""')}"`,
+        `"${(b.clientContactPerson || "").replace(/"/g, '""')}"`,
+        `"${b.clientPhone || ""}"`,
+        `"${(b.dcNo || "-").replace(/"/g, '""')}"`,
+        `"${itemsStr.replace(/"/g, '""')}"`,
+        bTotal,
+        bPaid,
+        bDue,
+        `"${docs.paymentMode || "UPI"}"`,
+        `"${bStatus}"`,
+        `"${getBatchQuotationStatus(b)}"`,
+      ].join(",");
+    });
+
+    const summaryRow = [
+      "",
+      `"TOTAL SUMMARY (${finDateRange.label})"`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      periodFinancialMetrics.periodBilled,
+      periodFinancialMetrics.periodPaid,
+      periodFinancialMetrics.periodDue,
+      "",
+      `"Recovery: ${periodFinancialMetrics.periodRate}%"`,
+      "",
+    ].join(",");
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows, summaryRow].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ARCL_Calibration_Revenue_${finDatePreset}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Calibration revenue statement exported successfully! 📄");
+  };
+
   const handleDeleteBatch = async (batch) => {
-    const itemCount = batch.items.length;
+    if (!batch) return;
+    const batchItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch].filter(Boolean);
+    const itemCount = batchItems.length;
+    const clientName = batch.clientCompany || batchItems[0]?.clientCompany || "Client";
+    const dcStr = batch.dcNo || batchItems[0]?.dcNo || "-";
+
     const msg = itemCount > 1
-      ? `Are you sure you want to delete all ${itemCount} instruments in batch for "${batch.clientCompany}" (DC: ${batch.dcNo})?`
-      : `Are you sure you want to delete "${batch.items[0]?.instrument || batch.clientCompany}"?`;
+      ? `Are you sure you want to delete all ${itemCount} instruments in quotation batch for "${clientName}" (DC: ${dcStr})?`
+      : `Are you sure you want to delete quotation & record for "${batchItems[0]?.instrument || clientName}"?`;
 
     if (!window.confirm(msg)) return;
 
     try {
-      const deletePromises = batch.items.map((it) => {
+      const deletePromises = batchItems.map((it) => {
         const id = it._id || it.id;
         if (id && String(id).length > 5 && !String(id).startsWith("rec-")) {
           return deleteCalibrationRecordApi(id).catch((e) => console.warn(e));
@@ -2459,11 +6835,11 @@ export default function CalibrationPageView() {
         return Promise.resolve();
       });
       await Promise.all(deletePromises);
-      toast.success(`Deleted ${itemCount} instrument(s) from database! 🗑️`);
+      toast.success(`Deleted quotation & ${itemCount} instrument(s) from database! 🗑️`);
       fetchData(false);
     } catch (err) {
       console.error("Batch delete error:", err);
-      toast.error("Failed to delete batch records");
+      toast.error("Failed to delete quotation records");
     }
   };
 
@@ -2495,6 +6871,157 @@ export default function CalibrationPageView() {
       console.error("Advance batch stage error:", err);
       toast.error("Failed to advance batch stage");
     }
+  };
+
+  // ==========================================起点
+  // CALIBRATION PAYMENT & INSTALLMENTS MODAL LOGIC (Exact Same as Sales)
+  // ==========================================起点
+  const handleOpenBatchPaymentModal = (batch) => {
+    setBatchPaymentTarget(batch);
+    const docs = batch.commercialDocs || {};
+    const total = Number(docs.totalAmount || 0);
+    const paid = Number(docs.paidAmount || 0);
+    const due = Number(docs.dueAmount !== undefined ? docs.dueAmount : Math.max(0, total - paid));
+    const rawPayments = Array.isArray(docs.payments) && docs.payments.length > 0 ? docs.payments : [];
+
+    const payments = rawPayments.length > 0
+      ? rawPayments
+      : paid > 0
+      ? [
+          {
+            installmentNo: 1,
+            amount: paid,
+            paymentDate: docs.paymentDate ? toSafeIsoDate(docs.paymentDate) : new Date().toISOString().split("T")[0],
+            paymentMode: docs.paymentMode || "UPI",
+            transactionRef: docs.transactionRef || "",
+            notes: "Initial Down Payment / Clearance",
+          },
+        ]
+      : [];
+
+    setBatchPaymentForm({
+      totalAmount: total,
+      paidAmount: paid,
+      dueAmount: due,
+      paymentStatus: docs.paymentStatus || (due <= 0 && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Pending"),
+      paymentMode: docs.paymentMode || "UPI",
+      transactionRef: docs.transactionRef || "",
+      payments,
+    });
+    setIsBatchPaymentModalOpen(true);
+  };
+
+  const handleTotalAmountChange = (newTotal) => {
+    setBatchPaymentForm((prev) => {
+      const total = Math.max(0, parseFloat(newTotal) || 0);
+      const paid = prev.payments.length > 0
+        ? prev.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+        : prev.paidAmount;
+      const due = Math.max(0, total - paid);
+      const status = due <= 0 && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+      return { ...prev, totalAmount: total, paidAmount: paid, dueAmount: due, paymentStatus: status };
+    });
+  };
+
+  const handleAddPaymentInstallment = () => {
+    setBatchPaymentForm((prev) => {
+      const remaining = Math.max(0, prev.dueAmount);
+      const newInst = {
+        installmentNo: prev.payments.length + 1,
+        amount: remaining,
+        paymentDate: new Date().toISOString().split("T")[0],
+        paymentMode: prev.paymentMode || "UPI",
+        transactionRef: "",
+        notes: `Installment #${prev.payments.length + 1}`,
+      };
+      const payments = [...prev.payments, newInst];
+      const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const due = Math.max(0, prev.totalAmount - paid);
+      const status = due <= 0 && prev.totalAmount > 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+      return { ...prev, payments, paidAmount: paid, dueAmount: due, paymentStatus: status };
+    });
+  };
+
+  const handleInstallmentChange = (index, field, value) => {
+    setBatchPaymentForm((prev) => {
+      const payments = [...prev.payments];
+      payments[index] = { ...payments[index], [field]: value };
+      const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const due = Math.max(0, prev.totalAmount - paid);
+      const status = due <= 0 && prev.totalAmount > 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+      return { ...prev, payments, paidAmount: paid, dueAmount: due, paymentStatus: status };
+    });
+  };
+
+  const handleRemovePaymentInstallment = (index) => {
+    setBatchPaymentForm((prev) => {
+      const payments = prev.payments.filter((_, idx) => idx !== index).map((p, idx) => ({ ...p, installmentNo: idx + 1 }));
+      const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const due = Math.max(0, prev.totalAmount - paid);
+      const status = due <= 0 && prev.totalAmount > 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+      return { ...prev, payments, paidAmount: paid, dueAmount: due, paymentStatus: status };
+    });
+  };
+
+  const handleClearRemainingDue = () => {
+    setBatchPaymentForm((prev) => {
+      if (prev.dueAmount <= 0) {
+        toast.info("No remaining due balance (100% Cleared)!");
+        return prev;
+      }
+      const settleAmount = prev.dueAmount;
+      const settleInst = {
+        installmentNo: prev.payments.length + 1,
+        amount: settleAmount,
+        paymentDate: new Date().toISOString().split("T")[0],
+        paymentMode: prev.paymentMode || "UPI",
+        transactionRef: `CLR-${Date.now().toString().slice(-6)}`,
+        notes: "Full Balance Final Settlement (100% Cleared)",
+      };
+      const payments = [...prev.payments, settleInst];
+      return {
+        ...prev,
+        payments,
+        paidAmount: prev.totalAmount,
+        dueAmount: 0,
+        paymentStatus: "Paid",
+      };
+    });
+    toast.success("Remaining due balance settled! Marked as 100% PAID.");
+  };
+
+  const handleSaveBatchPayment = async () => {
+    if (!batchPaymentTarget) return;
+    try {
+      setSavingBatchPayment(true);
+      const recordIds = (batchPaymentTarget.items || []).map((it) => it._id || it.id).filter(Boolean);
+      const payload = {
+        recordIds,
+        dcNo: batchPaymentTarget.dcNo,
+        batchId: batchPaymentTarget.batchKey,
+        ...batchPaymentForm,
+      };
+      const res = await updateCalibrationPaymentApi(payload);
+      if (res.data?.success) {
+        toast.success("Batch payment details aur installments ledger update ho gaye! 💳");
+        setIsBatchPaymentModalOpen(false);
+        fetchData(false);
+      }
+    } catch (err) {
+      console.error("Failed to update calibration batch payment:", err);
+      toast.error(err.response?.data?.message || "Payment update karne me error aayi.");
+    } finally {
+      setSavingBatchPayment(false);
+    }
+  };
+
+  const toggleExpandBatchPayment = (key) => {
+    setExpandedBatchPaymentKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const handleCycleBatchPayment = async (batch) => {
@@ -2641,10 +7168,21 @@ export default function CalibrationPageView() {
     }
 
     try {
-      await createCalibrationRecordApi(formData);
+      const createRes = await createCalibrationRecordApi(formData);
+      const createdPayload = createRes?.data?.data;
+      const createdArr = Array.isArray(createdPayload) ? createdPayload : (createdPayload ? [createdPayload] : []);
+      const createdUlrs = createdArr
+        .map((c) => c?.records?.ulrNo || c?.inwardRegister?.ulrNo || "")
+        .filter(Boolean);
+      const ulrNotice =
+        createdUlrs.length > 1
+          ? ` (ULR: ${createdUlrs[0]} → ${createdUlrs[createdUlrs.length - 1]})`
+          : createdUlrs.length === 1
+          ? ` (ULR: ${createdUlrs[0]})`
+          : "";
       const totalCount = items.length;
       toast.success(
-        `Successfully added ${totalCount} equipment${totalCount > 1 ? "s" : ""} for "${formData.clientCompany}"! ✅`
+        `Successfully added ${totalCount} equipment${totalCount > 1 ? "s" : ""} for "${formData.clientCompany}"${ulrNotice}! ✅`
       );
 
       // Persist newly added custom equipments for future auto-suggestions
@@ -3823,7 +8361,7 @@ export default function CalibrationPageView() {
   const toggleSelectDocType = (dt) => {
     if (selectedDocTypes.includes(dt)) {
       if (selectedDocTypes.length === 1) {
-        toast.warning("Kam se kam ek document select rehna chahiye!");
+        toast.warning("At least one document must be selected!");
         return;
       }
       setSelectedDocTypes(selectedDocTypes.filter((t) => t !== dt));
@@ -3961,6 +8499,17 @@ export default function CalibrationPageView() {
           autoClose: 5000,
         });
         setIsSendDocModalOpen(false);
+
+        if (activeSelected.includes("quotation")) {
+          const targetBatch = groupedBatches.find(
+            (b) =>
+              (r._id && b.items?.some((it) => it._id === r._id)) ||
+              (r.dcNo && r.dcNo !== "-" && b.dcNo === r.dcNo && b.clientCompany === company)
+          );
+          if (targetBatch) {
+            handleUpdateBatchQuotationStatus(targetBatch, "Sent to Client");
+          }
+        }
       } catch (err) {
         console.error("Document dispatch error:", err);
         toast.update(toastId, {
@@ -4597,7 +9146,7 @@ export default function CalibrationPageView() {
   };
 
   // Open Document Modal
-  const openDocViewer = (docType, target) => {
+  const openDocViewer = (docType, target, options = {}) => {
     let primary = target?.primaryRecord || (target?.items ? target.items[0] : target) || {};
     let batchItems = Array.isArray(target?.items) && target.items.length > 0 ? target.items : null;
     let matchedBatch = target?.items ? target : null;
@@ -4646,13 +9195,246 @@ export default function CalibrationPageView() {
       return;
     }
     // Fallback for certificate / observation sheet / srf
+    const isExplicitBatchTarget = Boolean(target?.items && target.items.length > 1);
+    const resolvedViewMode = options?.viewMode || (isExplicitBatchTarget ? "all" : "single");
     setSelectedDoc({
       type: docType,
       record: primary,
       batch: matchedBatch,
       items: batchItems,
+      viewMode: resolvedViewMode,
     });
     setIsDocModalOpen(true);
+  };
+
+  const getDocDownloadUrl = (docType, target, isDownload = true, options = {}) => {
+    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+    const primary = target?.primaryRecord || (target?.items ? target.items[0] : target) || {};
+    const recId = primary?._id || primary?.id || "";
+    const sNo = primary?.serialNo || primary?.quotationNo || primary?.invoiceNo || primary?.piNo || primary?.poNo || "";
+    const dc = target?.dcNo || primary?.dcNo || "";
+    const company = target?.clientCompany || primary?.clientCompany || target?.buyerCompany || primary?.buyerCompany || "";
+    const dlParam = isDownload ? "&download=true" : "";
+    const docLower = String(docType || "").toLowerCase();
+    const isSingleItemDocType = ["certificate", "observation", "observation_sheet", "readings", "recordexcel"].includes(docLower);
+    const hasSelectedIds = Array.isArray(options.selectedIds) && options.selectedIds.length > 0;
+    const isAllMode = Boolean(options.all || (!options.single && !hasSelectedIds && Array.isArray(target?.items) && target.items.length > 1));
+    const useSingle = Boolean(options.single || (!isAllMode && !hasSelectedIds && isSingleItemDocType));
+
+    let optParam = "";
+    if (isAllMode) optParam += "&all=true";
+    if (useSingle) optParam += "&single=true";
+    if (hasSelectedIds) {
+      const selStr = encodeURIComponent(options.selectedIds.join(","));
+      optParam += `&selectedIds=${selStr}&recordIds=${selStr}`;
+    } else if (!useSingle && Array.isArray(target?.items) && target.items.length > 0) {
+      const explicitIds = target.items.map((it) => it?._id || it?.id).filter(Boolean);
+      if (explicitIds.length > 0) {
+        optParam += `&recordIds=${encodeURIComponent(explicitIds.join(","))}`;
+      }
+    }
+    return `${base}/client/calibration/download-document?docType=${encodeURIComponent(docType)}${dlParam}${optParam}&recordId=${encodeURIComponent(recId)}&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(dc)}&clientCompany=${encodeURIComponent(company)}&t=${Date.now()}`;
+  };
+
+  // Direct 1:1 Silent PDF Print handler via hidden iframe
+  const handlePrintPdf = async (pdfUrl) => {
+    try {
+      const response = await fetch(pdfUrl);
+      if (!response.ok) throw new Error("Failed to fetch PDF");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const printFrame = document.createElement("iframe");
+      printFrame.style.position = "fixed";
+      printFrame.style.right = "0";
+      printFrame.style.bottom = "0";
+      printFrame.style.width = "0";
+      printFrame.style.height = "0";
+      printFrame.style.border = "none";
+      printFrame.src = blobUrl;
+      document.body.appendChild(printFrame);
+      printFrame.onload = () => {
+        setTimeout(() => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch (_) {
+            window.open(blobUrl, "_blank");
+          }
+        }, 500);
+      };
+      setTimeout(() => {
+        try {
+          document.body.removeChild(printFrame);
+          URL.revokeObjectURL(blobUrl);
+        } catch (_) {}
+      }, 120000);
+    } catch (_) {
+      window.open(pdfUrl, "_blank");
+    }
+  };
+
+  const [pdfExportJob, setPdfExportJob] = useState(null);
+  const pdfPrintStagingRef = useRef(null);
+
+  const isClientRenderedCertDoc = (docType) =>
+    ["certificate", "observation_sheet", "observation", "readings", "recordexcel"].includes(
+      String(docType || "").toLowerCase()
+    );
+
+  const resolveCertExportItems = (target, options = {}) => {
+    const primary = target?.primaryRecord || (Array.isArray(target?.items) ? target.items[0] : target) || {};
+    let candidateItems = Array.isArray(target?.items) && target.items.length > 0 ? target.items : null;
+
+    if (!candidateItems && (options.all || (options.selectedIds && options.selectedIds.length > 0))) {
+      const dcClean = String(primary.dcNo || target?.dcNo || "").trim().toLowerCase();
+      const compClean = String(primary.clientCompany || target?.clientCompany || "").trim().toLowerCase();
+      if (dcClean && dcClean !== "-" && compClean) {
+        const matched = (records || []).filter(
+          (r) =>
+            String(r.dcNo || "").trim().toLowerCase() === dcClean &&
+            String(r.clientCompany || "").trim().toLowerCase() === compClean
+        );
+        if (matched.length > 0) candidateItems = matched;
+      }
+    }
+
+    if (Array.isArray(options.selectedIds) && options.selectedIds.length > 0) {
+      const idSet = new Set(options.selectedIds.map(String));
+      const pool = candidateItems || records || [];
+      const filtered = pool.filter((it) => idSet.has(String(it?._id || it?.id)));
+      if (filtered.length > 0) return filtered;
+    }
+
+    if (!options.single && (options.all || (candidateItems && candidateItems.length > 1))) {
+      if (candidateItems && candidateItems.length > 0) return candidateItems;
+    }
+
+    return [primary];
+  };
+
+  useEffect(() => {
+    if (!pdfExportJob || !pdfExportJob.items?.length) return;
+    let cancelled = false;
+
+    const runPdfExport = async () => {
+      try {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const stage = pdfPrintStagingRef.current;
+        if (!stage || cancelled) return;
+
+        const imgs = Array.from(stage.querySelectorAll("img"));
+        await Promise.race([
+          Promise.all(
+            imgs.map((img) =>
+              img.complete
+                ? Promise.resolve()
+                : new Promise((res) => {
+                    img.onload = res;
+                    img.onerror = res;
+                  })
+            )
+          ),
+          new Promise((res) => setTimeout(res, 3500)),
+        ]);
+
+        const pageNodes = Array.from(stage.querySelectorAll('[data-a4-cert-page="true"]'));
+        if (pageNodes.length === 0 || cancelled) return;
+
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+        for (let i = 0; i < pageNodes.length; i++) {
+          if (cancelled) return;
+          const canvas = await html2canvas(pageNodes[i], {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            windowWidth: 794,
+          });
+          const imgData = canvas.toDataURL("image/png");
+          const pageW = 210;
+          const pageH = 297;
+          const scaledH = (canvas.height * pageW) / canvas.width;
+          const drawH = scaledH <= pageH ? scaledH : pageH;
+          const drawW = scaledH <= pageH ? pageW : (canvas.width * pageH) / canvas.height;
+          const drawX = (pageW - drawW) / 2;
+          if (i > 0) pdf.addPage("a4", "portrait");
+          pdf.addImage(imgData, "PNG", drawX, 0, drawW, drawH, undefined, "FAST");
+        }
+
+        if (cancelled) return;
+        const firstItem = pdfExportJob.items[0] || {};
+        const docLabel = String(pdfExportJob.docType || "certificate")
+          .replace(/[^a-zA-Z0-9_-]/g, "")
+          .toUpperCase();
+        const serialLabel = String(firstItem.serialNo || firstItem.dcNo || "ARCL")
+          .replace(/[^a-zA-Z0-9_-]/g, "");
+
+        if (pdfExportJob.mode === "print") {
+          const pdfBlob = pdf.output("blob");
+          const blobUrl = URL.createObjectURL(pdfBlob);
+          const printFrame = document.createElement("iframe");
+          printFrame.style.position = "fixed";
+          printFrame.style.right = "0";
+          printFrame.style.bottom = "0";
+          printFrame.style.width = "0";
+          printFrame.style.height = "0";
+          printFrame.style.border = "none";
+          printFrame.src = blobUrl;
+          document.body.appendChild(printFrame);
+          printFrame.onload = () => {
+            setTimeout(() => {
+              try {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+              } catch {
+                window.open(blobUrl, "_blank");
+              }
+            }, 400);
+          };
+          setTimeout(() => {
+            try {
+              if (printFrame.parentNode) printFrame.parentNode.removeChild(printFrame);
+              URL.revokeObjectURL(blobUrl);
+            } catch (cleanErr) {
+              console.warn("Print frame cleanup skipped:", cleanErr?.message);
+            }
+          }, 120000);
+        } else {
+          pdf.save(`ARCL_${docLabel}_${serialLabel}.pdf`);
+          toast.success(`Official ${docLabel} PDF downloaded (1:1 View match)!`);
+        }
+      } catch (err) {
+        console.error("Client PDF generation error:", err);
+        toast.error("Failed to generate PDF: " + (err?.message || "Unknown error"));
+      } finally {
+        if (!cancelled) setPdfExportJob(null);
+      }
+    };
+
+    runPdfExport();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfExportJob]);
+
+  const handlePrintCalibrationDoc = (docType, target, options = {}) => {
+    if (isClientRenderedCertDoc(docType)) {
+      const items = resolveCertExportItems(target, options);
+      toast.info(`Preparing ${items.length} page${items.length > 1 ? "s" : ""} for exact 1:1 Print...`, { autoClose: 1400 });
+      setPdfExportJob({ docType, items, mode: "print" });
+      return;
+    }
+    const url = getDocDownloadUrl(docType, target, false, options);
+    handlePrintPdf(url);
+  };
+
+  const handleDownloadCalibrationDoc = (docType, target, options = {}) => {
+    if (isClientRenderedCertDoc(docType)) {
+      const items = resolveCertExportItems(target, options);
+      toast.info(`Generating exact 1:1 Official PDF (${items.length} page${items.length > 1 ? "s" : ""})...`, { autoClose: 1400 });
+      setPdfExportJob({ docType, items, mode: "download" });
+      return;
+    }
+    window.open(getDocDownloadUrl(docType, target, true, options), "_blank");
   };
 
   return (
@@ -4694,13 +9476,24 @@ export default function CalibrationPageView() {
             {autoSync ? "LIVE SYNC ON" : "SYNC PAUSED"}
           </button>
           {canCreate && (
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 cursor-pointer active:scale-95"
-            >
-              <FaPlus /> Add Instrument / SRF
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenQuotationEditor(null)}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-amber-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Open Official Calibration Quotation Visual Editor"
+              >
+                <FaFileInvoiceDollar /> + Create Quotation
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 cursor-pointer active:scale-95"
+                title="Add new inward instrument, generate batch SRF & calibration quotation"
+              >
+                <FaPlus /> + Add Instrument / SRF (Create Quotation)
+              </button>
+            </div>
           )}
           {canDelete && (
             <button
@@ -4767,67 +9560,180 @@ export default function CalibrationPageView() {
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 gap-2 overflow-x-auto pb-1 text-sm font-semibold">
-        <button
-          onClick={() => setActiveTab("dashboard")}
-          className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
-            activeTab === "dashboard"
-              ? "bg-[#021C57] text-white shadow-md font-bold"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          <FaSlidersH /> 1. Lab Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab("srf_history")}
-          className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
-            activeTab === "srf_history"
-              ? "bg-[#021C57] text-white shadow-md font-bold"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          <FaFilePdf /> 2. SRF &amp; History
-        </button>
-        <button
-          onClick={() => setActiveTab("reminders")}
-          className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
-            activeTab === "reminders"
-              ? "bg-[#021C57] text-white shadow-md font-bold"
-              : "bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100"
-          }`}
-        >
-          <FaPaperPlane className="text-amber-500 animate-bounce" /> 
-          <span>3. Automated Due Reminders (Kisko Jayega / Kisko Nahi)</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-bold ml-1">
-            LIVE DIRECTORY
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("lab_profile")}
-          className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
-            activeTab === "lab_profile"
-              ? "bg-[#021C57] text-white shadow-md font-bold"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          <FaShieldAlt /> 4. NABL Scope &amp; Lab Profile
-        </button>
-        <a
-          href="/admin/calibration/payments"
-          className="px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md font-bold ml-auto hover:from-blue-500 hover:to-indigo-600 cursor-pointer active:scale-95"
-          title="Open Live UPI Payment Verification Portal"
-        >
-          <FaMoneyBillWave className="text-emerald-300 animate-pulse" />
-          <span>5. UPI Payment Verifications</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500 text-white font-black font-mono">
-            LIVE
-          </span>
-        </a>
+        {canDashboard && (
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === "dashboard"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <FaSlidersH /> 1. Lab Dashboard
+          </button>
+        )}
+        {canQuotations && (
+          <button
+            onClick={() => setActiveTab("quotations")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "quotations"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-amber-50/70 text-amber-900 border border-amber-200 hover:bg-amber-100"
+            }`}
+          >
+            <FaFileInvoiceDollar className={activeTab === "quotations" ? "text-amber-400" : "text-amber-600"} />
+            <span>2. Calibration Quotations</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold font-mono ml-1">
+              {groupedBatches.length}
+            </span>
+          </button>
+        )}
+        {canSrfHistory && (
+          <button
+            onClick={() => setActiveTab("srf_history")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === "srf_history"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <FaFilePdf /> 3. SRF &amp; History
+          </button>
+        )}
+        {canInwardRegister && (
+          <button
+            onClick={() => setActiveTab("inward_register")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "inward_register"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-cyan-50 text-cyan-950 border border-cyan-300 hover:bg-cyan-100"
+            }`}
+          >
+            <FaClipboardCheck className={activeTab === "inward_register" ? "text-cyan-300" : "text-cyan-700"} />
+            <span>4. Inward Register</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-600 text-white font-extrabold font-mono ml-0.5">
+              {inwardRegisterData.totalDoneRecords}
+            </span>
+          </button>
+        )}
+        {canReminders && (
+          <button
+            onClick={() => setActiveTab("reminders")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "reminders"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100"
+            }`}
+          >
+            <FaPaperPlane className="text-amber-500 animate-bounce" /> 
+            <span>5. Automated Due Reminders (Recipient Status)</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-bold ml-1">
+              LIVE DIRECTORY
+            </span>
+          </button>
+        )}
+        {canObservations && (
+          <button
+            onClick={() => setActiveTab("observations")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "observations"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100"
+            }`}
+          >
+            <FaFlask className="text-blue-600" />
+            <span>6. Metrological Observation Worksheet</span>
+          </button>
+        )}
+        {canAuthorization && (
+          <button
+            onClick={() => setActiveTab("authorization")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "authorization"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+            }`}
+          >
+            <FaAward className="text-emerald-600" />
+            <span>7. Quality Authorization</span>
+          </button>
+        )}
+        {canTemplates && (
+          <button
+            onClick={() => setActiveTab("templates")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ${
+              activeTab === "templates"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "bg-teal-50/60 text-teal-900 border border-teal-200 hover:bg-teal-100"
+            }`}
+          >
+            <FaTable className="text-teal-600" />
+            <span>8. Observation Formats (PDF to Form)</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-teal-600 text-white font-extrabold ml-1">
+              {obsTemplates.length} FORMATS
+            </span>
+          </button>
+        )}
+        {canLabProfile && (
+          <button
+            onClick={() => setActiveTab("lab_profile")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === "lab_profile"
+                ? "bg-[#021C57] text-white shadow-md font-bold"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <FaShieldAlt /> 9. NABL Scope &amp; Lab Profile
+          </button>
+        )}
+        {canPayments && (
+          <a
+            href="/admin/calibration/payments"
+            className="px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md font-bold hover:from-blue-500 hover:to-indigo-600 cursor-pointer active:scale-95"
+            title="Open Live UPI Payment Verification Portal"
+          >
+            <FaMoneyBillWave className="text-emerald-300 animate-pulse" />
+            <span>10. UPI Payment Verifications</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500 text-white font-black font-mono">
+              LIVE
+            </span>
+          </a>
+        )}
+        {canFinancials && (
+          <button
+            onClick={() => setActiveTab("financials")}
+            className={`px-4 py-2.5 rounded-t-xl transition flex items-center gap-2 cursor-pointer relative ml-auto ${
+              activeTab === "financials"
+                ? "bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md font-bold"
+                : "bg-emerald-50 text-emerald-950 border border-emerald-300 hover:bg-emerald-100 font-bold"
+            }`}
+          >
+            <FaCoins className={activeTab === "financials" ? "text-amber-300 animate-pulse" : "text-emerald-600"} />
+            <span>11. Revenue &amp; Income Analytics</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-600 text-white font-black font-mono ml-1">
+              ₹ LIVE
+            </span>
+          </button>
+        )}
       </div>
+
+      {/* Access Denied Warning If User Has No Permitted Tabs */}
+      {permittedTabs.length === 0 && !canPayments && (
+        <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
+          <div className="w-16 h-16 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 mb-4 shadow-sm">
+            <FaLock className="text-2xl" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">No Calibration Section Access Granted</h2>
+          <p className="text-slate-500 text-sm max-w-md mt-1 leading-relaxed">
+            Your account has not been assigned permissions for any section of the Calibration Portal. Please contact your Super Administrator.
+          </p>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: LAB & CLIENT DASHBOARD (Slides 7, 8, 9) */}
       {/* ========================================================================= */}
-      {activeTab === "dashboard" && (
+      {canDashboard && activeTab === "dashboard" && (
         <div className="space-y-6">
           {/* Quick Due Reminder Notice Bar on Dashboard */}
           <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 p-4 rounded-2xl text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
@@ -4845,7 +9751,7 @@ export default function CalibrationPageView() {
                   </span>
                 </div>
                 <p className="text-xs text-amber-100 mt-0.5">
-                  Dekhein kisko-kisko email/WhatsApp notice jayega aur kisko nahi (Recipients Directory &amp; Live Audit History).
+                  View eligible recipients for automated email/WhatsApp reminders (Recipients Directory &amp; Live Audit History).
                 </p>
               </div>
             </div>
@@ -4858,6 +9764,94 @@ export default function CalibrationPageView() {
               <FaChevronRight />
             </button>
           </div>
+
+          {/* Real-Time Calibration Financials Snapshot (Income Received vs Pending Dues) */}
+          {canFinancials && (
+            <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-3xl border border-indigo-900/60 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-800/40">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg shadow-sm">
+                    <FaCoins />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      Calibration Revenue &amp; Collections Summary (Received &amp; Pending Dues)
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                        Live Accounts
+                      </span>
+                    </h3>
+                    <p className="text-xs text-indigo-200/80">
+                      Total revenue collected, outstanding dues, and payment recovery rate
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("financials")}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md transition cursor-pointer active:scale-95"
+                >
+                  <span>📊 Open Revenue &amp; Date Filter Studio</span>
+                  <FaChevronRight className="text-[10px]" />
+                </button>
+              </div>
+
+              {/* 4 Revenue Snapshot KPI Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {/* 1. Total Received */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-emerald-500/30 space-y-1">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                    💰 Total Received (Collected)
+                  </span>
+                  <p className="text-xl sm:text-2xl font-black text-emerald-300 font-mono">
+                    ₹{overallFinancialMetrics.totalPaid.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Verified collections ({overallFinancialMetrics.paidBatchesCount} Batches)
+                  </p>
+                </div>
+
+                {/* 2. Pending Dues */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-rose-500/30 space-y-1">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">
+                    ⏳ Outstanding Dues (Pending)
+                  </span>
+                  <p className="text-xl sm:text-2xl font-black text-rose-300 font-mono">
+                    ₹{overallFinancialMetrics.totalDue.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Awaiting collection ({overallFinancialMetrics.pendingBatchesCount} Pending)
+                  </p>
+                </div>
+
+                {/* 3. Total Valuation / Billed */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-blue-500/30 space-y-1">
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                    📑 Total Billed Value
+                  </span>
+                  <p className="text-xl sm:text-2xl font-black text-blue-200 font-mono">
+                    ₹{overallFinancialMetrics.totalBilled.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Across {groupedBatches.length} client batches
+                  </p>
+                </div>
+
+                {/* 4. Collection Rate */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-purple-500/30 space-y-1">
+                  <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
+                    📈 Collection Rate
+                  </span>
+                  <p className="text-xl sm:text-2xl font-black text-purple-300 font-mono">
+                    {overallFinancialMetrics.collectionRate}%
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Income recovery efficiency
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Top 5 Metric Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -5196,7 +10190,7 @@ export default function CalibrationPageView() {
           </div>
 
           {/* ========================================================================= */}
-          {/* SECTION: 📋 RECIPIENTS DUE STATUS OVERVIEW (KISKO JA RAHA HAI / KISKO NAHI) */}
+          {/* SECTION: 📋 RECIPIENTS DUE STATUS OVERVIEW (RECIPIENT ELIGIBILITY STATUS) */}
           {/* ========================================================================= */}
           {(() => {
             const safeRecords = Array.isArray(records) ? records : [];
@@ -5272,14 +10266,14 @@ export default function CalibrationPageView() {
                     <div className="flex items-center gap-2">
                       <FaPaperPlane className="text-amber-500 text-base" />
                       <h3 className="text-base font-black text-gray-900">
-                        Automated Due Reminders Directory (Kisko Message/Mail Ja Raha Hai)
+                        Automated Due Reminders Directory (Recipient Eligibility Status)
                       </h3>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                         {totalDueClients} Due in Next {days} Days
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Live audience status: 🔴 <strong>Due Soon</strong> clients ko auto reminder jayega | 🟢 <strong>Up to Date</strong> clients ko abhi nahi jayega.
+                      Live audience status: 🔴 <strong>Due Soon</strong> clients will receive automated reminders | 🟢 <strong>Up to Date</strong> clients will not receive notices.
                     </p>
                   </div>
 
@@ -5343,7 +10337,7 @@ export default function CalibrationPageView() {
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <FaCheckCircle className="text-[10px]" /> 🟢 Up to Date (Nahi Jayega)
+                                    <FaCheckCircle className="text-[10px]" /> 🟢 Up to Date (No Notice)
                                   </span>
                                 )}
                               </td>
@@ -5377,17 +10371,549 @@ export default function CalibrationPageView() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: SRF AND CALIBRATION HISTORY PAGE (Exact PDF Slide 5) */}
+      {/* TAB 2: CALIBRATION QUOTATIONS & COMMERCIAL BILLING */}
       {/* ========================================================================= */}
-      {activeTab === "srf_history" && (
+      {canQuotations && activeTab === "quotations" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-4 p-5 animate-fadeIn">
+          {/* Top Title & Toolbar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-2.5 bg-amber-50 text-amber-700 rounded-xl border border-amber-200 shadow-xs">
+                  <FaFileInvoiceDollar className="text-xl" />
+                </span>
+                <div>
+                  <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                    2. Calibration Quotations &amp; Commercial Billing
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    NABL calibration rate proposals, multi-equipment batches, official ARCL letterhead quotations, GST breakdowns &amp; dispatch
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                title="Export Calibration Quotations to Excel"
+              >
+                <FaFileExcel className="text-emerald-600" /> Export Quotations
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenQuotationEditor(null)}
+                className="px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
+              >
+                <FaPlus /> + Create New Quotation
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Metrics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/40 p-3.5 rounded-xl border border-blue-100">
+              <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FaBuilding className="text-blue-500" /> Total Quotation Batches
+              </div>
+              <div className="text-2xl font-black text-gray-900 mt-1">
+                {quotationTabMetrics.totalBatches}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Client DC batches ready for quote</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 p-3.5 rounded-xl border border-amber-100">
+              <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FaMoneyBillWave className="text-amber-500" /> Total Quoted Valuation
+              </div>
+              <div className="text-2xl font-black text-amber-950 mt-1">
+                ₹{Number(quotationTabMetrics.totalQuotedValue).toLocaleString("en-IN")}
+              </div>
+              <div className="text-[11px] text-amber-700 mt-0.5">With 18% GST (CGST + SGST)</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50/40 p-3.5 rounded-xl border border-emerald-100">
+              <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FaCheckCircle className="text-emerald-500" /> PO Confirmed / Won
+              </div>
+              <div className="text-2xl font-black text-emerald-900 mt-1">
+                {quotationTabMetrics.poReceivedCount}
+              </div>
+              <div className="text-[11px] text-emerald-600 mt-0.5">Commercial Purchase Order approved</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50/40 p-3.5 rounded-xl border border-purple-100">
+              <div className="text-[11px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FaPaperPlane className="text-purple-500" /> Sent / In Review
+              </div>
+              <div className="text-2xl font-black text-purple-900 mt-1">
+                {quotationTabMetrics.sentToClientCount}
+              </div>
+              <div className="text-[11px] text-purple-600 mt-0.5">Dispatched to customer for approval</div>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+            <div className="md:col-span-8 relative flex flex-col justify-center">
+              <div className="relative flex items-center">
+                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search Quotations by Company / Quotation No. / DC No. / Instrument / S/N..."
+                  value={quotationFilterSearch}
+                  onChange={(e) => setQuotationFilterSearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-800 font-medium"
+                />
+                {quotationFilterSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setQuotationFilterSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    <FaTimes />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-4">
+              <select
+                value={quotationStatusFilter}
+                onChange={(e) => setQuotationStatusFilter(e.target.value)}
+                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-700 font-medium cursor-pointer"
+              >
+                <option value="all">All Quotation Statuses (Show All)</option>
+                <option value="Draft">📝 Draft (Not Sent)</option>
+                <option value="Sent to Client">✉️ Sent to Client</option>
+                <option value="Under Review">🟡 Under Review</option>
+                <option value="PO Confirmed">🟢 PO Confirmed / Approved</option>
+                <option value="Invoiced">🟣 Invoiced</option>
+                <option value="Declined">🔴 Declined</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-inner">
+            <table className="w-full text-left text-[11px] whitespace-nowrap">
+              <thead className="bg-[#021C57] text-white font-bold text-[10px] uppercase tracking-wider">
+                <tr>
+                  <th className="p-2.5 text-center">Sr.</th>
+                  <th className="p-2.5">Quotation Ref &amp; DC No.</th>
+                  <th className="p-2.5">Customer / Company Details</th>
+                  <th className="p-2.5">Quoted Equipments</th>
+                  <th className="p-2.5 text-right">Estimated Amount (₹)</th>
+                  <th className="p-2.5 text-center">Commercial Status</th>
+                  <th className="p-2.5 text-center">Documents &amp; PDFs</th>
+                  <th className="p-2.5 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
+                {filteredQuotationBatches.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="p-12 text-center text-gray-500 bg-slate-50/40">
+                      <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shadow-inner">
+                          <FaFileInvoiceDollar />
+                        </div>
+                        <p className="text-sm font-bold text-gray-700">No matching quotation found</p>
+                        <p className="text-xs text-gray-400">Try adjusting your search filters or create a new quotation.</p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQuotationEditor(null)}
+                          className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-blue-700 transition"
+                        >
+                          + Create Quotation
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredQuotationBatches.map((batch, idx) => {
+                    const batchItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch].filter(Boolean);
+                    const quotationItems = Array.isArray(batch.quotationData?.items) && batch.quotationData.items.length > 0
+                      ? batch.quotationData.items
+                      : batchItems;
+                    const qItemCount = quotationItems.length;
+                    const isMulti = qItemCount > 1;
+                    const isExpanded = expandedBatchKeys.has(batch.batchKey);
+                    const qNo = batch.quotationData?.quotationNo || `ARCL/QTN/26-27/${String(batch.primaryRecord?.serialNo || "47").replace(/[^0-9]/g, "").slice(-3) || "47"}`;
+                    const qDate = batch.quotationData?.quotationDate || batch.challanDate || batch.calibrationDate;
+                    const currentStatus = getBatchQuotationStatus(batch);
+                    const computedAmount = batch.quotationData?.grand || batch.quotationData?.total || batch.quotationData?.totalAmount || Math.round((quotationItems.reduce((acc, it) => acc + (Number(it.amount) || (Number(it.rate || 1000) * Number(it.qty || 1))), 0)) * 1.18);
+
+                    return (
+                      <React.Fragment key={batch.batchKey || idx}>
+                        <tr className="hover:bg-amber-50/40 transition">
+                          <td className="p-2.5 font-bold text-center border-r border-gray-200 bg-gray-50/50">
+                            {batch.customerRank || idx + 1}
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-mono font-bold text-blue-900 text-xs">
+                                {qNo}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                                <span>Date: {toSafeLocaleDate(qDate, "-")}</span>
+                                <span className="text-gray-300">•</span>
+                                <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-semibold">
+                                  DC: {batch.dcNo || "-"}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-gray-950 text-xs">
+                                  {batch.clientCompany}
+                                </span>
+                                {batch.clientGst && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                    {batch.clientGst}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-gray-500 truncate max-w-[240px]">
+                                {batch.clientAddress || "Maharashtra, India"}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 font-mono">
+                                  {qItemCount} {qItemCount === 1 ? "Equipment" : "Equipments"}
+                                </span>
+                                {isMulti && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandBatch(batch.batchKey)}
+                                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {isExpanded ? "▲ Hide" : "▼ View List"}
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-gray-600 truncate max-w-[220px]">
+                                {(quotationItems[0]?.name || quotationItems[0]?.instrument || "Precision Equipment").replace(/\s*-\s*Calibration$/i, "")}
+                                {qItemCount > 1 ? ` + ${qItemCount - 1} more` : ""}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-right">
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="font-mono font-black text-gray-900 text-xs">
+                                ₹{Number(computedAmount).toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[9px] text-gray-400">
+                                Incl. 18% GST
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="relative inline-block">
+                                <select
+                                  value={currentStatus}
+                                  onChange={(e) => handleUpdateBatchQuotationStatus(batch, e.target.value)}
+                                  className={`text-[10px] font-extrabold px-3 py-1 rounded-full border shadow-2xs cursor-pointer outline-none transition-all duration-200 appearance-none pr-6 text-center ${
+                                    currentStatus === "PO Confirmed" || currentStatus === "Approved"
+                                      ? "bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 ring-1 ring-emerald-400/40"
+                                      : currentStatus === "Sent to Client"
+                                      ? "bg-blue-100 text-blue-900 border-blue-300 hover:bg-blue-200 ring-1 ring-blue-400/40"
+                                      : currentStatus === "Under Review"
+                                      ? "bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 ring-1 ring-amber-400/40"
+                                      : currentStatus === "Invoiced"
+                                      ? "bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200 ring-1 ring-purple-400/40"
+                                      : currentStatus === "Declined"
+                                      ? "bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200 ring-1 ring-rose-400/40"
+                                      : "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200 ring-1 ring-slate-400/30"
+                                  }`}
+                                  title="Change quotation approval status (Click to select)"
+                                >
+                                  <option value="Draft">📝 Draft (Not Sent)</option>
+                                  <option value="Sent to Client">✉️ Sent to Client</option>
+                                  <option value="Under Review">🟡 Under Review</option>
+                                  <option value="Approved">🟢 ✓ Approved by Client</option>
+                                  <option value="PO Confirmed">🟢 ✓ PO Confirmed</option>
+                                  <option value="Invoiced">🟣 Invoiced</option>
+                                  <option value="Declined">🔴 Declined</option>
+                                </select>
+                                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-gray-500 font-bold">
+                                  ▼
+                                </span>
+                              </div>
+                              {(() => {
+                                const isDone = currentStatus === "PO Confirmed" || currentStatus === "Approved" || currentStatus === "Invoiced";
+                                if (!isDone) {
+                                  return (
+                                    <span className="text-[8px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                      ⏳ Awaiting Approval
+                                    </span>
+                                  );
+                                }
+                                const totalInBatch = batchItems.length;
+                                const permittedInBatch = batchItems.filter((it) => isRecordLabPermitted(it)).length;
+                                const pendingPermCount = totalInBatch - permittedInBatch;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenLabPermissionModal(batch)}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-black border shadow-2xs transition cursor-pointer ${
+                                      permittedInBatch === 0
+                                        ? "bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 animate-pulse"
+                                        : pendingPermCount > 0
+                                        ? "bg-cyan-100 text-cyan-900 border-cyan-300 hover:bg-cyan-200"
+                                        : "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200"
+                                    }`}
+                                    title="Click to select which equipments have Lab Permission today or another date"
+                                  >
+                                    <FaCalendarAlt className="text-[8px]" />
+                                    {permittedInBatch === 0
+                                      ? `🔒 0/${totalInBatch} Permitted (Set Date)`
+                                      : pendingPermCount > 0
+                                      ? `📅 ${permittedInBatch}/${totalInBatch} Permitted (${pendingPermCount} Held)`
+                                      : `✓ ${permittedInBatch}/${totalInBatch} In SRF & Obs`}
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                          <td className="p-2.5 border-r border-gray-200 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openDocViewer("quotation", batch)}
+                                className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                title="View Quotation PDF"
+                              >
+                                <FaFilePdf className="text-red-500" />
+                                <span>PDF</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDocViewer("proforma_invoice", batch)}
+                                className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                title="View Proforma Invoice"
+                              >
+                                <span>PI</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSendDocModal("quotation", batch)}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                title="Send Quotation via Email or WhatsApp"
+                              >
+                                <span>✉️ Send</span>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {(currentStatus === "PO Confirmed" || currentStatus === "Approved" || currentStatus === "Invoiced") && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenLabPermissionModal(batch)}
+                                    className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-black shadow-xs transition flex items-center gap-1 cursor-pointer"
+                                    title="Select equipments & release date for SRF & Observation"
+                                  >
+                                    <FaCalendarAlt className="text-[9px]" />
+                                    <span>Permission ({batchItems.filter((it) => isRecordLabPermitted(it)).length}/{batchItems.length})</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const permittedItem = batchItems.find((it) => isRecordLabPermitted(it));
+                                      if (!permittedItem) {
+                                        toast.info("First select at least 1 equipment & release date to enter Observations!");
+                                        handleOpenLabPermissionModal(batch);
+                                        return;
+                                      }
+                                      if (permittedItem?._id) setSelectedObsInstrumentId(permittedItem._id);
+                                      setActiveTab("observations");
+                                      toast.success(`Opening Observation Worksheet for ${batch.clientCompany}! 🚀`);
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black shadow-xs transition flex items-center gap-1 cursor-pointer"
+                                    title="Open permitted equipment in Observation Worksheet"
+                                  >
+                                    <span>🚀 Fill Obs</span>
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenQuotationEditor(batch.quotationData ? { ...(batch.primaryRecord || batch.items[0]), quotationData: batch.quotationData } : (batch.primaryRecord || batch.items[0]))}
+                                className="px-2.5 py-1 bg-[#021C57] hover:bg-blue-900 text-white rounded-lg text-[10px] font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                                title="Edit Quotation details, rates, and discounts"
+                              >
+                                <FaEdit />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBatch(batch)}
+                                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] font-bold shadow-xs transition flex items-center gap-1 cursor-pointer active:scale-95"
+                                title="Delete Quotation & Equipment Record(s)"
+                              >
+                                <FaTrashAlt className="text-white text-[10px]" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expandable equipments list for multi-product batches */}
+                        {isMulti && isExpanded && (
+                          <tr className="bg-slate-50/80 border-b border-gray-200">
+                            <td colSpan="8" className="p-3 pl-10">
+                              <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-xs space-y-2">
+                                <div className="text-[10px] font-bold text-gray-700 uppercase tracking-wider flex flex-wrap items-center justify-between gap-2">
+                                  <span>📦 All {qItemCount} Items Included in this Quotation:</span>
+                                  <div className="flex items-center gap-2">
+                                    {(currentStatus === "PO Confirmed" || currentStatus === "Approved" || currentStatus === "Invoiced") && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenLabPermissionModal(batch)}
+                                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-black shadow-xs transition flex items-center gap-1 cursor-pointer normal-case tracking-normal"
+                                      >
+                                        <FaCalendarAlt className="text-[9px]" /> Bulk Date Permission ({batchItems.filter((it) => isRecordLabPermitted(it)).length}/{batchItems.length} Permitted)
+                                      </button>
+                                    )}
+                                    <span className="font-mono text-emerald-700 font-extrabold text-xs">
+                                      Estimated: ₹{Number(computedAmount).toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {quotationItems.map((item, itemIdx) => {
+                                    const matchedRec = item._id ? item : (batchItems[itemIdx] || null);
+                                    const cleanName = (item.name || item.instrument || "Equipment").replace(/\s*-\s*Calibration$/i, "");
+                                    const itemQty = item.qty || 1;
+                                    const itemRate = item.rate || 1000;
+                                    const itemAmt = item.amount || (itemQty * itemRate);
+                                    const subInfo = item.subText ? `${item.subText} | ` : (matchedRec?.serialNo ? `S/N: ${matchedRec.serialNo} | ` : "");
+                                    const isPerm = matchedRec ? isRecordLabPermitted(matchedRec) : false;
+                                    const permDate = matchedRec ? getRecordLabDate(matchedRec) : null;
+                                    const isCommercialReady = currentStatus === "PO Confirmed" || currentStatus === "Approved" || currentStatus === "Invoiced";
+
+                                    return (
+                                      <div
+                                        key={matchedRec?._id || item._id || itemIdx}
+                                        className={`p-2.5 rounded-lg border flex items-center justify-between text-[10px] transition ${
+                                          isPerm
+                                            ? "bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50"
+                                            : "bg-gray-50 border-gray-200/80 hover:bg-blue-50/40"
+                                        }`}
+                                      >
+                                        <div className="flex flex-col min-w-0 pr-2 gap-0.5">
+                                          <span className="font-bold text-gray-900 truncate">
+                                            {itemIdx + 1}. {cleanName}
+                                          </span>
+                                          <span className="text-gray-500 font-mono text-[9px] truncate">
+                                            {subInfo}Qty: {itemQty} {item.qtyUnit || "NOS"}
+                                          </span>
+                                          {matchedRec && (
+                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                              {isPerm ? (
+                                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                  ✓ Permitted ({toSafeLocaleDate(permDate, "Today")})
+                                                </span>
+                                              ) : (
+                                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                  ⏳ Held (Not Sent Yet)
+                                                </span>
+                                              )}
+                                              {isCommercialReady && matchedRec._id && (
+                                                isRecordCalibratedOrSubmitted(matchedRec) ? (
+                                                  <span
+                                                    className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-blue-50 text-blue-800 border border-blue-200"
+                                                    title="Calibration already completed — cannot be held"
+                                                  >
+                                                    🔒 Calibrated
+                                                  </span>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      handleSubmitLabPermission(
+                                                        !isPerm,
+                                                        [matchedRec._id],
+                                                        new Date().toISOString().slice(0, 10)
+                                                      )
+                                                    }
+                                                    className={`px-1.5 py-0.2 rounded text-[8.5px] font-black cursor-pointer border transition ${
+                                                      isPerm
+                                                        ? "bg-white text-amber-800 border-amber-300 hover:bg-amber-50"
+                                                        : "bg-teal-600 text-white border-teal-700 hover:bg-teal-700"
+                                                    }`}
+                                                  >
+                                                    {isPerm ? "Hold" : "Permit Today"}
+                                                  </button>
+                                                )
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className="font-mono font-bold text-emerald-700 text-[10px]">
+                                            ₹{Number(itemAmt).toLocaleString("en-IN")}
+                                          </span>
+                                          {matchedRec?._id && (
+                                            <button
+                                              type="button"
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (!window.confirm(`Delete "${cleanName}"?`)) return;
+                                                try {
+                                                  await deleteCalibrationRecordApi(matchedRec._id);
+                                                  toast.success(`Deleted ${cleanName}!`);
+                                                  fetchData(false);
+                                                } catch (err) {
+                                                  toast.error("Failed to delete record: " + (err.response?.data?.message || err.message));
+                                                }
+                                              }}
+                                              className="p-1 text-slate-400 hover:text-red-600 rounded transition cursor-pointer"
+                                              title="Delete single equipment"
+                                            >
+                                              <FaTrashAlt className="text-[10px]" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: SRF AND CALIBRATION HISTORY PAGE (Exact PDF Slide 5) */}
+      {/* ========================================================================= */}
+      {canSrfHistory && activeTab === "srf_history" && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-4 p-5">
           {/* Top Title & Toolbar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
             <div>
               <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                Calibration History & Documents (SRF Master)
+                3. Calibration History &amp; Documents (SRF Master)
               </h2>
-              <p className="text-xs text-gray-500">Complete record of instruments sent for calibration, commercial billing & NABL certificates</p>
+              <p className="text-xs text-gray-500">Complete record of instruments sent for calibration, commercial billing &amp; NABL certificates</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -5401,19 +10927,19 @@ export default function CalibrationPageView() {
                 onClick={() => setIsAddModalOpen(true)}
                 className="px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md"
               >
-                <FaPlus /> Add Instrument
+                <FaPlus /> Add Instrument / SRF (Create Quotation)
               </button>
             </div>
           </div>
 
           {/* Search & Filter Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
-            <div className="md:col-span-6 relative flex flex-col justify-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 text-xs items-center">
+            <div className="md:col-span-4 relative flex flex-col justify-center">
               <div className="relative flex items-center">
                 <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search by Instrument / Serial No. / Model No. / Make (Type or Click Mic)..."
+                  placeholder="Search Instrument / S/N / DC No..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-16 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-800 font-medium"
@@ -5469,28 +10995,70 @@ export default function CalibrationPageView() {
               )}
             </div>
 
-            <div className="md:col-span-3">
-              <select
-                value={stageFilter}
-                onChange={(e) => setStageFilter(e.target.value)}
-                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-700 font-medium"
+            <div className="md:col-span-3 flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <input
+                  type="date"
+                  value={srfDateFilter}
+                  onChange={(e) => setSrfDateFilter(e.target.value)}
+                  className="w-full py-2 px-2.5 bg-cyan-50/80 border border-cyan-300 rounded-xl focus:outline-none focus:border-cyan-500 text-cyan-950 font-bold"
+                  title="Filter SRF batches by Permitted Release Date"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setSrfDateFilter(new Date().toISOString().slice(0, 10))}
+                className="px-2.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold text-[10px] shrink-0 cursor-pointer"
+                title="Show Today's permitted SRF equipments"
               >
-                <option value="all">All Stages (1-5)</option>
-                <option value="Instrument Received">1. Instrument Received</option>
-                <option value="Under Calibration">2. Under Calibration</option>
-                <option value="Calibration Done">3. Calibration Done</option>
-                <option value="Invoice Sent">4. Invoice Sent</option>
-                <option value="Certificate Uploaded">5. Certificate Uploaded</option>
+                Today
+              </button>
+              {srfDateFilter && (
+                <button
+                  type="button"
+                  onClick={() => setSrfDateFilter("")}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-[10px] shrink-0 cursor-pointer"
+                  title="Clear date filter"
+                >
+                  <FaTimes />
+                </button>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
+              <select
+                value={srfCommercialFilter}
+                onChange={(e) => setSrfCommercialFilter(e.target.value)}
+                className="w-full py-2 px-2.5 bg-amber-50/80 border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 text-amber-950 font-bold shadow-2xs"
+                title="Filter by Commercial Status & Daily Lab Permission"
+              >
+                <option value="done_only">🟢 Approved &amp; Permitted Only</option>
+                <option value="all">📋 Show All (Incl. Unpermitted)</option>
               </select>
             </div>
 
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value)}
+                className="w-full py-2 px-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-700 font-medium"
+              >
+                <option value="all">All Stages (1-5)</option>
+                <option value="Instrument Received">1. Received</option>
+                <option value="Under Calibration">2. Calibrating</option>
+                <option value="Calibration Done">3. Calib Done</option>
+                <option value="Invoice Sent">4. Invoiced</option>
+                <option value="Certificate Uploaded">5. Cert Issued</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-1">
               <select
                 value={paymentFilter}
                 onChange={(e) => setPaymentFilter(e.target.value)}
-                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-700 font-medium"
+                className="w-full py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-700 font-medium"
               >
-                <option value="all">All Payment Statuses</option>
+                <option value="all">Pay: All</option>
                 <option value="Paid">Paid 🟢</option>
                 <option value="Pending">Pending 🟡</option>
                 <option value="Partial">Partial 🔴</option>
@@ -5553,29 +11121,49 @@ export default function CalibrationPageView() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
-                {groupedBatches.length === 0 ? (
+                {srfBatches.length === 0 ? (
                   <tr>
                     <td colSpan="22" className="p-12 text-center text-gray-500 bg-slate-50/40">
                       <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shadow-inner">
-                          <FaCertificate />
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shadow-inner">
+                          <FaLock />
                         </div>
-                        <p className="font-bold text-gray-900 text-sm">No Calibration Records in Database</p>
-                        <p className="text-xs text-gray-500 leading-relaxed">
-                          Old sample data has been cleared. Start adding your real client instruments, DC Challans, and calibration records in real-time.
+                        <p className="font-bold text-gray-900 text-sm">
+                          {srfDateFilter
+                            ? `No Permitted Equipments Found for ${srfDateFilter}`
+                            : srfCommercialFilter === "done_only"
+                            ? "No Approved & Permitted Records in SRF Master"
+                            : "No Calibration Records in Database"}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => setIsAddModalOpen(true)}
-                          className="mt-2 px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FaPlus /> + Add Real Instrument / SRF
-                        </button>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          {srfDateFilter
+                            ? "Grant Lab Permission for equipments on this date in Tab 2 (Quotations) -> Permission button, or clear the date filter."
+                            : srfCommercialFilter === "done_only"
+                            ? "In Tab 2 (Quotations), mark Commercial Status as Approved/PO Confirmed and grant Lab Permission for the equipment(s) on their calibration date to appear in SRF & Observation."
+                            : "Start adding your real client instruments, DC Challans, and calibration records in real-time."}
+                        </p>
+                        {srfCommercialFilter === "done_only" ? (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("quotations")}
+                            className="mt-2 px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            Go to Section 2 (Quotations) →
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="mt-2 px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <FaPlus /> + Add Real Instrument / SRF
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  groupedBatches.map((batch, idx) => {
+                  srfBatches.map((batch, idx) => {
                     const r = batch?.primaryRecord || batch?.items?.[0] || {};
                     const isExpanded = expandedBatchKeys.has(batch.batchKey);
                     const batchItems = Array.isArray(batch?.items) ? batch.items : [];
@@ -5618,7 +11206,7 @@ export default function CalibrationPageView() {
                         <tr className="hover:bg-blue-50/50 transition">
                           {/* 1. Client & Instrument Details */}
                           <td className="p-2.5 font-bold text-center border-r border-gray-200 bg-gray-50/50">
-                            {idx + 1}
+                            {batch.customerRank || idx + 1}
                           </td>
                           <td className="p-2.5 border-r border-gray-200">
                             <div className="flex flex-col gap-0.5">
@@ -5663,6 +11251,15 @@ export default function CalibrationPageView() {
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono text-gray-600">
                             <div className="font-semibold text-slate-800">{batch.dcNo || "-"}</div>
+                            {isCommercialStatusDone(batch) ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 mt-0.5">
+                                ✓ Commercial Done
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-800 border border-amber-300 mt-0.5" title="Quotation not confirmed yet">
+                                ⏳ Quotation ${getBatchQuotationStatus(batch)}
+                              </span>
+                            )}
                             <div className="flex items-center gap-1 mt-1">
                               <button
                                 type="button"
@@ -5681,6 +11278,31 @@ export default function CalibrationPageView() {
                               >
                                 ✉️
                               </button>
+                            </div>
+                            <div className="mt-1">
+                              {isBatchSrfDone(batch) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const bSrf = getBatchSrfNo(batch);
+                                    if (bSrf) setInwardSearchTerm(bSrf);
+                                    setActiveTab("inward_register");
+                                  }}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black bg-cyan-100 hover:bg-cyan-200 text-cyan-900 border border-cyan-300 transition cursor-pointer"
+                                  title="SRF Done — Click to view in 4. Inward Register"
+                                >
+                                  <span>✓ SRF Done {getBatchSrfNo(batch) ? `(${getBatchSrfNo(batch)})` : ""} → Register</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSrfDoneModal(batch)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8.5px] font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition cursor-pointer"
+                                  title="Mark SRF as Done to push these items into 4. Inward Register"
+                                >
+                                  <span>✅ Mark SRF Done → Register</span>
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="p-2.5 border-r border-gray-200 font-mono">
@@ -5835,44 +11457,232 @@ export default function CalibrationPageView() {
                               </button>
                             </div>
                           </td>
-                          <td className="p-2.5 border-r border-gray-200 text-center font-bold">
-                            <button
-                              type="button"
-                              onClick={() => handleCycleBatchPayment(batch)}
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition shadow-xs cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 mx-auto ${
-                                batch.commercialDocs?.paymentStatus === "Paid"
-                                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                                  : batch.commercialDocs?.paymentStatus === "Pending"
-                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
-                                  : "bg-red-100 text-red-800 hover:bg-red-200 border border-red-300"
-                              }`}
-                              title="Click to toggle Payment Status for this Batch"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                              {batch.commercialDocs?.paymentStatus || "Paid"}
-                            </button>
+                                                    <td className="p-2.5 border-r border-gray-200">
+                            {(() => {
+                              const fin = batch.commercialDocs || {};
+                              const isExpandedPayment = expandedBatchPaymentKeys.has(batch.batchKey);
+                              const modeBg =
+                                fin.paymentMode === "Cash"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : fin.paymentMode === "UPI"
+                                  ? "bg-purple-50 text-purple-800 border-purple-200"
+                                  : fin.paymentMode === "Net Banking"
+                                  ? "bg-blue-50 text-blue-800 border-blue-200"
+                                  : fin.paymentMode === "Cheque"
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : "bg-gray-50 text-gray-800 border-gray-200";
+                              const statusBg =
+                                fin.paymentStatus === "Paid"
+                                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                  : fin.paymentStatus === "Partial"
+                                  ? "bg-amber-100 text-amber-800 border-amber-300"
+                                  : "bg-red-100 text-red-800 border-red-300";
+
+                              return (
+                                <div className="flex flex-col gap-1 min-w-[150px]">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenBatchPaymentModal(batch)}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-black border flex items-center gap-1 cursor-pointer transition hover:opacity-90 shadow-2xs ${modeBg}`}
+                                      title="Click to edit payment mode & installments"
+                                    >
+                                      <FaCreditCard className="text-[9px]" /> {fin.paymentMode || "UPI"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenBatchPaymentModal(batch)}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-black cursor-pointer transition hover:opacity-90 shadow-2xs ${statusBg}`}
+                                      title="Click to change payment status & details"
+                                    >
+                                      {fin.paymentStatus || "Paid"}
+                                    </button>
+                                  </div>
+
+                                  {/* Financial clearance summary */}
+                                  <div className="text-[10px] font-bold">
+                                    {fin.paymentStatus === "Paid" ? (
+                                      <span className="text-emerald-700 flex items-center gap-1">
+                                        <FaCheckCircle className="text-[10px] text-emerald-600" /> ₹{Number(fin.paidAmount || fin.totalAmount || 0).toLocaleString("en-IN")} (100% Cleared)
+                                      </span>
+                                    ) : fin.paymentStatus === "Partial" ? (
+                                      <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                                        <span className="text-emerald-700">Paid: ₹{Number(fin.paidAmount || 0).toLocaleString("en-IN")}</span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="text-rose-700 font-bold bg-rose-50 px-1 py-0.2 rounded border border-rose-200">
+                                          Due: ₹{Number(fin.dueAmount || 0).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-rose-600 font-bold">
+                                        Pending: ₹{Number(fin.totalAmount || 0).toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Arrow toggle to view installment history */}
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpandBatchPayment(batch.batchKey)}
+                                      className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1 cursor-pointer w-fit transition shadow-2xs"
+                                      title="Click arrow to expand and view payment installments history"
+                                    >
+                                      {isExpandedPayment ? (
+                                        <FaChevronDown className="text-[9px] text-indigo-600" />
+                                      ) : (
+                                        <FaChevronRight className="text-[9px] text-indigo-600" />
+                                      )}
+                                      <span>{(fin.payments || []).length || 1} Installment{((fin.payments || []).length || 1) > 1 ? "s" : ""}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenBatchPaymentModal(batch)}
+                                      className="p-1 rounded text-gray-400 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                                      title="Manage Batch Payment & Installments"
+                                    >
+                                      <FaEdit className="text-[10px]" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
 
-                          {/* 4. Records */}
-                          <td className="p-2.5 border-r border-gray-200 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <button
-                                onClick={() => openDocViewer("certificate", batch)}
-                                className="text-red-500 hover:text-red-700 flex items-center gap-0.5 cursor-pointer"
-                                title="View Official Calibration Certificate"
-                              >
-                                <FaFilePdf className="text-xs text-red-600" />
-                                <span className="text-[9px] underline font-bold">View</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenSendDocModal("certificate", batch)}
-                                className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
-                                title="Send NABL Certificate PDF to Customer"
-                              >
-                                🚀 Send
-                              </button>
-                            </div>
+                          {/* 4. Certification Column - Multi-Product Support (View/Print/Download: Ek, Pura ya 3) */}
+                          <td className="p-2 border-r border-gray-200 text-center">
+                            {(() => {
+                              const bItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch];
+                              const count = bItems.length;
+
+                              if (count <= 1) {
+                                const singleItem = bItems[0] || {};
+                                return (
+                                  <div className="flex flex-col items-center gap-1 min-w-[120px]">
+                                    <div className="flex items-center gap-1 justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => openDocViewer("certificate", singleItem)}
+                                        className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                        title="View Certificate"
+                                      >
+                                        <FaEye className="text-[9px]" /> View
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePrintCalibrationDoc("certificate", singleItem, { single: true })}
+                                        className="p-1 rounded text-[9.5px] bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white border border-purple-200 transition cursor-pointer"
+                                        title="Print Certificate"
+                                      >
+                                        <FaPrint className="text-[9px]" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownloadCalibrationDoc("certificate", singleItem, { single: true })}
+                                        className="p-1 rounded text-[9.5px] bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer"
+                                        title="Download Certificate PDF"
+                                      >
+                                        <FaDownload className="text-[9px]" />
+                                      </button>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenSendDocModal("certificate", singleItem)}
+                                      className="px-2 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer flex items-center gap-1"
+                                      title="Send Certificate to Customer"
+                                    >
+                                      🚀 Send
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              // Multiple products in batch: Ek, Pura (All) ya 3 Download / Print / View
+                              return (
+                                <div className="flex flex-col items-center gap-1 min-w-[160px]">
+                                  {/* Multi-Selection Manager Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPrintCertBatchModal(batch);
+                                      setSelectedPrintEquipIds(new Set(bItems.map(it => it._id || it.id)));
+                                    }}
+                                    className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    title="Choose Ek, Pura (All) ya 3 Print/Download/View"
+                                  >
+                                    <span>📑</span> {count} Products • Ek / Pura / 3
+                                  </button>
+
+                                  {/* Quick Action Pills: View All, Print All, DL All, Send */}
+                                  <div className="flex items-center gap-1 justify-center flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => openDocViewer("certificate", batch, { viewMode: "all" })}
+                                      className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                                      title="View Sab Ka (All Certificates Stacked)"
+                                    >
+                                      <FaEye className="text-[8.5px]" /> View All
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePrintCalibrationDoc("certificate", batch, { all: true })}
+                                      className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white border border-purple-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                                      title="Print Sab Ka (Pura Batch)"
+                                    >
+                                      <FaPrint className="text-[8.5px]" /> Print All
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadCalibrationDoc("certificate", batch, { all: true })}
+                                      className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                                      title="Download Sab Ka (Full Batch Combined PDF)"
+                                    >
+                                      <FaDownload className="text-[8.5px]" /> DL All
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenSendDocModal("certificate", batch)}
+                                      className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer flex items-center gap-0.5"
+                                      title="Send All Certificates"
+                                    >
+                                      🚀
+                                    </button>
+                                  </div>
+
+                                  {/* Quick Single Selector: View Ek / Print Ek / DL Ek */}
+                                  <select
+                                    onChange={(e) => {
+                                      const [action, targetId] = (e.target.value || "").split("::");
+                                      if (!action || !targetId) return;
+                                      const it = bItems.find(x => String(x._id || x.id) === targetId);
+                                      if (it) {
+                                        if (action === "view") openDocViewer("certificate", it);
+                                        else if (action === "print") handlePrintCalibrationDoc("certificate", it, { single: true });
+                                        else if (action === "download") handleDownloadCalibrationDoc("certificate", it, { single: true });
+                                      }
+                                      e.target.value = "";
+                                    }}
+                                    defaultValue=""
+                                    className="w-full text-[8px] bg-slate-50 border border-gray-300 rounded px-1 py-0.5 font-bold text-gray-700 cursor-pointer hover:border-indigo-400 focus:outline-none"
+                                    title="Choose any single product to View Ek / Print Ek / Download Ek"
+                                  >
+                                    <option value="" disabled>⚡ Ek Product (View/Print/DL)...</option>
+                                    {bItems.map((it, idx) => {
+                                      const itUlr = it.records?.ulrNo || it.inwardRegister?.ulrNo || it.authorizationData?.ulrNo || "";
+                                      return (
+                                        <optgroup key={it._id || idx} label={`#${idx + 1}: ${it.instrument?.slice(0, 20)}`}>
+                                          <option value={`view::${it._id || it.id}`}>
+                                            👁️ View #{idx + 1} ({it.records?.certificateNo || "Cert"}{itUlr ? ` • ${itUlr}` : ""})
+                                          </option>
+                                          <option value={`print::${it._id || it.id}`}>🖨️ Print #{idx + 1}</option>
+                                          <option value={`download::${it._id || it.id}`}>📥 Download #{idx + 1} PDF</option>
+                                        </optgroup>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="p-2.5 border-r border-gray-200 text-center">
                             <button
@@ -5969,6 +11779,105 @@ export default function CalibrationPageView() {
                           </td>
                         </tr>
 
+                        {/* Expandable Sub-Row with Payment Installment Ledger History for this Batch */}
+                        {expandedBatchPaymentKeys.has(batch.batchKey) && (
+                          <tr className="bg-indigo-50/40 border-b-2 border-indigo-300 animate-fadeIn">
+                            <td colSpan={22} className="p-3 sm:p-4">
+                              <div className="bg-white rounded-2xl border border-indigo-200 p-4 shadow-sm space-y-3">
+                                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5 flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                      💳
+                                    </div>
+                                    <span className="font-extrabold text-gray-900 text-xs">
+                                      Payment Installment Ledger History — Batch DC: {batch.dcNo} ({batch.clientCompany})
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-gray-500">
+                                      Total Valuation: <strong>₹{Number(batch.commercialDocs?.totalAmount || 0).toLocaleString("en-IN")}</strong>
+                                    </span>
+                                    {Number(batch.commercialDocs?.dueAmount || 0) > 0 && (
+                                      <span className="text-rose-700 font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-[11px]">
+                                        Remaining Due: ₹{Number(batch.commercialDocs?.dueAmount).toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenBatchPaymentModal(batch)}
+                                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-xs"
+                                    >
+                                      <FaEdit className="text-[9px]" /> Manage Installments
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpandBatchPayment(batch.batchKey)}
+                                      className="text-xs text-gray-500 hover:text-gray-800 font-semibold underline cursor-pointer ml-2"
+                                    >
+                                      ✕ Close
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs border border-gray-200 rounded-lg overflow-hidden">
+                                    <thead>
+                                      <tr className="bg-gradient-to-r from-slate-100 to-indigo-50 text-[10px] font-bold text-gray-700 border-b border-gray-200">
+                                        <th className="p-2 text-center w-12 border-r border-gray-200">#</th>
+                                        <th className="p-2 min-w-[110px] border-r border-gray-200">Payment Date (Kab)</th>
+                                        <th className="p-2 min-w-[120px] border-r border-gray-200">Payment Mode</th>
+                                        <th className="p-2 min-w-[180px] border-r border-gray-200">Transaction / UTR Ref</th>
+                                        <th className="p-2 min-w-[130px] text-right border-r border-gray-200">Amount Paid (₹)</th>
+                                        <th className="p-2 min-w-[180px] border-r border-gray-200">Stage / Notes</th>
+                                        <th className="p-2 text-center w-24">Clearance</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 bg-white">
+                                      {(!batch.commercialDocs?.payments || batch.commercialDocs.payments.length === 0) ? (
+                                        <tr>
+                                          <td colSpan={7} className="p-4 text-center text-gray-400">
+                                            No payment installments recorded yet. Click &quot;Manage Installments&quot; to add.
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        batch.commercialDocs.payments.map((p, pIdx) => (
+                                          <tr key={pIdx} className="hover:bg-indigo-50/40 transition">
+                                            <td className="p-2 text-center font-bold text-indigo-900 border-r border-gray-200 bg-slate-50/50">
+                                              Installment #{p.installmentNo || pIdx + 1}
+                                            </td>
+                                            <td className="p-2 font-medium text-gray-800 border-r border-gray-200">
+                                              {p.paymentDate ? toSafeIsoDate(p.paymentDate) : "-"}
+                                            </td>
+                                            <td className="p-2 border-r border-gray-200">
+                                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
+                                                {p.paymentMode || "UPI"}
+                                              </span>
+                                            </td>
+                                            <td className="p-2 font-mono text-[11px] text-gray-700 border-r border-gray-200">
+                                              {p.transactionRef || "-"}
+                                            </td>
+                                            <td className="p-2 text-right font-mono font-black text-emerald-800 border-r border-gray-200">
+                                              ₹{Number(p.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="p-2 text-gray-600 text-[11px] border-r border-gray-200">
+                                              {p.notes || "-"}
+                                            </td>
+                                            <td className="p-2 text-center">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                                                <FaCheck className="text-[8px]" /> Cleared
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        ))
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
                         {/* Expandable Sub-Row with Breakdown of All Individual Equipments in this Batch */}
                         {isExpanded && (
                           <tr className="bg-slate-50/90 border-b-2 border-blue-300 animate-fadeIn">
@@ -6001,10 +11910,12 @@ export default function CalibrationPageView() {
                                         <th className="p-2">Make</th>
                                         <th className="p-2">Model No.</th>
                                         <th className="p-2">Serial No.</th>
+                                        <th className="p-2">ULR No</th>
                                         <th className="p-2">Range / Capacity</th>
                                         <th className="p-2">Calibration Date</th>
                                         <th className="p-2">Due Date</th>
                                         <th className="p-2">Stage</th>
+                                        <th className="p-2 text-center">Observation / Certificate</th>
                                         <th className="p-2 text-center">Sticker</th>
                                         <th className="p-2 text-right">Actions</th>
                                       </tr>
@@ -6021,6 +11932,9 @@ export default function CalibrationPageView() {
                                              {item.modelNo && item.modelNo !== "GEN-01" && item.modelNo !== "ARCL-CTM-2000" ? item.modelNo : ""}
                                            </td>
                                           <td className="p-2 font-mono font-bold text-blue-700">{item.serialNo}</td>
+                                          <td className="p-2 font-mono font-bold text-teal-800 whitespace-nowrap">
+                                            {item.records?.ulrNo || item.inwardRegister?.ulrNo || item.authorizationData?.ulrNo || "-"}
+                                          </td>
                                           <td className="p-2 text-gray-600">{item.instrumentRange}</td>
                                           <td className="p-2 font-mono">
                                             {item.calibrationDate ? new Date(item.calibrationDate).toLocaleDateString("en-GB") : "-"}
@@ -6032,6 +11946,118 @@ export default function CalibrationPageView() {
                                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                                               {item.stage}
                                             </span>
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            {(() => {
+                                              const hasReadings = Array.isArray(item.observationData?.readings) && item.observationData.readings.length > 0;
+                                              const isCert = Boolean(item.records?.certificateNo && item.authorizationData?.status === "Approved" && hasReadings);
+                                              const isPending = item.observationData?.status === "Submitted";
+                                              const isRej = item.authorizationData?.status === "Rejected" || item.observationData?.status === "Rejected";
+
+                                               if (isCert) {
+                                                const itemUlr = item.records?.ulrNo || item.inwardRegister?.ulrNo || item.authorizationData?.ulrNo || "";
+                                                return (
+                                                  <div className="flex flex-col items-center gap-1">
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono shadow-2xs">
+                                                      ✅ {item.records.certificateNo}
+                                                    </span>
+                                                    {itemUlr && (
+                                                      <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-teal-50 text-teal-800 border border-teal-200 font-mono">
+                                                        ULR: {itemUlr}
+                                                      </span>
+                                                    )}
+                                                    <div className="flex items-center gap-1 flex-wrap justify-center">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => openDocViewer("certificate", item)}
+                                                        className="px-1.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-bold flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                                                        title="View this equipment's Certificate PDF"
+                                                      >
+                                                        <FaFilePdf className="text-[9px]" /> View
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handlePrintCalibrationDoc("certificate", item, { single: true })}
+                                                        className="p-1 rounded text-[8px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                                                        title="Print this equipment's Certificate"
+                                                      >
+                                                        <FaPrint className="text-[8px] text-purple-600" />
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleDownloadCalibrationDoc("certificate", item, { single: true })}
+                                                        className="p-1 rounded text-[8px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                                                        title="Download this equipment's Certificate PDF"
+                                                      >
+                                                        <FaDownload className="text-[8px] text-blue-600" />
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleOpenSendDocModal("certificate", item)}
+                                                        className="px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
+                                                        title="Send Certificate to Client"
+                                                      >
+                                                        🚀
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+                                              if (isPending) {
+                                                return (
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => { setSelectedObsInstrumentId(item._id); setActiveTab("authorization"); }}
+                                                      className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 cursor-pointer animate-pulse"
+                                                      title="Review & Authorize in Section 7"
+                                                    >
+                                                      🟡 In Auth Queue
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => openDocViewer("observation_sheet", item)}
+                                                      className="text-teal-700 hover:underline text-[9px] font-bold"
+                                                      title="Preview Observation PDF"
+                                                    >
+                                                      Obs PDF
+                                                    </button>
+                                                  </div>
+                                                );
+                                              }
+                                              if (isRej) {
+                                                return (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedObsInstrumentId(item._id); setActiveTab("observations"); }}
+                                                    className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-200 cursor-pointer"
+                                                    title="Recalibrate in Section 6"
+                                                  >
+                                                    🔴 Recalibrate
+                                                  </button>
+                                                );
+                                              }
+                                              return (
+                                                <div className="flex items-center justify-center gap-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedObsInstrumentId(item._id); setActiveTab("observations"); }}
+                                                    className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer"
+                                                    title="Record raw readings in Section 6"
+                                                  >
+                                                    ⚙️ Add Obs
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openDocViewer("certificate", item)}
+                                                    className="text-red-500 hover:underline text-[9px] font-bold"
+                                                    title="Preview Draft Certificate"
+                                                  >
+                                                    View
+                                                  </button>
+                                                </div>
+                                              );
+                                            })()}
                                           </td>
                                           <td className="p-2 text-center">
                                             {item.records?.stickerCheck !== false ? "✅ Yes" : "❌ No"}
@@ -6106,9 +12132,2805 @@ export default function CalibrationPageView() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: AUTOMATED DUE REMINDERS & CERTIFICATE DELIVERY (Slide 6 & 4) */}
+      {/* TAB: INWARD REGISTER (EXACT 1:1 ARCL EXCEL REPLICA - WHEN SRF DONE) */}
       {/* ========================================================================= */}
-      {activeTab === "reminders" && (() => {
+      {canInwardRegister && activeTab === "inward_register" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-4 p-5 animate-fadeIn">
+          {/* Top Title & Action Bar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-cyan-50 text-cyan-800 rounded-xl border border-cyan-200 shadow-xs">
+                <FaTable className="text-xl" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-black text-gray-900">
+                    4. Inward Register — ARCL Instruments Private Limited
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-100 text-cyan-900 border border-cyan-300 font-mono">
+                    {inwardRegisterData.totalGroups} SRF Batches • {inwardRegisterData.totalDoneRecords} Equipments
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Official NABL Inward Register Sheet (Automatically populated when SRF is marked Done in Tab 3)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setInwardSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                title="Toggle Excel chronological vs newest-first sort"
+              >
+                <FaSync className="text-[10px]" />
+                <span>{inwardSortOrder === "newest" ? "Sort: Newest First" : "Sort: Excel Order (Oldest → Newest)"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintInwardRegister}
+                disabled={inwardRegisterData.rows.length === 0}
+                className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                <FaPrint /> Print Register
+              </button>
+              <button
+                type="button"
+                onClick={handleExportInwardRegisterExcel}
+                disabled={inwardRegisterData.rows.length === 0}
+                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <FaFileExcel /> Download Exact Excel (.xlsx)
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 text-xs items-center">
+            <div className="md:col-span-5 relative">
+              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search SRF No., Inward No., Customer, Instrument, Serial No., Certificate No., ULR No..."
+                value={inwardSearchTerm}
+                onChange={(e) => setInwardSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 text-gray-800 font-medium"
+              />
+              {inwardSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setInwardSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <FaTimes />
+                </button>
+              )}
+            </div>
+
+            <div className="md:col-span-3">
+              <select
+                value={inwardClientFilter}
+                onChange={(e) => setInwardClientFilter(e.target.value)}
+                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 text-gray-700 font-medium"
+              >
+                <option value="all">All Customers</option>
+                {Array.from(new Set(records.filter((r) => isRecordSrfDone(r)).map((r) => r.clientCompany).filter(Boolean))).map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2 flex items-center gap-1">
+              <input
+                type="date"
+                value={inwardDateFilter}
+                onChange={(e) => setInwardDateFilter(e.target.value)}
+                className="w-full py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 text-gray-700 font-medium"
+                title="Filter by Date of Receipt"
+              />
+              {inwardDateFilter && (
+                <button
+                  type="button"
+                  onClick={() => setInwardDateFilter("")}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl cursor-pointer shrink-0"
+                  title="Clear receipt date filter"
+                >
+                  <FaTimes />
+                </button>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
+              <select
+                value={inwardDoneAtFilter}
+                onChange={(e) => setInwardDoneAtFilter(e.target.value)}
+                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 text-gray-700 font-medium"
+              >
+                <option value="all">Lab &amp; Site (All)</option>
+                <option value="Lab">Lab Only</option>
+                <option value="Site">Site Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* EXACT 1:1 EXCEL SPREADSHEET TABLE */}
+          <div className="border-2 border-slate-400 rounded-xl overflow-hidden shadow-inner bg-white">
+            {/* Official Company Letterhead Strip */}
+            <div className="bg-gradient-to-r from-slate-50 via-white to-blue-50/70 border-b-2 border-slate-400 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-950">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/assets/LOGO.png"
+                  alt="ARCL Logo"
+                  className="h-10 sm:h-11 w-auto object-contain bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-2xs shrink-0"
+                />
+                <div>
+                  <div className="text-sm sm:text-base font-black tracking-wide text-[#021C57] leading-tight">
+                    ARCL INSTRUMENTS PRIVATE LIMITED
+                  </div>
+                  <div className="text-[10.5px] font-bold text-emerald-700">
+                    NABL Accredited Calibration Laboratory ({labProfileForm?.certificateNo || "CC-4313"}) • {labProfileForm?.accreditationStandard || "ISO/IEC 17025:2017"}
+                  </div>
+                  <div className="text-[10px] text-slate-600">
+                    Shop No. 6, Siddivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra • GSTIN: 27AATCA7874C1ZB
+                  </div>
+                </div>
+              </div>
+              <div className="sm:text-right shrink-0">
+                <span className="inline-block px-3 py-1 rounded-lg bg-[#021C57] text-amber-300 text-xs sm:text-sm font-black uppercase tracking-wider shadow-xs">
+                  Inward Register
+                </span>
+                <div className="text-[10px] font-mono text-slate-500 mt-1">
+                  Format: ARCL/INW/01
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto max-h-[65vh]">
+              <table className="w-full text-left text-[11px] border-collapse">
+                <thead className="sticky top-0 z-10 bg-slate-200 text-slate-950 font-black text-[10.5px] shadow-2xs">
+                  <tr>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">SRF No.</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">Inward No.</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">Date of Receipt</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 min-w-[200px]">Name of Customer</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 min-w-[230px]">Address</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 min-w-[180px]">Name of Instrument</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">Serial No./ Id. No.</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Range</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Unit</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Least Count</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Dia.</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">Make/Model</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Calibration Done at</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">Certificate no</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200">ULR No</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 text-center">Delivery Committed(Days)</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 whitespace-nowrap">Date of delivery</th>
+                    <th className="border border-slate-400 px-2.5 py-2 whitespace-nowrap bg-slate-200 min-w-[120px]">Remarks</th>
+                    <th className="border border-slate-400 px-2 py-2 whitespace-nowrap bg-slate-200 text-center">Edit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inwardRegisterData.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={19} className="p-12 text-center bg-slate-50/50 text-gray-500">
+                        <div className="max-w-md mx-auto flex flex-col items-center gap-2.5">
+                          <div className="w-12 h-12 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xl shadow-inner">
+                            <FaClipboardCheck />
+                          </div>
+                          <p className="font-bold text-gray-900 text-sm">
+                            No SRF Done Entries in Inward Register Yet
+                          </p>
+                          <p className="text-xs text-gray-500 leading-relaxed">
+                            Go to <strong>3. SRF &amp; History</strong> and click <strong>&quot;✅ Mark SRF Done → Register&quot;</strong> on any batch (or complete calibration/certificate) to automatically populate this register in ARCL Excel format.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("srf_history")}
+                            className="mt-1 px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+                          >
+                            Go to 3. SRF &amp; History →
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    inwardRegisterData.rows.map((row, rIdx) => {
+                      const isEvenGroup = row.srfGroupIdx % 2 === 0;
+                      return (
+                        <tr
+                          key={row.id || rIdx}
+                          onDoubleClick={() => handleOpenInwardEditModal(row)}
+                          className={`transition hover:bg-cyan-50/60 ${
+                            isEvenGroup ? "bg-white" : "bg-slate-50/70"
+                          } ${row.isFirstInSrf && rIdx > 0 ? "border-t-2 border-t-slate-500" : ""}`}
+                          title="Double-click or click Edit icon to update any cell"
+                        >
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono font-bold text-[#021C57] whitespace-nowrap">
+                            {row.displaySrfNo}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono text-blue-900 font-semibold whitespace-nowrap">
+                            {row.displayInwardNo}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800">
+                            {row.displayDateOfReceipt}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-bold text-gray-900">
+                            {row.displayCustomer}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-gray-700 text-[10.5px] max-w-[260px] whitespace-normal">
+                            {row.displayAddress}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-semibold text-gray-900 whitespace-nowrap">
+                            {row.instrumentName}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono font-bold text-slate-800 whitespace-nowrap">
+                            {row.serialNo}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono text-gray-800 whitespace-nowrap">
+                            {row.range}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono text-gray-700 whitespace-nowrap">
+                            {row.unit}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono text-gray-700 whitespace-nowrap">
+                            {row.leastCount}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono text-gray-700 whitespace-nowrap">
+                            {row.dia}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono text-gray-700 whitespace-nowrap">
+                            {row.makeModel}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                String(row.calibrationDoneAt).toLowerCase() === "site"
+                                  ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              }`}
+                            >
+                              {row.calibrationDoneAt}
+                            </span>
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono font-semibold text-indigo-900 whitespace-nowrap">
+                            {row.displayCertificateNo}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono font-bold text-teal-800 whitespace-nowrap">
+                            {row.displayUlrNo}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono font-bold text-gray-800 whitespace-nowrap">
+                            {row.displayDeliveryDays}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800">
+                            {row.displayDateOfDelivery}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-gray-700 text-[10.5px]">
+                            {row.remarks}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInwardEditModal(row)}
+                              className="p-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded transition cursor-pointer"
+                              title="Edit Inward Register cells for this row"
+                            >
+                              <FaEdit className="text-[11px]" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 6: METROLOGICAL RAW OBSERVATION WORKSHEET (Section 6) */}
+      {/* ========================================================================= */}
+      {canObservations && activeTab === "observations" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-5 p-3 sm:p-5 min-w-0">
+          {/* Header & Status Banner */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-gray-100 pb-4 min-w-0">
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 mb-1.5 max-w-full">
+                <FaClipboardCheck className="text-teal-600 shrink-0" />
+                <span className="truncate">SECTION 6: METROLOGICAL RAW OBSERVATION WORKSHEET</span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-gray-950 flex items-center gap-2 flex-wrap">
+                Laboratory Calibration Observation &amp; Readings
+              </h2>
+              <p className="text-xs text-gray-500">
+                Record environmental laboratory ambient parameters, master standard proving ring details, and raw test trials (IS 1828 / ISO 7500-1 / ISO/IEC 17025)
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto xl:justify-end">
+              {(() => {
+                const { isLocked: isObsLocked } = getObservationLockState(activeObsRecord);
+                const matchedTemplate = findTemplateForInstrument(activeObsRecord, obsTemplates);
+                const currentSelectedTemplate = (activeObsTemplateId ? obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId)) : null) || matchedTemplate || null;
+                const hasFormatAvailable = Boolean(
+                  currentSelectedTemplate ||
+                  (activeObsRecord?.observationData?.tableColumns && activeObsRecord.observationData.tableColumns.length > 0) ||
+                  (obsTableColumns && obsTableColumns.length > 0)
+                );
+
+                if (isObsLocked) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1.5 bg-blue-100 text-blue-900 border border-blue-300 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
+                        <FaLock className="text-blue-700" /> View-Only • Locked
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => activeObsRecord && openDocViewer("observation_sheet", activeObsRecord)}
+                        className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+                        title="Preview Official Raw Observation Sheet PDF"
+                      >
+                        <FaFilePdf className="text-teal-700" /> View Worksheet PDF
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => activeObsRecord && openDocViewer("observation_sheet", activeObsRecord)}
+                      disabled={!activeObsRecord || !hasFormatAvailable}
+                      className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                      title="Preview Official Raw Observation Sheet PDF"
+                    >
+                      <FaFilePdf className="text-teal-700" /> View Worksheet PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveObservation("Draft")}
+                      disabled={isObsSaving || !activeObsRecord || !hasFormatAvailable}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaEdit />} Save Draft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveObservation("Submitted")}
+                      disabled={isObsSaving || !activeObsRecord || !hasFormatAvailable}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                      {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaPaperPlane />} Submit for Quality Authorization 🚀
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Observation Submission Success Banner */}
+          {obsSubmissionSuccess && (
+            <div className="bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0">
+                  <FaCheckCircle className="text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-extrabold text-sm">{obsSubmissionSuccess.message}</h4>
+                  <p className="text-xs text-white/90 break-words">
+                    Worksheet for <strong>{obsSubmissionSuccess.instrument}</strong> (S/N: {obsSubmissionSuccess.serialNo} • DC: {obsSubmissionSuccess.dcNo}) is now locked and submitted for Quality Manager review.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* OBSERVATION KPI MINI DASHBOARD (Technician Calibration Queue & Live Stats) */}
+          {/* ========================================================================= */}
+          <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 rounded-2xl p-4 text-white shadow-md border border-teal-900/40 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-sm">
+                  📊
+                </span>
+                <div>
+                  <h3 className="text-sm font-extrabold tracking-wide uppercase flex items-center gap-2 text-white">
+                    <span>Observation Queue &amp; Calibration Dashboard</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-normal lowercase tracking-normal border border-teal-500/30">
+                      technician live workbench
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-teal-200/80">
+                    Live tracking of customer quotation approvals, pending raw test sheets, locked reviews, and issued certificates.
+                  </p>
+                </div>
+              </div>
+
+              {/* Reset Filter Button */}
+              {obsStatusFilter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectObsStatusFilter("all")}
+                  className="px-2.5 py-1 text-[11px] font-bold text-teal-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg transition border border-white/20 flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                >
+                  <FaUndo className="text-[9px]" /> Reset Filter ({filteredObsRecords.length} Showing)
+                </button>
+              )}
+            </div>
+
+            {/* 5 KPI Metric Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+              {/* 1. Total Calibration Queue */}
+              <div
+                onClick={() => handleSelectObsStatusFilter("all")}
+                className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                  obsStatusFilter === "all"
+                    ? "bg-white/15 border-teal-400 shadow-md ring-2 ring-teal-400/50"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+                title="Click to view all calibration equipments"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-teal-200 uppercase tracking-wider">
+                    Total Queue
+                  </span>
+                  <div className="w-6 h-6 rounded-md bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs">
+                    <FaTools />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white">
+                    {obsKpiStats.totalEquipments}
+                  </span>
+                  <span className="text-[10px] text-teal-200">Equipments</span>
+                </div>
+                <div className="text-[10px] text-teal-300/80 flex items-center gap-1 mt-1 truncate">
+                  <FaBuilding className="text-[9px]" /> {obsKpiStats.uniqueClients} Unique Clients
+                </div>
+              </div>
+
+              {/* 2. Quotation Done / Ready to Calibrate */}
+              <div
+                onClick={() => handleSelectObsStatusFilter("quotation_done")}
+                className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                  obsStatusFilter === "quotation_done"
+                    ? "bg-emerald-500/20 border-emerald-400 shadow-md ring-2 ring-emerald-400/50"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+                title="Click to view instruments where customer has approved quotation"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-emerald-300 uppercase tracking-wider">
+                    Quotation Done
+                  </span>
+                  <div className="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xs">
+                    <FaCheckDouble />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-emerald-400">
+                    {obsKpiStats.quotationDoneCount}
+                  </span>
+                  <span className="text-[10px] text-emerald-200">Approved</span>
+                </div>
+                <div className="text-[10px] text-emerald-300/90 font-medium mt-1 truncate">
+                  ✓ Ready for Calibration
+                </div>
+              </div>
+
+              {/* 3. Pending to Fill (Remaining) */}
+              <div
+                onClick={() => handleSelectObsStatusFilter("pending")}
+                className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                  obsStatusFilter === "pending"
+                    ? "bg-amber-500/20 border-amber-400 shadow-md ring-2 ring-amber-400/50"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+                title="Click to view instruments remaining / yet to fill observation"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-amber-300 uppercase tracking-wider">
+                    Pending to Fill
+                  </span>
+                  <div className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs">
+                    <FaClock />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-amber-400">
+                    {obsKpiStats.pendingCount}
+                  </span>
+                  <span className="text-[10px] text-amber-200">Remaining</span>
+                </div>
+                <div className="text-[10px] text-amber-300/90 font-medium mt-1 truncate">
+                  ⏳ Draft / Incomplete
+                </div>
+              </div>
+
+              {/* 4. Filled & Locked */}
+              <div
+                onClick={() => handleSelectObsStatusFilter("locked")}
+                className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                  obsStatusFilter === "locked"
+                    ? "bg-blue-500/20 border-blue-400 shadow-md ring-2 ring-blue-400/50"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+                title="Click to view instruments filled and locked for Quality Authorization"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-blue-300 uppercase tracking-wider">
+                    Filled &amp; Locked
+                  </span>
+                  <div className="w-6 h-6 rounded-md bg-blue-500/20 text-blue-300 flex items-center justify-center text-xs">
+                    <FaLock />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-blue-300">
+                    {obsKpiStats.lockedCount}
+                  </span>
+                  <span className="text-[10px] text-blue-200">Locked</span>
+                </div>
+                <div className="text-[10px] text-blue-300/90 font-medium mt-1 truncate">
+                  🔒 In Section 7 Review
+                </div>
+              </div>
+
+              {/* 5. Approved & Certified */}
+              <div
+                onClick={() => handleSelectObsStatusFilter("approved")}
+                className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between col-span-2 md:col-span-1 ${
+                  obsStatusFilter === "approved"
+                    ? "bg-teal-500/20 border-teal-400 shadow-md ring-2 ring-teal-400/50"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+                title="Click to view passed instruments with certificates issued"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-teal-300 uppercase tracking-wider">
+                    Approved / Pass
+                  </span>
+                  <div className="w-6 h-6 rounded-md bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs">
+                    <FaAward />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-teal-400">
+                    {obsKpiStats.approvedCount}
+                  </span>
+                  <span className="text-[10px] text-teal-200">Done</span>
+                </div>
+                <div className="text-[10px] text-teal-300/90 font-medium mt-1 truncate">
+                  🏆 Certificate Issued
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Instrument Quick Selector & Active Profile Card */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start min-w-0">
+            {/* Selector Sidebar */}
+            <div className="lg:col-span-4 min-w-0 bg-slate-50 rounded-2xl border border-slate-200 p-3 sm:p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaTools className="text-teal-600" /> Active Queue ({filteredObsRecords.length})
+                </span>
+                <span className="text-[10px] font-bold font-mono bg-white px-2 py-0.5 rounded-full border border-slate-200 text-slate-600">
+                  {records.length} Total
+                </span>
+              </div>
+
+              {/* Quick Filter Pill Buttons */}
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { key: "all", label: `All (${obsKpiStats.totalEquipments})`, color: "bg-slate-200 text-slate-800" },
+                  { key: "quotation_done", label: `Qtn Done (${obsKpiStats.quotationDoneCount})`, color: "bg-emerald-100 text-emerald-800" },
+                  { key: "pending", label: `Pending (${obsKpiStats.pendingCount})`, color: "bg-amber-100 text-amber-800" },
+                  { key: "locked", label: `Locked (${obsKpiStats.lockedCount})`, color: "bg-blue-100 text-blue-800" },
+                  { key: "approved", label: `Pass (${obsKpiStats.approvedCount})`, color: "bg-teal-100 text-teal-800" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => handleSelectObsStatusFilter(tab.key)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer border ${
+                      obsStatusFilter === tab.key
+                        ? `${tab.color} border-current ring-1 ring-current shadow-2xs`
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search, Client & Release Date Filter */}
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Search by Instrument or S/N..."
+                  value={obsSearchTerm}
+                  onChange={(e) => setObsSearchTerm(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500"
+                />
+                <select
+                  value={obsFilterClient}
+                  onChange={(e) => setObsFilterClient(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 text-slate-700"
+                >
+                  <option value="all">All Client Companies</option>
+                  {Array.from(new Set(records.map((r) => r.clientCompany).filter(Boolean))).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={obsDateFilter}
+                    onChange={(e) => setObsDateFilter(e.target.value)}
+                    className="flex-1 text-xs px-2.5 py-1.5 bg-cyan-50/70 border border-cyan-200 rounded-xl focus:outline-none focus:border-teal-500 text-slate-800 font-bold"
+                    title="Filter Observation Queue by Permitted Calibration Date"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setObsDateFilter(new Date().toISOString().slice(0, 10))}
+                    className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[10px] font-bold cursor-pointer shrink-0"
+                    title="Show today's permitted equipments"
+                  >
+                    Today
+                  </button>
+                  {obsDateFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setObsDateFilter("")}
+                      className="p-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] cursor-pointer shrink-0"
+                      title="Clear date filter"
+                    >
+                      <FaTimes />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable Instrument List */}
+              <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1">
+                {filteredObsRecords.length === 0 ? (
+                  <div className="p-6 text-center text-slate-500 bg-white rounded-xl border border-dashed border-slate-300 space-y-2">
+                    <p className="text-xs font-bold text-slate-700">No matching instrument found</p>
+                    <p className="text-[10px] text-slate-400">
+                      {obsDateFilter
+                        ? `No equipments permitted for calibration on ${obsDateFilter}.`
+                        : "Only equipments with Commercial Status Done & Lab Permission granted appear here."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setObsDateFilter("");
+                        handleSelectObsStatusFilter("all");
+                      }}
+                      className="px-2.5 py-1 text-[10px] font-bold bg-teal-600 text-white rounded-lg shadow-xs hover:bg-teal-700 transition cursor-pointer"
+                    >
+                      View All Permitted Instruments
+                    </button>
+                  </div>
+                ) : (
+                  filteredObsRecords.map((r) => {
+                    const isSelected = r._id === selectedObsInstrumentId;
+                    const obsStatus = r.observationData?.status || "Draft";
+                    const hasReadings = Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0;
+                    const isAuthApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+                    const isQtnDone = isCommercialStatusDone(r);
+                    const labDt = getRecordLabDate(r);
+
+                    return (
+                      <div
+                        key={r._id}
+                        onClick={() => handleSelectActiveInstrument(r)}
+                        className={`p-3 rounded-xl border text-xs cursor-pointer transition flex flex-col gap-1.5 ${
+                          isSelected
+                            ? "bg-teal-50/80 border-teal-500 shadow-xs ring-1 ring-teal-400"
+                            : "bg-white border-slate-200 hover:bg-slate-100/70"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 min-w-0">
+                          <span className="font-extrabold text-slate-900 truncate min-w-0 flex-1">
+                            {r.instrument}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isAuthApproved ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                PASS ✅
+                              </span>
+                            ) : obsStatus === "Submitted" ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300">
+                                Locked 🔒
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Pending 📝
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600 font-mono min-w-0">
+                          <span className="truncate min-w-0">S/N: <strong>{r.serialNo}</strong></span>
+                          <span className="text-slate-400 shrink-0">{r.dcNo}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 mt-0.5 min-w-0">
+                          <p className="text-[10px] text-slate-500 truncate min-w-0 flex-1">{r.clientCompany}</p>
+                          <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                            {labDt && (
+                              <span className="text-[8.5px] font-bold px-1.5 py-0.2 rounded border bg-cyan-50 text-cyan-800 border-cyan-200 font-mono">
+                                📅 {toSafeLocaleDate(labDt, "-")}
+                              </span>
+                            )}
+                            {isQtnDone && (
+                              <span className="text-[8.5px] font-bold px-1.5 py-0.2 rounded border bg-emerald-50 text-emerald-700 border-emerald-300">
+                                Permitted ✓
+                              </span>
+                            )}
+                            {(() => {
+                              const instL = (r.instrument || "").toLowerCase();
+                              const badge = instL.includes("weigh") || instL.includes("balance")
+                                ? { label: "Mass", color: "bg-blue-50 text-blue-700 border-blue-200" }
+                                : instL.includes("caliper") || instL.includes("vernier") || instL.includes("flakiness")
+                                ? { label: "Dimension", color: "bg-emerald-50 text-emerald-700 border-emerald-200" }
+                                : instL.includes("pressure") || instL.includes("gauge")
+                                ? { label: "Pressure", color: "bg-amber-50 text-amber-700 border-amber-200" }
+                                : { label: "Force", color: "bg-purple-50 text-purple-700 border-purple-200" };
+                              return (
+                                <span className={`text-[8.5px] font-bold px-1.5 py-0.2 rounded border ${badge.color}`}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Main Worksheet Editor */}
+            <div className="lg:col-span-8 min-w-0 space-y-4">
+              {activeObsRecord ? (
+                <>
+                  {/* Active Record Status Card */}
+                  <div className="bg-gradient-to-r from-slate-900 via-[#021C57] to-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-3 min-w-0 overflow-hidden">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/40 font-mono whitespace-nowrap">
+                          DC: {activeObsRecord.dcNo}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/40 font-mono whitespace-nowrap">
+                          S/N: {activeObsRecord.serialNo}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 font-mono whitespace-nowrap">
+                          📅 Permitted Date: {toSafeLocaleDate(getRecordLabDate(activeObsRecord), "Today")}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-white break-words">
+                        {activeObsRecord.instrument}
+                      </h3>
+                      <p className="text-xs text-slate-300 break-words">
+                        Client: <strong>{activeObsRecord.clientCompany}</strong> • Make: {activeObsRecord.make || "ARCL"} • Range: {activeObsRecord.instrumentRange || "Standard"}
+                      </p>
+                    </div>
+
+                    {/* Status Action Pills */}
+                    <div className="flex flex-col items-start xl:items-end gap-1.5 min-w-0 max-w-full">
+                      {(() => {
+                        const { isAuthApproved: isApproved } = getObservationLockState(activeObsRecord);
+                        if (isApproved) {
+                          return (
+                            <div className="text-left xl:text-right">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500 text-white shadow-xs whitespace-nowrap">
+                                <FaAward /> PASS &amp; CERTIFICATE ISSUED
+                              </span>
+                              <p className="text-[10px] text-emerald-300 font-mono mt-0.5 font-bold whitespace-nowrap">
+                                Cert No: {activeObsRecord.records?.certificateNo || activeObsRecord.authorizationData?.certificateNo}
+                              </p>
+                            </div>
+                          );
+                        }
+                        if (activeObsRecord.observationData?.status === "Submitted" || activeObsRecord.observationData?.status === "Authorized") {
+                          return (
+                            <div className="text-left xl:text-right">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-500 text-slate-950 shadow-xs animate-pulse whitespace-nowrap">
+                                <FaClock /> IN QUALITY AUTHORIZATION QUEUE
+                              </span>
+                            </div>
+                          );
+                        }
+                        const isCommDone = isCommercialStatusDone(activeObsRecord);
+                        const isPermitted = isRecordLabPermitted(activeObsRecord);
+                        if (!isCommDone || !isPermitted) {
+                          const qSt = getBatchQuotationStatus(activeObsRecord);
+                          return (
+                            <div className="bg-amber-500/15 border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs text-amber-200 flex flex-wrap items-center gap-2 max-w-full">
+                              <FaLock className="text-amber-400 shrink-0 text-sm" />
+                              <span className="min-w-0">
+                                {!isCommDone ? (
+                                  <><strong>Commercial Status Pending ({qSt}):</strong> Set to &quot;Approved by Client&quot; or &quot;PO Confirmed&quot; in Tab 2 first.</>
+                                ) : (
+                                  <><strong>Held in Quotation:</strong> Lab Permission not granted for this equipment yet.</>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab("quotations")}
+                                className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded text-[10px] shrink-0 cursor-pointer"
+                              >
+                                Go to Quotations →
+                              </button>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 whitespace-nowrap">
+                            <FaCheckCircle className="text-emerald-400" /> Permitted &amp; Ready to Fill Readings
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Dynamic Format Selector & Interactive Workspace */}
+                  {(() => {
+                    const matchedTemplate = findTemplateForInstrument(activeObsRecord, obsTemplates);
+                    const currentSelectedTemplate = (activeObsTemplateId ? obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId)) : null) || matchedTemplate || null;
+                    const resolvedPdfUrl = activeObsPdfUrl || activeObsRecord?.observationData?.pdfUrl || currentSelectedTemplate?.pdfUrl || null;
+                    
+                    const apiBase = (API?.defaults?.baseURL || "http://localhost:5000/api/v1").replace(/\/+$/, "");
+                    const backendRoot = apiBase.replace(/\/api\/v1$/, "");
+
+                    const getDocumentStreamUrl = () => {
+                      if (currentSelectedTemplate?._id) {
+                        return `${apiBase}/client/calibration/observation-templates/${currentSelectedTemplate._id}/pdf?instrument=${encodeURIComponent(activeObsRecord?.instrument || "")}`;
+                      }
+                      if (resolvedPdfUrl) {
+                        if (resolvedPdfUrl.startsWith("http://") || resolvedPdfUrl.startsWith("https://") || resolvedPdfUrl.startsWith("blob:") || resolvedPdfUrl.startsWith("data:")) {
+                          return resolvedPdfUrl;
+                        }
+                        return `${backendRoot}${resolvedPdfUrl.startsWith("/") ? "" : "/"}${resolvedPdfUrl}`;
+                      }
+                      return null;
+                    };
+
+                    const pdfStreamUrl = getDocumentStreamUrl();
+                    const isExcelDocument = Boolean(
+                      currentSelectedTemplate?.fileType === "xlsx" ||
+                      currentSelectedTemplate?.pdfFileName?.match(/\.(xlsx|xls|csv)$/i) ||
+                      resolvedPdfUrl?.match(/\.(xlsx|xls|csv)$/i)
+                    );
+
+                    const { isLocked: isObsLocked, isAuthApproved, isReturned: isObsReturned } = getObservationLockState(activeObsRecord);
+
+                    const hasFormatAvailable = Boolean(
+                      currentSelectedTemplate ||
+                      (activeObsRecord?.observationData?.tableColumns && activeObsRecord.observationData.tableColumns.length > 0) ||
+                      (obsTableColumns && obsTableColumns.length > 0) ||
+                      resolvedPdfUrl
+                    );
+
+                    {/* 1. IF LOCKED: Strictly Read-Only Snapshot (No Edit, No Unlock until Quality Authorization returns it) */}
+                    if (isObsLocked) {
+                      const lockedObs = activeObsRecord?.observationData || {};
+                      const lockedCols = (obsTableColumns && obsTableColumns.length > 0)
+                        ? obsTableColumns
+                        : (Array.isArray(lockedObs.tableColumns) ? lockedObs.tableColumns : []);
+                      const lockedRows = (obsReadings && obsReadings.length > 0)
+                        ? obsReadings
+                        : (Array.isArray(lockedObs.readings) ? lockedObs.readings : []);
+                      const lockedMasters = (obsMasterEquipments && obsMasterEquipments.length > 0
+                        ? obsMasterEquipments
+                        : (Array.isArray(lockedObs.masterEquipments) && lockedObs.masterEquipments.length > 0
+                            ? lockedObs.masterEquipments
+                            : [{
+                                description: obsMasterDescription,
+                                idMark: obsMasterId,
+                                certNo: obsMasterCertNo,
+                                dueDate: obsMasterDueDate,
+                                traceableBy: obsMasterTraceable,
+                              }])).filter((m) => m && (m.description || m.idMark || m.certNo));
+                      const hasExactSnapshot = Boolean(
+                        obsExactMode &&
+                        Array.isArray(currentSelectedTemplate?.exactSheets) &&
+                        currentSelectedTemplate.exactSheets.length > 0
+                      );
+
+                      return (
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 sm:p-5 space-y-5 animate-fadeIn min-w-0 overflow-hidden">
+                          {/* Responsive Locked Banner (Zero Unlock Controls) */}
+                          <div className={`text-white rounded-2xl p-4 sm:p-5 shadow-md border overflow-hidden ${
+                            isAuthApproved
+                              ? "bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 border-emerald-400/30"
+                              : "bg-gradient-to-r from-blue-900 via-indigo-950 to-slate-900 border-blue-400/30"
+                          }`}>
+                            <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 min-w-0">
+                              <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+                                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-xl sm:text-2xl shrink-0 border border-white/20">
+                                  {isAuthApproved ? <FaAward className="text-amber-300" /> : <FaLock className="text-amber-300" />}
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-sm sm:text-base lg:text-lg font-black tracking-wide leading-snug">
+                                      {isAuthApproved ? "Certificate Officially Issued & Authorized ✅" : "Observation Worksheet Locked & Submitted 🔒"}
+                                    </h3>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white text-slate-900 uppercase font-mono whitespace-nowrap shrink-0">
+                                      {isAuthApproved ? (activeObsRecord.records?.certificateNo || "Approved") : "Quality Review (Sec 7)"}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-blue-100/90 max-w-2xl leading-relaxed break-words">
+                                    {isAuthApproved
+                                      ? "Certificate issued and authorized. This saved observation data is locked in read-only view and cannot be edited or unlocked unless Quality Authorization (Section 7) returns it."
+                                      : "This observation worksheet has been locked by the Calibration Engineer. You can view your submitted readings below, and editing stays disabled until Quality Authorization (Section 7) returns it."}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 w-full 2xl:w-auto 2xl:justify-end">
+                                <span className="px-3 py-2 bg-white/10 text-amber-200 border border-white/25 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 whitespace-nowrap">
+                                  <FaLock className="text-[11px]" /> Read-Only Locked
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openDocViewer("observation_sheet", activeObsRecord)}
+                                  className="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+                                >
+                                  <FaFilePdf className="text-slate-950 text-xs shrink-0" /> View Official Raw Sheet PDF
+                                </button>
+                                {isAuthApproved && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openDocViewer("certificate", activeObsRecord)}
+                                    className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black rounded-xl text-xs shadow-md transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+                                  >
+                                    <FaAward className="text-xs shrink-0" /> View Certificate PDF
+                                  </button>
+                                )}
+                                {activeObsRecord?.observationData?.hardCopyScan?.url && (() => {
+                                  const rawScanUrl = activeObsRecord.observationData.hardCopyScan.url;
+                                  const fullScanUrl = /^(https?:|blob:|data:)/i.test(rawScanUrl)
+                                    ? rawScanUrl
+                                    : `${backendRoot}${rawScanUrl.startsWith("/") ? "" : "/"}${rawScanUrl}`;
+                                  return (
+                                    <a
+                                      href={fullScanUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white border border-white/30 font-bold rounded-xl text-xs transition inline-flex items-center gap-1.5 whitespace-nowrap"
+                                      title="View attached filled hard-copy observation scan"
+                                    >
+                                      <FaPaperclip className="text-xs shrink-0" /> Hard-Copy Scan
+                                    </a>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Summary Details Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs min-w-0">
+                            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1 min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-slate-500">Worksheet No.</span>
+                              <p className="font-mono font-black text-slate-900 text-sm truncate">{obsWorksheetNo || `WS-ARCL-2026-${activeObsRecord.serialNo}`}</p>
+                              <span className="text-[10px] text-slate-500 block truncate">Format: {currentSelectedTemplate?.parameters?.formatNo || obsFormatNo || "ARCL/OB/01"}</span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1 min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-slate-500">Instrument</span>
+                              <p className="font-black text-slate-900 text-sm truncate">{activeObsRecord.instrument}</p>
+                              <span className="text-[10px] text-slate-500 font-mono block truncate">S/N: {activeObsRecord.serialNo} • {activeObsRecord.make || "ARCL"}</span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1 min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-slate-500">Client Company</span>
+                              <p className="font-extrabold text-slate-900 text-sm truncate">{activeObsRecord.clientCompany}</p>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                DC: {activeObsRecord.dcNo}
+                                {(activeObsRecord.records?.ulrNo || activeObsRecord.inwardRegister?.ulrNo || lockedObs.ulrNo) ? ` • ULR: ${activeObsRecord.records?.ulrNo || activeObsRecord.inwardRegister?.ulrNo || lockedObs.ulrNo}` : ""}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1 min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-slate-500">Submission Info</span>
+                              <p className="font-bold text-slate-800 text-xs truncate">
+                                Calibrated By: <strong className="font-mono text-slate-900">{lockedObs.calibratedBySite || lockedObs.calibratedBy || obsCalibratedBySite || obsCalibratedBy || "VK"}</strong>
+                              </p>
+                              <span className="text-[10px] text-emerald-700 font-semibold block truncate">
+                                {lockedRows.length} measurement points locked
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Read-Only Locked Worksheet Data Preview */}
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 overflow-hidden min-w-0">
+                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FaLock className="text-slate-600 text-xs shrink-0" />
+                                <span className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
+                                  Locked Observation Details (View Only)
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-300 whitespace-nowrap">
+                                Locked • Edits Blocked Until Returned by Section 7
+                              </span>
+                            </div>
+
+                            {hasExactSnapshot ? (
+                              <div className="bg-white overflow-x-auto min-w-0">
+                                <ExactSheetRenderer
+                                  exactSheets={currentSelectedTemplate.exactSheets}
+                                  values={lockedObs.exactSheetValues && Object.keys(lockedObs.exactSheetValues).length > 0 ? lockedObs.exactSheetValues : obsExactSheetValues}
+                                  allowAddRows={false}
+                                  readOnly={true}
+                                  pdfUrl={pdfStreamUrl}
+                                  title={`${currentSelectedTemplate.name} (${activeObsRecord.clientCompany || "Client"})`}
+                                />
+                              </div>
+                            ) : (
+                              <div className="p-3 sm:p-4 space-y-4 bg-white min-w-0">
+                                {/* Locked Environmental & Method Metadata */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Environmental Conditions</span>
+                                    <p className="font-bold text-slate-900 mt-0.5">Temp: {obsTemperature || "-"} • RH: {obsHumidity || "-"}</p>
+                                  </div>
+                                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Range &amp; Least Count</span>
+                                    <p className="font-bold text-slate-900 mt-0.5">{obsRange || "-"} • LC: {obsLeastCount || "-"}</p>
+                                  </div>
+                                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Method &amp; Reference</span>
+                                    <p className="font-bold text-slate-900 mt-0.5 truncate" title={`${obsCalibrationMethod || "-"} / ${obsReferenceStandard || "-"}`}>
+                                      {obsCalibrationMethod || "-"} • {obsReferenceStandard || "-"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Locked Master Equipments */}
+                                {lockedMasters.length > 0 && (
+                                  <div className="rounded-xl border border-slate-200 overflow-x-auto min-w-0">
+                                    <table className="w-full text-left text-[11px] border-collapse">
+                                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                        <tr>
+                                          <th className="px-3 py-1.5">Master Equipment</th>
+                                          <th className="px-3 py-1.5">ID Mark</th>
+                                          <th className="px-3 py-1.5">Certificate No.</th>
+                                          <th className="px-3 py-1.5">Due Date</th>
+                                          <th className="px-3 py-1.5">Traceability</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200">
+                                        {lockedMasters.map((m, mIdx) => (
+                                          <tr key={mIdx} className="bg-white">
+                                            <td className="px-3 py-1.5 font-semibold text-slate-900">{m.description || "-"}</td>
+                                            <td className="px-3 py-1.5 font-mono text-slate-700">{m.idMark || "-"}</td>
+                                            <td className="px-3 py-1.5 font-mono text-slate-700">{m.certNo || "-"}</td>
+                                            <td className="px-3 py-1.5 font-mono text-slate-700">{m.dueDate || "-"}</td>
+                                            <td className="px-3 py-1.5 text-slate-700">{m.traceableBy || "-"}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+
+                                {/* Locked Readings Table */}
+                                {lockedCols.length > 0 && lockedRows.length > 0 ? (
+                                  <div className="rounded-xl border border-slate-300 overflow-x-auto min-w-0">
+                                    <table className="w-full text-center text-[11px] border-collapse">
+                                      <thead className="bg-slate-100 text-slate-900 font-bold border-b border-slate-300">
+                                        <tr className="divide-x divide-slate-200">
+                                          {lockedCols.map((col, cIdx) => (
+                                            <th key={col.key || cIdx} className="px-2.5 py-2 min-w-[90px]">
+                                              <div>{col.label || col.key}</div>
+                                              {col.unit && <div className="text-[9.5px] font-normal text-slate-500">({col.unit})</div>}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200 bg-white">
+                                        {lockedRows.map((row, rIdx) => (
+                                          <tr key={rIdx} className="divide-x divide-slate-200">
+                                            {lockedCols.map((col, cIdx) => {
+                                              const cellVal = row?.[col.key];
+                                              return (
+                                                <td key={col.key || cIdx} className="px-2.5 py-1.5 font-mono text-slate-900">
+                                                  {cellVal !== undefined && cellVal !== null && cellVal !== "" ? String(cellVal) : "-"}
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-slate-500 italic bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                    No tabular reading rows recorded on this sheet — open Official Raw Sheet PDF above to inspect full details.
+                                  </div>
+                                )}
+
+                                {/* Repeatability & Signatories Summary */}
+                                {(obsRepeatabilityReadings.some(Boolean) || obsRemarks) && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
+                                    {obsRepeatabilityReadings.some(Boolean) && (
+                                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Repeatability MU Readings</span>
+                                        <p className="font-mono font-bold text-slate-900 mt-0.5 break-all">
+                                          {obsRepeatabilityReadings.filter(Boolean).join(", ")}
+                                          {repeatabilityStats.count >= 2 ? ` (Mean: ${repeatabilityStats.mean}, s: ${repeatabilityStats.stdDev})` : ""}
+                                        </p>
+                                      </div>
+                                    )}
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                      <span className="text-[10px] font-bold text-slate-500 uppercase">Signatories &amp; Remarks</span>
+                                      <p className="text-slate-800 font-semibold mt-0.5">
+                                        Calibrated By: <strong className="font-mono">{obsCalibratedBySite || obsCalibratedBy || "VK"}</strong> • Reviewed By: <strong className="font-mono">{activeObsRecord.authorizationData?.authorizedBy || authSignatoryName}</strong>
+                                      </p>
+                                      {obsRemarks && <p className="text-[11px] text-slate-600 mt-0.5 break-words">{obsRemarks}</p>}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Lock Enforcement Footer Notice */}
+                          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-start sm:items-center gap-3 min-w-0">
+                            <span className="text-2xl shrink-0">🔒</span>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-xs font-black text-teal-950">
+                                {isAuthApproved
+                                  ? "Worksheet Permanently Locked — Certificate Issued"
+                                  : "Worksheet Locked — Quality Review in Progress (Section 7)"}
+                              </h4>
+                              <p className="text-[11px] text-teal-800 break-words">
+                                Calibration Engineer cannot unlock or modify locked observations. It can only reopen if Quality Authorization (Section 7) explicitly returns it.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    {/* 2. IF FORMAT NOT AVAILABLE: Do NOT open wrong template, prompt to upload or choose */}
+                    if (!hasFormatAvailable) {
+                      return (
+                        <div className="bg-white rounded-2xl border-2 border-dashed border-amber-300 p-10 text-center flex flex-col items-center justify-center space-y-4 shadow-sm animate-fadeIn">
+                          <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center text-3xl">
+                            <FaExclamationTriangle />
+                          </div>
+                          <div className="max-w-md space-y-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 uppercase">
+                              Observation Format Not Available
+                            </span>
+                            <h3 className="text-base font-black text-slate-900 mt-2">
+                              No Format Template found for "{activeObsRecord.instrument}"
+                            </h3>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                              Client: <strong>{activeObsRecord.clientCompany}</strong> (S/N: {activeObsRecord.serialNo})<br />
+                              No Observation Worksheet format template has been assigned or uploaded for this equipment yet.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                            <label className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95">
+                              {isDirectUploadingFile ? (
+                                <>
+                                  <FaSync className="animate-spin text-xs" /> Uploading & Opening Sheet...
+                                </>
+                              ) : (
+                                <>
+                                  <FaFileExcel className="text-sm text-emerald-200" /> 📥 Upload Observation Sheet (.xlsx / .xls / .pdf)
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls,.pdf"
+                                className="hidden"
+                                disabled={isDirectUploadingFile}
+                                onChange={(e) => {
+                                  if (e.target.files?.[0]) {
+                                    handleDirectUploadObservationFile(e.target.files[0]);
+                                    e.target.value = "";
+                                  }
+                                }}
+                              />
+                            </label>
+                            {obsTemplates.length > 0 && (
+                              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300">
+                                <span className="text-[11px] font-bold text-slate-600 pl-2">Assign Existing:</span>
+                                <select
+                                  onChange={(e) => {
+                                    const t = obsTemplates.find((x) => x._id === e.target.value);
+                                    if (t) handleSelectObservationTemplate(t);
+                                  }}
+                                  defaultValue=""
+                                  className="px-2.5 py-1.5 bg-white text-slate-800 rounded-lg text-xs font-bold border border-slate-200 focus:outline-none cursor-pointer"
+                                >
+                                  <option value="" disabled>Choose from {obsTemplates.length} templates...</option>
+                                  {obsTemplates.map((t) => (
+                                    <option key={t._id} value={t._id}>
+                                      {t.name} ({t.equipmentType})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    {/* 3. IF FORMAT IS AVAILABLE & NOT LOCKED: Render 1:1 Live Fillable Worksheet Form */}
+                    return (
+                      <div className="space-y-4">
+                        {/* 1. Header Format Selector & View Mode Switcher */}
+                        <div className="bg-gradient-to-r from-teal-900 via-[#021C57] to-slate-900 text-white rounded-2xl p-4 shadow-md flex flex-col xl:flex-row xl:items-center justify-between gap-3 border border-teal-500/30 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 text-lg shrink-0">
+                              <FaTable />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300 truncate">
+                                Active Observation Format Template (PDF to Form)
+                              </div>
+                              <div className="text-sm font-black flex items-center gap-2 flex-wrap">
+                                <span className="truncate">{currentSelectedTemplate?.name || "Equipment Observation Format"}</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-teal-500/30 text-teal-200 border border-teal-400/30 font-semibold whitespace-nowrap">
+                                  {obsTableColumns?.length || currentSelectedTemplate?.tableColumns?.length || 6} Columns
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 max-w-full">
+                            {/* Equipment Format Dropdown */}
+                            <div className="flex items-center gap-1.5 bg-white/10 p-1 rounded-xl border border-white/20 shadow-xs max-w-full min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-teal-300 pl-1.5 shrink-0">Format:</span>
+                              <select
+                                value={activeObsTemplateId || currentSelectedTemplate?._id || ""}
+                                onChange={(e) => {
+                                  const t = obsTemplates.find((x) => x._id === e.target.value);
+                                  if (t) handleSelectObservationTemplate(t);
+                                  else {
+                                    setActiveObsTemplateId("");
+                                    setObsTableColumns([]);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-[#021C57] text-white rounded-lg text-xs font-bold focus:outline-none cursor-pointer border-0 max-w-[220px] sm:max-w-xs truncate"
+                              >
+                                {obsTemplates.map((t) => (
+                                  <option key={t._id} value={t._id} className="text-slate-900 bg-white">
+                                    {t.name} ({t.equipmentType})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+
+                            {/* Direct Excel / PDF Worksheet Upload */}
+                            <label className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                              {isDirectUploadingFile ? (
+                                <>
+                                  <FaSync className="animate-spin text-xs" /> Uploading & Opening Sheet...
+                                </>
+                              ) : (
+                                <>
+                                  <FaUpload className="text-xs" /> 📥 Upload / Replace Observation Sheet (.xlsx / .pdf)
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls,.pdf"
+                                className="hidden"
+                                disabled={isDirectUploadingFile}
+                                onChange={(e) => {
+                                  if (e.target.files?.[0]) {
+                                    handleDirectUploadObservationFile(e.target.files[0]);
+                                    e.target.value = "";
+                                  }
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab("templates")}
+                              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <FaSlidersH className="text-xs" /> All Formats ({obsTemplates.length})
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Return Feedback Banner (ONLY if QA explicitly returned this specific instrument with remarks) */}
+                        {isObsReturned && !isObsLocked && (activeObsRecord.observationData?.rejectionReason || activeObsRecord.authorizationData?.rejectionReason) && !dismissedReturnBanners[activeObsRecord?._id] && (
+                          <div className="bg-rose-50 border-2 border-rose-400 text-rose-950 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn min-w-0">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center text-xl shrink-0 mt-0.5">
+                                <FaExclamationTriangle />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-black text-xs uppercase tracking-wider bg-rose-200 text-rose-900 px-2 py-0.5 rounded">
+                                    RETURNED BY QUALITY AUTHORITY FOR CORRECTION
+                                  </span>
+                                </div>
+                                <p className="text-xs font-bold text-rose-950 mt-1 break-words">
+                                  Authority Feedback: &quot;{activeObsRecord.observationData?.rejectionReason || activeObsRecord.authorizationData?.rejectionReason || "Please verify readings and correct calibration values."}&quot;
+                                </p>
+                                <p className="text-[11px] text-rose-700 mt-0.5">
+                                  The form has been UNLOCKED so you can correct any errors. After correcting, click &quot;Submit for Quality Authorization&quot; again.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setDismissedReturnBanners((prev) => ({ ...prev, [activeObsRecord._id]: true }))}
+                              className="px-3 py-1.5 bg-rose-200 hover:bg-rose-300 text-rose-900 rounded-xl text-xs font-bold transition cursor-pointer self-start sm:self-center shrink-0"
+                            >
+                              ✕ Dismiss Banner
+                            </button>
+                          </div>
+                        )}
+
+                        {/* 1.5 Multi-Mode Observation Input Assistant (Manual / Scan Hard Copy / Voice Bol Ke) */}
+                        <div ref={obsAssistantSectionRef}>
+                          <ObservationInputAssistant
+                            key={activeObsRecord?._id || "obs-assistant"}
+                            activeRecord={activeObsRecord}
+                            activeTemplate={currentSelectedTemplate}
+                            tableColumns={obsTableColumns}
+                            readings={obsReadings}
+                            repeatabilityReadings={obsRepeatabilityReadings}
+                            exactSheetValues={obsExactSheetValues}
+                            onApplyExtractedData={handleApplyExtractedObservationData}
+                            onUpdateScannedCell={handleUpdateScannedCell}
+                            onUpdateScannedRepeatability={handleUpdateScannedRepeatability}
+                            onVoiceFillCell={handleVoiceFillObservationCell}
+                            onVoiceRevertCell={handleVoiceRevertObservationCell}
+                            onVoiceUpdateMeta={handleVoiceUpdateObservationMeta}
+                            onVoiceAddRow={handleAddReadingRow}
+                            hardCopyScan={activeObsRecord?.observationData?.hardCopyScan || null}
+                            inputMode={obsInputMode}
+                            onInputModeChange={setObsInputMode}
+                          />
+                        </div>
+
+                        {/* 2. Workspace Body: Direct Full-Width Fillable Observation Worksheet */}
+                        <div className="w-full space-y-4">
+                          {Array.isArray(currentSelectedTemplate?.exactSheets) && currentSelectedTemplate.exactSheets.length > 0 && (
+                            <div className="bg-slate-900 text-white rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 border border-slate-700 shadow-sm">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                  1:1 Cloned Digital Sheet
+                                </span>
+                                <span className="text-slate-300 text-[11px]">
+                                  Switch between the exact 1:1 uploaded sheet and the standard normalized ARCL form:
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() => setObsExactMode(true)}
+                                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                                    obsExactMode ? "bg-teal-500 text-slate-950 shadow-xs" : "text-slate-300 hover:text-white"
+                                  }`}
+                                >
+                                  📄 1:1 Same-to-Same Sheet ({currentSelectedTemplate.exactSheets.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setObsExactMode(false)}
+                                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                                    !obsExactMode ? "bg-indigo-500 text-white shadow-xs" : "text-slate-300 hover:text-white"
+                                  }`}
+                                >
+                                  📋 Standard ARCL Form
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {obsExactMode && Array.isArray(currentSelectedTemplate?.exactSheets) && currentSelectedTemplate.exactSheets.length > 0 ? (
+                            <div className="space-y-0 rounded-2xl border-2 border-slate-900 shadow-xl overflow-hidden bg-white">
+                              <ExactSheetRenderer
+                                exactSheets={currentSelectedTemplate.exactSheets}
+                                values={obsExactSheetValues}
+                                onCellChange={handleExactCellChange}
+                                onAddExtraRow={handleExactAddExtraRow}
+                                onRemoveExtraRow={handleExactRemoveExtraRow}
+                                allowAddRows={true}
+                                readOnly={isObsLocked}
+                                pdfUrl={pdfStreamUrl}
+                                title={`${currentSelectedTemplate.name} (${activeObsRecord.clientCompany || "Client"})`}
+                              />
+                              <div className="p-4 bg-slate-50 flex flex-col md:flex-row items-center justify-between gap-4 text-xs border-t-2 border-slate-900">
+                                <div className="space-y-0.5">
+                                  <div className="font-black text-[#002B66] text-xs tracking-wide">
+                                    ARCL INSTRUMENTS PRIVATE LIMITED • NABL &amp; ISO 9001:2015
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 font-medium">
+                                    1:1 Exact Uploaded Sheet Mode • Format No: {currentSelectedTemplate?.parameters?.formatNo || obsFormatNo || "ARCL/OB/01"}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => openObservationAssistantMode("scan")}
+                                    className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
+                                    title="Scan directly from hardware scanner, live camera, or upload filled sheet"
+                                  >
+                                    <FaPrint className="text-xs" /> Direct Scanner / Camera
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openObservationAssistantMode("voice")}
+                                    className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
+                                    title="Fill observation readings hands-free by speaking"
+                                  >
+                                    <FaMicrophone className="text-xs" /> Bol Ke Bharein
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveObservation("Draft")}
+                                    disabled={isObsSaving}
+                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                                  >
+                                    {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaEdit />} Save Draft
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveObservation("Submitted")}
+                                    disabled={isObsSaving}
+                                    className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+                                  >
+                                    {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaPaperPlane />} Submit for Quality Authorization 🚀
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                          /* Exact ARCL Metrological Observation Worksheet (1:1 Matching Sample PDF) */
+                          <div className="bg-white rounded-2xl border-2 border-slate-900 shadow-xl overflow-hidden text-slate-900 font-sans">
+                    {/* Top Studio Indicator Bar */}
+                    <div className="px-4 py-2 bg-gradient-to-r from-teal-50 via-white to-slate-50 border-b border-black flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-600 text-white shadow-2xs">
+                          ⚡ 1:1 Live Fillable Worksheet Form
+                        </span>
+                        <span className="text-xs font-bold text-slate-700">
+                          Matches Uploaded Format PDF
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-500 font-medium">
+                          Worksheet No: <strong className="font-mono text-slate-900">{obsWorksheetNo}</strong>
+                        </span>
+                        {activeObsRecord?.clientCompany && (
+                          <span className="text-slate-500 font-medium">
+                            Client: <strong className="text-slate-900 uppercase">{activeObsRecord.clientCompany}</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Official Document Container: White Document with exact black border grid matching PDF */}
+                    <div className="p-3 sm:p-5 bg-white space-y-0">
+                      {/* Document Outer Box */}
+                      <div className="border-2 border-black bg-white">
+                        
+                        {/* 1. Header Box: Logo on Left + Centered Company Name & Italic Underlined Title */}
+                        <div className="p-3 border-b-2 border-black flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+                          <div className="w-48 shrink-0 flex items-center justify-center sm:justify-start">
+                            <img
+                              src="/assets/LOGO.png"
+                              alt="ARCL Logo"
+                              className="h-14 object-contain"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = "none";
+                                if (e.target.nextSibling) e.target.nextSibling.style.display = "block";
+                              }}
+                            />
+                            <div className="hidden border border-[#002B66] rounded p-1 text-center bg-white">
+                              <span className="text-base font-black text-[#002B66] tracking-widest block leading-none">ARCL</span>
+                              <span className="text-[7px] font-bold text-[#002B66] block">Precision &amp; Quality</span>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 text-center space-y-0.5">
+                            <h1 className="text-lg sm:text-xl font-black text-slate-950 tracking-tight font-serif uppercase">
+                              ARCL Instruments Pvt. Ltd.
+                            </h1>
+                            <div className="text-sm sm:text-base font-bold italic underline text-slate-900">
+                              {currentSelectedTemplate?.name
+                                ? (currentSelectedTemplate.name.toLowerCase().includes("observation")
+                                    ? currentSelectedTemplate.name
+                                    : `Observation of ${currentSelectedTemplate.name}`)
+                                : (activeObsRecord?.instrument
+                                    ? `Observation of ${activeObsRecord.instrument}`
+                                    : "Observation Worksheet")}
+                            </div>
+                          </div>
+
+                          <div className="w-48 shrink-0 hidden sm:flex flex-col items-end text-[10px] text-slate-500 font-medium pr-1">
+                            <span>ISO/IEC 17025 Accredited</span>
+                            <span className="font-mono text-slate-700 font-bold">{currentSelectedTemplate?.parameters?.formatNo || obsFormatNo || "ARCL/OB/01"}</span>
+                          </div>
+                        </div>
+
+                        {/* 2. Top 7-Column Metadata Table (Exact 1:1 Matching NABL Header) */}
+                        <div className="overflow-x-auto border-b border-black">
+                          <table className="w-full text-center text-xs divide-y divide-black border-collapse">
+                            <thead className="bg-slate-50 font-bold divide-x divide-black text-[11px] text-slate-950">
+                              <tr>
+                                <th className="p-1.5 min-w-[90px]">Inward No.</th>
+                                <th className="p-1.5 min-w-[110px]">Date of Recipt</th>
+                                <th className="p-1.5 min-w-[115px]">Date of Calibration</th>
+                                <th className="p-1.5 min-w-[125px]">Next Due Date of Calibration</th>
+                                <th className="p-1.5 min-w-[95px]">Format No.</th>
+                                <th className="p-1.5 min-w-[95px]">Format Issue No.</th>
+                                <th className="p-1.5 min-w-[110px]">Format Issue Date</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-x divide-black bg-white font-medium text-[11px]">
+                              <tr>
+                                <td className="p-1">
+                                  <input
+                                    type="text"
+                                    value={obsInwardNo}
+                                    onChange={(e) => setObsInwardNo(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Inward No."
+                                    className="w-full text-center px-1 py-0.5 border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="date"
+                                    value={obsReceiptDate}
+                                    onChange={(e) => setObsReceiptDate(e.target.value)}
+                                    disabled={isObsLocked}
+                                    className="w-full text-center px-1 py-0.5 border border-slate-200 rounded font-medium text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="date"
+                                    value={obsCalibDate}
+                                    onChange={(e) => setObsCalibDate(e.target.value)}
+                                    disabled={isObsLocked}
+                                    className="w-full text-center px-1 py-0.5 border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="date"
+                                    value={obsDueDate}
+                                    onChange={(e) => setObsDueDate(e.target.value)}
+                                    disabled={isObsLocked}
+                                    className="w-full text-center px-1 py-0.5 border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="text"
+                                    value={obsFormatNo}
+                                    onChange={(e) => setObsFormatNo(e.target.value)}
+                                    disabled={isObsLocked}
+                                    className="w-full text-center font-mono font-bold px-1 py-0.5 border border-slate-200 rounded text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="text"
+                                    value={obsFormatIssueNo}
+                                    onChange={(e) => setObsFormatIssueNo(e.target.value)}
+                                    disabled={isObsLocked}
+                                    className="w-full text-center font-mono font-bold px-1 py-0.5 border border-slate-200 rounded text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <input
+                                    type="text"
+                                    value={obsFormatIssueDate}
+                                    onChange={(e) => setObsFormatIssueDate(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="DD-MM-YYYY"
+                                    className="w-full text-center px-1 py-0.5 border border-slate-200 rounded text-slate-900 focus:outline-none focus:border-teal-500 font-medium"
+                                  />
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Client Info Bar */}
+                        <div className="px-3 py-1.5 bg-slate-50 border-b border-black flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900">Calibrated for :</span>
+                            <span className="font-extrabold text-slate-950 uppercase">{activeObsRecord.clientCompany}</span>
+                            {obsClientAddress && <span className="text-slate-600 text-[11px] truncate max-w-xs">({obsClientAddress})</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-700">Worksheet No :</span>
+                            <input
+                              type="text"
+                              value={obsWorksheetNo}
+                              onChange={(e) => setObsWorksheetNo(e.target.value)}
+                              disabled={isObsLocked}
+                              className="font-mono font-bold text-blue-900 bg-white px-2 py-0.5 rounded border border-slate-300 text-xs w-40 text-center focus:outline-none focus:border-teal-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3. Sections 1 to 5: Two-Column Side-by-Side (50% / 50%) Layout */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 border-b border-black divide-y md:divide-y-0 md:divide-x divide-black text-xs">
+                          {/* Left Column: 1. Description of Equipment */}
+                          <div className="p-3 space-y-2 bg-white">
+                            <div className="font-bold text-[12px] text-slate-950 border-b border-slate-200 pb-1">
+                              1. Description of Equipment :
+                            </div>
+                            <div className="space-y-1.5 text-[11px]">
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Instrument Name</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsInstrumentName || activeObsRecord.instrument || ""}
+                                    onChange={(e) => handleUpdateInstrumentNameGlobally(activeObsRecord._id, e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Instrument Name"
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs font-bold text-slate-950 focus:outline-none focus:border-teal-500 bg-white"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Make/Model</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsMakeModel}
+                                    onChange={(e) => setObsMakeModel(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Make/Model"
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Sr. No./ID No.</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsSerialNo}
+                                    onChange={(e) => setObsSerialNo(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Sr. No./ID No."
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Range(mm)</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsRange}
+                                    onChange={(e) => setObsRange(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Range(mm)"
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Least Count</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsLeastCount}
+                                    onChange={(e) => setObsLeastCount(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Least Count"
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-12 items-center">
+                                <span className="col-span-5 font-semibold text-slate-700">Location</span>
+                                <span className="col-span-1 text-slate-500 font-bold">:</span>
+                                <div className="col-span-6">
+                                  <input
+                                    type="text"
+                                    value={obsLocation}
+                                    onChange={(e) => setObsLocation(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="Lab / Site Location"
+                                    className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Column: Sections 2, 3, 4, 5 */}
+                          <div className="divide-y divide-black bg-white">
+                            {/* 2. Condition of Item */}
+                            <div className="p-2.5 flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-950">2. Condition of Item :</span>
+                              <input
+                                type="text"
+                                value={obsConditionOfItem}
+                                onChange={(e) => setObsConditionOfItem(e.target.value)}
+                                disabled={isObsLocked}
+                                className="w-24 text-center font-bold px-1.5 py-0.5 border border-slate-300 rounded text-emerald-800 bg-emerald-50 focus:outline-none focus:border-teal-500"
+                              />
+                            </div>
+
+                            {/* 3. Environmental Conditions */}
+                            <div className="p-2.5 space-y-1 text-[11px]">
+                              <span className="font-bold text-slate-950 block">3. Environmental Conditions :</span>
+                              <div className="flex items-center gap-4 pl-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-slate-700 font-semibold">Temp. :</span>
+                                  <input
+                                    type="text"
+                                    value={obsTemperature}
+                                    onChange={(e) => setObsTemperature(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="(20±2)°C"
+                                    className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-center text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-slate-700 font-semibold">RH :</span>
+                                  <input
+                                    type="text"
+                                    value={obsHumidity}
+                                    onChange={(e) => setObsHumidity(e.target.value)}
+                                    disabled={isObsLocked}
+                                    placeholder="(30-80)%"
+                                    className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-center text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 4. Method of Calibration */}
+                            <div className="p-2.5 flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-950">4. Method of Calibration :</span>
+                              <input
+                                type="text"
+                                value={obsCalibrationMethod}
+                                onChange={(e) => setObsCalibrationMethod(e.target.value)}
+                                disabled={isObsLocked}
+                                placeholder="ARCL-CP-05"
+                                className="w-48 text-center font-bold px-1.5 py-0.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-teal-500"
+                              />
+                            </div>
+
+                            {/* 5. Reference Standard */}
+                            <div className="p-2.5 flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-950">5. Reference Standard :</span>
+                              <input
+                                type="text"
+                                value={obsReferenceStandard}
+                                onChange={(e) => setObsReferenceStandard(e.target.value)}
+                                disabled={isObsLocked}
+                                placeholder="IS 2386 (part-1)-1993 & NABL 129"
+                                className="w-56 text-center font-bold px-1.5 py-0.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-teal-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 4. Section 6: Details of Master Equipment */}
+                        <div className="border-b border-black text-xs">
+                          <div className="p-1.5 font-bold text-[12px] bg-slate-100 border-b border-black text-slate-950 flex items-center justify-between">
+                            <span>6. Details of Master Equipment :</span>
+                            {!isObsLocked && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setObsMasterEquipments((prev) => [
+                                    ...(prev && prev.length > 0
+                                      ? prev
+                                      : [
+                                          {
+                                            description: obsMasterDescription || "",
+                                            idMark: obsMasterId || "",
+                                            certNo: obsMasterCertNo || "",
+                                            dueDate: obsMasterDueDate || "",
+                                            traceableBy: obsMasterTraceable || "",
+                                          },
+                                        ]),
+                                    { description: "", idMark: "", certNo: "", dueDate: "", traceableBy: "CC-2660" },
+                                  ])
+                                }
+                                className="px-2 py-0.5 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded cursor-pointer transition"
+                              >
+                                + Add Master Equipment
+                              </button>
+                            )}
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-center text-[11px] divide-y divide-black border-collapse">
+                              <thead className="bg-slate-50 font-bold divide-x divide-black text-slate-950">
+                                <tr>
+                                  <th className="p-1.5 min-w-[160px]">Equipement Description</th>
+                                  <th className="p-1.5 min-w-[120px]">ID Mark</th>
+                                  <th className="p-1.5 min-w-[160px]">Certificate No.</th>
+                                  <th className="p-1.5 min-w-[120px]">Calibration Due Date</th>
+                                  <th className="p-1.5 min-w-[120px]">Traceable By</th>
+                                  {!isObsLocked && obsMasterEquipments && obsMasterEquipments.length > 1 && (
+                                    <th className="p-1.5 w-10 text-center">Action</th>
+                                  )}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-x divide-black bg-white font-medium">
+                                {(obsMasterEquipments && obsMasterEquipments.length > 0 ? obsMasterEquipments : [
+                                  { description: obsMasterDescription, idMark: obsMasterId, certNo: obsMasterCertNo, dueDate: obsMasterDueDate, traceableBy: obsMasterTraceable }
+                                ]).map((me, idx) => (
+                                  <tr key={idx} className="divide-x divide-black">
+                                    <td className="p-1">
+                                      <input
+                                        type="text"
+                                        value={me.description || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setObsMasterEquipments((prev) => {
+                                            const next = prev && prev.length ? [...prev] : [{ ...me }];
+                                            next[idx] = { ...next[idx], description: val };
+                                            return next;
+                                          });
+                                          if (idx === 0) setObsMasterDescription(val);
+                                        }}
+                                        disabled={isObsLocked}
+                                        placeholder="Equipment Description"
+                                        className="w-full text-center px-1 py-0.5 border border-slate-300 rounded text-xs focus:outline-none focus:border-teal-500 font-medium"
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <input
+                                        type="text"
+                                        value={me.idMark || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setObsMasterEquipments((prev) => {
+                                            const next = prev && prev.length ? [...prev] : [{ ...me }];
+                                            next[idx] = { ...next[idx], idMark: val };
+                                            return next;
+                                          });
+                                          if (idx === 0) setObsMasterId(val);
+                                        }}
+                                        disabled={isObsLocked}
+                                        placeholder="ID Mark"
+                                        className="w-full text-center font-mono px-1 py-0.5 border border-slate-300 rounded text-xs focus:outline-none focus:border-teal-500"
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <input
+                                        type="text"
+                                        value={me.certNo || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setObsMasterEquipments((prev) => {
+                                            const next = prev && prev.length ? [...prev] : [{ ...me }];
+                                            next[idx] = { ...next[idx], certNo: val };
+                                            return next;
+                                          });
+                                          if (idx === 0) setObsMasterCertNo(val);
+                                        }}
+                                        disabled={isObsLocked}
+                                        placeholder="Certificate No."
+                                        className="w-full text-center font-mono px-1 py-0.5 border border-slate-300 rounded text-xs focus:outline-none focus:border-teal-500"
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <input
+                                        type="text"
+                                        value={me.dueDate || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setObsMasterEquipments((prev) => {
+                                            const next = prev && prev.length ? [...prev] : [{ ...me }];
+                                            next[idx] = { ...next[idx], dueDate: val };
+                                            return next;
+                                          });
+                                          if (idx === 0) setObsMasterDueDate(val);
+                                        }}
+                                        disabled={isObsLocked}
+                                        placeholder="Calibration Due Date"
+                                        className="w-full text-center px-1 py-0.5 border border-slate-300 rounded text-xs focus:outline-none focus:border-teal-500"
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <input
+                                        type="text"
+                                        value={me.traceableBy || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setObsMasterEquipments((prev) => {
+                                            const next = prev && prev.length ? [...prev] : [{ ...me }];
+                                            next[idx] = { ...next[idx], traceableBy: val };
+                                            return next;
+                                          });
+                                          if (idx === 0) setObsMasterTraceable(val);
+                                        }}
+                                        disabled={isObsLocked}
+                                        placeholder="Traceable By"
+                                        className="w-full text-center px-1 py-0.5 border border-slate-300 rounded text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                                      />
+                                    </td>
+                                    {!isObsLocked && obsMasterEquipments && obsMasterEquipments.length > 1 && (
+                                      <td className="p-1 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setObsMasterEquipments((prev) => prev.filter((_, i) => i !== idx))
+                                          }
+                                          className="text-red-500 hover:text-red-700 text-sm font-bold px-1.5 py-0.5 hover:bg-red-50 rounded cursor-pointer"
+                                          title="Remove equipment"
+                                        >
+                                          ×
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* 5. Section 7: Observation */}
+                        <div className="border-b border-black text-xs">
+                          <div className="p-2 bg-slate-100 border-b border-black flex flex-wrap items-center justify-between gap-2 font-bold text-[12px] text-slate-950">
+                            <div className="flex items-center gap-4">
+                              <span>7. Observation :</span>
+                              <span className="font-semibold text-slate-600 text-[11px]">
+                                Discipline: {obsDiscipline || currentSelectedTemplate?.equipmentType || (activeObsRecord?.instrument?.toLowerCase()?.includes("centrifuge") || activeObsRecord?.instrument?.toLowerCase()?.includes("rpm") ? "Speed / RPM" : "General Metrology")}
+                              </span>
+                            </div>
+                            {!isObsLocked && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={handleResetStandardReadings}
+                                  className="px-2 py-0.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded shadow-2xs transition cursor-pointer"
+                                >
+                                  ↺ Reset Points
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const colName = window.prompt("Enter new Column Name (e.g. Observed Trial 2, Deflection mm):");
+                                    if (!colName) return;
+                                    const colUnit = window.prompt("Enter Unit (e.g. mm, KN, bar, rpm, optional):") || "";
+                                    const colKey = colName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                                    const newCol = { key: colKey, label: colName, unit: colUnit, type: "number", minWidth: "110px" };
+                                    setObsTableColumns((prev) => [...(Array.isArray(prev) ? prev : []), newCol]);
+                                    toast.success(`Added column "${colName}"!`);
+                                  }}
+                                  className="px-2 py-0.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded shadow-2xs transition flex items-center gap-1 cursor-pointer"
+                                >
+                                  <FaPlus className="text-[9px]" /> Add Col
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleAddReadingRow}
+                                  className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-teal-600 hover:bg-teal-700 rounded shadow-2xs transition flex items-center gap-1 cursor-pointer"
+                                >
+                                  <FaPlus className="text-[9px]" /> Add Point
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {(() => {
+                            const allTemplateCols = Array.isArray(obsTableColumns) ? obsTableColumns : [];
+                            const rawObsCols = allTemplateCols.filter(
+                              (c) =>
+                                c.type !== "calculated" &&
+                                c.type !== "formula" &&
+                                !/^(error|inderror|errorrpm|uncertainty|relativeerror|repeatabilityerror)/i.test(c.key || "") &&
+                                !/error|uncertainty|tolerance|relative\s*repeatability|expanded/i.test(c.label || "")
+                            );
+                            const fillableCols =
+                              obsShowAllColumns || rawObsCols.length === 0
+                                ? allTemplateCols
+                                : rawObsCols;
+
+                            return (
+                              <>
+                                <div className="mb-2.5 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-teal-950">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold bg-teal-600 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+                                      {obsShowAllColumns ? "1:1 Exact Format Mode" : "Raw Entry Mode"}
+                                    </span>
+                                    <span className="font-medium text-[11px] text-teal-900">
+                                      {obsShowAllColumns
+                                        ? "Showing all columns 1:1 from your uploaded format. Formula columns auto-calculate as you enter readings."
+                                        : "Showing raw test measurement columns only. Errors & AMU calculate automatically in Section 7."}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {rawObsCols.length > 0 && rawObsCols.length < allTemplateCols.length && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setObsShowAllColumns((p) => !p)}
+                                        className="px-2 py-0.5 rounded bg-white hover:bg-teal-100 text-teal-900 border border-teal-300 text-[10px] font-bold cursor-pointer transition"
+                                      >
+                                        {obsShowAllColumns ? "Raw Inputs Only" : `Show All (${allTemplateCols.length})`}
+                                      </button>
+                                    )}
+                                    <span className="text-[10px] text-teal-800 font-mono font-bold bg-white px-2 py-0.5 rounded border border-teal-200">
+                                      {fillableCols.length} Observation Columns
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-center text-[11px] divide-y divide-black border-collapse">
+                                    <thead className="bg-slate-50 font-bold divide-x divide-black text-[10.5px] text-slate-950">
+                                      <tr>
+                                        {fillableCols.map((col, cIdx) => (
+                                          <th
+                                            key={col.key || cIdx}
+                                            className="p-1.5 min-w-[100px]"
+                                            style={col.minWidth ? { minWidth: col.minWidth } : {}}
+                                          >
+                                            <div>{col.label || col.key}</div>
+                                            {col.unit && <div className="text-[9.5px] font-normal text-slate-500">({col.unit})</div>}
+                                          </th>
+                                        ))}
+                                        {!isObsLocked && <th className="p-1.5 w-8">✕</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-black bg-white font-medium">
+                                      {obsReadings.map((r, idx) => (
+                                        <tr key={idx} className="divide-x divide-black hover:bg-teal-50/20 transition">
+                                          {fillableCols.map((col, cIdx) => {
+                                            const val = r[col.key] !== undefined && r[col.key] !== null ? r[col.key] : "";
+                                            return (
+                                              <td key={col.key || cIdx} className="p-1">
+                                                <input
+                                                  type="text"
+                                                  value={val}
+                                                  onChange={(e) => handleReadingChange(idx, col.key, e.target.value)}
+                                                  disabled={isObsLocked}
+                                                  placeholder={`Enter ${col.label || ""}`}
+                                                  className={`w-full text-center font-mono px-1 py-0.5 border rounded text-xs focus:outline-none focus:border-teal-500 ${
+                                                    cIdx === 0
+                                                      ? "font-bold border-slate-200 text-slate-900"
+                                                      : "border-slate-200 text-slate-800"
+                                                  }`}
+                                                />
+                                              </td>
+                                            );
+                                          })}
+                                          {!isObsLocked && (
+                                            <td className="p-1 text-center">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveReadingRow(idx)}
+                                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                                title="Remove row"
+                                              >
+                                                <FaTrashAlt className="text-xs" />
+                                              </button>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr className="border-t border-black bg-slate-50/90 font-semibold text-[11px]">
+                                        <td className="p-2 text-left font-bold text-slate-950 pl-3 whitespace-nowrap align-middle">
+                                          <div className="flex items-center gap-1.5">
+                                            <span>For Repeatability MU :</span>
+                                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded">
+                                              5 Readings
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td
+                                          colSpan={Math.max(1, fillableCols.length)}
+                                          className="p-1.5 pr-3 align-middle"
+                                        >
+                                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                            {[0, 1, 2, 3, 4].map((idx) => (
+                                              <div key={idx} className="flex-1 min-w-[70px]">
+                                                <div className="flex items-center bg-white border border-slate-300 rounded overflow-hidden focus-within:border-teal-600 focus-within:ring-1 focus-within:ring-teal-500 shadow-2xs">
+                                                  <span className="bg-slate-100 text-slate-700 px-1.5 py-1 text-[10px] font-bold border-r border-slate-200 select-none">
+                                                    R{idx + 1}
+                                                  </span>
+                                                  <input
+                                                    type="text"
+                                                    value={obsRepeatabilityReadings[idx] || ""}
+                                                    onChange={(e) => handleRepeatabilityReadingChange(idx, e.target.value)}
+                                                    disabled={isObsLocked}
+                                                    placeholder={`Reading ${idx + 1}`}
+                                                    className="w-full px-1.5 py-1 text-xs font-mono font-bold text-center text-slate-900 bg-transparent focus:outline-none"
+                                                  />
+                                                </div>
+                                              </div>
+                                            ))}
+                                            {repeatabilityStats.count >= 2 && (
+                                              <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-mono shrink-0 pl-1">
+                                                <span className="bg-teal-50 text-teal-800 px-2 py-0.5 rounded border border-teal-200 font-bold">
+                                                  Mean: {repeatabilityStats.mean}
+                                                </span>
+                                                <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 font-bold">
+                                                  s: {repeatabilityStats.stdDev}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* 6. Signatures Footer (Exact PDF Matching) */}
+                        <div className="p-4 border-b border-black grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white text-xs">
+                          <div className="space-y-1.5">
+                            <div className="font-bold text-slate-950 text-[11.5px]">Calibration By :</div>
+                            <input
+                              type="text"
+                              value={obsCalibratedBySite}
+                              onChange={(e) => setObsCalibratedBySite(e.target.value)}
+                              disabled={isObsLocked}
+                              placeholder="Engineer Signature / Name"
+                              className="w-full max-w-xs px-2 py-1 border border-slate-300 rounded font-bold text-slate-900 focus:outline-none focus:border-teal-500 text-xs bg-slate-50/50"
+                            />
+                          </div>
+                          <div className="space-y-1.5 sm:text-right">
+                            <div className="font-bold text-slate-950 text-[11.5px]">Reviewed &amp; Approved By :</div>
+                            <div className="flex sm:justify-end">
+                              <div
+                                className="w-full max-w-xs px-2.5 py-1 sm:text-right border border-slate-200 bg-slate-100 rounded font-bold text-slate-700 text-xs select-none truncate"
+                                title="Locked to signed-in Gmail Quality Authority account — cannot be changed"
+                              >
+                                {activeObsRecord.authorizationData?.authorizedBy || `${authSignatoryName} (Section 7 Quality Authority)`}
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono pt-1">
+                              Authorized in Section 7 • Page No. 01/01
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* Official Save & Workflow Action Controls */}
+                    <div className="p-4 bg-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs border-t-2 border-slate-900">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="font-black text-[#002B66] text-xs tracking-wide">
+                          ARCL INSTRUMENTS PRIVATE LIMITED • NABL &amp; ISO 9001:2015
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          Precision Metrological Observation Sheet • Format No: {currentSelectedTemplate?.parameters?.formatNo || obsFormatNo || "ARCL/OB/01"}
+                        </div>
+                      </div>
+
+                      {!isObsLocked && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => openObservationAssistantMode("scan")}
+                            className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
+                            title="Scan directly from hardware scanner, live camera, or upload filled sheet"
+                          >
+                            <FaPrint className="text-xs" /> Direct Scanner / Camera
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openObservationAssistantMode("voice")}
+                            className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
+                            title="Fill observation readings hands-free by speaking"
+                          >
+                            <FaMicrophone className="text-xs" /> Bol Ke Bharein
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveObservation("Draft")}
+                            disabled={isObsSaving}
+                            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                          >
+                            {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaEdit />} Save Draft
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveObservation("Submitted")}
+                            disabled={isObsSaving}
+                            className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+                          >
+                            {isObsSaving ? <FaSync className="animate-spin text-xs" /> : <FaPaperPlane />} Submit for Quality Authorization 🚀
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                          )}
+                          </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              ) : (
+                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-300 p-12 text-center flex flex-col items-center justify-center min-h-[460px] shadow-xs space-y-3">
+                  <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center text-3xl">
+                    <FaClipboardCheck className="text-teal-600" />
+                  </div>
+                  <h3 className="text-base font-extrabold text-slate-800">
+                    Select a Client Equipment to Begin Observation
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md leading-relaxed">
+                    Select a customer equipment from the left queue to open its metrological observation worksheet.
+                  </p>
+                  <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
+                    👈 Choose from {filteredObsRecords.length} Equipments in Queue
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 7: QUALITY AUTHORIZATION & CERTIFICATE ISSUANCE (Section 7) */}
+      {/* ========================================================================= */}
+      {canAuthorization && activeTab === "authorization" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-5 p-5">
+          {/* Header & Description */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 mb-1.5">
+                <FaUserCheck className="text-indigo-700" />
+                <span>SECTION 7: QUALITY AUTHORIZATION &amp; CERTIFICATE ISSUANCE (NABL ISO/IEC 17025)</span>
+              </div>
+              <h2 className="text-xl font-black text-gray-950 flex items-center gap-2">
+                Quality In-charge &amp; Technical Signatory Authorization Queue
+              </h2>
+              <p className="text-xs text-gray-500">
+                Review raw calibration observations, verify metrological deviations against Class 1.0 / IS 1828 limits, approve and officially generate Calibration Certificates attached to SRFs.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("observations")}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                ← Go to Section 6: Observations
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("srf_history")}
+                className="px-3.5 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
+              >
+                View Section 3: SRF Master →
+              </button>
+            </div>
+          </div>
+
+          {/* Locked Gmail Signatory Identity Banner (Cannot be edited manually) */}
+          <div className="bg-slate-50 border border-indigo-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center shrink-0">
+                <FaLock className="text-sm" />
+              </div>
+              <div>
+                <p className="font-black text-slate-900 text-xs">
+                  Reviewed &amp; Approved By (Auto-Locked from Signed-In Gmail)
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Jo Gmail ID se Quality Authorization khula hai, wahi naam Certificate ke neeche print hoga (edit locked).
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={authSignatoryName}
+                readOnly
+                disabled
+                title="Locked to logged-in Gmail account — cannot be edited"
+                className="px-3 py-1.5 bg-white border border-indigo-300 rounded-xl font-black text-indigo-950 text-xs select-none cursor-not-allowed min-w-[210px]"
+              />
+              {authSignatoryEmail && (
+                <span className="px-2.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 font-mono text-[11px] font-bold text-indigo-800">
+                  {authSignatoryEmail}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Summary Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
+              <div>
+                <p className="text-slate-500 font-bold uppercase text-[10px]">Total SRF Equipments</p>
+                <p className="text-xl font-black text-slate-900 font-mono mt-0.5">{records.length}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center text-base">
+                <FaTools />
+              </div>
+            </div>
+            <div className="bg-amber-50/80 border border-amber-300 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
+              <div>
+                <p className="text-amber-800 font-bold uppercase text-[10px]">Pending Authorization</p>
+                <p className="text-xl font-black text-amber-900 font-mono mt-0.5">{authCountPending}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center text-base">
+                <FaClock />
+              </div>
+            </div>
+            <div className="bg-emerald-50/80 border border-emerald-300 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
+              <div>
+                <p className="text-emerald-800 font-bold uppercase text-[10px]">Authorized &amp; Certified</p>
+                <p className="text-xl font-black text-emerald-900 font-mono mt-0.5">{authCountApproved}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-emerald-200 text-emerald-900 flex items-center justify-center text-base">
+                <FaCheckCircle />
+              </div>
+            </div>
+            <div className="bg-rose-50/80 border border-rose-300 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
+              <div>
+                <p className="text-rose-800 font-bold uppercase text-[10px]">Recalibration Required</p>
+                <p className="text-xl font-black text-rose-900 font-mono mt-0.5">{authCountRejected}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-rose-200 text-rose-900 flex items-center justify-center text-base">
+                <FaTimesCircle />
+              </div>
+            </div>
+          </div>
+
+          {/* Authorization Celebration Banner (When Passed!) */}
+          {authCelebration && (
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 text-white rounded-2xl p-5 shadow-xl border border-emerald-400 flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-inner shrink-0">
+                  <FaAward className="text-amber-300 animate-bounce" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/20 text-white uppercase font-mono">
+                    CERTIFICATE OFFICIALLY ISSUED &amp; ATTACHED
+                  </span>
+                  <h4 className="text-base font-black flex items-center gap-2 flex-wrap">
+                    <span>Calibration Certificate {authCelebration.certificateNo} is Live!</span>
+                    {authCelebration.ulrNo && (
+                      <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-white text-teal-900 shadow-2xs">
+                        ULR: {authCelebration.ulrNo}
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-white/90">
+                    Attached to SRF {authCelebration.srfNo ? <strong>{authCelebration.srfNo}</strong> : ""} (DC: <strong>{authCelebration.dcNo}</strong> • Client: {authCelebration.clientCompany} • Instrument: {authCelebration.instrument}). Added automatically in Section 4: Inward Register &amp; Section 3: SRF Master.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = records.find((r) => r._id === authCelebration.recordId);
+                    if (rec) openDocViewer("certificate", rec);
+                  }}
+                  className="px-3.5 py-2 bg-white text-emerald-900 rounded-xl text-xs font-black shadow-md hover:bg-emerald-50 transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+                >
+                  <FaFilePdf className="text-red-600" /> View Certificate PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("inward_register")}
+                  className="px-3.5 py-2 bg-teal-900 text-white rounded-xl text-xs font-black shadow-md hover:bg-teal-950 transition cursor-pointer active:scale-95 flex items-center gap-1.5 border border-white/20"
+                >
+                  <FaClipboardCheck /> Open Inward Register →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("srf_history")}
+                  className="px-3.5 py-2 bg-[#021C57] text-white rounded-xl text-xs font-black shadow-md hover:bg-blue-900 transition cursor-pointer active:scale-95 flex items-center gap-1.5 border border-white/20"
+                >
+                  <FaTools /> Open in Section 3 (SRF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthCelebration(null)}
+                  className="p-2 text-white/70 hover:text-white transition cursor-pointer"
+                  title="Dismiss"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 w-full sm:w-auto">
+              {[
+                { id: "all", label: "All Items", count: records.length },
+                { id: "pending", label: "Pending Authorization", count: authCountPending, highlight: "amber" },
+                { id: "approved", label: "Authorized / Passed", count: authCountApproved, highlight: "emerald" },
+                { id: "rejected", label: "Rejected / Recalibrate", count: authCountRejected, highlight: "rose" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setAuthFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    authFilter === tab.id
+                      ? "bg-[#021C57] text-white shadow-xs"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    authFilter === tab.id ? "bg-white/20 text-white" : "bg-white border border-slate-300 text-slate-800"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Search by Instrument, S/N, Client, DC..."
+                value={authSearch}
+                onChange={(e) => setAuthSearch(e.target.value)}
+                className="w-full text-xs px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Authorization Queue Table */}
+          <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="bg-[#021C57] text-white text-[10px] font-bold uppercase tracking-wider">
+                <tr>
+                  <th className="p-3 text-center w-10">#</th>
+                  <th className="p-3">Client &amp; DC No.</th>
+                  <th className="p-3">Instrument Details</th>
+                  <th className="p-3">Worksheet &amp; Metrology</th>
+                  <th className="p-3 text-center">Status</th>
+                  <th className="p-3 text-center">Certificate No.</th>
+                  <th className="p-3 text-center min-w-[200px]">Quality In-Charge Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-medium text-slate-800 bg-white">
+                {records
+                  .filter((r) => {
+                    const obs = r.observationData || {};
+                    const hasReadings = Array.isArray(obs.readings) && obs.readings.length > 0;
+                    const isApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+                    const isPending = obs.status === "Submitted";
+                    const isRejected = r.authorizationData?.status === "Rejected" || obs.status === "Rejected";
+
+                    if (authFilter === "pending") return isPending;
+                    if (authFilter === "approved") return isApproved;
+                    if (authFilter === "rejected") return isRejected;
+                    return true;
+                  })
+                  .filter((r) => {
+                    if (!authSearch) return true;
+                    const s = authSearch.toLowerCase();
+                    return (
+                      String(r.instrument || "").toLowerCase().includes(s) ||
+                      String(r.serialNo || "").toLowerCase().includes(s) ||
+                      String(r.dcNo || "").toLowerCase().includes(s) ||
+                      String(r.clientCompany || "").toLowerCase().includes(s)
+                    );
+                  })
+                  .map((r, idx) => {
+                    const obs = r.observationData || {};
+                    const hasReadings = Array.isArray(obs.readings) && obs.readings.length > 0;
+                    const isApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+                    const isPending = obs.status === "Submitted";
+                    const isRejected = r.authorizationData?.status === "Rejected" || obs.status === "Rejected";
+                    const readingsCount = Array.isArray(obs.readings) ? obs.readings.length : 0;
+                    const certNo = r.records?.certificateNo || r.authorizationData?.certificateNo;
+                    const hasExactVals = Boolean(obs.exactSheetValues && Object.keys(obs.exactSheetValues).length > 0);
+                    const rowCalc = hasReadings || hasExactVals ? computeMetrologicalCalculations(r) : null;
+
+                    return (
+                      <tr key={r._id || idx} className="hover:bg-indigo-50/30 transition">
+                        <td className="p-3 text-center font-bold text-slate-400 bg-slate-50">{idx + 1}</td>
+                        
+                        {/* Client & DC */}
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-extrabold text-slate-900">
+                              {r.clientCompany}
+                              {customerRankMap.get(String(r.clientCompany || "").trim().toLowerCase()) && (
+                                <span className="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                                  Rank #{customerRankMap.get(String(r.clientCompany || "").trim().toLowerCase())}
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-mono text-[11px] text-indigo-700 font-bold">DC: {r.dcNo}</span>
+                          </div>
+                        </td>
+
+                        {/* Instrument */}
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-extrabold text-slate-900">{r.instrument}</span>
+                            <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500">
+                              <span>S/N: <strong>{r.serialNo}</strong></span>
+                              {r.make && <span>• {r.make}</span>}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Worksheet & Metrology */}
+                        <td className="p-3">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 font-bold">
+                                {obs.worksheetNo || `WS-ARCL-2026-${r.serialNo}`}
+                              </span>
+                              <span className="text-[10px] text-teal-700 font-bold font-mono">
+                                {readingsCount} Points
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500">
+                              Engr: {obs.calibratedBy || "ARCL Lab"} • {obs.temperature || "23°C"}
+                            </span>
+                            {rowCalc && (
+                              <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-black border ${
+                                  rowCalc.overallVerdict === "PASS"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-rose-50 text-rose-700 border-rose-200"
+                                }`}>
+                                  {rowCalc.overallVerdict}
+                                </span>
+                                <span className="text-[9.5px] font-mono text-indigo-800 bg-indigo-50 px-1.5 rounded border border-indigo-200">
+                                  {rowCalc.formulaCells?.length > 0 ? `${rowCalc.formulaCells.length} Sheet Formulas` : `Max Err: ${rowCalc.maxError}`}
+                                </span>
+                                {rowCalc.amu?.expandedUncertainty > 0 && (
+                                  <span className="text-[9.5px] font-mono text-teal-800 bg-teal-50 px-1.5 rounded border border-teal-200">
+                                    ±U: {rowCalc.amu.expandedUncertainty}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="p-3 text-center">
+                          {isApproved ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                              <FaCheckCircle className="text-emerald-600 text-[10px]" />
+                              <span>AUTHORIZED ✅</span>
+                            </span>
+                          ) : isPending ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 animate-pulse shadow-2xs">
+                              <FaClock className="text-amber-600 text-[10px]" />
+                              <span>PENDING REVIEW</span>
+                            </span>
+                          ) : isRejected ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                              <FaTimesCircle className="text-rose-600 text-[10px]" />
+                              <span>RECALIBRATE 🔴</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {obs.status || "Draft in Sec 6"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Certificate No. & ULR No. */}
+                        <td className="p-3 text-center font-mono font-bold">
+                          {(() => {
+                            const rowUlr = r.records?.ulrNo || r.inwardRegister?.ulrNo || r.authorizationData?.ulrNo || "";
+                            return (
+                              <div className="flex flex-col items-center gap-1">
+                                {certNo ? (
+                                  <span className="text-blue-800 font-extrabold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    {certNo}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">-</span>
+                                )}
+                                {rowUlr && (
+                                  <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                                    ULR: {rowUlr}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {/* Inspect Observations Modal */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInspectingObsRecord(r);
+                                setInspectionModalTab("calculation");
+                              }}
+                              className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                              title="Calculate Metrological Formulas & Review Quality"
+                            >
+                              <FaCalculator className="text-white text-xs" /> Calculate &amp; Review
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInspectingObsRecord(r);
+                                setInspectionModalTab("excel_inspector");
+                              }}
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs transition cursor-pointer border border-emerald-300 shadow-2xs"
+                              title="Inspect Multi-Sheet Excel Workbook (OB, Report &amp; AMU)"
+                            >
+                              <FaFileExcel />
+                            </button>
+
+                            {/* View Observation Sheet PDF */}
+                            <button
+                              type="button"
+                              onClick={() => openDocViewer("observation_sheet", r)}
+                              className="p-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg text-xs transition cursor-pointer border border-teal-200"
+                              title="View Raw Observation Sheet PDF"
+                            >
+                              <FaFilePdf />
+                            </button>
+
+                            {/* If Authorized: View/Download Certificate + Revise / Edit & Reopen / Revoke */}
+                            {isApproved && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openDocViewer("certificate", r)}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
+                                  title="View Official Certificate"
+                                >
+                                  <FaFilePdf className="text-white text-xs" /> View Cert
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintCalibrationDoc("certificate", r, { single: true })}
+                                  className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs transition cursor-pointer border border-purple-200"
+                                  title="Print Certificate"
+                                >
+                                  <FaPrint />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAuthorizingRecord(r);
+                                    setRejectionReason("");
+                                    setIsRejectModalOpen(true);
+                                  }}
+                                  disabled={isAuthProcessing}
+                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
+                                  title="Revoke authorization and reopen worksheet in Section 6 for correction"
+                                >
+                                  <FaUndo className="text-[10px]" /> Reopen / Revoke
+                                </button>
+                              </>
+                            )}
+
+                            {/* If Pending: Pass, Return for Correction, and Direct Edit Buttons */}
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAuthorizingRecord(r);
+                                    handleApproveObservation(r);
+                                  }}
+                                  disabled={isAuthProcessing}
+                                  className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                                  title="Pass observation and officially issue Certificate into SRF"
+                                >
+                                  <FaCheckDouble className="text-xs" /> PASS &amp; ISSUE CERT
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAuthorizingRecord(r);
+                                    setIsRejectModalOpen(true);
+                                  }}
+                                  disabled={isAuthProcessing}
+                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                  title="Return observation to Section 6 for technician correction"
+                                >
+                                  <FaUndo className="text-[10px]" /> Return for Correction
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (window.confirm("Return this observation to Section 6 and unlock it for technician correction?")) {
+                                      try {
+                                        setIsAuthProcessing(true);
+                                        await authorizeCalibrationObservationApi({
+                                          recordId: r._id,
+                                          action: "reject",
+                                          authorizedBy: authSignatoryName,
+                                          rejectionReason: "Returned by Quality Authorization for correction in Section 6.",
+                                          remarks: authRemarks || "Unlocked by Quality Authorization in Section 7.",
+                                        });
+                                        await fetchRecords();
+                                        setSelectedObsInstrumentId(r._id);
+                                        setActiveTab("observations");
+                                        toast.success("Returned by Authorization & unlocked in Section 6! 🔓");
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || "Failed to return observation");
+                                      } finally {
+                                        setIsAuthProcessing(false);
+                                      }
+                                    }
+                                  }}
+                                  disabled={isAuthProcessing}
+                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                                  title="Return from Quality Authorization and unlock in Section 6 for editing"
+                                >
+                                  <FaUndo className="text-[10px]" /> Return to Sec 6 (Unlock)
+                                </button>
+                              </>
+                            )}
+
+                            {/* If Draft / Not recorded yet: Quick link to Sec 6 */}
+                            {!isPending && !isApproved && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedObsInstrumentId(r._id);
+                                  setActiveTab("observations");
+                                }}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                              >
+                                Record in Sec 6 →
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: AUTOMATED DUE REMINDERS & CERTIFICATE DELIVERY */}
+      {/* ========================================================================= */}
+      {canReminders && activeTab === "reminders" && (() => {
         const safeRecords = Array.isArray(records) ? records : [];
         const days = parseInt(reminderTemplate.thresholdDays, 10) || 30;
         const cutoffDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -6247,10 +15069,10 @@ export default function CalibrationPageView() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  <FaBolt className="text-amber-500" /> DYNAMIC AUTOMATION STUDIO • ISO/IEC 17025
+                  <FaBolt className="text-amber-500" /> SECTION 5: DYNAMIC AUTOMATION STUDIO • ISO/IEC 17025
                 </div>
                 <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                  Automated Calibration Due Mail &amp; Recipients Directory
+                  5. Automated Calibration Due Mail &amp; Recipients Directory
                 </h2>
                 <p className="text-xs text-gray-500">
                   Manage recipient email addresses, customize notice templates, preview live dispatches, and track audit history.
@@ -7253,7 +16075,7 @@ export default function CalibrationPageView() {
             </div>
 
             {/* ========================================================================= */}
-            {/* SECTION: 📋 DYNAMIC RECIPIENTS & CANDIDATES DUE DIRECTORY (KISKO JA RAHA HAI) */}
+            {/* SECTION: 📋 DYNAMIC RECIPIENTS & CANDIDATES DUE DIRECTORY (RECIPIENT ELIGIBILITY) */}
             {/* ========================================================================= */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
               {/* Directory Top Header with Action Controls */}
@@ -7264,7 +16086,7 @@ export default function CalibrationPageView() {
                       <FaEnvelope className="text-blue-600" />
                     </div>
                     <h3 className="text-base sm:text-lg font-black text-gray-900">
-                      All Registered Candidates &amp; Recipients Directory (Kisko Message/Mail Ja Raha Hai)
+                      All Registered Clients &amp; Recipients Directory (Recipient Eligibility Status)
                     </h3>
                   </div>
                   <p className="text-xs text-gray-500">
@@ -7415,7 +16237,7 @@ export default function CalibrationPageView() {
                         : "bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200"
                     }`}
                   >
-                    <span>🟢 Nahi Jayega (Up to Date)</span>
+                    <span>🟢 Up to Date (No Notice)</span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${directoryFilter === "uptodate" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}>
                       {totalClientsUpToDate}
                     </span>
@@ -7601,7 +16423,7 @@ export default function CalibrationPageView() {
                                 ) : (
                                   <div className="space-y-0.5">
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                      <FaCheckCircle className="text-[10px]" /> 🟢 Nahi Jayega (Up to Date)
+                                      <FaCheckCircle className="text-[10px]" /> 🟢 Up to Date (No Notice)
                                     </span>
                                     <p className="text-[10px] text-emerald-600 font-mono">
                                       Valid for {dueDaysLeft > 0 ? `${dueDaysLeft} Days` : `> ${days} Days`}
@@ -7733,13 +16555,13 @@ export default function CalibrationPageView() {
             </div>
 
             {/* ========================================================================= */}
-            {/* SECTION: 📜 DISPATCH ACTIVITY & LIVE AUDIT TRAIL (KISKO BHEJA GAYA HAI) */}
+            {/* SECTION: 📜 DISPATCH ACTIVITY & LIVE AUDIT TRAIL (DISPATCH HISTORY) */}
             {/* ========================================================================= */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
                 <div className="space-y-0.5">
                   <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
-                    <FaClock className="text-emerald-600" /> Recent Dispatch Activity &amp; Audit Trail (Kisko Bheja Gaya Hai)
+                    <FaClock className="text-emerald-600" /> Recent Dispatch Activity &amp; Audit Trail (Dispatch History)
                   </h3>
                   <p className="text-xs text-gray-500">
                     Real-time compliance record of all dispatched email and WhatsApp notifications with timestamps.
@@ -7886,9 +16708,9 @@ export default function CalibrationPageView() {
       })()}
 
       {/* ========================================================================= */}
-      {/* TAB 4: REAL-TIME DYNAMIC NABL ACCREDITATION & METROLOGY LAB SCOPE */}
+      {/* TAB 9: REAL-TIME DYNAMIC NABL ACCREDITATION & METROLOGY LAB SCOPE */}
       {/* ========================================================================= */}
-      {activeTab === "lab_profile" && (() => {
+      {canLabProfile && activeTab === "lab_profile" && (() => {
         const lab = labScopeData || {
           labName: "ARCL Instruments Pvt. Ltd.",
           labCode: "ARCL-LAB-01",
@@ -8253,6 +17075,1667 @@ export default function CalibrationPageView() {
       })()}
 
       {/* ========================================================================= */}
+      {/* TAB 8: OBSERVATION FORMATS & PDF-TO-FORM STUDIO */}
+      {/* ========================================================================= */}
+      {canTemplates && activeTab === "templates" && (() => {
+        const categories = ["all", "Force", "Dimensional", "Pressure", "Thermal", "Mass", "Electrical", "General"];
+        const filteredTemplates = obsTemplates.filter((t) => {
+          const matchCat = templateFilterCategory === "all" || (t.equipmentType || "").toLowerCase() === templateFilterCategory.toLowerCase();
+          const q = (templateSearch || "").toLowerCase().trim();
+          const matchSearch =
+            !q ||
+            (t.name && t.name.toLowerCase().includes(q)) ||
+            (t.equipmentType && t.equipmentType.toLowerCase().includes(q)) ||
+            (t.standardReference && t.standardReference.toLowerCase().includes(q)) ||
+            (t.calibrationMethod && t.calibrationMethod.toLowerCase().includes(q));
+          return matchCat && matchSearch;
+        });
+
+        return (
+          <div className="space-y-6 animate-fadeIn">
+            {/* 1. Header Banner & Actions */}
+            <div className="bg-gradient-to-r from-[#021C57] via-slate-900 to-teal-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-teal-500/20">
+              <div className="absolute -right-10 -bottom-10 opacity-10 text-white pointer-events-none">
+                <FaTable className="text-[220px]" />
+              </div>
+
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                    <FaMagic className="text-teal-300 animate-spin text-xs" />
+                    <span>SECTION 8: AI PDF-TO-FORM OBSERVATION ENGINE</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+                    8. Observation Format Studio
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Upload your calibration observation format PDF once. The engine automatically parses the tables, columns, formulas, and parameters into a dynamic digital worksheet for Section 6 and Section 7 Quality Authorization.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={fetchObsTemplates}
+                    disabled={obsTemplatesLoading}
+                    className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <FaSync className={obsTemplatesLoading ? "animate-spin" : ""} /> Refresh Formats
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTemplateId(null);
+                      setTemplateForm(defaultTemplateForm);
+                      setIsTemplateUploadModalOpen(true);
+                    }}
+                    className="px-5 py-3 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-black rounded-2xl text-sm shadow-xl shadow-teal-500/20 transition flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <FaUpload /> + Upload &amp; Convert PDF Format
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Metrics Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10">
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                  <span className="text-[10px] font-bold uppercase text-teal-300 block">Total Formats</span>
+                  <span className="text-2xl font-black text-white">{obsTemplates.length}</span>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                  <span className="text-[10px] font-bold uppercase text-blue-300 block">PDF Attached</span>
+                  <span className="text-2xl font-black text-white">{obsTemplates.filter((t) => t.pdfUrl).length} Formats</span>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                  <span className="text-[10px] font-bold uppercase text-amber-300 block">Dynamic Columns</span>
+                  <span className="text-2xl font-black text-white">2 - 8 per Format</span>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                  <span className="text-[10px] font-bold uppercase text-emerald-300 block">ISO/IEC 17025</span>
+                  <span className="text-2xl font-black text-white">100% Compliant</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Filters & Search Bar */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setTemplateFilterCategory(cat)}
+                    className={`px-3.5 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer shrink-0 ${
+                      templateFilterCategory === cat
+                        ? "bg-[#021C57] text-white shadow-xs"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {cat === "all" ? "All Categories" : cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full md:w-72">
+                <FaSearch className="absolute left-3.5 top-3 text-slate-400 text-xs" />
+                <input
+                  type="text"
+                  placeholder="Search equipment format, standard..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-teal-500 focus:bg-white transition"
+                />
+              </div>
+            </div>
+
+            {/* 3. Templates Grid */}
+            {obsTemplatesLoading ? (
+              <div className="text-center py-16 bg-white rounded-3xl border border-gray-100">
+                <FaSync className="animate-spin text-3xl text-teal-600 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-700">Loading observation formats &amp; layouts...</p>
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 p-6 space-y-3">
+                <FaTable className="text-4xl text-slate-300 mx-auto" />
+                <h3 className="text-base font-bold text-slate-800">No Observation Formats Found</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Upload your equipment calibration observation format PDF to automatically convert it into a fillable form.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTemplateId(null);
+                    setTemplateForm(defaultTemplateForm);
+                    setIsTemplateUploadModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#021C57] text-white rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <FaUpload /> Upload Format PDF Now
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredTemplates.map((tmpl) => {
+                  const cols = Array.isArray(tmpl.tableColumns) ? tmpl.tableColumns : [];
+                  const defaultReadings = Array.isArray(tmpl.defaultReadings) ? tmpl.defaultReadings : [];
+                  const isPreset = tmpl.isPreset;
+                  const typeColors = {
+                    Force: "bg-amber-100 text-amber-800 border-amber-300",
+                    Dimensional: "bg-blue-100 text-blue-800 border-blue-300",
+                    Pressure: "bg-cyan-100 text-cyan-800 border-cyan-300",
+                    Thermal: "bg-rose-100 text-rose-800 border-rose-300",
+                    Mass: "bg-purple-100 text-purple-800 border-purple-300",
+                    Electrical: "bg-yellow-100 text-yellow-800 border-yellow-300",
+                    General: "bg-slate-100 text-slate-800 border-slate-300",
+                  };
+                  const badgeClass = typeColors[tmpl.equipmentType] || "bg-teal-100 text-teal-800 border-teal-300";
+
+                  return (
+                    <div
+                      key={tmpl._id}
+                      className="bg-white rounded-3xl border border-gray-200/80 shadow-xs hover:shadow-lg transition flex flex-col justify-between overflow-hidden group"
+                    >
+                      <div className="p-5 space-y-4">
+                        {/* Header: Badge & Status */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeClass}`}>
+                            {tmpl.equipmentType || "General Metrology"}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {isPreset && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                Preloaded NABL
+                              </span>
+                            )}
+                            {tmpl.pdfUrl && (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                                tmpl.fileType === "xlsx" || tmpl.pdfFileName?.match(/\.(xlsx|xls|csv)$/i)
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border-rose-200"
+                              }`}>
+                                {tmpl.fileType === "xlsx" || tmpl.pdfFileName?.match(/\.(xlsx|xls|csv)$/i) ? (
+                                  <>
+                                    <FaFileExcel className="text-emerald-600 text-[10px]" /> Excel Attached
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaFilePdf className="text-rose-600 text-[10px]" /> PDF Attached
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Format Title */}
+                        <div
+                          className="cursor-pointer group/title"
+                          onClick={() => {
+                            handleSelectObservationTemplate(tmpl);
+                            setActiveTab("observations");
+                          }}
+                          title={`Click to open "${tmpl.name}" observation form in Section 6`}
+                        >
+                          <h3 className="font-extrabold text-slate-900 text-base leading-snug group-hover/title:text-teal-700 transition">
+                            {tmpl.name}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                            Standard: <strong className="text-slate-700">{tmpl.standardReference || "ISO/IEC 17025"}</strong> | Method: <span className="font-mono">{tmpl.calibrationMethod || "Standard"}</span>
+                          </p>
+                        </div>
+
+                        {/* Parameters Overview */}
+                        {tmpl.parameters && (
+                          <div className="p-2.5 bg-slate-50 rounded-xl text-[11px] space-y-1 border border-slate-100 text-slate-700">
+                            {tmpl.parameters.range && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Range / Capacity:</span>
+                                <span className="font-bold text-slate-900">{tmpl.parameters.range}</span>
+                              </div>
+                            )}
+                            {tmpl.parameters.leastCount && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Least Count:</span>
+                                <span className="font-mono font-bold text-slate-900">{tmpl.parameters.leastCount}</span>
+                              </div>
+                            )}
+                            {tmpl.parameters.masterDescription && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Master Equipment:</span>
+                                <span className="font-medium text-slate-900 truncate max-w-[160px]">{tmpl.parameters.masterDescription}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Dynamic Table Columns Preview */}
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                            Form Columns ({cols.length}) &amp; Test Points ({defaultReadings.length})
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {cols.map((col, idx) => (
+                              <span
+                                key={idx}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${
+                                  col.type === "calculated" || col.type === "formula" || col.key === "error" || col.key === "indError"
+                                    ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                                    : "bg-slate-100 text-slate-700 border border-slate-200"
+                                }`}
+                              >
+                                {col.label || col.key} {col.unit ? `[${col.unit}]` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Footer Actions */}
+                      <div className="p-4 bg-slate-50/70 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStudioPreviewTab("obs");
+                              setStudioPreviewTemplate(tmpl);
+                            }}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                            title="Preview 1:1 Converted Observation Worksheet"
+                          >
+                            <FaEye className="text-indigo-600 text-xs" /> Preview
+                          </button>
+                          {tmpl.pdfUrl && (
+                            <button
+                              type="button"
+                              disabled={reconvertingTemplateId === tmpl._id}
+                              onClick={() => handleReconvertStudioTemplate(tmpl)}
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs disabled:opacity-50"
+                              title="Re-parse & Re-Convert 1:1 from attached Excel / PDF file"
+                            >
+                              <FaBolt className={`text-amber-600 text-xs ${reconvertingTemplateId === tmpl._id ? "animate-spin" : ""}`} />
+                              <span>{reconvertingTemplateId === tmpl._id ? "Converting..." : "Re-Convert"}</span>
+                            </button>
+                          )}
+                          {tmpl.pdfUrl && (
+                            tmpl.fileType === "xlsx" || tmpl.pdfFileName?.match(/\.(xlsx|xls|csv)$/i) ? (
+                              <a
+                                href={tmpl.pdfUrl.startsWith("http") ? tmpl.pdfUrl : `${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/observation-templates/${tmpl._id}/pdf`}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={tmpl.pdfFileName || `${tmpl.name}.xlsx`}
+                                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                title="Download Original Format Excel Spreadsheet"
+                              >
+                                <FaFileExcel className="text-emerald-600" /> Excel
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setViewingTemplatePdfUrl(tmpl.pdfUrl)}
+                                className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                title="View Original Format PDF"
+                              >
+                                <FaFilePdf className="text-rose-600" /> View PDF
+                              </button>
+                            )
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleEditTemplate(tmpl)}
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                            title="Edit / Change this Format Template"
+                          >
+                            <FaEdit className="text-blue-600 text-xs" /> Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTemplateDeleteTarget(tmpl)}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                            title="Delete this Format Template"
+                          >
+                            <FaTrashAlt className="text-xs" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectObservationTemplate(tmpl);
+                            setActiveTab("observations");
+                          }}
+                          className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                        >
+                          <FaClipboardCheck /> Fill in Section 6 →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+
+      {/* MODAL: ADD CUSTOM CALIBRATION CATEGORY */}
+      {isAddingCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[70] animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-teal-100 text-teal-800 rounded-xl">
+                  <FaPlus className="text-sm" />
+                </div>
+                <h3 className="font-black text-gray-900 text-base">Add Calibration Category</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingCategoryModal(false)}
+                className="text-gray-400 hover:text-gray-600 font-black cursor-pointer text-lg"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 block">
+                Category / Discipline Name
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g. Optical Metrology, Sound & Acoustics, Torque, Speed / RPM..."
+                value={newCategoryInput}
+                onChange={(e) => setNewCategoryInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCategory();
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-500 font-semibold text-slate-900"
+              />
+              <p className="text-[11px] text-slate-500">
+                This category will be permanently added to your category filter bar and equipment format options.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsAddingCategoryModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddCategory()}
+                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
+              >
+                Add Category
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BATCH CALIBRATION CERTIFICATES MANAGER (Ek / Pura / Selected - View, Print & Download) */}
+      {printCertBatchModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-gray-100 overflow-hidden space-y-4 p-5 sm:p-6">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-indigo-100 text-indigo-700">
+                  <FaFilePdf className="text-xl" />
+                </div>
+                <div>
+                  <h3 className="font-black text-gray-950 text-base">
+                    Batch Calibration Certificates Manager (Ek / Pura / Selected)
+                  </h3>
+                  <p className="text-xs text-gray-500 font-mono">
+                    DC No: <strong>{printCertBatchModal.dcNo || "N/A"}</strong> | Client: {printCertBatchModal.clientCompany} ({printCertBatchModal.items?.length || 0} Products)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrintCertBatchModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-gray-700">Select Products (Choose 1, 3 ya Pura):</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllPrintEquips}
+                    className="text-indigo-700 hover:underline font-extrabold cursor-pointer"
+                  >
+                    Select All / Pura ({printCertBatchModal.items?.length || 0})
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={clearAllPrintEquips}
+                    className="text-gray-500 hover:underline cursor-pointer"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+
+              {/* Equipment Checklist with Inline View/Print/Download per product */}
+              <div className="max-h-72 overflow-y-auto space-y-2 border border-gray-200 rounded-2xl p-2.5 bg-gray-50/50">
+                {(printCertBatchModal.items || []).map((it, idx) => {
+                  const isChecked = selectedPrintEquipIds.has(it._id || it.id);
+                  const certNo = it.records?.certificateNo || `Cert #${idx + 1}`;
+                  const itUlr = it.records?.ulrNo || it.inwardRegister?.ulrNo || it.authorizationData?.ulrNo || "";
+                  return (
+                    <div
+                      key={it._id || idx}
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-2.5 rounded-xl text-xs transition border gap-2 ${
+                        isChecked
+                          ? "bg-indigo-50/80 border-indigo-300 text-indigo-950 font-bold"
+                          : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <div
+                        onClick={() => togglePrintEquipSelection(it._id || it.id)}
+                        className="flex items-center gap-2.5 cursor-pointer flex-1 truncate"
+                      >
+                        <span className={`text-base ${isChecked ? "text-indigo-700" : "text-gray-400"}`}>
+                          {isChecked ? <FaCheckSquare /> : <FaSquare />}
+                        </span>
+                        <div className="truncate">
+                          <span className="text-gray-950 font-extrabold">#{idx + 1}: {it.instrument}</span>
+                          <span className="font-mono text-[10px] text-gray-500 ml-1.5">
+                            (Sr: {it.serialNo || "-"})
+                          </span>
+                          <span className="ml-2 font-mono text-[10px] text-indigo-700 font-bold bg-white px-1.5 py-0.2 rounded border border-indigo-200">
+                            {certNo}
+                          </span>
+                          {itUlr && (
+                            <span className="ml-1.5 font-mono text-[10px] text-teal-800 font-bold bg-teal-50 px-1.5 py-0.2 rounded border border-teal-200">
+                              {itUlr}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Direct 1-Click Action Buttons for this Single Equipment */}
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openDocViewer("certificate", it);
+                            setPrintCertBatchModal(null);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[9.5px] font-bold bg-white text-red-700 hover:bg-red-50 border border-red-200 transition cursor-pointer flex items-center gap-1"
+                          title={`View only ${it.instrument} certificate`}
+                        >
+                          <FaEye className="text-[9px]" /> View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handlePrintCalibrationDoc("certificate", it, { single: true });
+                            setPrintCertBatchModal(null);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[9.5px] font-bold bg-white text-purple-700 hover:bg-purple-50 border border-purple-200 transition cursor-pointer flex items-center gap-1"
+                          title={`Print only ${it.instrument} certificate`}
+                        >
+                          <FaPrint className="text-[9px]" /> Print
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDownloadCalibrationDoc("certificate", it, { single: true });
+                            setPrintCertBatchModal(null);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[9.5px] font-bold bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 transition cursor-pointer flex items-center gap-1"
+                          title={`Download only ${it.instrument} certificate PDF`}
+                        >
+                          <FaDownload className="text-[9px]" /> PDF
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Selection Summary Pill */}
+              <div className="p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl border border-indigo-200 text-xs flex items-center justify-between flex-wrap gap-2">
+                <span className="text-indigo-950 font-extrabold flex items-center gap-1.5">
+                  <span>🎯</span> Selected: <strong>{selectedPrintEquipIds.size}</strong> of {printCertBatchModal.items?.length || 0} Products
+                </span>
+                <span className="text-[10px] text-indigo-800 font-bold bg-white px-2.5 py-0.5 rounded-full border border-indigo-200">
+                  {selectedPrintEquipIds.size === (printCertBatchModal.items?.length || 0)
+                    ? "Full Batch (Pura Batch Combined)"
+                    : selectedPrintEquipIds.size === 1
+                    ? "Single Product (Ek Certificate)"
+                    : `${selectedPrintEquipIds.size} Selected Products (Custom Multi-Page)`}
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom Multi-Action Buttons: View, Print, Download, Send */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setPrintCertBatchModal(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteMultiView}
+                disabled={selectedPrintEquipIds.size === 0}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="View Selected Certificates"
+              >
+                <FaEye /> View Selected ({selectedPrintEquipIds.size})
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteMultiPrint}
+                disabled={selectedPrintEquipIds.size === 0}
+                className="px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Print Selected Certificates"
+              >
+                <FaPrint /> Print Selected ({selectedPrintEquipIds.size})
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteMultiDownload}
+                disabled={selectedPrintEquipIds.size === 0}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Download Combined PDF with Selected Certificates"
+              >
+                <FaDownload /> Download Selected ({selectedPrintEquipIds.size}) PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteMultiSend}
+                disabled={selectedPrintEquipIds.size === 0}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Send Selected Certificates to Client"
+              >
+                🚀 Send Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: UPLOAD & AUTO-CONVERT PDF FORMAT */}
+      {isTemplateUploadModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4 p-6">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-teal-100 text-teal-800">
+                  <FaMagic className="text-xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-950 flex items-center gap-2">
+                    {editingTemplateId ? `Change / Edit Format: "${templateForm.name}"` : "Upload & Convert Observation Format (PDF / Excel XLSX)"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Upload your equipment calibration observation format in PDF or Excel (.xlsx / .xls). Automatically converted into a fillable form with dynamic columns and formulas.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsTemplateUploadModalOpen(false); setEditingTemplateId(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveObsTemplate} className="space-y-4">
+              {/* Step 1: Basic Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 block">
+                      Equipment / Format Name <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-teal-700 font-bold">
+                      💡 Match with quotation item name
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    list="quotationEquipmentsDatalist"
+                    placeholder="e.g. Centrifuge / Compression Testing Machine"
+                    value={templateForm.name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTemplateForm((p) => ({
+                        ...p,
+                        name: val,
+                        equipmentType: guessCategoryFromInst(val) || p.equipmentType,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-bold text-slate-900 bg-slate-50 focus:bg-white"
+                  />
+                  <datalist id="quotationEquipmentsDatalist">
+                    {allQuotationEquipmentNames.map((eq) => (
+                      <option key={eq} value={eq} />
+                    ))}
+                  </datalist>
+
+                  {/* Quick Pick Chips from Current Quotation Queue */}
+                  {allQuotationEquipmentNames.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] font-bold text-teal-800">⚡ Quotation Equipment:</span>
+                      {allQuotationEquipmentNames.slice(0, 8).map((eqName) => (
+                        <button
+                          key={eqName}
+                          type="button"
+                          onClick={() => {
+                            setTemplateForm((p) => ({
+                              ...p,
+                              name: eqName,
+                              equipmentType: guessCategoryFromInst(eqName) || p.equipmentType,
+                            }));
+                          }}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer border ${
+                            templateForm.name === eqName
+                              ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                              : "bg-teal-50 hover:bg-teal-100 text-teal-900 border-teal-200"
+                          }`}
+                          title={`Click to set name as "${eqName}"`}
+                        >
+                          {eqName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Equipment Category / Discipline</label>
+                  <select
+                    value={templateForm.equipmentType}
+                    onChange={(e) => setTemplateForm((p) => ({ ...p, equipmentType: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-semibold text-slate-900 bg-slate-50"
+                  >
+                    <option value="Speed / RPM">Speed / RPM (Centrifuge, Tachometer, Motors)</option>
+                    <option value="Force">Mechanical Calibration (Force / Testing Machine)</option>
+                    <option value="Dimensional">Dimensional Metrology (Caliper, Micrometer, Gauges)</option>
+                    <option value="Pressure">Pressure &amp; Vacuum (Gauges, Transmitters, Calibrators)</option>
+                    <option value="Thermal">Thermal &amp; Temperature (Sensors, Thermometers, Ovens)</option>
+                    <option value="Mass">Mass &amp; Weighing Balances</option>
+                    <option value="Electrical">Electrical &amp; Electronic Test Instruments</option>
+                    <option value="General">General Laboratory Metrology</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Standard Reference (IS / ISO)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. IS 3651 / IS 1828 / ISO 7500-1"
+                    value={templateForm.standardReference}
+                    onChange={(e) => setTemplateForm((p) => ({ ...p, standardReference: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Calibration Method / Procedure</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ARCL-CP-01 / ARCL-CP-16"
+                    value={templateForm.calibrationMethod}
+                    onChange={(e) => setTemplateForm((p) => ({ ...p, calibrationMethod: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Step 2: PDF / Excel XLSX File Upload with AI Parsing (Supports Single or Bulk Multi-file) */}
+              <div className="p-4 border-2 border-dashed border-teal-300 rounded-2xl bg-teal-50/40 text-center space-y-2 relative">
+                <input
+                  type="file"
+                  id="templatePdfUploadInput"
+                  multiple
+                  accept=".pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/pdf"
+                  onChange={handleTemplatePdfChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="templatePdfUploadInput"
+                  className="cursor-pointer flex flex-col items-center justify-center space-y-1.5"
+                >
+                  <div className={`w-12 h-12 rounded-2xl text-white flex items-center justify-center text-xl shadow-md ${
+                    templateForm.pdfFile?.name?.match(/\.(xlsx|xls|csv)$/i)
+                      ? "bg-emerald-600"
+                      : templateForm.pdfFile
+                      ? "bg-rose-600"
+                      : "bg-teal-600"
+                  }`}>
+                    {templateForm.pdfFile?.name?.match(/\.(xlsx|xls|csv)$/i) ? (
+                      <FaFileExcel />
+                    ) : templateForm.pdfFile ? (
+                      <FaFilePdf />
+                    ) : (
+                      <FaUpload />
+                    )}
+                  </div>
+                  <div className="text-sm font-extrabold text-teal-950 flex items-center gap-1.5 flex-wrap justify-center">
+                    <span>{templateForm.pdfFile ? templateForm.pdfFile.name : "Click to Upload Format Document (Single or Multiple Excel / PDF)"}</span>
+                    {templateForm.pdfFile && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        templateForm.pdfFile.name?.match(/\.(xlsx|xls|csv)$/i)
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : "bg-rose-100 text-rose-800 border border-rose-300"
+                      }`}>
+                        {templateForm.pdfFile.name?.match(/\.(xlsx|xls|csv)$/i) ? "📊 Excel Spreadsheet" : "📄 PDF Document"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-teal-700 font-medium max-w-sm">
+                    Upload single or select multiple Excel (.xlsx) / PDF files at once. The system will automatically classify Observation (OB), Report &amp; AMU with live formulas!
+                  </p>
+                </label>
+
+                {templateParsingLoading && (
+                  <div className="flex items-center justify-center gap-2 text-xs font-bold text-teal-800 animate-pulse pt-2">
+                    <FaSync className="animate-spin" /> {templateForm.pdfFile?.name?.match(/\.(xlsx|xls|csv)$/i) ? "Parsing Excel worksheet & reading column formulas..." : "PyMuPDF extracting table structure, metadata & test points..."}
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3: 1:1 Converted Digital Form Preview & Live Editor */}
+              <div className="border-2 border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div>
+                    <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                      <FaTable className="text-teal-700" />
+                      <span>Step 3: 1:1 Converted Observation Form Preview &amp; Column Editor</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Preview your exact uploaded Excel / PDF sheet 1:1 below, or customize columns and rows before saving.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {Array.isArray(templateForm.exactSheets) && templateForm.exactSheets.length > 0 && (
+                      <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-xl border border-slate-300 mr-1">
+                        <button
+                          type="button"
+                          onClick={() => setStudioStep3Tab("exact")}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer ${
+                            studioStep3Tab === "exact" ? "bg-teal-600 text-white shadow-xs" : "text-slate-700 hover:bg-white"
+                          }`}
+                        >
+                          📄 1:1 Exact Sheet ({templateForm.exactSheets.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStudioStep3Tab("schema")}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer ${
+                            studioStep3Tab === "schema" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-700 hover:bg-white"
+                          }`}
+                        >
+                          ⚙️ Columns Schema ({(templateForm.tableColumns || []).length})
+                        </button>
+                      </div>
+                    )}
+                    {(templateForm.sheetsSummary || []).map((sh, sIdx) => (
+                      <span
+                        key={sIdx}
+                        className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-white text-slate-700 border border-slate-300"
+                      >
+                        {String(sh.role || "sheet").toUpperCase()}: {sh.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {studioStep3Tab === "exact" && Array.isArray(templateForm.exactSheets) && templateForm.exactSheets.length > 0 ? (
+                  <div className="space-y-2">
+                    <ExactSheetRenderer
+                      exactSheets={templateForm.exactSheets}
+                      values={templateForm.exactSheetValues || {}}
+                      onCellChange={({ cellKey, value }) =>
+                        setTemplateForm((p) => ({
+                          ...p,
+                          exactSheetValues: { ...(p.exactSheetValues || {}), [cellKey]: value },
+                        }))
+                      }
+                      readOnly={false}
+                      title={templateForm.name || templateForm.pdfFile?.name || "Uploaded Format"}
+                    />
+                  </div>
+                ) : (
+                <>
+
+                {/* Extracted Lab Metadata & Master Summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Format No.</label>
+                    <input
+                      type="text"
+                      value={templateForm.formatNo || ""}
+                      onChange={(e) => setTemplateForm((p) => ({ ...p, formatNo: e.target.value, structureEdited: true }))}
+                      placeholder="ARCL/OB/01"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-mono font-bold text-slate-900 text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Range / Capacity</label>
+                    <input
+                      type="text"
+                      value={templateForm.range || ""}
+                      onChange={(e) => setTemplateForm((p) => ({ ...p, range: e.target.value, structureEdited: true }))}
+                      placeholder="e.g. 63-6.3 mm"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Least Count</label>
+                    <input
+                      type="text"
+                      value={templateForm.leastCount || ""}
+                      onChange={(e) => setTemplateForm((p) => ({ ...p, leastCount: e.target.value, structureEdited: true }))}
+                      placeholder="e.g. 0.01 mm"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Ambient Temp.</label>
+                    <input
+                      type="text"
+                      value={templateForm.temperature || ""}
+                      onChange={(e) => setTemplateForm((p) => ({ ...p, temperature: e.target.value, structureEdited: true }))}
+                      placeholder="(20±2)°C"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Master Equipment</label>
+                    <input
+                      type="text"
+                      value={templateForm.masterDescription || ""}
+                      onChange={(e) => setTemplateForm((p) => ({ ...p, masterDescription: e.target.value, structureEdited: true }))}
+                      placeholder="Master Name"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Editable Column Schema Strip */}
+                <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-slate-800 text-[11px]">
+                      Extracted Table Columns ({(templateForm.tableColumns || []).length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIdx = (templateForm.tableColumns || []).length + 1;
+                        const newKey = `col_${Date.now().toString(36)}_${nextIdx}`;
+                        setTemplateForm((p) => ({
+                          ...p,
+                          structureEdited: true,
+                          tableColumns: [
+                            ...(p.tableColumns || []),
+                            { key: newKey, label: `Column ${nextIdx}`, unit: "", type: "number", minWidth: "120px" },
+                          ],
+                          defaultReadings: (p.defaultReadings || []).map((row) => ({ ...row, [newKey]: "" })),
+                        }));
+                      }}
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                    >
+                      <FaPlus className="text-[9px]" /> Add Column
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {(templateForm.tableColumns || []).map((col, cIdx) => (
+                      <div key={col.key || cIdx} className="grid grid-cols-12 gap-1.5 items-center text-[11px]">
+                        <span className="col-span-1 text-center font-mono font-bold text-slate-400">#{cIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={col.label || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTemplateForm((p) => ({
+                              ...p,
+                              structureEdited: true,
+                              tableColumns: (p.tableColumns || []).map((item, idx) =>
+                                idx === cIdx ? { ...item, label: val } : item
+                              ),
+                            }));
+                          }}
+                          placeholder="Column Header"
+                          className="col-span-5 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          value={col.unit || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTemplateForm((p) => ({
+                              ...p,
+                              structureEdited: true,
+                              tableColumns: (p.tableColumns || []).map((item, idx) =>
+                                idx === cIdx ? { ...item, unit: val } : item
+                              ),
+                            }));
+                          }}
+                          placeholder="Unit (mm)"
+                          className="col-span-2 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono text-center text-slate-800"
+                        />
+                        <select
+                          value={col.type === "calculated" ? "formula" : (col.type || "number")}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTemplateForm((p) => ({
+                              ...p,
+                              structureEdited: true,
+                              tableColumns: (p.tableColumns || []).map((item, idx) =>
+                                idx === cIdx ? { ...item, type: val } : item
+                              ),
+                            }));
+                          }}
+                          className="col-span-3 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800"
+                        >
+                          <option value="text">Text / Spec</option>
+                          <option value="number">Number Input</option>
+                          <option value="formula">Formula / Auto</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if ((templateForm.tableColumns || []).length <= 1) {
+                              toast.warning("At least 1 column is required.");
+                              return;
+                            }
+                            setTemplateForm((p) => ({
+                              ...p,
+                              structureEdited: true,
+                              tableColumns: (p.tableColumns || []).filter((_, idx) => idx !== cIdx),
+                            }));
+                          }}
+                          className="col-span-1 p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer flex justify-center"
+                          title="Remove Column"
+                        >
+                          <FaTrashAlt className="text-[10px]" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live 1:1 Interactive Table Preview (Columns + Default Rows) */}
+                <div className="bg-white rounded-xl border border-slate-300 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                    <span className="font-extrabold text-slate-800 text-[11px]">
+                      1:1 Converted Sheet Rows ({(templateForm.defaultReadings || []).length} Rows)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blankRow = {};
+                        (templateForm.tableColumns || []).forEach((c) => {
+                          blankRow[c.key] = /^sNo(?:_\d+)?$/i.test(c.key)
+                            ? String((templateForm.defaultReadings || []).length + 1)
+                            : "";
+                        });
+                        setTemplateForm((p) => ({
+                          ...p,
+                          structureEdited: true,
+                          defaultReadings: [...(p.defaultReadings || []), blankRow],
+                        }));
+                      }}
+                      className="px-2.5 py-1 bg-[#021C57] hover:bg-blue-900 text-white rounded-lg text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                    >
+                      <FaPlus className="text-[9px]" /> Add Test Row
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto max-h-56">
+                    <table className="w-full text-center text-[11px] border-collapse">
+                      <thead className="bg-slate-50 border-b border-slate-300 text-slate-900 font-bold">
+                        <tr>
+                          {(templateForm.tableColumns || []).map((col, cIdx) => (
+                            <th key={col.key || cIdx} className="border-r border-slate-200 px-2 py-1.5 whitespace-nowrap">
+                              <div>{col.label || col.key}</div>
+                              {col.unit && <div className="text-[9px] font-normal text-slate-500">({col.unit})</div>}
+                            </th>
+                          ))}
+                          <th className="px-2 py-1.5 w-8">✕</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {(templateForm.defaultReadings || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={Math.max(1, (templateForm.tableColumns || []).length + 1)} className="p-4 text-slate-400 italic">
+                              No pre-filled rows extracted — blank fillable rows will appear in Section 6, or click &quot;Add Test Row&quot;.
+                            </td>
+                          </tr>
+                        ) : (
+                          (templateForm.defaultReadings || []).map((row, rIdx) => (
+                            <tr key={rIdx} className="hover:bg-teal-50/30">
+                              {(templateForm.tableColumns || []).map((col, cIdx) => (
+                                <td key={col.key || cIdx} className="border-r border-slate-200 p-1">
+                                  <input
+                                    type="text"
+                                    value={row?.[col.key] !== undefined && row?.[col.key] !== null ? String(row[col.key]) : ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTemplateForm((p) => ({
+                                        ...p,
+                                        structureEdited: true,
+                                        defaultReadings: (p.defaultReadings || []).map((rw, idx) =>
+                                          idx === rIdx ? { ...rw, [col.key]: val } : rw
+                                        ),
+                                      }));
+                                    }}
+                                    className="w-full min-w-[75px] px-1.5 py-0.5 text-center font-mono text-[11px] border border-slate-200 rounded focus:outline-none focus:border-teal-500 bg-white text-slate-900"
+                                  />
+                                </td>
+                              ))}
+                              <td className="p-1 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTemplateForm((p) => ({
+                                      ...p,
+                                      structureEdited: true,
+                                      defaultReadings: (p.defaultReadings || []).filter((_, idx) => idx !== rIdx),
+                                    }))
+                                  }
+                                  className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                                  title="Remove row"
+                                >
+                                  <FaTrashAlt className="text-[10px]" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                </>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsTemplateUploadModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={templateUploadLoading}
+                  className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  {templateUploadLoading ? <FaSync className="animate-spin" /> : <FaCheck />} {editingTemplateId ? "Save Changes & Update Format" : "Save & Create Digital Format"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: 1:1 OBSERVATION FORMAT STUDIO PREVIEW */}
+      {studioPreviewTemplate && (() => {
+        const p = studioPreviewTemplate.parameters || {};
+        const cols = Array.isArray(studioPreviewTemplate.tableColumns) ? studioPreviewTemplate.tableColumns : [];
+        const rows = Array.isArray(studioPreviewTemplate.defaultReadings) ? studioPreviewTemplate.defaultReadings : [];
+        const masters = Array.isArray(p.masterEquipments) && p.masterEquipments.length > 0
+          ? p.masterEquipments
+          : (p.masterDescription || p.masterId || p.masterCertNo)
+            ? [{
+                name: p.masterDescription || "-",
+                id: p.masterId || "-",
+                certNo: p.masterCertNo || "-",
+                dueDate: p.masterDueDate || "-",
+                traceable: p.masterTraceable || "-",
+              }]
+            : [];
+        const repReadings = Array.isArray(p.repeatabilityReadings) ? p.repeatabilityReadings : [];
+        const hasReport = studioPreviewTemplate.reportData && Array.isArray(studioPreviewTemplate.reportData.reportColumns) && studioPreviewTemplate.reportData.reportColumns.length > 0;
+        const hasAmu = studioPreviewTemplate.amuData && (
+          (Array.isArray(studioPreviewTemplate.amuData.budgetTable) && studioPreviewTemplate.amuData.budgetTable.length > 0) ||
+          studioPreviewTemplate.amuData.expandedUncertainty ||
+          studioPreviewTemplate.amuData.combinedUncertainty
+        );
+        const hasExactSheets = Array.isArray(studioPreviewTemplate.exactSheets) && studioPreviewTemplate.exactSheets.length > 0;
+        const activePreviewTab = (studioPreviewTab === "report" && hasReport)
+          ? "report"
+          : (studioPreviewTab === "amu" && hasAmu)
+            ? "amu"
+            : (studioPreviewTab === "schema")
+              ? "schema"
+              : (hasExactSheets ? "exact" : "schema");
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-4 flex flex-col max-h-[92vh]">
+              {/* Top Bar */}
+              <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-emerald-300">
+                    {studioPreviewTemplate.fileType === "xlsx" || studioPreviewTemplate.fileType === "excel" ? <FaFileExcel size={20} /> : <FaFilePdf size={20} />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black tracking-tight">{studioPreviewTemplate.name}</h3>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                        1:1 Format Preview
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Source: {studioPreviewTemplate.pdfFileName || "Uploaded Format"} | Columns: {cols.length} | Pre-filled Rows: {rows.length}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStudioPreviewTemplate(null)}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 transition"
+                  title="Close Preview"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 overflow-y-auto space-y-4 bg-slate-50 flex-1">
+                {/* Preview View Mode Strip */}
+                {(hasExactSheets || hasReport || hasAmu) && (
+                  <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                    {hasExactSheets && (
+                      <button
+                        type="button"
+                        onClick={() => setStudioPreviewTab("obs")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${activePreviewTab === "exact" ? "bg-teal-600 text-white border-teal-600 shadow-sm" : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <FaFileExcel /> 1:1 Exact Cloned Sheet ({studioPreviewTemplate.exactSheets.length})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setStudioPreviewTab("schema")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${activePreviewTab === "schema" ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"}`}
+                    >
+                      <FaTable /> Structured Columns &amp; Metadata ({cols.length})
+                    </button>
+                    {hasReport && (
+                      <button
+                        type="button"
+                        onClick={() => setStudioPreviewTab("report")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${activePreviewTab === "report" ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <FaClipboardCheck /> Report Sheet ({studioPreviewTemplate.reportData.sheetName || "Report"})
+                      </button>
+                    )}
+                    {hasAmu && (
+                      <button
+                        type="button"
+                        onClick={() => setStudioPreviewTab("amu")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${activePreviewTab === "amu" ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <FaCalculator /> Uncertainty / AMU ({studioPreviewTemplate.amuData.sheetName || "AMU"})
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {activePreviewTab === "exact" && hasExactSheets ? (
+                  <ExactSheetRenderer
+                    exactSheets={studioPreviewTemplate.exactSheets}
+                    values={studioPreviewTemplate.exactSheetValues || {}}
+                    readOnly={true}
+                    pdfUrl={studioPreviewTemplate.pdfUrl}
+                    title={studioPreviewTemplate.name}
+                  />
+                ) : (
+                <>
+                {/* ARCL Official Format Header */}
+                <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-sm">
+                  <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-300 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                        ACCREDITED RESEARCH &amp; CALIBRATION LABS (ARCL) — OBSERVATION SHEET (1:1 EXTRACTED)
+                      </div>
+                      <div className="text-[11px] text-slate-600 font-medium">
+                        Equipment Type: <span className="font-bold text-slate-800">{studioPreviewTemplate.equipmentType || studioPreviewTemplate.name}</span>
+                      </div>
+                    </div>
+                    <div className="text-right text-[11px] text-slate-700 font-mono">
+                      <div><span className="font-bold">Format No:</span> {p.formatNo || "-"}</div>
+                      {(p.formatIssueNo || p.formatIssueDate) && (
+                        <div>
+                          <span className="font-bold">Issue:</span> {p.formatIssueNo || "-"} {p.formatIssueDate ? `(${p.formatIssueDate})` : ""}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-200 text-xs">
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Standard Reference</div>
+                      <div className="font-bold text-slate-800 mt-0.5 break-words">{studioPreviewTemplate.standardReference || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Calibration Method</div>
+                      <div className="font-bold text-slate-800 mt-0.5 break-words">{studioPreviewTemplate.calibrationMethod || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Range / Capacity</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{p.range || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Least Count / Resolution</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{p.leastCount || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Condition of Item</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{p.conditionOfItem || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Temperature</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{p.temperature || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Relative Humidity</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{p.humidity || "-"}</div>
+                    </div>
+                    <div className="bg-white p-2.5">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Workbook Sheets</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {Array.isArray(studioPreviewTemplate.sheetsSummary) && studioPreviewTemplate.sheetsSummary.length > 0
+                          ? studioPreviewTemplate.sheetsSummary.map((s) => (typeof s === "string" ? s : (s?.sheetName || s?.name || s?.type || "-"))).join(", ")
+                          : "Observation Sheet"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Master Equipment Used */}
+                {masters.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 text-xs font-black text-indigo-900 flex items-center gap-2">
+                      <FaCertificate className="text-indigo-600" /> Master / Standard Equipment Used ({masters.length})
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-500 border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2">#</th>
+                            <th className="px-3 py-2">Description / Name</th>
+                            <th className="px-3 py-2">ID / Serial No.</th>
+                            <th className="px-3 py-2">Certificate No.</th>
+                            <th className="px-3 py-2">Valid Upto / Due Date</th>
+                            <th className="px-3 py-2">Traceability</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {masters.map((m, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="px-3 py-2 font-mono text-slate-500">{idx + 1}</td>
+                              <td className="px-3 py-2 font-semibold text-slate-800">{m.description || m.name || "-"}</td>
+                              <td className="px-3 py-2 font-mono text-slate-700">{m.idMark || m.id || m.masterId || m.idNo || "-"}</td>
+                              <td className="px-3 py-2 font-mono text-slate-700">{m.certNo || m.certificateNo || "-"}</td>
+                              <td className="px-3 py-2 text-slate-700">{m.dueDate || m.validUpto || "-"}</td>
+                              <td className="px-3 py-2 text-slate-600">{m.traceableBy || m.traceable || m.traceability || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Observation Table 1:1 Preview */}
+                {activePreviewTab === "schema" && (
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold flex items-center justify-between">
+                        <span>Exact Extracted Observation Table ({cols.length} Columns, {rows.length} Rows)</span>
+                        <span className="text-[10px] font-mono text-emerald-300">100% Columns &amp; Units Preserved</span>
+                      </div>
+                      {cols.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-500">
+                          No observation columns found yet. Click <b>Re-Convert 1:1</b> or <b>Edit / Customize</b>.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800">
+                                <th className="px-2.5 py-2 border-r border-slate-200 text-[10px] font-bold text-slate-500 w-10 text-center">#</th>
+                                {cols.map((c, cIdx) => (
+                                  <th key={cIdx} className="px-3 py-2 border-r border-slate-200 text-left align-top min-w-[110px]">
+                                    <div className="font-bold text-slate-900">{c.label || c.key}</div>
+                                    <div className="text-[10px] font-normal text-slate-500 flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span className="font-mono text-indigo-600">{c.key}</span>
+                                      {c.unit && <span className="px-1 rounded bg-slate-200 text-slate-700">{c.unit}</span>}
+                                      <span className="px-1 rounded bg-amber-50 text-amber-700 border border-amber-200">{c.type || "text"}</span>
+                                      {c.readOnly && <span className="px-1 rounded bg-purple-50 text-purple-700 border border-purple-200">RO</span>}
+                                    </div>
+                                    {c.formula && (
+                                      <div className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mt-1 truncate" title={c.formula}>
+                                        fx: {c.formula}
+                                      </div>
+                                    )}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                              {rows.length === 0 ? (
+                                <tr>
+                                  <td colSpan={cols.length + 1} className="px-4 py-4 text-center text-xs text-slate-500 italic">
+                                    Structure ready — no pre-filled template rows in source sheet (blank entry rows will load in Section 6).
+                                  </td>
+                                </tr>
+                              ) : (
+                                rows.map((r, rIdx) => (
+                                  <tr key={rIdx} className="hover:bg-indigo-50/40">
+                                    <td className="px-2.5 py-1.5 border-r border-slate-200 text-center font-mono text-[11px] text-slate-400">{rIdx + 1}</td>
+                                    {cols.map((c, cIdx) => (
+                                      <td key={cIdx} className="px-3 py-1.5 border-r border-slate-200 font-mono text-slate-800 whitespace-pre-wrap">
+                                        {r && r[c.key] !== undefined && r[c.key] !== null && String(r[c.key]) !== "" ? String(r[c.key]) : "-"}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Repeatability Readings */}
+                    {(repReadings.length > 0 || p.repeatabilityMu) && (
+                      <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
+                        <div className="text-xs font-bold text-slate-800 mb-2">
+                          Repeatability Readings {p.repeatabilityMu ? `(MU: ${p.repeatabilityMu})` : ""}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {repReadings.map((val, idx) => (
+                            <span key={idx} className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 font-mono text-xs text-slate-800">
+                              R{idx + 1}: {val}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Report Sheet Preview */}
+                {activePreviewTab === "report" && hasReport && (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold">
+                      Report Sheet: {studioPreviewTemplate.reportData.sheetName || "Report"}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead className="bg-slate-100 border-b border-slate-300">
+                          <tr>
+                            {studioPreviewTemplate.reportData.reportColumns.map((col, idx) => (
+                              <th key={idx} className="px-3 py-2 border-r border-slate-200 text-left font-bold text-slate-800">
+                                {col.label || col.key} {col.unit ? `(${col.unit})` : ""}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {(studioPreviewTemplate.reportData.reportReadings || []).map((row, rIdx) => (
+                            <tr key={rIdx} className="hover:bg-slate-50">
+                              {studioPreviewTemplate.reportData.reportColumns.map((col, cIdx) => (
+                                <td key={cIdx} className="px-3 py-1.5 border-r border-slate-200 font-mono text-slate-700">
+                                  {row && row[col.key] !== undefined ? String(row[col.key]) : "-"}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* AMU / Uncertainty Preview */}
+                {activePreviewTab === "amu" && hasAmu && (() => {
+                  const amu = studioPreviewTemplate.amuData || {};
+                  const typeAVal = amu.typeA;
+                  const typeADisp = typeAVal && typeof typeAVal === "object"
+                    ? `uA=${typeAVal.uA ?? 0} (n=${typeAVal.n ?? "-"}, σ=${typeAVal.stdDev ?? 0})`
+                    : (typeAVal ?? "-");
+                  const typeBVal = amu.typeB;
+                  const typeBDisp = typeBVal && typeof typeBVal === "object"
+                    ? `uB=${typeBVal.uB ?? 0} (uB1=${typeBVal.uB1 ?? 0}, uB2=${typeBVal.uB2 ?? 0}, uB3=${typeBVal.uB3 ?? 0})`
+                    : (typeBVal ?? "-");
+                  return (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm space-y-3 p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">Type A</div>
+                        <div className="font-mono font-bold text-slate-800 mt-0.5 break-words">{String(typeADisp)}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">Type B</div>
+                        <div className="font-mono font-bold text-slate-800 mt-0.5 break-words">{String(typeBDisp)}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">Combined (Uc)</div>
+                        <div className="font-mono font-bold text-slate-800 mt-0.5">{String(amu.combinedUncertainty ?? "-")}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">Coverage (k)</div>
+                        <div className="font-mono font-bold text-slate-800 mt-0.5">{String(amu.coverageFactor ?? "-")}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
+                        <div className="text-[10px] font-bold uppercase text-indigo-500">Expanded (U)</div>
+                        <div className="font-mono font-bold text-indigo-800 mt-0.5">{String(amu.expandedUncertainty ?? "-")}</div>
+                      </div>
+                    </div>
+                    {Array.isArray(amu.budgetTable) && amu.budgetTable.length > 0 && (
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table className="w-full text-xs border-collapse">
+                          <thead className="bg-slate-100 border-b border-slate-200">
+                            <tr>
+                              {Object.keys(amu.budgetTable[0] || {}).map((k) => (
+                                <th key={k} className="px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-200">{k}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {amu.budgetTable.map((row, idx) => (
+                              <tr key={idx}>
+                                {Object.keys(amu.budgetTable[0] || {}).map((k) => (
+                                  <td key={k} className="px-3 py-1.5 font-mono text-slate-700 border-r border-slate-200">
+                                    {row && row[k] !== undefined ? String(row[k]) : "-"}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                  );
+                })()}
+                </>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStudioPreviewTemplate(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+                >
+                  Close
+                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={reconvertingTemplateId === studioPreviewTemplate._id}
+                    onClick={() => handleReconvertStudioTemplate(studioPreviewTemplate)}
+                    className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-60"
+                  >
+                    <FaSync className={reconvertingTemplateId === studioPreviewTemplate._id ? "animate-spin" : ""} /> Re-Convert 1:1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = studioPreviewTemplate;
+                      setStudioPreviewTemplate(null);
+                      handleEditTemplate(t);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <FaEdit /> Edit / Customize
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = studioPreviewTemplate;
+                      setStudioPreviewTemplate(null);
+                      handleSelectObservationTemplate(t);
+                      setActiveTab("observations");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <FaBolt /> Fill in Section 6 →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: VIEW ORIGINAL FORMAT PDF */}
+      {viewingTemplatePdfUrl && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-100 overflow-hidden space-y-3 p-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <div className="flex items-center gap-2">
+                {viewingTemplatePdfUrl.match(/\.(xlsx|xls|csv)$/i) ? (
+                  <FaFileExcel className="text-emerald-600 text-lg" />
+                ) : (
+                  <FaFilePdf className="text-rose-600 text-lg" />
+                )}
+                <h3 className="font-bold text-slate-900 text-sm">
+                  {viewingTemplatePdfUrl.match(/\.(xlsx|xls|csv)$/i)
+                    ? "Original Equipment Calibration Format Spreadsheet (.xlsx)"
+                    : "Original Equipment Calibration Format PDF"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={viewingTemplatePdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                  className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                >
+                  <FaDownload className="text-[10px]" /> Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingTemplatePdfUrl(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            {viewingTemplatePdfUrl.match(/\.(xlsx|xls|csv)$/i) ? (
+              <div className="w-full p-12 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl shadow-inner">
+                  <FaFileExcel />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-slate-900 text-base">Excel Observation Format (.xlsx)</h4>
+                  <p className="text-xs text-slate-500 max-w-md">
+                    This template was uploaded in Excel spreadsheet format. You can download the original file or inspect its digital converted columns in Section 6.
+                  </p>
+                </div>
+                <a
+                  href={viewingTemplatePdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 cursor-pointer"
+                >
+                  <FaDownload /> Download Original Excel File
+                </a>
+              </div>
+            ) : (
+              <div className="w-full h-[80vh] rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
+                <iframe src={viewingTemplatePdfUrl} className="w-full h-full" title="Observation Format PDF" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE TEMPLATE CONFIRMATION */}
+      {templateDeleteTarget && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-gray-100 p-6 space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mx-auto">
+              <FaTrashAlt />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-950">Delete Format Template?</h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Are you sure you want to delete <strong className="text-slate-950">"{templateDeleteTarget.name}"</strong>? Calibration engineers will no longer be able to select it for new calibration worksheets.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTemplateDeleteTarget(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteObsTemplate}
+                disabled={isDeletingTemplate}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingTemplate ? <FaSync className="animate-spin text-xs" /> : <FaTrashAlt className="text-xs" />} Yes, Delete Format
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: ADD NEW CALIBRATION ENTRY (MULTI-EQUIPMENT / BATCH INWARD) */}
       {/* ========================================================================= */}
       {isAddModalOpen && (
@@ -8266,7 +18749,7 @@ export default function CalibrationPageView() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg sm:text-xl font-black text-gray-900">
-                      Add Calibration Inward Entry
+                      Add Calibration Inward Entry &amp; Create Quotation / SRF
                     </h3>
                     <span className="text-[11px] font-extrabold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
                       Bulk / Multi-Equipment Enabled
@@ -8321,14 +18804,40 @@ export default function CalibrationPageView() {
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 27AAACU0108Q1Z8"
-                      value={formData.clientGst}
-                      onChange={(e) => setFormData({ ...formData, clientGst: e.target.value.toUpperCase() })}
-                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-gray-800 uppercase"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
+                      <span className="text-[10px] text-emerald-600 font-bold">⚡ Auto-Fetch</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <input
+                        type="text"
+                        placeholder="e.g. 27AAACU0108Q1Z8"
+                        value={formData.clientGst}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                          setFormData((prev) => ({ ...prev, clientGst: val }));
+                          if (val.length === 15) {
+                            handleAutoFetchGstInCalibration(val, "inward");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (formData.clientGst?.length === 15) {
+                            handleAutoFetchGstInCalibration(formData.clientGst, "inward");
+                          }
+                        }}
+                        maxLength={15}
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-gray-800 uppercase text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFetchGstInCalibration(formData.clientGst, "inward")}
+                        disabled={isVerifyingGstInCalibration}
+                        className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[10px] shrink-0 transition cursor-pointer"
+                        title="Auto-fetch Company Name & Address from GSTIN"
+                      >
+                        {isVerifyingGstInCalibration ? "..." : "Fetch"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -8639,11 +19148,28 @@ export default function CalibrationPageView() {
                 </button>
               </div>
 
-              {/* Form Action Buttons */}
-              <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-gray-600 font-medium">
-                  Ready to add <strong className="text-emerald-700 font-black">{formData.instruments.length} equipment item{formData.instruments.length > 1 ? "s" : ""}</strong> for <strong className="text-gray-900">{formData.clientCompany || "Client"}</strong>
-                </div>
+              {/* Release Mode Toggle + Form Action Buttons */}
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-cyan-50/70 border border-cyan-200 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.releaseImmediately)}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, releaseImmediately: e.target.checked }))}
+                    className="w-4 h-4 rounded text-cyan-600 focus:ring-cyan-500"
+                  />
+                  <div>
+                    <span className="font-bold text-cyan-950 block">
+                      Grant Lab Permission Immediately for Today / Above Date
+                    </span>
+                    <span className="text-[10px] text-cyan-800">
+                      Leave unchecked (default): all new products stay Pending Permission (Held) until permitted per day.
+                    </span>
+                  </div>
+                </label>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs text-gray-600 font-medium">
+                    Ready to add <strong className="text-emerald-700 font-black">{formData.instruments.length} equipment item{formData.instruments.length > 1 ? "s" : ""}</strong> for <strong className="text-gray-900">{formData.clientCompany || "Client"}</strong>
+                  </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -8658,6 +19184,7 @@ export default function CalibrationPageView() {
                   >
                     <FaCheck /> Save All ({formData.instruments.length}) to Calibration Pipeline
                   </button>
+                </div>
                 </div>
               </div>
             </form>
@@ -8734,14 +19261,40 @@ export default function CalibrationPageView() {
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 27AAACU0108Q1Z8"
-                      value={editFormData.clientGst || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, clientGst: e.target.value.toUpperCase() })}
-                      className="w-full mt-1 p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-gray-800 uppercase"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-gray-700">GST No. (GSTIN)</label>
+                      <span className="text-[10px] text-blue-600 font-bold">⚡ Auto-Fetch</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <input
+                        type="text"
+                        placeholder="e.g. 27AAACU0108Q1Z8"
+                        value={editFormData.clientGst || ""}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                          setEditFormData((prev) => ({ ...prev, clientGst: val }));
+                          if (val.length === 15) {
+                            handleAutoFetchGstInCalibration(val, "edit");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editFormData.clientGst?.length === 15) {
+                            handleAutoFetchGstInCalibration(editFormData.clientGst, "edit");
+                          }
+                        }}
+                        maxLength={15}
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono font-bold text-gray-800 uppercase text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFetchGstInCalibration(editFormData.clientGst, "edit")}
+                        disabled={isVerifyingGstInCalibration}
+                        className="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-[10px] shrink-0 transition cursor-pointer"
+                        title="Auto-fetch Company Name & Address from GSTIN"
+                      >
+                        {isVerifyingGstInCalibration ? "..." : "Fetch"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -9110,6 +19663,1129 @@ export default function CalibrationPageView() {
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: INSPECT OBSERVATION WORKSHEET */}
+      {/* ========================================================================= */}
+      {inspectingObsRecord && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4 p-6">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <div className="flex items-center gap-2">
+                <FaClipboardCheck className="text-teal-600 text-xl" />
+                <h3 className="font-extrabold text-base text-gray-900">
+                  Observation Worksheet: {inspectingObsRecord.instrument}
+                </h3>
+              </div>
+              <button
+                onClick={() => setInspectingObsRecord(null)}
+                className="text-gray-400 hover:text-gray-700 p-1 cursor-pointer text-lg"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {/* Sub-tabs: Metrological Calculation & Report vs Raw Observation Sheet */}
+            {(() => {
+              const calcData = computeMetrologicalCalculations(inspectingObsRecord);
+              return (
+                <>
+                  <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setInspectionModalTab("calculation")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        inspectionModalTab === "calculation"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <FaCalculator className="text-xs" /> ⚡ Quality Metrological Calculation &amp; Report
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInspectionModalTab("raw_observation")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        inspectionModalTab === "raw_observation"
+                          ? "bg-teal-600 text-white shadow-xs"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <FaClipboardCheck className="text-xs" /> 📋 Raw Observation Worksheet (Technician Input)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInspectionModalTab("excel_inspector")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        inspectionModalTab === "excel_inspector"
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <FaFileExcel className="text-xs" /> 📑 Multi-Sheet Excel Workbook Inspector (OB / Report / AMU)
+                    </button>
+                  </div>
+
+                  {inspectionModalTab === "calculation" ? (
+                    <div className="space-y-4">
+                      {/* Overall Verdict Banner */}
+                      <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                        calcData.overallVerdict === "PASS"
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-950"
+                          : "bg-rose-50 border-rose-300 text-rose-950"
+                      }`}>
+                        <div className="flex items-center gap-2.5">
+                          <span className={`px-2.5 py-1 rounded-md text-xs font-black tracking-wider uppercase ${
+                            calcData.overallVerdict === "PASS"
+                              ? "bg-emerald-600 text-white"
+                              : "bg-rose-600 text-white"
+                          }`}>
+                            VERDICT: {calcData.overallVerdict}
+                          </span>
+                          <div>
+                            <h4 className="font-bold text-sm">
+                              {calcData.overallVerdict === "PASS"
+                                ? "All Test Points are within Permissible Tolerance Limits"
+                                : "One or More Test Points Exceed Permissible Tolerance Limits"}
+                            </h4>
+                            <p className="text-[11px] text-gray-600">
+                              Calculated against IS/ISO/IEC 17025 metrological criteria • Max Deviation: <strong className="font-mono">{calcData.maxError}</strong>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-gray-500 block">Instrument</span>
+                          <span className="font-bold text-xs">{inspectingObsRecord.instrument}</span>
+                        </div>
+                      </div>
+
+                      {/* Evaluated Formula Results Table */}
+                      <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs">
+                        <div className="bg-slate-100 px-3 py-2 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <FaCalculator className="text-blue-600 text-xs" /> Metrological Formula Evaluation Table
+                          </span>
+                          <span className="text-[10.5px] text-slate-500 font-mono">
+                            Active Sheet Formulas: {calcData.formulaCells?.length || 0} evaluated
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-center text-[11px] divide-y divide-slate-200">
+                            <thead className="bg-slate-50 font-bold text-[10px] text-slate-700 uppercase divide-x divide-slate-200">
+                              <tr>
+                                <th className="p-2">#</th>
+                                <th className="p-2">Nominal / Set Value</th>
+                                <th className="p-2">Master / Standard</th>
+                                <th className="p-2 bg-blue-50/50">Average Indicated (x̄)</th>
+                                <th className="p-2 bg-amber-50 text-blue-950">Indication Error</th>
+                                <th className="p-2 bg-amber-50/70 text-blue-950">Relative Error (%)</th>
+                                <th className="p-2">Tolerance Limit</th>
+                                <th className="p-2 bg-indigo-50 text-indigo-950">Applied Formula</th>
+                                <th className="p-2">Verdict</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 bg-white font-medium">
+                              {calcData.rows.map((row) => (
+                                <tr key={row.srNo} className="divide-x divide-slate-200 hover:bg-slate-50">
+                                  <td className="p-1.5 font-bold">{row.srNo}</td>
+                                  <td className="p-1.5 font-mono">{row.nominal}</td>
+                                  <td className="p-1.5 font-mono text-slate-700">{row.standard}</td>
+                                  <td className="p-1.5 font-mono font-bold text-blue-900 bg-blue-50/20">{row.avgObserved}</td>
+                                  <td className={`p-1.5 font-mono font-bold bg-amber-50/30 ${row.error < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                    {row.error > 0 ? `+${row.error}` : row.error}
+                                  </td>
+                                  <td className={`p-1.5 font-mono font-bold bg-amber-50/30 ${row.percentError < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                    {row.percentError > 0 ? `+${row.percentError}%` : `${row.percentError}%`}
+                                  </td>
+                                  <td className="p-1.5 font-mono text-slate-600">{row.tolerance}</td>
+                                  <td className="p-1.5 font-mono text-[10px] text-indigo-900 bg-indigo-50/40 max-w-[200px] truncate" title={row.appliedFormula}>
+                                    {row.appliedFormula || "Observed - Master"}
+                                  </td>
+                                  <td className="p-1.5">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                      !row.hasMeasurement
+                                        ? "bg-slate-100 text-slate-600"
+                                        : row.isWithinTol
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : "bg-rose-100 text-rose-800"
+                                    }`}>
+                                      {!row.hasMeasurement ? "PENDING" : row.isWithinTol ? "PASS" : "FAIL"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Report Sheet Formula-Evaluated Results Preview */}
+                      {calcData.reportTable?.rows?.length > 0 && (
+                        <div className="border border-indigo-200 rounded-xl overflow-hidden shadow-xs bg-white">
+                          <div className="bg-indigo-50 px-3 py-2 border-b border-indigo-200 flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                              <FaCertificate className="text-indigo-600 text-xs" />
+                              Evaluated Certificate / Report Sheet Table ({calcData.reportTable.sheetName})
+                            </span>
+                            {calcData.reportTable.uncertaintyValue && (
+                              <span className="text-[10.5px] font-mono bg-white border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded font-bold" title={calcData.reportTable.uncertaintyFormula}>
+                                Uncertainty: ±{calcData.reportTable.uncertaintyValue}
+                              </span>
+                            )}
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-center text-[11px] divide-y divide-indigo-100">
+                              <thead className="bg-indigo-50/50 font-bold text-[10px] text-indigo-950 uppercase divide-x divide-indigo-100">
+                                <tr>
+                                  {calcData.reportTable.columns.map((col, idx) => (
+                                    <th key={idx} className="p-2">{col.label}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200 bg-white">
+                                {calcData.reportTable.rows.map((rRow, rIdx) => (
+                                  <tr key={rIdx} className="divide-x divide-slate-200 hover:bg-indigo-50/20">
+                                    {calcData.reportTable.columns.map((col, cIdx) => {
+                                      const cellFormula = rRow._formulas?.[col.key];
+                                      return (
+                                        <td key={cIdx} className="p-1.5 font-mono" title={cellFormula ? `Formula: ${cellFormula}` : ""}>
+                                          <div className={cellFormula ? "font-bold text-indigo-950" : "text-slate-800"}>
+                                            {rRow[col.key] !== undefined && rRow[col.key] !== "" ? rRow[col.key] : "-"}
+                                          </div>
+                                          {cellFormula && (
+                                            <div className="text-[9px] text-indigo-600 truncate max-w-[140px] mx-auto">
+                                              {cellFormula}
+                                            </div>
+                                          )}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AMU (Analysis of Measurement Uncertainty) Card */}
+                      {calcData.amu && (
+                        <div className="border border-teal-200 bg-gradient-to-br from-teal-50/40 via-white to-blue-50/30 rounded-xl p-3.5 space-y-2.5 shadow-xs">
+                          <div className="flex items-center justify-between border-b border-teal-200/80 pb-2 flex-wrap gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-teal-600"></span>
+                              <h5 className="font-bold text-xs text-teal-950">
+                                Analysis of Measurement Uncertainty (AMU) Budget {calcData.amu.sourceSheet ? `— ${calcData.amu.sourceSheet}` : ""}
+                              </h5>
+                            </div>
+                            <span className="text-[10px] font-mono bg-teal-100 text-teal-900 px-2 py-0.5 rounded font-bold" title={calcData.amu.expandedUncertaintyFormula}>
+                              k = {calcData.amu.k} (~95% Confidence) • {calcData.amu.expandedUncertaintyFormula}
+                            </span>
+                          </div>
+
+                          {/* Repeatability readings pills or Sheet AMU notice */}
+                          <div className="flex items-center gap-2 flex-wrap text-xs">
+                            <span className="text-[11px] font-bold text-slate-700">Repeatability Readings:</span>
+                            {calcData.amu.readings && calcData.amu.readings.length > 0 ? (
+                              calcData.amu.readings.map((val, idx) => (
+                                <span key={idx} className="bg-white border border-teal-300 px-2 py-0.5 rounded font-mono text-[11px] font-semibold text-teal-900 shadow-2xs">
+                                  <strong>R{idx + 1}:</strong> {val}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-slate-600 italic bg-white px-2 py-0.5 rounded border border-teal-200">
+                                Computed directly from Workbook AMU Sheet / Instrument Resolution
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Budget grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center font-mono">
+                            <div className="bg-white p-2 rounded-lg border border-slate-200">
+                              <div className="text-[9.5px] font-sans font-bold text-slate-500 uppercase">Repeatability Mean (x̄)</div>
+                              <div className="font-bold text-xs text-slate-900 mt-0.5">{calcData.amu.mean}</div>
+                            </div>
+                            <div className="bg-white p-2 rounded-lg border border-slate-200">
+                              <div className="text-[9.5px] font-sans font-bold text-slate-500 uppercase">Type A: uA = s/√{calcData.amu.n || 5}</div>
+                              <div className="font-bold text-xs text-blue-700 mt-0.5">{calcData.amu.uA}</div>
+                            </div>
+                            <div className="bg-white p-2 rounded-lg border border-slate-200">
+                              <div className="text-[9.5px] font-sans font-bold text-slate-500 uppercase">Combined Std: uc</div>
+                              <div className="font-bold text-xs text-purple-700 mt-0.5">{calcData.amu.uc}</div>
+                            </div>
+                            <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-300">
+                              <div className="text-[9.5px] font-sans font-bold text-emerald-800 uppercase">Expanded: U (k={calcData.amu.k || 2})</div>
+                              <div className="font-extrabold text-xs text-emerald-900 mt-0.5">±{calcData.amu.expandedUncertainty}</div>
+                            </div>
+                          </div>
+
+                          {calcData.amu.evaluatedItems && calcData.amu.evaluatedItems.length > 0 && (
+                            <div className="pt-1 flex flex-wrap gap-1.5">
+                              {calcData.amu.evaluatedItems.slice(0, 8).map((item, idx) => (
+                                <span key={idx} className="bg-white border border-teal-200 px-2 py-0.5 rounded text-[10px] font-mono text-teal-950" title={`Formula: ${item.formula}`}>
+                                  <strong>{item.ref}:</strong> {item.value} <span className="text-teal-700">({item.formula})</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Quick Authorization Action Banner inside Calculation Tab */}
+                      {inspectingObsRecord.observationData?.status === "Submitted" && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                          <div className="text-xs text-slate-600">
+                            <strong className="text-slate-900">Ready to Authorize:</strong> All calculated values and uncertainty budgets will be locked and saved into the Official NABL Certificate.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const rec = inspectingObsRecord;
+                              setInspectingObsRecord(null);
+                              handleApproveObservation(rec);
+                            }}
+                            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            <FaCheckDouble /> PASS &amp; ISSUE CERTIFICATE
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : inspectionModalTab === "excel_inspector" ? (
+                    (() => {
+                      const activeTemplate =
+                        obsTemplates.find(
+                          (t) =>
+                            t._id === inspectingObsRecord?.templateId ||
+                            t._id === inspectingObsRecord?.observationData?.templateId ||
+                            (t.name &&
+                              inspectingObsRecord?.instrument &&
+                              t.name.toLowerCase() === inspectingObsRecord.instrument.toLowerCase())
+                        ) ||
+                        findTemplateForInstrument(inspectingObsRecord, obsTemplates) ||
+                        null;
+                      const activeExcelUrl =
+                        inspectingObsRecord?.observationData?.pdfUrl ||
+                        activeTemplate?.pdfUrl ||
+                        activeObsPdfUrl ||
+                        "";
+                      const activeCols = (inspectingObsRecord?.observationData?.tableColumns && inspectingObsRecord.observationData.tableColumns.length > 0)
+                        ? inspectingObsRecord.observationData.tableColumns
+                        : (activeTemplate?.tableColumns || obsTableColumns || []);
+                      const activeReadings = (inspectingObsRecord?.observationData?.readings && inspectingObsRecord.observationData.readings.length > 0)
+                        ? inspectingObsRecord.observationData.readings
+                        : (activeTemplate?.sampleReadings || obsReadings || []);
+
+                      return (
+                        <div className="w-full bg-slate-950 text-white rounded-2xl border border-teal-500/30 overflow-hidden flex flex-col shadow-xl animate-fadeIn">
+                          {/* Header: File Name, Standard, Format Type, Actions */}
+                          <div className="bg-gradient-to-r from-slate-950 via-[#021C57] to-slate-900 px-4 py-3 flex items-center justify-between border-b border-white/10 text-white shrink-0 flex-wrap gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                                <FaFileExcel className="text-base" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-black flex items-center gap-2 leading-tight">
+                                  <span className="text-white truncate max-w-[260px]">
+                                    {activeTemplate?.name || inspectingObsRecord?.instrument || "Excel Workbook Format"}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-bold shrink-0">
+                                    EXCEL (.XLSX)
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5 font-medium truncate max-w-[300px]">
+                                  Standard: {activeTemplate?.standardReference || "IS / ISO Metrology Standard"}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <label className="px-2.5 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-500/40 rounded-lg text-[11px] font-bold cursor-pointer transition flex items-center gap-1 shadow-2xs active:scale-95">
+                                <FaUpload className="text-[10px]" />
+                                <span>Replace File</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.xlsx,.xls,.csv"
+                                  onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                      handleDirectUploadObservationFile(e.target.files[0]);
+                                      e.target.value = "";
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+
+                              <button
+                                type="button"
+                                disabled={isConvertingFromCloudinary}
+                                onClick={() => handleConvertCloudinaryPdfToForm(activeTemplate?._id, activeExcelUrl)}
+                                className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg text-[11px] font-black transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                                title="Re-parse this Excel workbook into form columns and test points"
+                              >
+                                <FaBolt className="text-slate-950 text-[10px]" /> {isConvertingFromCloudinary ? "Parsing..." : "Re-parse"}
+                              </button>
+
+                              {activeExcelUrl && (
+                                <a
+                                  href={activeExcelUrl}
+                                  download={activeTemplate?.pdfFileName || `${inspectingObsRecord?.instrument || "format"}.xlsx`}
+                                  className="px-2.5 py-1 bg-teal-600/40 hover:bg-teal-600/60 text-teal-200 border border-teal-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
+                                  title="Download Original Excel"
+                                >
+                                  <FaDownload className="text-[10px]" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Sheet Role Switcher Tabs */}
+                          <div className="flex items-center gap-1.5 p-2 bg-slate-900 border-b border-white/10 shrink-0 flex-wrap">
+                            {Array.isArray(activeTemplate?.exactSheets) && activeTemplate.exactSheets.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExcelActiveTab("exact")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                  excelActiveTab === "exact" ? "bg-emerald-500 text-slate-950 shadow-xs" : "text-slate-300 hover:text-white hover:bg-white/5"
+                                }`}
+                              >
+                                <FaFileExcel className="text-xs" /> 0. 1:1 Exact Cloned Sheet
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setExcelActiveTab("obs")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                excelActiveTab === "obs" ? "bg-teal-500 text-slate-950 shadow-xs" : "text-slate-300 hover:text-white hover:bg-white/5"
+                              }`}
+                            >
+                              <FaTable className="text-xs" /> 1. Observation (OB)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExcelActiveTab("report")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                excelActiveTab === "report" ? "bg-blue-500 text-white shadow-xs" : "text-slate-300 hover:text-white hover:bg-white/5"
+                              }`}
+                            >
+                              <FaCertificate className="text-xs" /> 2. Report &amp; Cert
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExcelActiveTab("amu")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                excelActiveTab === "amu" ? "bg-amber-500 text-slate-950 shadow-xs" : "text-slate-300 hover:text-white hover:bg-white/5"
+                              }`}
+                            >
+                              <FaCalculator className="text-xs" /> 3. AMU (Uncertainty)
+                            </button>
+                          </div>
+
+                          {/* Sheet Tab Content */}
+                          <div className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
+                            {excelActiveTab === "exact" && Array.isArray(activeTemplate?.exactSheets) && activeTemplate.exactSheets.length > 0 && (
+                              <ExactSheetRenderer
+                                exactSheets={activeTemplate.exactSheets}
+                                values={calcData?.liveValues || inspectingObsRecord?.observationData?.exactSheetValues || {}}
+                                readOnly={true}
+                                pdfUrl={activeExcelUrl}
+                                title={activeTemplate.name}
+                              />
+                            )}
+                            {excelActiveTab === "obs" && (
+                              /* 1. OBSERVATION SHEET */
+                              <div className="space-y-3 animate-fadeIn">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <FaTable /> RAW OBSERVATION WORKSHEET ({activeCols.length} COLUMNS)
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-900 border border-white/10">
+                                    Sheet: {activeTemplate?.sheetsSummary?.find((s) => s.role === "observation")?.name || "Dial Gauge OB"}
+                                  </span>
+                                </div>
+                                <div className="bg-slate-900 rounded-xl p-3 border border-white/10">
+                                  <div className="text-[11px] font-bold text-slate-300 mb-2">Column Headers:</div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {activeCols.map((col, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-slate-800 text-teal-300 border border-teal-500/20 text-[10px] font-mono">
+                                        {col.label || col.key} {col.unit ? `(${col.unit})` : ""}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                {activeReadings && activeReadings.length > 0 && (
+                                  <div className="bg-slate-900 rounded-xl p-3 border border-white/10 overflow-x-auto">
+                                    <div className="text-[11px] font-bold text-slate-300 mb-2">Sample Test Points ({activeReadings.length} Rows, {activeCols.length} Cols):</div>
+                                    <table className="w-full text-center text-[10px] font-mono border-collapse divide-y divide-slate-800">
+                                      <thead className="text-slate-400 bg-slate-950">
+                                        <tr>
+                                          {activeCols.map((col, cIdx) => (
+                                            <th key={cIdx} className="p-1 border-r border-slate-800">{col.label || col.key}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-800 text-slate-300">
+                                        {activeReadings.slice(0, 11).map((row, rIdx) => (
+                                          <tr key={rIdx} className="hover:bg-slate-800/50">
+                                            {activeCols.map((col, cIdx) => (
+                                              <td key={cIdx} className="p-1 border-r border-slate-800">{row[col.key] !== undefined ? String(row[col.key]) : "-"}</td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {excelActiveTab === "report" && (
+                              /* 2. REPORT / CERTIFICATE SHEET */
+                              <div className="space-y-3 animate-fadeIn">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <FaCertificate /> Calibration Certificate Results Table
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-900 border border-white/10">
+                                    Sheet: {activeTemplate?.reportData?.sheetName || "Report"}
+                                  </span>
+                                </div>
+                                <div className="bg-slate-900 rounded-xl p-3 border border-white/10 overflow-x-auto">
+                                  {(() => {
+                                    const evalReportCols = calcData?.reportTable?.columns?.length > 0
+                                      ? calcData.reportTable.columns
+                                      : (activeTemplate?.reportData?.reportColumns || []);
+                                    const evalReportRows = calcData?.reportTable?.rows?.length > 0
+                                      ? calcData.reportTable.rows
+                                      : (activeTemplate?.reportData?.reportReadings || []);
+                                    return (
+                                      <>
+                                        <div className="text-[11px] font-bold text-slate-300 mb-2 flex items-center justify-between">
+                                          <span>Results Table ({evalReportRows.length} Points):</span>
+                                          {calcData?.reportTable?.uncertaintyValue && (
+                                            <span className="text-[10px] font-mono text-emerald-300">
+                                              Uncertainty: ±{calcData.reportTable.uncertaintyValue}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {evalReportCols.length > 0 ? (
+                                          <table className="w-full text-center text-[10px] font-mono border-collapse divide-y divide-slate-800">
+                                            <thead className="text-blue-300 bg-slate-950">
+                                              <tr>
+                                                {evalReportCols.map((col, cIdx) => (
+                                                  <th key={cIdx} className="p-1 border-r border-slate-800">{col.label}</th>
+                                                ))}
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800 text-slate-200">
+                                              {evalReportRows.map((row, rIdx) => (
+                                                <tr key={rIdx} className="hover:bg-slate-800/50">
+                                                  {evalReportCols.map((col, cIdx) => {
+                                                    const fStr = row._formulas?.[col.key];
+                                                    return (
+                                                      <td key={cIdx} className="p-1 border-r border-slate-800" title={fStr ? `Formula: ${fStr}` : ""}>
+                                                        <div>{row[col.key] !== undefined && row[col.key] !== "" ? String(row[col.key]) : "-"}</div>
+                                                        {fStr && <div className="text-[8.5px] text-teal-400">{fStr}</div>}
+                                                      </td>
+                                                    );
+                                                  })}
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        ) : (
+                                          <p className="text-xs text-slate-400 italic">Standard certificate result format linked to live observation form.</p>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                                {activeTemplate?.reportData?.notes && activeTemplate.reportData.notes.length > 0 && (
+                                  <div className="bg-slate-900 rounded-xl p-3 border border-white/10 space-y-1">
+                                    <div className="text-[11px] font-bold text-slate-300">NABL Certificate Notes &amp; Clauses:</div>
+                                    {activeTemplate.reportData.notes.map((note, nIdx) => (
+                                      <p key={nIdx} className="text-[10px] text-slate-400 leading-tight">&bull; {note}</p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {excelActiveTab === "amu" && (
+                              /* 3. AMU (MEASUREMENT UNCERTAINTY BUDGET) */
+                              <div className="space-y-3 animate-fadeIn">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <FaCalculator /> Evaluation of Measurement Uncertainty (AMU / CMC)
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-900 border border-white/10">
+                                    Sheet: {activeTemplate?.amuData?.sheetName || "MU"}
+                                  </span>
+                                </div>
+
+                                {/* Key Metrological Uncertainty Badges */}
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-2.5 text-center">
+                                    <div className="text-[9px] uppercase font-bold text-slate-400">Combined (uc)</div>
+                                    <div className="text-base font-black font-mono text-amber-300 mt-0.5">
+                                      {String(calcData?.amu?.uC ?? activeTemplate?.amuData?.combinedUncertainty ?? "0.054")}
+                                    </div>
+                                  </div>
+                                  <div className="bg-slate-900 border border-teal-500/30 rounded-xl p-2.5 text-center">
+                                    <div className="text-[9px] uppercase font-bold text-slate-400">Coverage (k)</div>
+                                    <div className="text-base font-black font-mono text-teal-300 mt-0.5">
+                                      k = {String(calcData?.amu?.k ?? activeTemplate?.amuData?.coverageFactor ?? "2.0")}
+                                    </div>
+                                  </div>
+                                  <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-2.5 text-center">
+                                    <div className="text-[9px] uppercase font-bold text-slate-400">Expanded (UE)</div>
+                                    <div className="text-base font-black font-mono text-emerald-300 mt-0.5">
+                                      ±{String(calcData?.amu?.expandedUncertainty ?? activeTemplate?.amuData?.expandedUncertainty ?? "0.11")}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Type A & Type B Component Details */}
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="bg-slate-900 rounded-xl p-3 border border-white/10 space-y-1">
+                                    <div className="text-[10px] font-bold text-teal-300 uppercase">Type A: Repeatability (uA)</div>
+                                    <div className="text-[11px] text-slate-300">Readings (n): <strong>{calcData?.amu?.n ?? activeTemplate?.amuData?.typeA?.n ?? 5}</strong></div>
+                                    <div className="text-[11px] text-slate-300">Std. Dev (s): <strong>{String(calcData?.amu?.repStdDev ?? activeTemplate?.amuData?.typeA?.stdDev ?? "0.02")}</strong></div>
+                                    <div className="text-[10px] font-mono text-teal-400 font-bold">uA = s / √n = {String(calcData?.amu?.uA ?? activeTemplate?.amuData?.typeA?.uA ?? "0.009")}</div>
+                                  </div>
+                                  <div className="bg-slate-900 rounded-xl p-3 border border-white/10 space-y-1">
+                                    <div className="text-[10px] font-bold text-amber-300 uppercase">Type B: Standard Components (uB)</div>
+                                    <div className="text-[11px] text-slate-300">Resolution (uB1): <strong>{String(calcData?.amu?.uB_res ?? activeTemplate?.amuData?.typeB?.uB1 ?? "0.005")}</strong></div>
+                                    <div className="text-[11px] text-slate-300">Master Uncertainty (uB2): <strong>{String(calcData?.amu?.uB_master ?? activeTemplate?.amuData?.typeB?.uB2 ?? "0.025")}</strong></div>
+                                    <div className="text-[10px] font-mono text-amber-400 font-bold">uB = {String(calcData?.amu?.uB ?? "√(uB1² + uB2² + uB3²)")}</div>
+                                  </div>
+                                </div>
+
+                                {/* Full Uncertainty Budget Table */}
+                                <div className="bg-slate-900 rounded-xl p-3 border border-white/10 overflow-x-auto">
+                                  <div className="text-[11px] font-bold text-slate-300 mb-2">
+                                    Uncertainty Budget Table ({activeTemplate?.amuData?.budgetTable?.length || 0} Components):
+                                  </div>
+                                  <table className="w-full text-center text-[10px] font-mono border-collapse divide-y divide-slate-800">
+                                    <thead className="text-amber-300 bg-slate-950">
+                                      <tr>
+                                        <th className="p-1 border-r border-slate-800">S.No.</th>
+                                        <th className="p-1 border-r border-slate-800 text-left">Source of Uncertainty</th>
+                                        <th className="p-1 border-r border-slate-800">Distribution</th>
+                                        <th className="p-1 border-r border-slate-800">Divisor</th>
+                                        <th className="p-1">Std. Uncertainty (ui)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800 text-slate-200">
+                                      {(activeTemplate?.amuData?.budgetTable || []).map((b, bIdx) => (
+                                        <tr key={bIdx} className="hover:bg-slate-800/50">
+                                          <td className="p-1 border-r border-slate-800 text-slate-400">{b.sNo || bIdx + 1}</td>
+                                          <td className="p-1 border-r border-slate-800 text-left font-sans text-slate-300">{b.source}</td>
+                                          <td className="p-1 border-r border-slate-800 text-blue-300">{b.distribution}</td>
+                                          <td className="p-1 border-r border-slate-800 text-slate-400">{b.factor}</td>
+                                          <td className="p-1 font-bold text-amber-300">{String(b.standardUncertainty)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Bottom Actions Bar */}
+                          <div className="p-2.5 bg-slate-900 border-t border-white/10 flex items-center justify-between text-xs shrink-0">
+                            {activeExcelUrl && (
+                              <a
+                                href={activeExcelUrl}
+                                download={activeTemplate?.pdfFileName || `${inspectingObsRecord?.instrument || "format"}.xlsx`}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+                              >
+                                <FaDownload className="text-xs" /> Download Complete Excel (.xlsx)
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              disabled={isConvertingFromCloudinary}
+                              onClick={() => handleConvertCloudinaryPdfToForm(activeTemplate?._id, activeExcelUrl)}
+                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 ml-auto"
+                            >
+                              <FaBolt className="text-xs" /> Re-parse All Sheets
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+            <div className="border-2 border-slate-900 rounded-xl bg-white overflow-hidden text-slate-900 font-sans shadow-md">
+              {/* Header */}
+              <div className="p-4 border-b-2 border-slate-900 flex items-center justify-between bg-gradient-to-r from-slate-50 via-white to-orange-50/30">
+                <div>
+                  <h4 className="text-xl font-black text-[#002B66] leading-none">METROLOGICAL</h4>
+                  <h5 className="text-lg font-black text-[#e07a1e] leading-none mt-0.5">OBSERVATION WORKSHEET 2026</h5>
+                  <div className="w-10 h-1 bg-[#e07a1e] rounded-full mt-1.5"></div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-600">HELPLINE | 8369458583</span>
+                  <div className="border border-[#002B66] rounded px-3 py-1 text-center mt-0.5 bg-white">
+                    <span className="text-base font-black text-[#002B66] leading-none">ARCL</span>
+                    <span className="block text-[7px] font-bold text-[#002B66]">Building Trust Through Precision and Quality</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top 4-Cell Bar */}
+              <div className="grid grid-cols-4 border-b border-black text-center text-[10px] divide-x divide-black bg-slate-50/50">
+                <div className="p-1.5">
+                  <span className="font-bold block text-slate-600">Date of Calibration</span>
+                  <span>{toSafeLocaleDate(inspectingObsRecord.observationData?.calibrationDate || inspectingObsRecord.calibrationDate, "22/10/2026")}</span>
+                </div>
+                <div className="p-1.5">
+                  <span className="font-bold block text-slate-600">Next Due Date of Calibration</span>
+                  <span>{toSafeLocaleDate(inspectingObsRecord.observationData?.calibrationDueDate || inspectingObsRecord.calibrationDueDate, "21/10/2027")}</span>
+                </div>
+                <div className="p-1.5 bg-amber-50/50">
+                  <span className="font-bold block text-slate-900">Worksheet No.</span>
+                  <span className="font-mono font-bold text-[#002B66]">{inspectingObsRecord.observationData?.worksheetNo || `WS-ARCL-2026-${inspectingObsRecord.serialNo}`}</span>
+                </div>
+                <div className="p-1.5">
+                  <span className="font-bold block text-slate-600">Date of Issue</span>
+                  <span>{toSafeLocaleDate(inspectingObsRecord.observationData?.issueDate, toSafeLocaleDate(new Date()))}</span>
+                </div>
+              </div>
+
+              {/* 1. Calibrated for */}
+              <div className="p-2.5 border-b border-black text-[11px] flex items-start gap-4 bg-white">
+                <span className="font-bold text-slate-900 shrink-0">1. Calibrated for :</span>
+                <div>
+                  <strong className="text-slate-950 font-black">{inspectingObsRecord.clientCompany}</strong>
+                  <p className="text-slate-600 text-[10px]">{inspectingObsRecord.observationData?.clientAddress || inspectingObsRecord.clientAddress || "Site / Project Address"}</p>
+                </div>
+              </div>
+
+              {/* 2 to 6 Two Columns */}
+              <div className="grid grid-cols-2 border-b border-black divide-x divide-black text-[10.5px]">
+                <div className="p-2.5 space-y-1 bg-white">
+                  <div className="font-bold text-slate-900 border-b border-slate-200 pb-0.5">2. Description of Equipment :</div>
+                  <div><span className="text-slate-600">Instrument Name :-</span> <strong className="text-slate-900">{inspectingObsRecord.instrument}</strong></div>
+                  <div><span className="text-slate-600">Make/Model :-</span> {inspectingObsRecord.observationData?.makeModel || [inspectingObsRecord.make, inspectingObsRecord.modelNo].filter(Boolean).join(" / ") || "SIS"}</div>
+                  <div><span className="text-slate-600">Sr. No./ID No. :-</span> <strong className="font-mono">{inspectingObsRecord.observationData?.serialNo || inspectingObsRecord.serialNo}</strong></div>
+                  <div><span className="text-slate-600">Range (kn) :-</span> {inspectingObsRecord.observationData?.range || inspectingObsRecord.instrumentRange || "3000"}</div>
+                  <div><span className="text-slate-600">Least Count (kn) :-</span> {inspectingObsRecord.observationData?.leastCount || inspectingObsRecord.leastCount || "0.1"}</div>
+                  {(inspectingObsRecord.observationData?.location || inspectingObsRecord.location) && (
+                    <div><span className="text-slate-600">Location :-</span> {inspectingObsRecord.observationData?.location || inspectingObsRecord.location}</div>
+                  )}
+                </div>
+
+                <div className="divide-y divide-black bg-white">
+                  <div className="p-1.5 flex justify-between">
+                    <span className="font-bold">3. Condition of Item :-</span>
+                    <strong className="text-emerald-700">{inspectingObsRecord.observationData?.conditionOfItem || "OK"}</strong>
+                  </div>
+                  <div className="p-1.5 flex justify-between">
+                    <span className="font-bold">4. Environmental Conditions :-</span>
+                    <span>Temp: <strong>{inspectingObsRecord.observationData?.temperature || "29.4"}°C</strong> | RH: <strong>{inspectingObsRecord.observationData?.humidity || "56"}%</strong></span>
+                  </div>
+                  <div className="p-1.5 flex justify-between">
+                    <span className="font-bold">5. Method of Calibration :-</span>
+                    <span>{inspectingObsRecord.observationData?.calibrationMethod || "ARCL-CP-16"}</span>
+                  </div>
+                  <div className="p-1.5 flex justify-between">
+                    <span className="font-bold">6. Reference Standard :-</span>
+                    <span>{inspectingObsRecord.observationData?.referenceStandard || "IS : 1828-Part-1"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 7. Master Equipment */}
+              <div className="border-b border-black text-[10px]">
+                <div className="p-1 bg-slate-50 font-bold border-b border-black">7. Details of Master Equipment :</div>
+                <table className="w-full text-center divide-y divide-black">
+                  <thead className="bg-slate-50 divide-x divide-black font-bold">
+                    <tr>
+                      <th className="p-1">Equipement Description</th>
+                      <th className="p-1">ID Mark/Serial No.</th>
+                      <th className="p-1">Certificate No.</th>
+                      <th className="p-1">Calibration Due Date</th>
+                      <th className="p-1">Traceable By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-x divide-black bg-white font-medium">
+                    {((Array.isArray(inspectingObsRecord.observationData?.masterEquipments) && inspectingObsRecord.observationData.masterEquipments.length > 0)
+                      ? inspectingObsRecord.observationData.masterEquipments
+                      : [{
+                          description: inspectingObsRecord.observationData?.masterDescription || "Proving Ring",
+                          idMark: inspectingObsRecord.observationData?.masterId || "ARCL/PR/01/325132",
+                          certNo: inspectingObsRecord.observationData?.masterCertNo || "SCPL/CC/3663/02/2025-2026",
+                          dueDate: inspectingObsRecord.observationData?.masterDueDate || "25/04/2028",
+                          traceableBy: inspectingObsRecord.observationData?.masterTraceable || "NABL CC-2874"
+                        }]
+                    ).map((mItem, mIdx) => (
+                      <tr key={mIdx} className="divide-x divide-black">
+                        <td className="p-1">{mItem.description || "Proving Ring"}</td>
+                        <td className="p-1 font-mono">{mItem.idMark || "ARCL/PR/01/325132"}</td>
+                        <td className="p-1 font-mono">{mItem.certNo || "SCPL/CC/3663/02/2025-2026"}</td>
+                        <td className="p-1">{mItem.dueDate || "25/04/2028"}</td>
+                        <td className="p-1 font-bold">{mItem.traceableBy || "NABL CC-2874"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 8. Results Table */}
+              <div className="border-b border-black text-[10px]">
+                <div className="p-1 bg-slate-50 font-bold border-b border-black flex justify-between">
+                  <span>8. Results :</span>
+                  <span>Mode: {inspectingObsRecord.observationData?.mode || "Compression"}</span>
+                  <span>Discipline: {inspectingObsRecord.observationData?.discipline || "Mechanical Calibration (Force)"}</span>
+                </div>
+                {Array.isArray(inspectingObsRecord.observationData?.tableColumns) && inspectingObsRecord.observationData.tableColumns.length >= 2 ? (
+                  <table className="w-full text-center divide-y divide-black">
+                    <thead className="bg-slate-50 divide-x divide-black font-bold text-[9.5px]">
+                      <tr>
+                        {inspectingObsRecord.observationData.tableColumns.map((col, idx) => (
+                          <th key={idx} className={`p-1.5 ${col.type === "calculated" || col.type === "formula" || col.key === "error" || col.key === "indError" ? "bg-amber-50 text-blue-950" : ""}`}>
+                            {col.label || col.key} {col.unit ? `(${col.unit})` : ""}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black bg-white font-medium">
+                      {(Array.isArray(inspectingObsRecord.observationData?.readings) ? inspectingObsRecord.observationData.readings : []).map((r, i) => (
+                        <tr key={i} className="divide-x divide-black hover:bg-slate-50">
+                          {inspectingObsRecord.observationData.tableColumns.map((col, cIdx) => {
+                            const val = r[col.key] !== undefined && r[col.key] !== null ? String(r[col.key]) : "-";
+                            const isCalc = col.type === "calculated" || col.type === "formula" || col.key === "error" || col.key === "indError";
+                            return (
+                              <td key={cIdx} className={`p-1 font-mono ${isCalc ? `font-bold bg-amber-50/40 ${val.includes("-") ? "text-rose-700" : "text-emerald-700"}` : ""}`}>
+                                {val}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                    {(inspectingObsRecord.observationData?.repeatabilityMu || (Array.isArray(inspectingObsRecord.observationData?.repeatabilityReadings) && inspectingObsRecord.observationData.repeatabilityReadings.some(Boolean))) && (
+                      <tfoot>
+                        <tr className="border-t border-black bg-slate-50 font-semibold text-[10px]">
+                          <td className="p-1.5 text-left font-bold pl-2" colSpan={2}>
+                            For Repeatability MU :
+                          </td>
+                          <td
+                            className="p-1.5 text-left font-mono"
+                            colSpan={Math.max(1, (inspectingObsRecord.observationData?.tableColumns?.length || 2) - 2)}
+                          >
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {((Array.isArray(inspectingObsRecord.observationData?.repeatabilityReadings) && inspectingObsRecord.observationData.repeatabilityReadings.length > 0)
+                                ? inspectingObsRecord.observationData.repeatabilityReadings
+                                : String(inspectingObsRecord.observationData?.repeatabilityMu || "").split(/[,\s]+/).filter(Boolean)
+                              ).slice(0, 5).map((v, idx) => (
+                                <span key={idx} className="bg-white border border-slate-300 px-1.5 py-0.5 rounded text-[9.5px]">
+                                  <strong className="text-slate-500 mr-0.5">R{idx + 1}:</strong> {v}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                ) : (
+                  <table className="w-full text-center divide-y divide-black">
+                    <thead className="bg-slate-50 divide-x divide-black font-bold text-[9.5px]">
+                      <tr>
+                        <th className="p-1.5">Nominal Force, KN</th>
+                        <th className="p-1.5">Master True Load (KN) at Site EC</th>
+                        <th className="p-1.5">Average Indicated Load (KN)</th>
+                        <th className="p-1.5 bg-amber-50 text-blue-950">Relative Indication Error(%)</th>
+                        <th className="p-1.5">Relative Repeatability Error(%)</th>
+                        <th className="p-1.5">± Expanded Uncertainity(%rdg)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black bg-white font-medium">
+                      {(Array.isArray(inspectingObsRecord.observationData?.readings) && inspectingObsRecord.observationData.readings.length > 0 ? inspectingObsRecord.observationData.readings : [
+                        { nominal: "300", master: "300.4", indicated: "301.4", error: "0.32", repeatability: "0.00", uncertainty: "0.61" },
+                        { nominal: "900", master: "901.3", indicated: "902.3", error: "0.11", repeatability: "0.00", uncertainty: "0.61" },
+                        { nominal: "1200", master: "1201.7", indicated: "1200.3", error: "-0.12", repeatability: "0.01", uncertainty: "0.61" },
+                        { nominal: "1800", master: "1802.6", indicated: "1800.2", error: "-0.13", repeatability: "0.00", uncertainty: "0.61" },
+                        { nominal: "2700", master: "2703.9", indicated: "2706.3", error: "0.09", repeatability: "0.02", uncertainty: "0.61" },
+                      ]).map((r, i) => (
+                        <tr key={i} className="divide-x divide-black hover:bg-slate-50">
+                          <td className="p-1 font-bold">{r.nominal}</td>
+                          <td className="p-1 font-mono">{r.master}</td>
+                          <td className="p-1 font-mono">{r.indicated || r.mean}</td>
+                          <td className={`p-1 font-mono font-bold bg-amber-50/40 ${String(r.error || "").includes("-") ? "text-rose-700" : "text-emerald-700"}`}>{r.error}</td>
+                          <td className="p-1 font-mono">{r.repeatability || "0.00"}</td>
+                          <td className="p-1 font-mono">{r.uncertainty || "0.61"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Notes & Seal */}
+              <div className="p-3 grid grid-cols-3 gap-2 text-[9.5px] items-center bg-white">
+                <div className="col-span-2 space-y-0.5 text-slate-600">
+                  <div className="font-bold text-slate-800">Note: The Calibration Certificate referes only to the Particular Calibrated Items(s).</div>
+                  <div>* The Calibration has been carried out without adjustment.</div>
+                  <div>* The reported Uncertainty is at coverage factor k=2 with coverage prob. of approx. 95% for a normal distribution.</div>
+                  <div>* Calibrated at Site By: <strong>{inspectingObsRecord.observationData?.calibratedBySite || inspectingObsRecord.observationData?.calibratedBy || "VK"}</strong></div>
+                </div>
+                <div className="col-span-1 text-center">
+                  <div className="w-16 h-16 rounded-full border border-[#002B66] mx-auto flex items-center justify-center text-[6px] font-black text-[#002B66]">
+                    ARCL SEAL
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 mt-1 block">Reviewed &amp; Approved By</span>
+                  <span className="text-[10px] font-black text-indigo-900 block">
+                    ({inspectingObsRecord.authorizationData?.authorizedBy || authSignatoryName})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            
+                  )}
+                </>
+              );
+            })()}
+
+            <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+              <button
+                type="button"
+                onClick={() => openDocViewer("observation_sheet", inspectingObsRecord)}
+                className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <FaFilePdf /> View Full PDF
+              </button>
+
+              <div className="flex items-center gap-2">
+                {inspectingObsRecord.observationData?.status === "Submitted" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rec = inspectingObsRecord;
+                      setInspectingObsRecord(null);
+                      handleApproveObservation(rec);
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <FaCheckDouble /> Approve &amp; Issue Certificate
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setInspectingObsRecord(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REJECT OBSERVATION MODAL */}
+      {isRejectModalOpen && authorizingRecord && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-gray-100 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <h3 className="font-extrabold text-base text-rose-700 flex items-center gap-2">
+                <FaTimesCircle />
+                {authorizingRecord.authorizationData?.status === "Approved" && Array.isArray(authorizingRecord.observationData?.readings) && authorizingRecord.observationData.readings.length > 0
+                  ? "Revoke Authorization & Reopen for Correction"
+                  : "Return for Recalibration / Correction"}
+              </h3>
+              <button onClick={() => setIsRejectModalOpen(false)} className="text-gray-400 hover:text-gray-700 p-1">
+                <FaTimes />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600">
+              {authorizingRecord.authorizationData?.status === "Approved" && Array.isArray(authorizingRecord.observationData?.readings) && authorizingRecord.observationData.readings.length > 0 ? (
+                <>
+                  Specify what needs to be corrected in Certificate <strong>{authorizingRecord.records?.certificateNo || "Official Certificate"}</strong> for <strong>{authorizingRecord.instrument}</strong> (S/N: {authorizingRecord.serialNo}). Authorization will be revoked, and Section 6 will be <strong>UNLOCKED</strong> so readings or parameters can be corrected.
+                </>
+              ) : (
+                <>
+                  Specify what is incorrect and needs correction in <strong>{authorizingRecord.instrument}</strong> (S/N: {authorizingRecord.serialNo}): The form in Section 6 will be automatically <strong>UNLOCKED</strong> for the technician.
+                </>
+              )}
+            </p>
+
+            <textarea
+              rows={3}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder={
+                authorizingRecord.authorizationData?.status === "Approved" && Array.isArray(authorizingRecord.observationData?.readings) && authorizingRecord.observationData.readings.length > 0
+                  ? "e.g. Reading at 200 kN was typed incorrectly; need to revise and re-issue certificate."
+                  : "e.g. Deviation error at 1000 kN exceeds Class 1.0 allowable limit (±1.0%). Recalibration needed."
+              }
+              className="w-full text-xs p-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:border-rose-500 text-slate-800"
+            />
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRejectModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRejectObservation(authorizingRecord)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <FaUndo className="text-xs" />
+                {authorizingRecord.authorizationData?.status === "Approved" && Array.isArray(authorizingRecord.observationData?.readings) && authorizingRecord.observationData.readings.length > 0
+                  ? "Revoke Authorization & Unlock 🔓"
+                  : "Confirm & Return to Observation 🔓"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ALL EQUIPMENT CALIBRATION CERTIFICATES DIRECTORY */}
+      {/* ========================================================================= */}
+      {selectedCertBatch && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4 p-6">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <div className="flex items-center gap-2">
+                <FaCertificate className="text-blue-700 text-2xl" />
+                <div>
+                  <h3 className="font-extrabold text-base text-gray-900">
+                    All Equipment Calibration Certificates ({(selectedCertBatch.items || []).length} Products)
+                  </h3>
+                  <p className="text-xs text-gray-500 font-mono">
+                    Client: <strong className="text-gray-800">{selectedCertBatch.clientCompany}</strong> • DC No: <strong className="text-indigo-700">{selectedCertBatch.dcNo}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCertBatch(null)}
+                className="text-gray-400 hover:text-gray-700 p-1 cursor-pointer text-lg"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between bg-blue-50/80 p-3 rounded-2xl border border-blue-200 text-xs">
+              <span className="font-bold text-blue-950">
+                Individual Certificate PDFs for each piece of equipment in this inward DC:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleDownloadCalibrationDoc("certificate", selectedCertBatch, { all: true })}
+                className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+              >
+                <FaDownload /> Download All {(selectedCertBatch.items || []).length} PDFs
+              </button>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-200 rounded-2xl shadow-xs">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-[#021C57] text-white text-[10px] font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3 text-center w-10">#</th>
+                    <th className="p-3">Equipment Name</th>
+                    <th className="p-3">Make / Model</th>
+                    <th className="p-3">Serial No.</th>
+                    <th className="p-3">Capacity / Range</th>
+                    <th className="p-3 text-center">Certificate Status</th>
+                    <th className="p-3 text-center min-w-[170px]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 font-medium text-gray-800 bg-white">
+                  {(selectedCertBatch.items || []).map((item, idx) => {
+                    const hasReadings = Array.isArray(item.observationData?.readings) && item.observationData.readings.length > 0;
+                    const isCert = Boolean(item.records?.certificateNo && item.authorizationData?.status === "Approved" && hasReadings);
+                    const certNo = item.records?.certificateNo || "Pending";
+
+                    return (
+                      <tr key={item._id || idx} className="hover:bg-blue-50/30 transition">
+                        <td className="p-3 text-center font-bold text-gray-400 bg-gray-50">{idx + 1}</td>
+                        <td className="p-3 font-extrabold text-gray-900">{item.instrument}</td>
+                        <td className="p-3 text-gray-600">{[item.make, item.modelNo].filter(Boolean).join(" / ") || "-"}</td>
+                        <td className="p-3 font-mono font-bold text-blue-700">{item.serialNo}</td>
+                        <td className="p-3 text-gray-600">{item.instrumentRange || "-"}</td>
+                        <td className="p-3 text-center">
+                          {isCert ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                              <FaCheckCircle className="text-emerald-600 text-[10px]" />
+                              <span>{certNo}</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                              {item.stage || "Under Calibration"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCertBatch(null);
+                                openDocViewer("certificate", item);
+                              }}
+                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                              title="View Official Calibration Certificate PDF"
+                            >
+                              <FaFilePdf className="text-red-600" /> View PDF
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrintCalibrationDoc("certificate", item, { single: true })}
+                              className="p-1 rounded text-[9px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                              title="Direct Print Certificate"
+                            >
+                              <FaPrint />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadCalibrationDoc("certificate", item, { single: true })}
+                              className="p-1 rounded text-[9px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                              title="Download Certificate PDF"
+                            >
+                              <FaDownload />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSendDocModal("certificate", item)}
+                              className="px-1.5 py-1 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer"
+                              title="Send to Customer"
+                            >
+                              🚀
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end border-t border-gray-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedCertBatch(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL 2: NABL CALIBRATION CERTIFICATE VIEWER MODAL */}
       {/* ========================================================================= */}
       {isDocModalOpen && selectedDoc && (
@@ -9137,6 +20813,73 @@ export default function CalibrationPageView() {
                 <FaTimes />
               </button>
             </div>
+
+            {/* Multi-Product Certificate Navigation Bar (Har Product ka Alag Certificate) */}
+            {selectedDoc.type === "certificate" && Array.isArray(selectedDoc.items) && selectedDoc.items.length > 1 && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 space-y-2 text-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-blue-950 flex items-center gap-1.5 text-xs">
+                      <FaTools className="text-blue-600" /> Batch Products ({selectedDoc.items.length} Separate Certs):
+                    </span>
+                    <span className="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded font-bold border border-indigo-200">
+                      {selectedDoc.viewMode === "all" ? "Viewing All Products (Stacked)" : `Viewing: ${selectedDoc.record?.instrument || "Item"}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDoc(prev => ({ ...prev, viewMode: "all" }))}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 ${
+                        selectedDoc.viewMode === "all"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-white text-indigo-800 border border-indigo-200 hover:bg-indigo-100"
+                      }`}
+                    >
+                      <span>📑</span> View All ({selectedDoc.items.length}) Certs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadCalibrationDoc("certificate", selectedDoc.batch || { ...(selectedDoc.record || {}), items: selectedDoc.items }, { all: true })}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition shadow-xs"
+                      title={`Download combined PDF with all ${selectedDoc.items.length} individual certificates`}
+                    >
+                      <FaDownload className="text-[9px]" /> Download ALL ({selectedDoc.items.length}) PDF
+                    </button>
+                  </div>
+                </div>
+
+                {/* Individual Product Selector Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5">
+                  {selectedDoc.items.map((it, idx) => {
+                    const isSelected = selectedDoc.viewMode !== "all" && String(selectedDoc.record?._id || selectedDoc.record?.id) === String(it._id || it.id);
+                    const cNo = it.records?.certificateNo || `Cert #${idx + 1}`;
+                    return (
+                      <button
+                        key={it._id || idx}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDoc(prev => ({
+                            ...prev,
+                            record: it,
+                            viewMode: "single",
+                          }));
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition whitespace-nowrap flex items-center gap-1 cursor-pointer shrink-0 ${
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
+                        }`}
+                      >
+                        <span>#{idx + 1}</span>
+                        <span className="font-extrabold">{it.instrument?.slice(0, 18) || "Instrument"}</span>
+                        <span className="opacity-75 font-mono text-[9px]">({cNo})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Dynamic Document Simulation (SRF Inward vs Certificate) */}
             {(() => {
@@ -9317,132 +21060,84 @@ export default function CalibrationPageView() {
                 );
               }
 
-              // Otherwise Certificate View
-              return (
-                <div className="border-4 border-double border-blue-900/40 rounded-2xl p-6 bg-amber-50/15 space-y-4 text-xs font-sans shadow-inner">
-                  {/* Certificate Header */}
-                  <div className="text-center border-b-2 border-blue-900 pb-3 space-y-1">
-                    <p className="text-[10px] font-black tracking-widest text-blue-900 uppercase font-mono">
-                      NABL ACCREDITED CALIBRATION LABORATORY (CC-4313)
-                    </p>
-                    <h2 className="text-xl font-black text-[#021C57]">
-                      ARCL INSTRUMENTS PRIVATE LIMITED
-                    </h2>
-                    <p className="text-[11px] text-gray-600">
-                      Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708
-                    </p>
-                    <p className="text-[10px] font-mono text-emerald-700 font-bold">
-                      ISO/IEC 17025:2017 Traceable to National Physical Laboratory (NPL)
-                    </p>
-                  </div>
+              // Exact 1:1 ARCL Certificate / Observation Sheet View (Multi-Product Support: Har Product ka Alag Certificate)
+              const renderCertificateBlock = (recItem, itemIdx = 0, totalItems = 1) => {
+                const rec = recItem || {};
+                const obs = rec.observationData || {};
+                const matchedTmpl =
+                  obsTemplates.find(
+                    (t) =>
+                      (obs.templateId && String(t._id) === String(obs.templateId)) ||
+                      (obs.templateName && t.name && t.name.toLowerCase() === obs.templateName.toLowerCase())
+                  ) ||
+                  findTemplateForInstrument(rec, obsTemplates) ||
+                  null;
+                const calc = computeMetrologicalCalculations(rec);
+                const isObsDoc = selectedDoc.type === "observation_sheet" || selectedDoc.type === "observation";
+                const cNo = isObsDoc
+                  ? (obs.worksheetNo || `WS-ARCL-2026-${rec.serialNo || itemIdx + 1}`)
+                  : (rec.records?.certificateNo || rec.authorizationData?.certificateNo || `ARCL-CAL-2026-${String(rec.srNo || itemIdx + 1).padStart(3, "0")}`);
 
-                  {/* Certificate Metadata */}
-                  <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 text-gray-800">
-                    <div>
-                      Certificate No:{" "}
-                      <strong className="font-mono text-blue-700">
-                        {selectedDoc.record?.records?.certificateNo || "ARCL-CAL-2026-001"}
-                      </strong>
-                    </div>
-                    <div>
-                      Calibration Date:{" "}
-                      <strong>
-                        {toSafeLocaleDate(selectedDoc.record?.calibrationDate, toSafeLocaleDate(new Date()))}
-                      </strong>
-                    </div>
-                    <div>
-                      Client:{" "}
-                      <strong className="text-gray-900">
-                        {selectedDoc.record?.clientCompany || "Valued Client"}
-                      </strong>
-                    </div>
-                    <div>
-                      Suggested Due Date:{" "}
-                      <strong className="text-emerald-700">
-                        {toSafeLocaleDate(selectedDoc.record?.calibrationDueDate, "1 Year (365 Days)")}
-                      </strong>
-                    </div>
-                    <div>
-                      Instrument:{" "}
-                      <strong className="text-gray-900">
-                        {selectedDoc.record?.instrument || "Digital Compression Testing Machine"}
-                      </strong>
-                    </div>
-                    <div>
-                      Serial No:{" "}
-                      <strong className="font-mono">
-                        {selectedDoc.record?.serialNo || "-"}
-                      </strong>
-                    </div>
-                    <div>
-                      Make / Model:{" "}
-                      <strong>
-                        {[selectedDoc.record?.make, selectedDoc.record?.modelNo].filter(Boolean).join(" / ") || "-"}
-                      </strong>
-                    </div>
-                    <div>
-                      Range / Capacity:{" "}
-                      <strong>{selectedDoc.record?.instrumentRange || "0 - 2000 kN"}</strong>
-                    </div>
-                  </div>
-
-                  {/* Calibration Readings Sample Table */}
-                  <div className="space-y-1">
-                    <p className="font-bold text-gray-900">
-                      Calibration Readings &amp; Metrological Traceability:
-                    </p>
-                    <table className="w-full text-left text-[11px] border border-gray-200 rounded bg-white">
-                      <thead className="bg-gray-100 text-gray-700 text-[10px] font-bold">
-                        <tr>
-                          <th className="p-2 border">Nominal Set Value</th>
-                          <th className="p-2 border">Observed Reading</th>
-                          <th className="p-2 border">Error of Indication</th>
-                          <th className="p-2 border">Expanded Uncertainty (k=2)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="font-mono divide-y divide-gray-200 text-gray-700">
-                        <tr>
-                          <td className="p-2 border">20.0% F.S.</td>
-                          <td className="p-2 border">19.98 F.S.</td>
-                          <td className="p-2 border text-emerald-600">-0.10%</td>
-                          <td className="p-2 border">± 0.25%</td>
-                        </tr>
-                        <tr>
-                          <td className="p-2 border">50.0% F.S.</td>
-                          <td className="p-2 border">50.01 F.S.</td>
-                          <td className="p-2 border text-emerald-600">+0.02%</td>
-                          <td className="p-2 border">± 0.25%</td>
-                        </tr>
-                        <tr>
-                          <td className="p-2 border">100.0% F.S.</td>
-                          <td className="p-2 border">100.04 F.S.</td>
-                          <td className="p-2 border text-emerald-600">+0.04%</td>
-                          <td className="p-2 border">± 0.25%</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Signatures & QR Code */}
-                  <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-slate-900 text-white rounded flex items-center justify-center text-xs">
-                        <FaQrcode className="text-3xl" />
+                return (
+                  <div key={rec._id || itemIdx} className="space-y-2">
+                    {totalItems > 1 && (
+                      <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-1.5 text-xs">
+                        <span className="font-black text-indigo-950 flex items-center gap-1.5">
+                          <span>📄</span> Product #{itemIdx + 1} of {totalItems}: <span className="text-blue-900 font-bold">{rec.instrument}</span> (S/N: {rec.serialNo})
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                            {cNo}
+                          </span>
+                          {(rec.records?.ulrNo || rec.inwardRegister?.ulrNo || rec.authorizationData?.ulrNo) && (
+                            <span className="font-mono text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                              ULR: {rec.records?.ulrNo || rec.inwardRegister?.ulrNo || rec.authorizationData?.ulrNo}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadCalibrationDoc(selectedDoc.type || "certificate", rec, { single: true })}
+                            className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                            title="Download this specific product's certificate"
+                          >
+                            <FaDownload className="text-[9px]" /> Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintCalibrationDoc(selectedDoc.type || "certificate", rec, { single: true })}
+                            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-900 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                            title="Print this specific product's certificate"
+                          >
+                            <FaPrint className="text-[9px]" /> Print
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-gray-500 font-mono">
-                        <p className="font-bold text-gray-900">SCAN TO VERIFY</p>
-                        <p>ISO 17025 Seal</p>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="text-right space-y-1">
-                      <div className="w-32 border-b border-gray-400 mx-auto"></div>
-                      <p className="font-bold text-gray-900 text-[11px]">Authorized Signatory</p>
-                      <p className="text-[10px] text-gray-500">Quality Manager, ARCL Instruments</p>
-                    </div>
+                    <OfficialNablCertificate
+                      rec={rec}
+                      itemIdx={itemIdx}
+                      isObsDoc={isObsDoc}
+                      matchedTmpl={matchedTmpl}
+                      calc={calc}
+                      fixedA4={false}
+                      currentUserName={authSignatoryName}
+                    />
                   </div>
-                </div>
-              );
+                );
+              };
+
+              if (selectedDoc.viewMode === "all" && Array.isArray(selectedDoc.items) && selectedDoc.items.length > 1) {
+                return (
+                  <div className="space-y-6">
+                    {selectedDoc.items.map((it, idx) => renderCertificateBlock(it, idx, selectedDoc.items.length))}
+                  </div>
+                );
+              }
+
+              const activeIdx = selectedDoc.items ? selectedDoc.items.findIndex(it => String(it._id || it.id) === String(selectedDoc.record?._id || selectedDoc.record?.id)) : 0;
+              return renderCertificateBlock(selectedDoc.record || {}, Math.max(0, activeIdx), selectedDoc.items?.length || 1);
+
             })()}
 
             <div className="flex justify-between items-center pt-2 flex-wrap gap-2">
@@ -9478,21 +21173,40 @@ export default function CalibrationPageView() {
                     </button>
                   </>
                 )}
+                {selectedDoc.items && selectedDoc.items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handlePrintCalibrationDoc("certificate", selectedDoc.batch || { ...(selectedDoc.record || {}), items: selectedDoc.items }, { all: true })}
+                    className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title={`Print all ${selectedDoc.items.length} certificates`}
+                  >
+                    <FaPrint /> Print ALL ({selectedDoc.items.length}) Certs
+                  </button>
+                )}
+                {selectedDoc.items && selectedDoc.items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCalibrationDoc("certificate", selectedDoc.batch || { ...(selectedDoc.record || {}), items: selectedDoc.items }, { all: true })}
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-700 to-blue-700 hover:from-indigo-800 hover:to-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
+                    title={`Download combined PDF with all ${selectedDoc.items.length} separate certificates (1 page per product)`}
+                  >
+                    <FaFilePdf /> Download ALL ({selectedDoc.items.length}) Certs PDF
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => handlePrintCalibrationDoc(selectedDoc.type || "certificate", selectedDoc.record, { single: true })}
                   className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <FaPrint /> Print Certificate
+                  <FaPrint /> Print {selectedDoc.items?.length > 1 ? "Active Cert" : "Certificate"}
                 </button>
-                <a
-                  href={`${API?.defaults?.baseURL || "http://localhost:5000/api/v1"}/client/calibration/download-document?docType=${selectedDoc.type || "certificate"}&download=true&serialNo=${encodeURIComponent(selectedDoc.record?.serialNo || "")}&id=${selectedDoc.record?._id || ""}&dcNo=${encodeURIComponent(selectedDoc.record?.dcNo || "")}&clientCompany=${encodeURIComponent(selectedDoc.record?.clientCompany || "")}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handleDownloadCalibrationDoc(selectedDoc.type || "certificate", selectedDoc.record, { single: true })}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
                 >
-                  <FaDownload /> Download Official PDF
-                </a>
+                  <FaDownload /> Download {selectedDoc.items?.length > 1 ? "Active Cert PDF" : "Official PDF"}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsDocModalOpen(false)}
@@ -9502,6 +21216,7 @@ export default function CalibrationPageView() {
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}
@@ -9637,15 +21352,37 @@ export default function CalibrationPageView() {
                         className="w-full font-bold border rounded px-2 py-1 text-xs focus:ring-2 focus:ring-purple-400 focus:outline-none"
                         placeholder="Company Name"
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-800 text-[10px]">GSTIN:</span>
                         <input
                           type="text"
                           style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#d1d5db" }}
                           value={taxInvoiceForm.clientGstin}
-                          onChange={(e) => setTaxInvoiceForm({ ...taxInvoiceForm, clientGstin: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            setTaxInvoiceForm((prev) => ({ ...prev, clientGstin: val }));
+                            if (val.length === 15) {
+                              handleAutoFetchGstInCalibration(val, "tax_invoice");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (taxInvoiceForm.clientGstin?.length === 15) {
+                              handleAutoFetchGstInCalibration(taxInvoiceForm.clientGstin, "tax_invoice");
+                            }
+                          }}
+                          maxLength={15}
+                          placeholder="15-digit GSTIN"
                           className="font-mono text-gray-900 border rounded px-2 py-0.5 text-[11px] flex-1 focus:ring-2 focus:ring-purple-400 focus:outline-none"
                         />
+                        <button
+                          type="button"
+                          onClick={() => handleAutoFetchGstInCalibration(taxInvoiceForm.clientGstin, "tax_invoice")}
+                          disabled={isVerifyingGstInCalibration}
+                          className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded text-[9px] cursor-pointer shrink-0"
+                          title="Auto-fetch details from GSTIN"
+                        >
+                          Fetch
+                        </button>
                       </div>
                       <p className="font-bold text-gray-800 text-[10px]">Billing Address:</p>
                       <textarea
@@ -9918,6 +21655,7 @@ export default function CalibrationPageView() {
 
               </div>
             </div>
+
           </div>
         </div>
       )}
@@ -10150,6 +21888,7 @@ export default function CalibrationPageView() {
 
               </div>
             </div>
+
           </div>
         </div>
       )}
@@ -10276,15 +22015,37 @@ export default function CalibrationPageView() {
                       className="w-full font-bold border rounded px-2 py-1 text-xs focus:outline-none"
                       placeholder="Company Name"
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="font-bold text-gray-800 text-[10px]">GSTIN:</span>
                       <input
                         type="text"
                         style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#d1d5db" }}
                         value={proformaForm.clientGstin}
-                        onChange={(e) => setProformaForm({ ...proformaForm, clientGstin: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                          setProformaForm((prev) => ({ ...prev, clientGstin: val }));
+                          if (val.length === 15) {
+                            handleAutoFetchGstInCalibration(val, "proforma");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (proformaForm.clientGstin?.length === 15) {
+                            handleAutoFetchGstInCalibration(proformaForm.clientGstin, "proforma");
+                          }
+                        }}
+                        maxLength={15}
+                        placeholder="15-digit GSTIN"
                         className="font-mono text-gray-900 border rounded px-2 py-0.5 text-[11px] flex-1 focus:outline-none"
                       />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFetchGstInCalibration(proformaForm.clientGstin, "proforma")}
+                        disabled={isVerifyingGstInCalibration}
+                        className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-[9px] cursor-pointer shrink-0"
+                        title="Auto-fetch details from GSTIN"
+                      >
+                        Fetch
+                      </button>
                     </div>
                     <p className="font-bold text-gray-800 text-[10px]">Address:</p>
                     <textarea
@@ -10565,6 +22326,7 @@ export default function CalibrationPageView() {
 
               </div>
             </div>
+
           </div>
         </div>
       )}
@@ -10581,16 +22343,27 @@ export default function CalibrationPageView() {
                   <FaFilePdf />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base sm:text-lg font-black text-white">
                       Official Quotation Live Visual Editor
                     </h2>
+                    {quotationRecordId ? (
+                      <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-200 border border-amber-400/40 rounded-full text-[10px] font-mono font-bold">
+                        ✏️ Editing Quotation
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 rounded-full text-[10px] font-mono font-bold">
+                        🆕 Creating New Quotation
+                      </span>
+                    )}
                     <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-[10px] font-mono font-bold">
                       Exact 1:1 ARCL Format
                     </span>
                   </div>
                   <p className="text-xs text-blue-200">
-                    Live editable paper sheet matching the official 3-page ARCL Commercial Quotation layout
+                    {quotationRecordId
+                      ? "Editing selected quotation record — changes will update this quotation only"
+                      : "Creating a brand new independent quotation — previous quotations remain safely saved line by line"}
                   </p>
                 </div>
               </div>
@@ -10598,11 +22371,21 @@ export default function CalibrationPageView() {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={handleSaveQuotation}
+                  onClick={async () => {
+                    const wasNew = !quotationRecordId;
+                    const savedId = await handleSaveQuotation();
+                    if (savedId) {
+                      handleCloseQuotationModal();
+                      if (wasNew && canQuotations && activeTab !== "quotations") {
+                        setActiveTab("quotations");
+                      }
+                    }
+                  }}
                   disabled={quotationSaving}
                   className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title="Save quotation and close editor"
                 >
-                  <FaCheck /> {quotationSaving ? "Saving..." : "Save Quotation Changes"}
+                  <FaCheck /> {quotationSaving ? "Saving..." : "Save & Close"}
                 </button>
 
                 <button
@@ -10623,11 +22406,13 @@ export default function CalibrationPageView() {
                 <button
                   type="button"
                   onClick={async () => {
-                    await handleSaveQuotation();
-                    setIsQuotationModalOpen(false);
+                    const savedId = await handleSaveQuotation();
+                    if (!savedId) return;
+                    const targetRecId = savedId || quotationRecordId;
+                    handleCloseQuotationModal();
                     handleOpenSendDocModal("quotation", {
-                      _id: quotationRecordId,
-                      recordId: quotationRecordId,
+                      _id: targetRecId,
+                      recordId: targetRecId,
                       clientCompany: quotationForm.billTo?.companyName || "Valued Client",
                       clientEmail: quotationForm.billTo?.email || "harsh.mishra9023@gmail.com",
                       clientPhone: quotationForm.billTo?.phone || "9369962486",
@@ -10643,7 +22428,7 @@ export default function CalibrationPageView() {
 
                 <button
                   type="button"
-                  onClick={() => setIsQuotationModalOpen(false)}
+                  onClick={handleCloseQuotationModal}
                   className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <FaTimes /> Close
@@ -10693,18 +22478,40 @@ export default function CalibrationPageView() {
                         className="w-full font-bold border rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
                         placeholder="Client Company Name"
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-800 text-[10px]">GSTIN:</span>
                         <input
                           type="text"
                           style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#d1d5db" }}
                           value={quotationForm.billTo?.gstin || ""}
-                          onChange={(e) => setQuotationForm({
-                            ...quotationForm,
-                            billTo: { ...(quotationForm.billTo || {}), gstin: e.target.value }
-                          })}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            setQuotationForm((prev) => ({
+                              ...prev,
+                              billTo: { ...(prev.billTo || {}), gstin: val }
+                            }));
+                            if (val.length === 15) {
+                              handleAutoFetchGstInCalibration(val, "quotation");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (quotationForm.billTo?.gstin?.length === 15) {
+                              handleAutoFetchGstInCalibration(quotationForm.billTo.gstin, "quotation");
+                            }
+                          }}
+                          maxLength={15}
+                          placeholder="15-digit GSTIN"
                           className="font-mono text-gray-900 border rounded px-2 py-0.5 text-[11px] flex-1 focus:outline-none"
                         />
+                        <button
+                          type="button"
+                          onClick={() => handleAutoFetchGstInCalibration(quotationForm.billTo?.gstin, "quotation")}
+                          disabled={isVerifyingGstInCalibration}
+                          className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-[9px] cursor-pointer shrink-0"
+                          title="Auto-fetch details from GSTIN"
+                        >
+                          Fetch
+                        </button>
                       </div>
                       <p className="font-bold text-gray-800 text-[10px]">Billing Address:</p>
                       <textarea
@@ -10761,6 +22568,17 @@ export default function CalibrationPageView() {
                           value={quotationForm.placeOfSupply}
                           onChange={(e) => setQuotationForm({ ...quotationForm, placeOfSupply: e.target.value })}
                           className="w-full text-gray-900 border rounded px-1.5 py-0.5 text-[11px] focus:outline-none"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-bold text-gray-700 text-[10px]">DC / Challan Ref No.:</span>
+                        <input
+                          type="text"
+                          style={{ backgroundColor: "#ffffff", color: "#0f172a", borderColor: "#cbd5e1" }}
+                          value={quotationForm.dcNo || ""}
+                          onChange={(e) => setQuotationForm({ ...quotationForm, dcNo: e.target.value })}
+                          placeholder="e.g. DC-2026-001"
+                          className="w-full font-mono text-gray-900 border rounded px-1.5 py-0.5 text-[11px] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -10964,6 +22782,40 @@ export default function CalibrationPageView() {
 
               </div>
             </div>
+
+            {/* Modal Bottom Action Footer for Quick Save */}
+            <div className="p-3 bg-slate-800 border-t border-white/10 flex items-center justify-between px-6 text-white text-xs">
+              <span className="text-gray-300 text-xs">
+                Equipments: <strong className="text-white">{quotationForm.items?.length || 0}</strong> | Total: <strong className="text-emerald-400">₹{(quotationTotals?.grand || quotationTotals?.total || 0).toLocaleString("en-IN")}</strong>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseQuotationModal}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel / Close
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const wasNew = !quotationRecordId;
+                    const savedId = await handleSaveQuotation();
+                    if (savedId) {
+                      handleCloseQuotationModal();
+                      if (wasNew && canQuotations && activeTab !== "quotations") {
+                        setActiveTab("quotations");
+                      }
+                    }
+                  }}
+                  disabled={quotationSaving}
+                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <FaCheck /> {quotationSaving ? "Saving..." : "Save & Close"}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -11026,7 +22878,7 @@ export default function CalibrationPageView() {
                   onClick={handleSelectAllDocs}
                   className="text-xs text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
                 >
-                  {selectedDocTypes.length === allAvailableDocOptions.length ? "Deselect All" : "☑️ Select All (Sabhi Bhejo)"}
+                  {selectedDocTypes.length === allAvailableDocOptions.length ? "Deselect All" : "☑️ Select All Documents"}
                 </button>
               </div>
 
@@ -11266,7 +23118,7 @@ export default function CalibrationPageView() {
               {/* Recipient List */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-800 flex items-center justify-between">
-                  <span>Target Client Organizations &amp; Recipients (Kisko Jayega):</span>
+                  <span>Target Client Organizations &amp; Recipients:</span>
                   <span className="text-[11px] font-mono text-emerald-700 font-bold">● Live Verified Data</span>
                 </p>
                 <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100 text-xs">
@@ -11342,6 +23194,594 @@ export default function CalibrationPageView() {
           </div>
         );
       })()}
+
+      {/* ========================================================================= */}
+      {/* TAB 11: CALIBRATION REVENUE & INCOME ANALYTICS (Revenue Received / Pending Dues / Date Filter) */}
+      {/* ========================================================================= */}
+      {canFinancials && activeTab === "financials" && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header & Quick Action Toolbar */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/20 shrink-0">
+                <FaCoins />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">
+                    11. Calibration Revenue &amp; Income Analytics
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">Revenue &amp; Dues Statement</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Real-time income tracking, outstanding dues recovery, payment mode distribution, and dynamic custom date range analyzer.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleExportFinancialsCsv}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
+                title="Download complete financial register for this date range"
+              >
+                <FaDownload />
+                <span>Export Statement (CSV)</span>
+              </button>
+              <button
+                type="button"
+                onClick={fetchRecords}
+                className="px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition flex items-center gap-2 cursor-pointer active:scale-95"
+                title="Reload latest records from database"
+              >
+                <FaSync className={loading ? "animate-spin" : ""} />
+                <span>Sync</span>
+              </button>
+              <a
+                href="/admin/calibration/payments"
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+              >
+                <FaMoneyBillWave className="text-emerald-400" />
+                <span>UPI Verifications &rarr;</span>
+              </a>
+            </div>
+          </div>
+
+          {/* DATE RANGE FILTER CARD (The Core Filter System) */}
+          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl border border-indigo-900/60 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-800/40">
+              <div className="flex items-center gap-2">
+                <FaCalendarAlt className="text-amber-400 text-base" />
+                <span className="font-bold text-sm text-amber-200">
+                  Select Income &amp; Revenue Date Range:
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-indigo-200 font-mono bg-white/10 px-3 py-1 rounded-full border border-white/20">
+                  Active Filter: <strong>{finDateRange.label}</strong>
+                </span>
+                {finDatePreset !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFinDatePreset("all");
+                      setFinCustomStartDate("");
+                      setFinCustomEndDate("");
+                    }}
+                    className="text-xs text-rose-300 hover:text-white underline cursor-pointer"
+                  >
+                    Reset to All Time
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Preset Buttons Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 text-xs">
+              {[
+                { id: "today", label: "⚡ Aaj (Today)", desc: "1 Day" },
+                { id: "yesterday", label: "⚡ Yesterday", desc: "Kal ka" },
+                { id: "7d", label: "⚡ 7 Days", desc: "Pichle 7 din" },
+                { id: "1m", label: "⚡ 1 Month", desc: "This Month" },
+                { id: "last_month", label: "⚡ Last Month", desc: "Pichla mahina" },
+                { id: "3m", label: "⚡ 3 Months", desc: "Quarterly" },
+                { id: "1y", label: "⚡ 1 Year", desc: "12 Months" },
+                { id: "fy", label: "⚡ FY Year", desc: "Financial Year" },
+                { id: "all", label: "⚡ All Time", desc: "Full History" },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setFinDatePreset(p.id);
+                    setFinCustomStartDate("");
+                    setFinCustomEndDate("");
+                  }}
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer active:scale-95 ${
+                    finDatePreset === p.id
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black border-emerald-300 shadow-md shadow-emerald-500/30"
+                      : "bg-slate-950/70 text-slate-200 border-indigo-900/60 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <span className="block font-bold">{p.label}</span>
+                  <span className="text-[10px] opacity-75 block mt-0.5">{p.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Date Range Inputs Row */}
+            <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-indigo-900/70 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-indigo-300 font-bold">
+                <span>📅 Custom Date Range:</span>
+                <span className="text-[11px] font-normal text-slate-400">
+                  (Select any custom date range from 1 day to 1 year)
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-[11px]">From:</span>
+                  <input
+                    type="date"
+                    value={finCustomStartDate}
+                    onChange={(e) => {
+                      setFinCustomStartDate(e.target.value);
+                      setFinDatePreset("custom");
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-indigo-700 text-white font-mono text-xs focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-[11px]">To:</span>
+                  <input
+                    type="date"
+                    value={finCustomEndDate}
+                    onChange={(e) => {
+                      setFinCustomEndDate(e.target.value);
+                      setFinDatePreset("custom");
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-indigo-700 text-white font-mono text-xs focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+                {(finCustomStartDate || finCustomEndDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFinCustomStartDate("");
+                      setFinCustomEndDate("");
+                      setFinDatePreset("all");
+                    }}
+                    className="px-2 py-1.5 bg-rose-500/20 text-rose-300 rounded-lg hover:bg-rose-500/30 border border-rose-500/40 text-[11px] cursor-pointer"
+                  >
+                    Clear Dates
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 4 DYNAMIC HERO KPI CARDS FOR SELECTED PERIOD */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Total Received (Collected) */}
+            <div className="bg-white p-5 rounded-3xl border-2 border-emerald-500/40 shadow-sm relative overflow-hidden space-y-2">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none"></div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-800 uppercase tracking-wider">
+                  💰 Total Received (Collected)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  {periodFinancialMetrics.periodPaidCount} Batches Paid
+                </span>
+              </div>
+              <p className="text-3xl font-black text-emerald-600 font-mono tracking-tight">
+                ₹{periodFinancialMetrics.periodPaid.toLocaleString("en-IN")}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100 pt-2">
+                <span>Period Income</span>
+                <span className="text-emerald-700 font-bold font-mono">
+                  {periodFinancialMetrics.periodRate}% Cleared
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Outstanding Dues (Pending) */}
+            <div className="bg-white p-5 rounded-3xl border-2 border-rose-400/50 shadow-sm relative overflow-hidden space-y-2">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none"></div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-rose-800 uppercase tracking-wider">
+                  ⏳ Outstanding Dues (Pending)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                  {periodFinancialMetrics.periodPendingCount} Pending | {periodFinancialMetrics.periodPartialCount} Partial
+                </span>
+              </div>
+              <p className="text-3xl font-black text-rose-600 font-mono tracking-tight">
+                ₹{periodFinancialMetrics.periodDue.toLocaleString("en-IN")}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100 pt-2">
+                <span>Uncollected Dues</span>
+                <span className="text-rose-700 font-bold font-mono">
+                  {periodFinancialMetrics.periodBilled > 0
+                    ? ((periodFinancialMetrics.periodDue / periodFinancialMetrics.periodBilled) * 100).toFixed(1)
+                    : 0}% Pending
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Total Valuation / Billed */}
+            <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-indigo-900 uppercase tracking-wider">
+                  📑 Total Invoiced (Bill Value)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {periodFinancialMetrics.totalBatches} Inward Jobs
+                </span>
+              </div>
+              <p className="text-3xl font-black text-gray-900 font-mono tracking-tight">
+                ₹{periodFinancialMetrics.periodBilled.toLocaleString("en-IN")}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100 pt-2">
+                <span>Average Job Valuation</span>
+                <span className="font-bold font-mono text-gray-800">
+                  ₹{periodFinancialMetrics.avgTicket.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Collection Efficiency Rate */}
+            <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-purple-900 uppercase tracking-wider">
+                  📈 Recovery Efficiency
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                  {finDateRange.label}
+                </span>
+              </div>
+              <p className="text-3xl font-black text-purple-700 font-mono tracking-tight">
+                {periodFinancialMetrics.periodRate}%
+              </p>
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, periodFinancialMetrics.periodRate)}%` }}
+                ></div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-gray-400">
+                <span>Cashflow Health</span>
+                <span className="font-bold text-gray-600">
+                  {periodFinancialMetrics.periodRate >= 80 ? "Excellent 🟢" : periodFinancialMetrics.periodRate >= 50 ? "Moderate 🟡" : "Critical Dues 🔴"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* PAYMENT MODES & CLIENT SUMMARY ROW */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Payment Mode Breakdown (4 Cols) */}
+            <div className="lg:col-span-4 bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <FaWallet className="text-emerald-600" /> Payment Modes Breakdown
+                </h3>
+                <span className="text-[11px] text-gray-400 font-mono">In Selected Period</span>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { key: "UPI", label: "UPI & QR Code", color: "from-blue-500 to-indigo-600", bg: "bg-blue-50 text-blue-800" },
+                  { key: "NEFT", label: "NEFT / RTGS / Bank", color: "from-emerald-500 to-teal-600", bg: "bg-emerald-50 text-emerald-800" },
+                  { key: "Cash", label: "Cash On Delivery", color: "from-amber-500 to-orange-600", bg: "bg-amber-50 text-amber-800" },
+                  { key: "Cheque", label: "Account Cheque", color: "from-purple-500 to-pink-600", bg: "bg-purple-50 text-purple-800" },
+                  { key: "Credit", label: "30 Days PO Credit", color: "from-slate-600 to-gray-800", bg: "bg-gray-100 text-gray-800" },
+                ].map((m) => {
+                  const data = modeBreakdown[m.key] || { amount: 0, count: 0 };
+                  const pct = periodFinancialMetrics.periodPaid > 0 ? ((data.amount / periodFinancialMetrics.periodPaid) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={m.key} className="p-3 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${m.bg}`}>{m.key}</span>
+                          <span>{m.label}</span>
+                        </span>
+                        <span className="font-mono font-bold text-gray-900">
+                          ₹{data.amount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-1.5 rounded-full bg-gradient-to-r ${m.color}`}
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400 font-mono">
+                        <span>{data.count} Payments</span>
+                        <span>{pct}% of Income</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Top Clients by Revenue & Due Status (8 Cols) */}
+            <div className="lg:col-span-8 bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <FaBuilding className="text-indigo-600" /> Client Receivables &amp; Income Ledger
+                  </h3>
+                  <p className="text-xs text-gray-500">Top organizations ordered by total billing in this period</p>
+                </div>
+                <span className="text-xs font-mono font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200">
+                  {clientWiseFinancials.length} Active Clients
+                </span>
+              </div>
+
+              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-gray-200">
+                    <tr>
+                      <th className="p-3">Client Organization</th>
+                      <th className="p-3 text-center">Jobs / Items</th>
+                      <th className="p-3 text-right">Billed (₹)</th>
+                      <th className="p-3 text-right text-emerald-700">Total Received (₹)</th>
+                      <th className="p-3 text-right text-rose-700">Pending Due (₹)</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {clientWiseFinancials.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-6 text-center text-gray-400">
+                          No client transactions found for the selected date range.
+                        </td>
+                      </tr>
+                    ) : (
+                      clientWiseFinancials.map((c, cIdx) => (
+                        <tr key={cIdx} className="hover:bg-gray-50/80 transition">
+                          <td className="p-3 font-semibold text-gray-900">
+                            <div>{c.company}</div>
+                            {c.phone && <div className="text-[10px] text-gray-400 font-mono">{c.phone}</div>}
+                          </td>
+                          <td className="p-3 text-center font-mono">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-[11px]">
+                              {c.batches} Batches ({c.instruments} Items)
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-gray-900">
+                            ₹{c.billed.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                            ₹{c.paid.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-rose-600">
+                            ₹{c.due.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-center">
+                            {c.due <= 0 ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                All Cleared ✓
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Due Pending ⏳
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            {c.due > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedReminderClient(c.company);
+                                  setIsReminderModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shadow-xs cursor-pointer active:scale-95"
+                                title="Send WhatsApp/Email Due Payment Reminder"
+                              >
+                                Send Reminder
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* DETAILED TRANSACTION REGISTER TABLE */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <FaFileInvoiceDollar className="text-emerald-600" /> Detailed Revenue &amp; Payment Register
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Showing all {filteredFinBatches.length} calibration jobs matching the active filters
+                </p>
+              </div>
+
+              {/* Search & Filter Controls */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Search */}
+                <div className="relative">
+                  <FaSearch className="absolute left-3 top-3 text-gray-400 text-xs" />
+                  <input
+                    type="text"
+                    value={finSearchTerm}
+                    onChange={(e) => setFinSearchTerm(e.target.value)}
+                    placeholder="Search client, DC, equipment..."
+                    className="pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-800 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-emerald-400 shadow-2xs w-48 sm:w-60"
+                  />
+                  {finSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setFinSearchTerm("")}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 text-xs"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Filter */}
+                <select
+                  value={finStatusFilter}
+                  onChange={(e) => setFinStatusFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-gray-50/70 focus:bg-white cursor-pointer"
+                >
+                  <option value="all">All Payment Status</option>
+                  <option value="Paid">Fully Paid Only</option>
+                  <option value="Pending">Pending Dues Only</option>
+                  <option value="Partial">Partial Payments</option>
+                </select>
+
+                {/* Client Filter */}
+                <select
+                  value={finClientFilter}
+                  onChange={(e) => setFinClientFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-gray-50/70 focus:bg-white cursor-pointer max-w-[160px]"
+                >
+                  <option value="all">All Clients ({uniqueClients.length})</option>
+                  {uniqueClients.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-2xl border border-gray-100">
+              <table className="w-full text-left text-xs min-w-[900px]">
+                <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] tracking-wider border-b border-gray-100">
+                  <tr>
+                    <th className="p-3 text-center">#</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Client Company</th>
+                    <th className="p-3">DC / Batch Ref</th>
+                    <th className="p-3">Instruments</th>
+                    <th className="p-3 text-right">Billed (₹)</th>
+                    <th className="p-3 text-right text-emerald-700">Total Received (₹)</th>
+                    <th className="p-3 text-right text-rose-700">Due (₹)</th>
+                    <th className="p-3 text-center">Mode</th>
+                    <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredFinBatches.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-10 text-center text-gray-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FaCoins className="text-3xl text-gray-300" />
+                          <p className="font-semibold text-gray-600">No transactions match the selected date or search filter.</p>
+                          <p className="text-xs text-gray-400">Try selecting "All Time" or clearing your custom dates.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredFinBatches.map((b, bIdx) => {
+                      const docs = b.commercialDocs || {};
+                      let bTotal = Number(docs.totalAmount || 0);
+                      if (!bTotal) {
+                        if (b.quotationData?.grand || b.quotationData?.total || b.quotationData?.totalAmount) {
+                          bTotal = Number(b.quotationData.grand || b.quotationData.total || b.quotationData.totalAmount || 0);
+                        } else {
+                          bTotal = (b.items?.length || 1) * 1180;
+                        }
+                      }
+                      const bPaid = Number(docs.paidAmount || (docs.paymentStatus === "Paid" ? bTotal : 0));
+                      const bDue = docs.dueAmount !== undefined && docs.dueAmount !== null ? Number(docs.dueAmount) : Math.max(0, bTotal - bPaid);
+                      const bStatus = docs.paymentStatus || (bDue <= 0 && bTotal > 0 ? "Paid" : bPaid > 0 ? "Partial" : "Pending");
+                      const dateStr = docs.paymentDate
+                        ? new Date(docs.paymentDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                        : b.challanDate
+                        ? new Date(b.challanDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                        : "-";
+
+                      return (
+                        <tr key={bIdx} className="hover:bg-gray-50/80 transition">
+                          <td className="p-3 text-center text-gray-600 font-bold font-mono text-[11px]">{b.customerRank || bIdx + 1}</td>
+                          <td className="p-3 text-gray-700 font-mono text-[11px] whitespace-nowrap">{dateStr}</td>
+                          <td className="p-3 font-semibold text-gray-900">
+                            <div>{b.clientCompany || "Client"}</div>
+                            {b.clientPhone && <div className="text-[10px] text-gray-400 font-mono">{b.clientPhone}</div>}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-gray-700">
+                            <span className="px-2 py-0.5 rounded bg-gray-100 text-[11px]">{b.dcNo || "-"}</span>
+                          </td>
+                          <td className="p-3 text-gray-600 max-w-[200px] truncate" title={(b.items || []).map((i) => i.instrument).join(", ")}>
+                            {(b.items || []).length} items: {(b.items || []).map((i) => i.instrument).slice(0, 2).join(", ")}
+                            {(b.items || []).length > 2 && "..."}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-gray-900">
+                            ₹{bTotal.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                            ₹{bPaid.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-rose-600">
+                            ₹{bDue.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3 text-center font-mono text-[11px]">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold">
+                              {docs.paymentMode || "UPI"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                bStatus === "Paid"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : bStatus === "Partial"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {bStatus}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBatchPaymentModal(b)}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 text-[10px] transition cursor-pointer active:scale-95"
+                              title="Update Payment / Add Installment"
+                            >
+                              Update Payment
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer Summary Row */}
+            {filteredFinBatches.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-200 text-xs font-bold gap-3">
+                <span className="text-gray-600">
+                  Showing {filteredFinBatches.length} transactions for: <span className="text-indigo-900">{finDateRange.label}</span>
+                </span>
+                <div className="flex items-center gap-4 text-xs font-mono">
+                  <span>Billed: <strong className="text-gray-900">₹{periodFinancialMetrics.periodBilled.toLocaleString("en-IN")}</strong></span>
+                  <span>Received: <strong className="text-emerald-700">₹{periodFinancialMetrics.periodPaid.toLocaleString("en-IN")}</strong></span>
+                  <span>Due: <strong className="text-rose-700">₹{periodFinancialMetrics.periodDue.toLocaleString("en-IN")}</strong></span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL: SINGLE RECIPIENT / CLIENT CALIBRATION DUE NOTICE COMPOSER */}
@@ -12093,7 +24533,7 @@ export default function CalibrationPageView() {
               {/* Modal Body with Checkbox Categories */}
               <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto text-xs">
                 <p className="font-bold text-gray-900 text-xs flex items-center justify-between">
-                  <span>1. Check all items you want to delete (Jo-jo hatana hai unhe tick karein):</span>
+                  <span>1. Check all items you want to delete:</span>
                   <span className="text-[11px] text-rose-600 font-mono font-bold">
                     {totalItemsCount} item(s) selected
                   </span>
@@ -12404,7 +24844,7 @@ export default function CalibrationPageView() {
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-amber-950 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-xs">
                     <FaExclamationTriangle className="text-amber-600 text-sm" />
-                    <span>Live Deletion Summary (Hatne wali cheezon ka vivran):</span>
+                    <span>Live Deletion Summary:</span>
                   </div>
                   <p className="text-[11px] text-amber-900 leading-relaxed">
                     Will delete: <strong>{estimatedRecordsCount} Instrument Record(s)</strong>,{" "}
@@ -12942,14 +25382,1016 @@ export default function CalibrationPageView() {
               <div className="w-full mt-2.5 px-3 py-2 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
                 <span className="flex items-center gap-1.5">
                   <FaInfoCircle className="text-emerald-400" />
-                  <span>Agar preview browser me load na ho ya blank dikhe to <strong>"Download PO"</strong> ya <strong>"Open in New Tab"</strong> par click karein.</span>
+                  <span>If preview does not load or appears blank in browser, click <strong>"Download PO"</strong> or <strong>"Open in New Tab"</strong>.</span>
                 </span>
                 <span className="font-mono text-[11px] text-emerald-300">
                   ARCL Calibration Metrology System
                 </span>
               </div>
             </div>
+
           </div>
+        </div>
+      )}
+      {/* =========================================================================
+          MODAL: CALIBRATION BATCH PAYMENT & INSTALLMENTS MANAGER (Same as Sales)
+          ========================================================================= */}
+      {isBatchPaymentModalOpen && batchPaymentTarget && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50">
+          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-gray-100 max-h-[92vh] flex flex-col overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-900 via-blue-900 to-[#021C57] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-white/10 rounded-xl text-amber-300">
+                  <FaCreditCard className="text-xl" />
+                </span>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black">
+                    Calibration Payment &amp; Installments Tracker
+                  </h3>
+                  <p className="text-xs text-blue-200">
+                    DC No: <strong>{batchPaymentTarget.dcNo || "N/A"}</strong> • Client: {batchPaymentTarget.clientCompany} ({batchPaymentTarget.items?.length || 0} Equipments)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchPaymentModalOpen(false)}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+              >
+                <FaTimes className="text-lg" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+              {/* Financial Balance Summary Card */}
+              <div className="grid grid-cols-3 gap-3 bg-gradient-to-r from-slate-50 to-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Total Valuation (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={batchPaymentForm.totalAmount}
+                    onChange={(e) => handleTotalAmountChange(e.target.value)}
+                    className="w-full mt-1 p-1 bg-white border border-gray-300 rounded-lg text-lg font-black font-mono text-gray-950 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase">Paid So Far</span>
+                  <div className="text-xl font-black text-emerald-800 font-mono mt-2">
+                    ₹{Number(batchPaymentForm.paidAmount || 0).toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-rose-700 uppercase">Remaining Due</span>
+                  <div className="text-xl font-black text-rose-800 font-mono mt-2">
+                    ₹{Number(batchPaymentForm.dueAmount || 0).toLocaleString("en-IN")}
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Controls: Payment Mode & Status & 1-Click Clear */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 p-3.5 rounded-2xl border border-gray-200 items-center">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Primary Payment Mode</label>
+                  <select
+                    value={batchPaymentForm.paymentMode}
+                    onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, paymentMode: e.target.value })}
+                    className="w-full p-2 bg-white border border-gray-300 rounded-xl font-bold text-gray-800"
+                  >
+                    <option value="UPI">UPI</option>
+                    <option value="Net Banking">Net Banking</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Card">Card</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Payment Status</label>
+                  <select
+                    value={batchPaymentForm.paymentStatus}
+                    onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, paymentStatus: e.target.value })}
+                    className="w-full p-2 bg-white border border-gray-300 rounded-xl font-bold text-gray-800"
+                  >
+                    <option value="Paid">Paid 🟢</option>
+                    <option value="Pending">Pending 🟡</option>
+                    <option value="Partial">Partial 🔴</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col justify-end pt-4 sm:pt-0">
+                  <button
+                    type="button"
+                    onClick={handleClearRemainingDue}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <FaCheckCircle className="text-sm" /> Clear Remaining Due
+                  </button>
+                </div>
+              </div>
+
+              {/* Installments Ledger Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-gray-900 text-xs">
+                    Installment Ledger Entries ({batchPaymentForm.payments?.length || 0})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddPaymentInstallment}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <FaPlus className="text-[10px]" /> + Add Installment
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100 text-gray-700 font-bold text-[10px] border-b border-gray-200">
+                        <th className="p-2 text-center w-10">#</th>
+                        <th className="p-2 w-32">Date (Kab)</th>
+                        <th className="p-2 w-32">Mode</th>
+                        <th className="p-2 min-w-[140px]">Transaction / UTR Ref</th>
+                        <th className="p-2 w-32 text-right">Amount (₹)</th>
+                        <th className="p-2 min-w-[140px]">Notes</th>
+                        <th className="p-2 text-center w-10">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {(!batchPaymentForm.payments || batchPaymentForm.payments.length === 0) ? (
+                        <tr>
+                          <td colSpan={7} className="p-6 text-center text-gray-400">
+                            No installments recorded. Click &quot;+ Add Installment&quot; to record a payment.
+                          </td>
+                        </tr>
+                      ) : (
+                        batchPaymentForm.payments.map((p, pIdx) => (
+                          <tr key={pIdx} className="hover:bg-indigo-50/20">
+                            <td className="p-2 text-center font-bold text-indigo-900 border-r border-gray-200 bg-slate-50/50">
+                              #{p.installmentNo || pIdx + 1}
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={p.paymentDate ? toSafeIsoDate(p.paymentDate) : ""}
+                                onChange={(e) => handleInstallmentChange(pIdx, "paymentDate", e.target.value)}
+                                className="w-full p-1 bg-white border border-gray-300 rounded-lg text-xs"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={p.paymentMode || "UPI"}
+                                onChange={(e) => handleInstallmentChange(pIdx, "paymentMode", e.target.value)}
+                                className="w-full p-1 bg-white border border-gray-300 rounded-lg text-xs"
+                              >
+                                <option value="UPI">UPI</option>
+                                <option value="Net Banking">Net Banking</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Card">Card</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="UTR / Ref No."
+                                value={p.transactionRef || ""}
+                                onChange={(e) => handleInstallmentChange(pIdx, "transactionRef", e.target.value)}
+                                className="w-full p-1 bg-white border border-gray-300 rounded-lg font-mono text-xs"
+                              />
+                            </td>
+                            <td className="p-2 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                value={p.amount}
+                                onChange={(e) => handleInstallmentChange(pIdx, "amount", parseFloat(e.target.value) || 0)}
+                                className="w-full p-1 bg-white border border-gray-300 rounded-lg text-right font-mono font-bold text-emerald-800"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="Stage / remark"
+                                value={p.notes || ""}
+                                onChange={(e) => handleInstallmentChange(pIdx, "notes", e.target.value)}
+                                className="w-full p-1 bg-white border border-gray-300 rounded-lg text-xs"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePaymentInstallment(pIdx)}
+                                className="p-1 text-gray-400 hover:text-rose-600 transition"
+                                title="Remove installment"
+                              >
+                                <FaTrash className="text-xs" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Submit / Save Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchPaymentModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBatchPayment}
+                  disabled={savingBatchPayment}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingBatchPayment ? (
+                    <>
+                      <FaSync className="animate-spin text-xs" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheckCircle className="text-xs" /> Save Payment Ledger
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: PER-EQUIPMENT DAILY LAB PERMISSION & DATE RELEASE (SRF & OBS) */}
+      {/* ========================================================================= */}
+      {isLabPermissionModalOpen && labPermissionBatch && (() => {
+        const allItems = Array.isArray(labPermissionBatch.items) ? labPermissionBatch.items : [];
+        const permittedList = allItems.filter((it) => isRecordLabPermitted(it));
+        const pendingList = allItems.filter((it) => !isRecordLabPermitted(it));
+        const uncalibratedPermittedList = permittedList.filter((it) => !isRecordCalibratedOrSubmitted(it));
+
+        const visibleItems = allItems.filter((it) => {
+          const isPerm = isRecordLabPermitted(it);
+          if (permViewFilter === "pending" && isPerm) return false;
+          if (permViewFilter === "permitted" && !isPerm) return false;
+          if (permSearchTerm) {
+            const q = permSearchTerm.toLowerCase().trim();
+            const matchName = String(it.instrument || "").toLowerCase().includes(q);
+            const matchSn = String(it.serialNo || "").toLowerCase().includes(q);
+            const matchMake = String(it.make || "").toLowerCase().includes(q);
+            if (!matchName && !matchSn && !matchMake) return false;
+          }
+          return true;
+        });
+
+        const toggleableVisibleItems = visibleItems.filter((it) => !isRecordCalibratedOrSubmitted(it));
+
+        const togglePermId = (id, itemObj) => {
+          if (!id || isRecordCalibratedOrSubmitted(itemObj)) return;
+          setSelectedPermRecordIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          });
+        };
+
+        const selectFirstNPending = (n) => {
+          const ids = pendingList.slice(0, n).map((it) => it._id || it.id).filter(Boolean);
+          setSelectedPermRecordIds(new Set(ids));
+        };
+
+        const selectedHasPermitted = Array.from(selectedPermRecordIds).some((id) => {
+          const rec = allItems.find((it) => (it._id || it.id) === id);
+          return rec && isRecordLabPermitted(rec) && !isRecordCalibratedOrSubmitted(rec);
+        });
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 animate-fadeIn">
+            <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-cyan-200 max-h-[94vh] flex flex-col overflow-hidden text-gray-900">
+              {/* Modal Header */}
+              <div className="p-4 sm:p-5 bg-gradient-to-r from-[#021C57] via-cyan-950 to-teal-900 text-white flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="p-2 bg-cyan-500/20 text-cyan-300 rounded-xl border border-cyan-400/30">
+                      <FaCalendarAlt className="text-lg" />
+                    </span>
+                    <h2 className="text-base sm:text-lg font-black">
+                      Equipment Lab Permission &amp; Date Release
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black bg-white/15 text-cyan-200 border border-white/20">
+                      {permittedList.length} / {allItems.length} Permitted
+                    </span>
+                  </div>
+                  <p className="text-xs text-cyan-100/90">
+                    Client: <strong className="text-white">{labPermissionBatch.clientCompany}</strong> • Quotation: <strong className="font-mono">{labPermissionBatch.quotationData?.quotationNo || labPermissionBatch.dcNo}</strong> • Remaining Held: <strong className="text-amber-300">{pendingList.length}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLabPermissionModalOpen(false)}
+                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              {/* Date Selection & Notes Bar */}
+              <div className="p-4 bg-cyan-50/70 border-b border-cyan-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-end">
+                <div className="md:col-span-5 space-y-1">
+                  <label className="font-black text-cyan-950 flex items-center justify-between">
+                    <span>📅 Calibration / SRF Release Date *</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPermReleaseDate(new Date().toISOString().slice(0, 10))}
+                        className="px-2 py-0.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded text-[9.5px] font-bold cursor-pointer"
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPermReleaseDate(new Date(Date.now() + 86400000).toISOString().slice(0, 10))}
+                        className="px-2 py-0.5 bg-white hover:bg-cyan-100 text-cyan-900 border border-cyan-300 rounded text-[9.5px] font-bold cursor-pointer"
+                      >
+                        Tomorrow
+                      </button>
+                    </div>
+                  </label>
+                  <input
+                    type="date"
+                    value={permReleaseDate}
+                    onChange={(e) => setPermReleaseDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-cyan-300 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+                <div className="md:col-span-7 space-y-1">
+                  <label className="font-bold text-cyan-950">Release Lot / Inward Note (Optional)</label>
+                  <input
+                    type="text"
+                    value={permReleaseNotes}
+                    onChange={(e) => setPermReleaseNotes(e.target.value)}
+                    placeholder="e.g. Lot 1: Customer sent 10 instruments today for calibration..."
+                    className="w-full px-3 py-2 bg-white border border-cyan-200 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+
+              {/* Filter & Quick Pick Controls */}
+              <div className="px-4 py-3 bg-slate-50 border-b border-gray-200 space-y-2.5 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { key: "all", label: `All (${allItems.length})` },
+                      { key: "pending", label: `⏳ Pending Permission (${pendingList.length})` },
+                      { key: "permitted", label: `✅ Already Permitted (${permittedList.length})` },
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setPermViewFilter(t.key)}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                          permViewFilter === t.key
+                            ? "bg-[#021C57] text-white border-[#021C57] shadow-2xs"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative flex-1 min-w-[200px] max-w-xs">
+                    <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={permSearchTerm}
+                      onChange={(e) => setPermSearchTerm(e.target.value)}
+                      placeholder="Search instrument / S.N..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-300 rounded-xl text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Batch Selection Bar */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider mr-1">Quick Select:</span>
+                  {pendingList.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => selectFirstNPending(Math.min(10, pendingList.length))}
+                        className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                      >
+                        First {Math.min(10, pendingList.length)} Pending
+                      </button>
+                      {pendingList.length > 10 && (
+                        <button
+                          type="button"
+                          onClick={() => selectFirstNPending(Math.min(20, pendingList.length))}
+                          className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                        >
+                          First {Math.min(20, pendingList.length)} Pending
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPermRecordIds(new Set(pendingList.map((it) => it._id || it.id).filter(Boolean)))}
+                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                      >
+                        All Pending ({pendingList.length})
+                      </button>
+                    </>
+                  )}
+                  {toggleableVisibleItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPermRecordIds(new Set(toggleableVisibleItems.map((it) => it._id || it.id).filter(Boolean)))}
+                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                    >
+                      Select Pending/Uncalibrated ({toggleableVisibleItems.length})
+                    </button>
+                  )}
+                  {uncalibratedPermittedList.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={isSavingLabPermission}
+                      onClick={() =>
+                        handleSubmitLabPermission(
+                          false,
+                          uncalibratedPermittedList.map((it) => it._id || it.id).filter(Boolean)
+                        )
+                      }
+                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                      title="Only holds equipments whose calibration is not done yet; already-calibrated items remain untouched"
+                    >
+                      ⏸️ Hold Uncalibrated ({uncalibratedPermittedList.length})
+                    </button>
+                  )}
+                  {selectedPermRecordIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPermRecordIds(new Set())}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                    >
+                      Clear ({selectedPermRecordIds.size})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable Equipment Selection List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white">
+                {visibleItems.length === 0 ? (
+                  <div className="p-10 text-center text-gray-400 text-xs">
+                    No equipment matches the selected filter.
+                  </div>
+                ) : (
+                  visibleItems.map((it, idx) => {
+                    const id = it._id || it.id;
+                    const isCalLocked = isRecordCalibratedOrSubmitted(it);
+                    const isChecked = !isCalLocked && id && selectedPermRecordIds.has(id);
+                    const isPerm = isRecordLabPermitted(it);
+                    const relDate = getRecordLabDate(it);
+                    const obsSt = it.observationData?.status || "Draft";
+                    const authSt = it.authorizationData?.status;
+
+                    return (
+                      <div
+                        key={id || idx}
+                        onClick={() => togglePermId(id, it)}
+                        className={`p-3 rounded-xl border flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 transition text-xs ${
+                          isCalLocked
+                            ? "bg-blue-50/40 border-blue-200 cursor-default"
+                            : isChecked
+                            ? "bg-cyan-50 border-cyan-500 ring-1 ring-cyan-400 shadow-2xs cursor-pointer"
+                            : isPerm
+                            ? "bg-emerald-50/40 border-emerald-200 hover:bg-emerald-50/80 cursor-pointer"
+                            : "bg-white border-gray-200 hover:bg-slate-50 cursor-pointer"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            disabled={isCalLocked}
+                            checked={Boolean(isChecked)}
+                            onChange={() => {}}
+                            className="w-4 h-4 rounded text-cyan-600 focus:ring-cyan-500 shrink-0 pointer-events-none disabled:opacity-40"
+                          />
+                          <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-gray-900 truncate">{it.instrument || "Equipment"}</p>
+                            <p className="text-[10.5px] text-gray-500 font-mono truncate">
+                              S/N: <strong>{it.serialNo || "-"}</strong>
+                              {it.make ? ` • Make: ${it.make}` : ""}
+                              {it.instrumentRange ? ` • Range: ${it.instrumentRange}` : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                          {isPerm ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <FaCheckCircle className="text-emerald-600" />
+                              Permitted: {toSafeLocaleDate(relDate, "Active")}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <FaClock className="text-amber-600" />
+                              Pending Permission (Held)
+                            </span>
+                          )}
+                          {isCalLocked && (
+                            <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                              🔒 {authSt === "Approved" ? "Certified (Done)" : obsSt === "Submitted" || obsSt === "Authorized" ? "Obs Submitted" : "Calibrated"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-t border-slate-800">
+                <div className="text-xs text-slate-300">
+                  Selected: <strong className="text-cyan-300 font-black">{selectedPermRecordIds.size}</strong> equipment(s)
+                  {permReleaseDate && (
+                    <span> • Date: <strong className="text-white font-mono">{toSafeLocaleDate(permReleaseDate, permReleaseDate)}</strong></span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedHasPermitted && (
+                    <button
+                      type="button"
+                      disabled={isSavingLabPermission || selectedPermRecordIds.size === 0}
+                      onClick={() => handleSubmitLabPermission(false)}
+                      className="px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      ⏸️ Hold Back Selected
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsLabPermissionModalOpen(false)}
+                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Done / Close
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingLabPermission || selectedPermRecordIds.size === 0}
+                    onClick={async () => {
+                      await handleSubmitLabPermission(true);
+                    }}
+                    className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-black shadow-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                  >
+                    {isSavingLabPermission ? (
+                      <>
+                        <FaSync className="animate-spin text-xs" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FaCheck /> Grant Permission ({selectedPermRecordIds.size}) for {toSafeLocaleDate(permReleaseDate, permReleaseDate)} → Send to SRF &amp; Obs
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* MODAL: MARK SRF DONE -> PUSH BATCH TO INWARD REGISTER */}
+      {/* ========================================================================= */}
+      {isSrfDoneModalOpen && srfDoneTargetBatch && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-cyan-200 overflow-hidden text-gray-900">
+            <div className="p-5 bg-gradient-to-r from-[#021C57] to-cyan-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="p-2.5 bg-cyan-500/20 text-cyan-300 rounded-xl border border-cyan-400/30 text-lg">
+                  <FaClipboardCheck />
+                </span>
+                <div>
+                  <h3 className="text-base font-black">Confirm SRF Done → Add to Inward Register</h3>
+                  <p className="text-xs text-cyan-100">
+                    {srfDoneTargetBatch.clientCompany} • {(srfDoneTargetBatch.items || []).length} Instrument(s)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSrfDoneModalOpen(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">SRF No. (YYMMDD/NN) *</label>
+                  <input
+                    type="text"
+                    value={srfDoneForm.srfNo}
+                    onChange={(e) => setSrfDoneForm((p) => ({ ...p, srfNo: e.target.value }))}
+                    placeholder="e.g. 261110/01"
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl font-mono font-bold text-[#021C57] focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Date of Receipt *</label>
+                  <input
+                    type="date"
+                    value={srfDoneForm.dateOfReceipt}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const days = Number(srfDoneForm.deliveryCommittedDays) || 0;
+                      const nextDeliv = val ? new Date(new Date(val).getTime() + days * 86400000).toISOString().slice(0, 10) : "";
+                      setSrfDoneForm((p) => ({ ...p, dateOfReceipt: val, dateOfDelivery: nextDeliv || p.dateOfDelivery }));
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Calibration Done at *</label>
+                  <select
+                    value={srfDoneForm.calibrationDoneAt}
+                    onChange={(e) => setSrfDoneForm((p) => ({ ...p, calibrationDoneAt: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="Lab">Lab</option>
+                    <option value="Site">Site</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Delivery Committed (Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={srfDoneForm.deliveryCommittedDays}
+                    onChange={(e) => {
+                      const days = Number(e.target.value) || 0;
+                      const base = srfDoneForm.dateOfReceipt ? new Date(srfDoneForm.dateOfReceipt) : new Date();
+                      const nextDeliv = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10);
+                      setSrfDoneForm((p) => ({ ...p, deliveryCommittedDays: e.target.value, dateOfDelivery: nextDeliv }));
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Date of delivery</label>
+                  <input
+                    type="date"
+                    value={srfDoneForm.dateOfDelivery}
+                    onChange={(e) => setSrfDoneForm((p) => ({ ...p, dateOfDelivery: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Remarks</label>
+                  <input
+                    type="text"
+                    value={srfDoneForm.remarks}
+                    onChange={(e) => setSrfDoneForm((p) => ({ ...p, remarks: e.target.value }))}
+                    placeholder="Optional inward remarks..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-gray-300 rounded-xl focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-40 overflow-y-auto space-y-1">
+                <p className="font-bold text-slate-700 text-[11px] mb-1">
+                  Equipments included in this SRF ({(srfDoneTargetBatch.items || []).length}):
+                </p>
+                {(srfDoneTargetBatch.items || []).map((it, idx) => (
+                  <div key={it._id || idx} className="flex items-center justify-between text-[11px] text-slate-700 border-b border-slate-200/60 pb-1 last:border-b-0">
+                    <span className="font-semibold truncate">{idx + 1}. {it.instrument}</span>
+                    <span className="font-mono text-slate-500 shrink-0 ml-2">S/N: {it.serialNo}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSrfDoneModalOpen(false)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingSrfDone}
+                onClick={() => handleSubmitSrfDone(true)}
+                className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingSrfDone ? <FaSync className="animate-spin text-xs" /> : <FaCheck />}
+                Confirm SRF Done &amp; Add to Inward Register →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDIT INWARD REGISTER ROW (ALL 17 EXCEL FIELDS) */}
+      {/* ========================================================================= */}
+      {isInwardEditModalOpen && inwardEditForm && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden text-gray-900">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#021C57] to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <FaEdit className="text-cyan-300 text-lg" />
+                <div>
+                  <h3 className="text-base font-black">Edit Inward Register Entry</h3>
+                  <p className="text-[11px] text-cyan-200 font-mono">
+                    {inwardEditForm.srfNo} • {inwardEditForm.inwardNo} • {inwardEditForm.instrument}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsInwardEditModalOpen(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInwardEdit} className="flex-1 overflow-y-auto p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">SRF No.</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.srfNo}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, srfNo: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Inward No.</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.inwardNo}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, inwardNo: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Date of Receipt</label>
+                  <input
+                    type="date"
+                    value={inwardEditForm.dateOfReceipt}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, dateOfReceipt: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-gray-700 block mb-1">Name of Customer</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.clientCompany}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, clientCompany: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Calibration Done at</label>
+                  <select
+                    value={inwardEditForm.calibrationDoneAt}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, calibrationDoneAt: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-bold"
+                  >
+                    <option value="Lab">Lab</option>
+                    <option value="Site">Site</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="font-bold text-gray-700 block mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.clientAddress}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, clientAddress: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-gray-700 block mb-1">Name of Instrument</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.instrument}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, instrument: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Serial No./ Id. No.</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.serialNo}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, serialNo: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Range</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.range}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, range: e.target.value }))}
+                    placeholder="e.g. 3000, 150, 6.3-63"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.unit}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, unit: e.target.value }))}
+                    placeholder="e.g. kN, mm, RPM, g, °c"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Least Count</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.leastCount}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, leastCount: e.target.value }))}
+                    placeholder="e.g. 0.1, 0.01, -------"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Dia.</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.dia}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, dia: e.target.value }))}
+                    placeholder="e.g. 200, 300, -------"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-gray-700 block mb-1">Make/Model</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.makeModel}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, makeModel: e.target.value }))}
+                    placeholder="e.g. HFI/---, ARCL/---"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Certificate no</label>
+                    <input
+                      type="text"
+                      value={inwardEditForm.certificateNo}
+                      onChange={(e) => setInwardEditForm((p) => ({ ...p, certificateNo: e.target.value }))}
+                      placeholder="e.g. ARCL/F/260704/01"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">ULR No (18 chars)</label>
+                    <input
+                      type="text"
+                      maxLength={18}
+                      value={inwardEditForm.ulrNo || ""}
+                      onChange={(e) => setInwardEditForm((p) => ({ ...p, ulrNo: e.target.value.toUpperCase() }))}
+                      placeholder="e.g. CC286326000000001F"
+                      className="w-full px-3 py-1.5 border border-teal-300 rounded-lg font-mono font-bold text-teal-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Delivery Committed(Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={inwardEditForm.deliveryCommittedDays}
+                    onChange={(e) => {
+                      const days = Number(e.target.value) || 0;
+                      const base = inwardEditForm.dateOfReceipt ? new Date(inwardEditForm.dateOfReceipt) : new Date();
+                      const nextDeliv = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10);
+                      setInwardEditForm((p) => ({ ...p, deliveryCommittedDays: e.target.value, dateOfDelivery: nextDeliv }));
+                    }}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Date of delivery</label>
+                  <input
+                    type="date"
+                    value={inwardEditForm.dateOfDelivery}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, dateOfDelivery: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Remarks</label>
+                  <input
+                    type="text"
+                    value={inwardEditForm.remarks}
+                    onChange={(e) => setInwardEditForm((p) => ({ ...p, remarks: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsInwardEditModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingInwardEdit}
+                  className="px-5 py-2 bg-gradient-to-r from-[#021C57] to-blue-700 hover:from-blue-900 hover:to-blue-800 text-white rounded-xl font-black shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingInwardEdit ? <FaSync className="animate-spin" /> : <FaCheck />}
+                  Save Register Row
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Offscreen 1:1 A4 Staging Canvas for Identical View / Download / Print Certificate & Observation PDFs */}
+      {pdfExportJob && Array.isArray(pdfExportJob.items) && pdfExportJob.items.length > 0 && (
+        <div
+          ref={pdfPrintStagingRef}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: "-12000px",
+            top: 0,
+            width: "794px",
+            backgroundColor: "#ffffff",
+            zIndex: -1,
+            pointerEvents: "none",
+          }}
+        >
+          {pdfExportJob.items.map((itemRec, itemIdx) => {
+            const obs = itemRec?.observationData || {};
+            const matchedTmpl =
+              obsTemplates.find(
+                (t) =>
+                  (obs.templateId && String(t._id) === String(obs.templateId)) ||
+                  (obs.templateName && t.name && t.name.toLowerCase() === obs.templateName.toLowerCase())
+              ) ||
+              findTemplateForInstrument(itemRec, obsTemplates) ||
+              null;
+            const calc = computeMetrologicalCalculations(itemRec);
+            const isObsDoc =
+              pdfExportJob.docType === "observation_sheet" ||
+              pdfExportJob.docType === "observation";
+            return (
+              <OfficialNablCertificate
+                key={itemRec?._id || itemRec?.id || itemIdx}
+                rec={itemRec || {}}
+                itemIdx={itemIdx}
+                isObsDoc={isObsDoc}
+                matchedTmpl={matchedTmpl}
+                calc={calc}
+                fixedA4={true}
+                currentUserName={authSignatoryName}
+              />
+            );
+          })}
         </div>
       )}
     </div>

@@ -28,7 +28,7 @@ import {
 const AdminLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loginWithGoogle, loginWithPassword, isAuthenticated, error, clearError } =
+  const { loginWithGoogle, loginWithPassword, isAuthenticated, checkingAuth, error, clearError } =
     useAuthStore();
 
   const [email, setEmail] = useState("");
@@ -49,13 +49,14 @@ const AdminLogin = () => {
   const passwordTimerRef = useRef(null);
   const lockoutTimerRef = useRef(null);
   const idleTimerRef = useRef(null);
+  const googleCallbackRef = useRef(null);
   const redirectPath = location.state?.from?.pathname || "/admin";
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!checkingAuth && isAuthenticated) {
       navigate(redirectPath, { replace: true });
     }
-  }, [isAuthenticated, navigate, redirectPath]);
+  }, [checkingAuth, isAuthenticated, navigate, redirectPath]);
 
   // Privacy Feature: Tab Inactivity / Window Blur Protection & Panic Hotkey (Esc key)
   useEffect(() => {
@@ -201,24 +202,29 @@ const AdminLogin = () => {
   useEffect(() => {
     const scriptId = "google-gsi-script";
     const existingScript = document.getElementById(scriptId);
+    let pollTimer = null;
+    let isCancelled = false;
 
     const initializeGoogleSignIn = () => {
-      const clientId =
+      if (isCancelled) return false;
+      const rawClientId =
         process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
         (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
         "1032563831378-sviqnior6okrofqjsu58uk0cpi6v57tt.apps.googleusercontent.com";
+      const clientId = String(rawClientId).trim().replace(/~+$/, "");
 
       if (window.google?.accounts?.id) {
         try {
           window.google.accounts.id.initialize({
             client_id: clientId,
-            callback: handleGoogleCredentialResponse,
+            callback: (resp) => googleCallbackRef.current?.(resp),
             auto_select: false,
             cancel_on_tap_outside: true,
           });
 
           const btnContainer = document.getElementById("googleSignInBtn");
           if (btnContainer) {
+            btnContainer.innerHTML = "";
             window.google.accounts.id.renderButton(btnContainer, {
               theme: "outline",
               size: "large",
@@ -229,9 +235,18 @@ const AdminLogin = () => {
             });
           }
           setGoogleScriptLoaded(true);
+          return true;
         } catch (err) {
           console.warn("Google Sign-In initialization note:", err);
         }
+      }
+      return false;
+    };
+
+    const handleScriptReady = () => {
+      if (initializeGoogleSignIn() && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
       }
     };
 
@@ -241,11 +256,27 @@ const AdminLogin = () => {
       script.src = "https://accounts.google.com/gsi/client";
       script.async = true;
       script.defer = true;
-      script.onload = initializeGoogleSignIn;
+      script.onload = handleScriptReady;
       document.body.appendChild(script);
-    } else {
-      initializeGoogleSignIn();
+    } else if (!initializeGoogleSignIn()) {
+      existingScript.addEventListener("load", handleScriptReady);
+      let attempts = 0;
+      pollTimer = setInterval(() => {
+        attempts += 1;
+        if (initializeGoogleSignIn() || attempts >= 20) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }, 250);
     }
+
+    return () => {
+      isCancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (existingScript) {
+        existingScript.removeEventListener("load", handleScriptReady);
+      }
+    };
   }, []);
 
   const handleGoogleCredentialResponse = async (response) => {
@@ -268,6 +299,8 @@ const AdminLogin = () => {
       setLoading(false);
     }
   };
+
+  googleCallbackRef.current = handleGoogleCredentialResponse;
 
   const handlePasswordLoginSubmit = async (e) => {
     e.preventDefault();

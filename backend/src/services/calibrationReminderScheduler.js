@@ -175,7 +175,9 @@ export const startCalibrationReminderScheduler = () => {
     "⏰ [ARCL Cron] Automated Calibration Due Reminder Scheduler activated (Daily 24h cycle, 30-day window)."
   );
 
-  // Initial non-blocking check after server boots up (10 seconds)
+  // Startup scan disabled to prevent blocking email attempts on server boot
+  // Can be manually triggered via admin panel button
+  /*
   setTimeout(() => {
     if (schedulerState.isEnabled) {
       console.log("🔍 [ARCL Cron] Running initial startup calibration due scan...");
@@ -184,6 +186,7 @@ export const startCalibrationReminderScheduler = () => {
       });
     }
   }, 10000);
+  */
 
   // Set recurring 24-hour interval
   schedulerState.intervalTimer = setInterval(() => {

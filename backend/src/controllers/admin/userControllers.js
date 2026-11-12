@@ -2,7 +2,7 @@ import User from "../../models/userModel.js";
 import ApiError from "../../utils/ApiError.js";
 import ApiResponse from "../../utils/ApiResponse.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-import { isSuperAdminUser } from "../../middlewares/authMiddleware.js";
+import { isSuperAdminUser, clearAdminUserCache } from "../../middlewares/authMiddleware.js";
 
 /**
  * @desc    Get All Registered Users (Admin)
@@ -86,7 +86,7 @@ export const updateUserRole = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
 
-  if (!["admin", "user", "superadmin"].includes(role)) {
+  if (!["admin", "user", "superadmin", "developer"].includes(role)) {
     throw new ApiError(400, "Invalid role. Role must be 'admin' or 'user'.");
   }
 
@@ -108,6 +108,7 @@ export const updateUserRole = asyncHandler(async (req, res) => {
 
   user.role = role;
   await user.save();
+  clearAdminUserCache(user._id);
 
   return res.status(200).json(
     new ApiResponse(
@@ -150,6 +151,7 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
 
   user.isActive = !user.isActive;
   await user.save();
+  clearAdminUserCache(user._id);
 
   return res.status(200).json(
     new ApiResponse(
@@ -185,6 +187,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
   }
 
   await User.findByIdAndDelete(id);
+  clearAdminUserCache(id);
 
   return res
     .status(200)
@@ -228,6 +231,7 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
   }
 
   await user.save();
+  clearAdminUserCache(user._id);
 
   return res.status(200).json(
     new ApiResponse(
@@ -268,6 +272,9 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
     contacts: { view: true, delete: true }, // 2
     subscribers: { view: true, edit: true, delete: true }, // 3
     users: { manage: role === "admin" || role === "superadmin", delete: role === "superadmin" }, // 2
+    expenses: { view: true, create: true, edit: true, delete: true, approve: true }, // 5
+    salary: { view: true, create: true, edit: true, delete: true, process: true }, // 5
+    developer: { error_logs: true, api_health: true, system_config: true, audit_logs: true }, // 4
   };
 
   const finalPermissions = permissions ? { ...defaultPermissions, ...permissions } : defaultPermissions;
@@ -283,6 +290,7 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
       user.markModified("permissions");
     }
     await user.save();
+    clearAdminUserCache(user._id);
 
     return res.status(200).json(
       new ApiResponse(

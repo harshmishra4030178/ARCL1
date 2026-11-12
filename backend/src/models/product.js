@@ -84,6 +84,11 @@ const productSchema = new mongoose.Schema(
       default: false,
     },
 
+    isInternalOnly: {
+      type: Boolean,
+      default: false,
+    },
+
     isActive: {
       type: Boolean,
       default: true,

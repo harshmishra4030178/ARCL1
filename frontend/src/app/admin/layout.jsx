@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "../../store/useAuthStore.js";
@@ -16,16 +16,18 @@ export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const isLoginPage = pathname === "/admin/login";
   const { user, isAuthenticated, checkingAuth, checkAuth } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     checkAuth();
-  }, [checkAuth]);
+  }, []);
 
   useEffect(() => {
-    if (!isLoginPage && !checkingAuth && !isAuthenticated) {
+    if (mounted && !isLoginPage && !checkingAuth && !isAuthenticated) {
       router.push("/admin/login");
     }
-  }, [isLoginPage, checkingAuth, isAuthenticated, router]);
+  }, [mounted, isLoginPage, checkingAuth, isAuthenticated, router]);
 
   // Live Heartbeat telemetry: keep admin presence active in real time (20s)
   useEffect(() => {
@@ -74,7 +76,7 @@ export default function AdminLayout({ children }) {
     return <>{children}</>;
   }
 
-  if (checkingAuth) {
+  if (!mounted || checkingAuth) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="w-12 h-12 border-4 border-[#021C57] border-t-transparent rounded-full animate-spin mb-4"></div>

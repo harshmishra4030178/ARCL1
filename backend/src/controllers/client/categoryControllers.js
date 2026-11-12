@@ -175,6 +175,7 @@ export const getFeaturedCategoriesWithProducts = async (req, res) => {
         const products = await Product.find({
           category: cat._id,
           isActive: true,
+          isInternalOnly: { $ne: true },
         })
           .populate("category", "name slug")
           .limit(8)

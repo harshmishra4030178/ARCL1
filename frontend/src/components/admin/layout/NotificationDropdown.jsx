@@ -12,6 +12,8 @@ import {
   RotateCw,
   X,
   Sparkles,
+  Receipt,
+  Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "../../../utils/navigation.jsx";
 import { useNotificationStore } from "../../../store/useNotificationStore.js";
@@ -192,6 +194,16 @@ const NotificationDropdown = () => {
             >
               Messages ({notifications.filter((n) => n.type === "contact").length})
             </button>
+            <button
+              onClick={() => setFilterType("expense")}
+              className={`flex-1 py-1 px-2 rounded-xl font-semibold transition cursor-pointer text-center ${
+                filterType === "expense"
+                  ? "bg-white text-[#021C57] shadow-2xs font-bold"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              Expenses ({notifications.filter((n) => n.type === "expense").length})
+            </button>
           </div>
 
           {/* NOTIFICATION ITEMS FEED */}
@@ -222,7 +234,9 @@ const NotificationDropdown = () => {
                         ? item.isBasket
                           ? "bg-indigo-50 text-indigo-600"
                           : "bg-blue-50 text-blue-600"
-                        : "bg-emerald-50 text-emerald-600"
+                        : item.type === "expense"
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "bg-amber-50 text-amber-600"
                     }`}
                   >
                     {item.type === "inquiry" ? (
@@ -231,6 +245,8 @@ const NotificationDropdown = () => {
                       ) : (
                         <FileQuestion size={15} />
                       )
+                    ) : item.type === "expense" ? (
+                      <Receipt size={15} />
                     ) : (
                       <Mail size={15} />
                     )}
@@ -250,6 +266,8 @@ const NotificationDropdown = () => {
                     <p className="text-xs text-gray-700 line-clamp-1 font-medium">
                       {item.type === "inquiry"
                         ? `Quote: ${formatTitleCase(item.title)}`
+                        : item.type === "expense"
+                        ? item.message || item.title
                         : `Message: ${item.title}`}
                     </p>
 
@@ -260,6 +278,12 @@ const NotificationDropdown = () => {
                         </span>
                       )}
 
+                      {item.type === "expense" && item.amount > 0 && (
+                        <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-1.5 py-0.2 rounded">
+                          ₹{Number(item.amount).toLocaleString("en-IN")}
+                        </span>
+                      )}
+
                       <span
                         className={`font-semibold px-1.5 py-0.2 rounded uppercase tracking-wider text-[9px] ${
                           item.status === "pending" || item.status === "unread"
@@ -267,7 +291,7 @@ const NotificationDropdown = () => {
                             : "bg-emerald-100 text-emerald-800"
                         }`}
                       >
-                        {item.status}
+                        {item.status || "logged"}
                       </span>
                     </div>
                   </div>

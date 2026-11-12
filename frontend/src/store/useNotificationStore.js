@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getAllInquiries } from "../api/inquiryApi.js";
 import { getAllContacts } from "../api/contactApi.js";
+import { getExpenseNotificationsApi, markExpenseNotificationReadApi } from "../api/expenseApi.js";
 
 const READ_STORAGE_KEY = "arcl_admin_read_notification_ids";
 
@@ -38,13 +39,15 @@ export const useNotificationStore = create((set, get) => ({
     try {
       set({ loading: true });
 
-      const [inqRes, conRes] = await Promise.all([
+      const [inqRes, conRes, expRes] = await Promise.all([
         getAllInquiries().catch(() => ({ inquiries: [] })),
         getAllContacts().catch(() => ({ contacts: [] })),
+        getExpenseNotificationsApi().catch(() => ({ data: { data: { notifications: [] } } })),
       ]);
 
       const rawInquiries = inqRes.inquiries || inqRes.data || [];
       const rawContacts = conRes.contacts || conRes.data || [];
+      const rawExpenses = expRes.data?.data?.notifications || expRes.data?.notifications || [];
       const currentReadIds = get().readIds || getStoredReadIds();
 
       // Transform inquiries to notification format
@@ -83,8 +86,23 @@ export const useNotificationStore = create((set, get) => ({
         link: "/admin/contact-messages",
       }));
 
+      // Transform expense notifications to notification format
+      const expenseItems = rawExpenses.map((item) => ({
+        id: `exp_${item._id}`,
+        rawId: item._id,
+        type: "expense",
+        title: item.title || "Company Expense Notice",
+        customerName: item.createdByName || "Staff Member",
+        message: item.message,
+        amount: item.amount,
+        category: item.category,
+        isUnread: !currentReadIds.has(`exp_${item._id}`),
+        createdAt: item.createdAt,
+        link: "/admin/expenses",
+      }));
+
       // Merge and sort newest first
-      const combined = [...inquiryItems, ...contactItems].sort(
+      const combined = [...inquiryItems, ...contactItems, ...expenseItems].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
 
@@ -109,6 +127,11 @@ export const useNotificationStore = create((set, get) => ({
     updatedSet.add(id);
     saveStoredReadIds(updatedSet);
 
+    if (String(id).startsWith("exp_")) {
+      const rawId = String(id).replace("exp_", "");
+      markExpenseNotificationReadApi(rawId).catch(() => {});
+    }
+
     const updatedList = notifications.map((n) =>
       n.id === id ? { ...n, isUnread: false } : n
     );
@@ -131,6 +154,7 @@ export const useNotificationStore = create((set, get) => ({
     });
 
     saveStoredReadIds(updatedSet);
+    markExpenseNotificationReadApi("all").catch(() => {});
 
     const updatedList = notifications.map((n) => ({ ...n, isUnread: false }));
 

@@ -883,6 +883,9 @@ export const sendCertificateDeliveryEmail = async ({
   let certPdfBuffer = null;
   try {
     certPdfBuffer = await generateCalibrationCertificatePdf({
+      _id: record?._id ? String(record._id) : "",
+      recordId: record?._id ? String(record._id) : "",
+      ulrNo: record?.records?.ulrNo || record?.inwardRegister?.ulrNo || record?.authorizationData?.ulrNo || "",
       certificateNo: certNo,
       calibrationDate: calDate,
       calibrationDueDate: dueDate,
@@ -1119,7 +1122,7 @@ export const sendSpecificDocumentEmail = async ({
 
         if (d.type === "srf") {
           customDocData = {
-            srfNo: record?.srfNo || `SRF/${new Date().getFullYear()}/${sNo.replace(/[^0-9]/g, "").slice(-4) || "0842"}`,
+            srfNo: (record?.srfNo && !record.srfNo.includes("0842")) ? record.srfNo : "SRF/26-27/01",
             calibrationDate: calDate,
             challanDate: record?.challanDate || calDate,
             clientCompany: company,
@@ -1131,6 +1134,7 @@ export const sendSpecificDocumentEmail = async ({
             dcNo: challanNo,
             sentToLab: record?.sentToLab && !record.sentToLab.includes("Metrology") && !record.sentToLab.includes("Central") ? record.sentToLab : "ARCL Calibration Lab",
             instruments: batchInstruments,
+            terms: record?.srfTerms || record?.terms,
           };
         } else if (!customDocData && (d.type === "tax_invoice" || d.type === "invoice")) {
           const dynamicInvoiceItems = batchInstruments.map((inst, i) => {
@@ -1158,6 +1162,7 @@ export const sendSpecificDocumentEmail = async ({
             clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
             clientGstin: record?.clientGst || record?.clientGstin || "27AAOCR3275P1ZH",
             items: dynamicInvoiceItems,
+            terms: record?.taxInvoiceData?.terms,
           };
         } else if (!customDocData && d.type === "quotation") {
           const dynamicQuotationItems = batchInstruments.map((inst, i) => {
@@ -1190,6 +1195,7 @@ export const sendSpecificDocumentEmail = async ({
             items: dynamicQuotationItems,
             cgstRate: 9.0,
             sgstRate: 9.0,
+            terms: record?.quotationData?.terms,
           };
         } else if (!customDocData && (d.type === "pi" || d.type === "proforma_invoice")) {
           const dynamicPiItems = batchInstruments.map((inst, i) => {
@@ -1220,7 +1226,36 @@ export const sendSpecificDocumentEmail = async ({
             items: dynamicPiItems,
             cgstRate: 9.0,
             sgstRate: 9.0,
+            terms: record?.proformaData?.terms,
           };
+        } else if (!customDocData && (d.type === "certificate" || d.type === "observation_sheet")) {
+          if (Array.isArray(batchInstruments) && batchInstruments.length > 1) {
+            customDocData = {
+              certificateNo: certNo || "ARCL-CAL-2026-001",
+              calibrationDate: calDate,
+              calibrationDueDate: dueDate,
+              clientCompany: company,
+              clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+              contactPerson: person,
+              clientPhone: clientPhone || "+91 8009559900",
+              clientEmail: toEmail,
+              dcNo: challanNo,
+              items: batchInstruments.map((inst, idx) => ({
+                certificateNo: inst.records?.certificateNo || `ARCL-CAL-2026-${String(idx + 1).padStart(3, "0")}`,
+                instrument: inst.instrument,
+                serialNo: inst.serialNo,
+                make: inst.make || "-",
+                modelNo: inst.modelNo || "-",
+                makeModel: [inst.make, inst.modelNo].filter(Boolean).join(" / ") || "SIS",
+                instrumentRange: inst.instrumentRange || "-",
+                leastCount: inst.leastCount || "0.1",
+                calibrationDate: calDate,
+                calibrationDueDate: dueDate,
+                clientCompany: company,
+                clientAddress: record?.clientAddress || "Plot No. 12, TTC Industrial Area, MIDC, Airoli, Navi Mumbai - 400708",
+              })),
+            };
+          }
         }
 
         let buf = null;
@@ -1243,6 +1278,9 @@ export const sendSpecificDocumentEmail = async ({
 
         if (!buf) {
           buf = await generateDocumentPdf(d.type, customDocData || {
+            _id: record?._id ? String(record._id) : "",
+            recordId: record?._id ? String(record._id) : "",
+            ulrNo: record?.records?.ulrNo || record?.inwardRegister?.ulrNo || record?.authorizationData?.ulrNo || "",
             certificateNo: certNo || "ARCL-CAL-2026-001",
             calibrationDate: calDate,
             calibrationDueDate: dueDate,

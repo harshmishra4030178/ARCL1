@@ -283,6 +283,15 @@ const ProductCatalogPdfPage = ({ initialSlug, initialProduct = null }) => {
             <Download size={15} />
             <span>DOWNLOAD BROCHURE (PDF)</span>
           </button>
+
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-md hover:shadow-lg cursor-pointer uppercase tracking-wider active:scale-95"
+            title="Direct Print Official Product Brochure"
+          >
+            <Printer size={15} />
+            <span>PRINT BROCHURE</span>
+          </button>
         </div>
       </div>
 

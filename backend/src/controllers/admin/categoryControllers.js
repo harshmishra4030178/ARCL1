@@ -185,6 +185,14 @@ export const createCategory = async (req, res) => {
  * @route   GET /api/v1/admin/categories
  * @access  Admin
  */
+let adminCategoryCache = null;
+let adminCategoryCacheExpiry = 0;
+
+export const invalidateCategoryCache = () => {
+  adminCategoryCache = null;
+  adminCategoryCacheExpiry = 0;
+};
+
 export const getCategories = async (req, res) => {
   try {
     let {
@@ -233,9 +241,24 @@ export const getCategories = async (req, res) => {
       });
     }
 
+    const isDefaultQuery = (!search || !search.trim()) && !equipmentType && (!page || page == 1) && (!limit || limit == 0);
+    if (isDefaultQuery && adminCategoryCache && adminCategoryCacheExpiry > Date.now()) {
+      return res.status(200).json({
+        success: true,
+        count: adminCategoryCache.length,
+        data: adminCategoryCache,
+      });
+    }
+
     const categories = await Category.find(query)
       .populate("equipmentType", "name slug")
-      .sort(sortOption);
+      .sort(sortOption)
+      .lean();
+
+    if (isDefaultQuery) {
+      adminCategoryCache = categories;
+      adminCategoryCacheExpiry = Date.now() + 60000;
+    }
 
     return res.status(200).json({
       success: true,
@@ -604,6 +627,7 @@ export const deleteCategory = async (req, res) => {
     }
 
     await Category.findByIdAndDelete(id);
+invalidateCategoryCache();
 
     return res.status(200).json({
       success: true,

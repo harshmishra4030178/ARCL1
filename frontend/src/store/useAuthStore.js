@@ -25,7 +25,7 @@ export const useAuthStore = create((set, get) => ({
   user: getSavedUser(),
   isAuthenticated: !!getSavedToken(),
   loading: false,
-  checkingAuth: true,
+  checkingAuth: !getSavedToken(),
   error: null,
 
   // =========================
@@ -46,6 +46,7 @@ export const useAuthStore = create((set, get) => ({
           token: data.token,
           user: data.user,
           isAuthenticated: true,
+          checkingAuth: false,
           loading: false,
           error: null,
         });
@@ -87,6 +88,7 @@ export const useAuthStore = create((set, get) => ({
           token: data.token,
           user: data.user,
           isAuthenticated: true,
+          checkingAuth: false,
           loading: false,
           error: null,
         });
@@ -127,7 +129,7 @@ export const useAuthStore = create((set, get) => ({
     }
 
     try {
-      set({ checkingAuth: true });
+      if (!get().user) set({ checkingAuth: true });
       const res = await getMeApi();
 
       if (res.data?.success && res.data?.user) {
@@ -142,7 +144,9 @@ export const useAuthStore = create((set, get) => ({
       throw new Error("Invalid session");
     } catch (err) {
       console.warn("Session check failed, logging out:", err.message);
-      get().logout();
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        get().logout();
+      }
       set({ checkingAuth: false });
       return false;
     }

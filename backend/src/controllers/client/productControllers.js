@@ -95,7 +95,7 @@ export const getProducts = async (req, res) => {
       limit,
     } = req.query;
 
-    const filter = { isActive: true };
+    const filter = { isActive: true, isInternalOnly: { $ne: true } };
 
     // Search by product name, code, model, description, category, or equipment type!
     if (search && search.trim()) {
@@ -239,7 +239,7 @@ export const getProducts = async (req, res) => {
 
     // Typo-Tolerant & Fuzzy Match Fallback if search returns 0 direct matches
     if (products.length === 0 && search && search.trim()) {
-      const allActive = await Product.find({ isActive: true }).populate(categoryPopulateConfig);
+      const allActive = await Product.find({ isActive: true, isInternalOnly: { $ne: true } }).populate(categoryPopulateConfig);
       const fuzzyMatches = allActive.filter((p) => {
         const searchableText = `${p.name} ${p.productCode || ""} ${p.modelNumber || ""} ${p.category?.name || ""} ${p.category?.equipmentType?.name || ""} ${p.description || ""}`;
         return fuzzyMatch(search, searchableText);
@@ -331,6 +331,7 @@ export const getProductsByCategory = async (req, res) => {
         const products = await Product.find({
           category: { $in: catIds },
           isActive: true,
+          isInternalOnly: { $ne: true },
         })
           .populate(categoryPopulateConfig)
           .sort({ isFeatured: -1, createdAt: -1 });
@@ -363,6 +364,7 @@ export const getProductsByCategory = async (req, res) => {
     const products = await Product.find({
       category: category._id,
       isActive: true,
+      isInternalOnly: { $ne: true },
     })
       .populate(categoryPopulateConfig)
       .sort({ isFeatured: -1, createdAt: -1 });

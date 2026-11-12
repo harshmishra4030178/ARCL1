@@ -33,6 +33,10 @@ import {
   FaCrown,
   FaCertificate,
   FaPen,
+  FaReceipt,
+  FaCode,
+  FaTerminal,
+  FaBug,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -91,11 +95,28 @@ const formatWhatsAppLastSeen = (dateStr) => {
   return `${dateString} at ${timeString}`;
 };
 
-const TOTAL_PERMS_COUNT = 26;
+const TOTAL_PERMS_COUNT = 47;
 
 const DEFAULT_FULL_PERMISSIONS = {
   products: { create: true, edit: true, delete: true }, // 3
-  calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true }, // 5
+  calibration: {
+    dashboard: true,
+    quotations: true,
+    srf_history: true,
+    reminders: true,
+    observations: true,
+    authorization: true,
+    templates: true,
+    lab_profile: true,
+    payments: true,
+    financials: true,
+    edit: true,
+    delete: true,
+    // backward-compatibility aliases
+    create: true,
+    documents: true,
+    dispatch: true,
+  }, // 12
   categories: { create: true, edit: true, delete: true }, // 3
   equipmentTypes: { create: true, delete: true }, // 2
   blogs: { create: true, edit: true, delete: true }, // 3
@@ -103,22 +124,81 @@ const DEFAULT_FULL_PERMISSIONS = {
   contacts: { view: true, delete: true }, // 2
   subscribers: { view: true, edit: true, delete: true }, // 3
   users: { manage: true, delete: true }, // 2
+  expenses: { view: true, create: true, edit: true, delete: true, approve: true }, // 5
+  salary: { view: true, create: true, edit: true, delete: true, process: true }, // 5
+  developer: { error_logs: true, api_health: true, system_config: true, audit_logs: true }, // 4
 };
 
 const PRESETS = {
   superadmin: {
-    name: "Super Administrator (All Access 26/26)",
+    name: "Super Administrator (All Access 47/47)",
     icon: <FaCrown className="text-amber-500" />,
-    role: "admin",
+    role: "superadmin",
     permissions: DEFAULT_FULL_PERMISSIONS,
   },
+  developer_lead: {
+    name: "Lead Developer & System Architect (System Diagnostics, Error Logs & APIs 47/47)",
+    icon: <FaCode className="text-cyan-500" />,
+    role: "developer",
+    permissions: DEFAULT_FULL_PERMISSIONS,
+  },
+  finance_lead: {
+    name: "Finance & Expenses Lead (Company Expenses, Claims & Lab Payments)",
+    icon: <FaReceipt className="text-emerald-500" />,
+    role: "admin",
+    permissions: {
+      products: { create: false, edit: false, delete: false },
+      calibration: {
+        dashboard: true,
+        quotations: true,
+        srf_history: false,
+        reminders: false,
+        observations: false,
+        authorization: false,
+        templates: false,
+        lab_profile: false,
+        payments: true,
+        financials: true,
+        edit: false,
+        delete: false,
+        create: false,
+        documents: true,
+        dispatch: false,
+      },
+      categories: { create: false, edit: false, delete: false },
+      equipmentTypes: { create: false, delete: false },
+      blogs: { create: false, edit: false, delete: false },
+      inquiries: { view: false, edit: false, delete: false },
+      contacts: { view: false, delete: false },
+      subscribers: { view: false, edit: false, delete: false },
+      users: { manage: false, delete: false },
+      expenses: { view: true, create: true, edit: true, delete: true, approve: true },
+      salary: { view: true, create: true, edit: true, delete: true, process: true },
+    },
+  },
   calibration_lead: {
-    name: "Calibration & Metrology Lead (NABL QA & 4 Docs)",
+    name: "Calibration & Metrology Lead (All 10 Sections & Full NABL Lab Access)",
     icon: <FaCertificate className="text-indigo-500" />,
     role: "admin",
     permissions: {
       products: { create: false, edit: false, delete: false },
-      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true },
+      calibration: {
+        dashboard: true,
+        quotations: true,
+        srf_history: true,
+        reminders: true,
+        observations: true,
+        authorization: true,
+        templates: true,
+        lab_profile: true,
+        payments: true,
+        financials: true,
+        edit: true,
+        delete: true,
+        create: true,
+        documents: true,
+        dispatch: true,
+      },
       categories: { create: false, edit: false, delete: false },
       equipmentTypes: { create: false, delete: false },
       blogs: { create: false, edit: false, delete: false },
@@ -126,6 +206,7 @@ const PRESETS = {
       contacts: { view: false, delete: false },
       subscribers: { view: false, edit: false, delete: false },
       users: { manage: false, delete: false },
+      expenses: { view: true, create: true, edit: false, delete: false, approve: false },
     },
   },
   product_manager: {
@@ -134,7 +215,23 @@ const PRESETS = {
     role: "admin",
     permissions: {
       products: { create: true, edit: true, delete: false },
-      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
+      calibration: {
+        dashboard: false,
+        quotations: false,
+        srf_history: false,
+        reminders: false,
+        observations: false,
+        authorization: false,
+        templates: false,
+        lab_profile: false,
+        payments: false,
+        financials: false,
+        edit: false,
+        delete: false,
+        create: false,
+        documents: false,
+        dispatch: false,
+      },
       categories: { create: true, edit: true, delete: false },
       equipmentTypes: { create: true, delete: false },
       blogs: { create: false, edit: false, delete: false },
@@ -142,6 +239,7 @@ const PRESETS = {
       contacts: { view: false, delete: false },
       subscribers: { view: false, edit: false, delete: false },
       users: { manage: false, delete: false },
+      expenses: { view: true, create: true, edit: false, delete: false, approve: false },
     },
   },
   content_editor: {
@@ -150,7 +248,23 @@ const PRESETS = {
     role: "admin",
     permissions: {
       products: { create: false, edit: false, delete: false },
-      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
+      calibration: {
+        dashboard: false,
+        quotations: false,
+        srf_history: false,
+        reminders: false,
+        observations: false,
+        authorization: false,
+        templates: false,
+        lab_profile: false,
+        payments: false,
+        financials: false,
+        edit: false,
+        delete: false,
+        create: false,
+        documents: false,
+        dispatch: false,
+      },
       categories: { create: false, edit: false, delete: false },
       equipmentTypes: { create: false, delete: false },
       blogs: { create: true, edit: true, delete: false },
@@ -158,6 +272,7 @@ const PRESETS = {
       contacts: { view: false, delete: false },
       subscribers: { view: false, edit: false, delete: false },
       users: { manage: false, delete: false },
+      expenses: { view: true, create: true, edit: false, delete: false, approve: false },
     },
   },
   support_lead: {
@@ -166,7 +281,23 @@ const PRESETS = {
     role: "admin",
     permissions: {
       products: { create: false, edit: false, delete: false },
-      calibration: { create: false, edit: false, documents: false, dispatch: false, delete: false },
+      calibration: {
+        dashboard: false,
+        quotations: false,
+        srf_history: false,
+        reminders: false,
+        observations: false,
+        authorization: false,
+        templates: false,
+        lab_profile: false,
+        payments: false,
+        financials: false,
+        edit: false,
+        delete: false,
+        create: false,
+        documents: false,
+        dispatch: false,
+      },
       categories: { create: false, edit: false, delete: false },
       equipmentTypes: { create: false, delete: false },
       blogs: { create: false, edit: false, delete: false },
@@ -174,6 +305,7 @@ const PRESETS = {
       contacts: { view: true, delete: true },
       subscribers: { view: true, edit: true, delete: true },
       users: { manage: false, delete: false },
+      expenses: { view: true, create: true, edit: false, delete: false, approve: false },
     },
   },
 };
@@ -281,6 +413,7 @@ const UserManagementPage = () => {
 
       const matchesRole =
         roleFilter === "all" ||
+        (roleFilter === "developer" && u.role === "developer") ||
         (roleFilter === "admin" &&
           (u.role === "admin" || u.role === "superadmin")) ||
         (roleFilter === "user" && u.role === "user");
@@ -309,12 +442,19 @@ const UserManagementPage = () => {
   const toggleGrantPerm = (module, action) => {
     setGrantPermissions((prev) => {
       const currentModule = prev[module] || {};
+      const nextVal = !currentModule[action];
+      const updatedModule = {
+        ...currentModule,
+        [action]: nextVal,
+      };
+      if (module === "calibration") {
+        if (action === "srf_history") updatedModule.create = nextVal;
+        if (action === "quotations") updatedModule.documents = nextVal;
+        if (action === "reminders") updatedModule.dispatch = nextVal;
+      }
       return {
         ...prev,
-        [module]: {
-          ...currentModule,
-          [action]: !currentModule[action],
-        },
+        [module]: updatedModule,
       };
     });
   };
@@ -323,32 +463,86 @@ const UserManagementPage = () => {
   const toggleModalPerm = (module, action) => {
     setModalPermissions((prev) => {
       const currentModule = prev[module] || {};
+      const nextVal = !currentModule[action];
+      const updatedModule = {
+        ...currentModule,
+        [action]: nextVal,
+      };
+      if (module === "calibration") {
+        if (action === "srf_history") updatedModule.create = nextVal;
+        if (action === "quotations") updatedModule.documents = nextVal;
+        if (action === "reminders") updatedModule.dispatch = nextVal;
+      }
       return {
         ...prev,
-        [module]: {
-          ...currentModule,
-          [action]: !currentModule[action],
-        },
+        [module]: updatedModule,
       };
     });
   };
 
   // Open Permissions Modal for Existing User
   const handleOpenPermissionsModal = (user) => {
-    setEditingPermissionsUser(user);
-    setModalRole(user.role || "admin");
-    const userPerms = user.permissions || DEFAULT_FULL_PERMISSIONS;
-    setModalPermissions({
-      products: { create: true, edit: true, delete: true, ...(userPerms.products || {}) },
-      calibration: { create: true, edit: true, documents: true, dispatch: true, delete: true, ...(userPerms.calibration || {}) },
-      categories: { create: true, edit: true, delete: true, ...(userPerms.categories || {}) },
-      equipmentTypes: { create: true, delete: true, ...(userPerms.equipmentTypes || {}) },
-      blogs: { create: true, edit: true, delete: true, ...(userPerms.blogs || {}) },
-      inquiries: { view: true, edit: true, delete: true, ...(userPerms.inquiries || {}) },
-      contacts: { view: true, delete: true, ...(userPerms.contacts || {}) },
-      subscribers: { view: true, edit: true, delete: true, ...(userPerms.subscribers || {}) },
-      users: { manage: true, delete: true, ...(userPerms.users || {}) },
-    });
+    try {
+      setEditingPermissionsUser(user);
+      setModalRole(user.role === "user" ? "admin" : (user.role || "admin"));
+      let userPerms = user.permissions;
+      if (typeof userPerms === "string") {
+        try {
+          userPerms = JSON.parse(userPerms);
+        } catch (e) {
+          userPerms = null;
+        }
+      }
+      if (!userPerms || typeof userPerms !== "object") {
+        userPerms = DEFAULT_FULL_PERMISSIONS;
+      }
+      const cal = userPerms.calibration || {};
+      setModalPermissions({
+        products: { create: true, edit: true, delete: true, ...(userPerms.products || {}) },
+        calibration: {
+          dashboard: cal.dashboard ?? true,
+          quotations: cal.quotations ?? (cal.documents ?? true),
+          srf_history: cal.srf_history ?? (cal.create ?? true),
+          reminders: cal.reminders ?? (cal.dispatch ?? true),
+          observations: cal.observations ?? true,
+          authorization: cal.authorization ?? true,
+          templates: cal.templates ?? true,
+          lab_profile: cal.lab_profile ?? true,
+          payments: cal.payments ?? true,
+          financials: cal.financials ?? true,
+          edit: cal.edit ?? true,
+          delete: cal.delete ?? true,
+          create: cal.create ?? cal.srf_history ?? true,
+          documents: cal.documents ?? cal.quotations ?? true,
+          dispatch: cal.dispatch ?? cal.reminders ?? true,
+        },
+        categories: { create: true, edit: true, delete: true, ...(userPerms.categories || {}) },
+        equipmentTypes: { create: true, delete: true, ...(userPerms.equipmentTypes || {}) },
+        blogs: { create: true, edit: true, delete: true, ...(userPerms.blogs || {}) },
+        inquiries: { view: true, edit: true, delete: true, ...(userPerms.inquiries || {}) },
+        contacts: { view: true, delete: true, ...(userPerms.contacts || {}) },
+        subscribers: { view: true, edit: true, delete: true, ...(userPerms.subscribers || {}) },
+        users: { manage: true, delete: true, ...(userPerms.users || {}) },
+        expenses: {
+          view: true,
+          create: true,
+          edit: true,
+          delete: true,
+          approve: true,
+          ...(userPerms.expenses || {}),
+        },
+        developer: {
+          error_logs: true,
+          api_health: true,
+          system_config: true,
+          audit_logs: true,
+          ...(userPerms.developer || {}),
+        },
+      });
+    } catch (err) {
+      console.error("Error opening permissions modal:", err);
+      setModalPermissions(DEFAULT_FULL_PERMISSIONS);
+    }
   };
 
   // Save Permissions Modal
@@ -478,13 +672,29 @@ const UserManagementPage = () => {
     }
   };
 
-  // Count enabled permissions for badge (Total: 26)
+  // Count enabled permissions for badge (Total: 32)
   const getEnabledCount = (permissions) => {
     if (!permissions) return TOTAL_PERMS_COUNT;
     let count = 0;
     const modules = [
       ["products", ["create", "edit", "delete"]], // 3
-      ["calibration", ["create", "edit", "documents", "dispatch", "delete"]], // 5
+      [
+        "calibration",
+        [
+          "dashboard",
+          "quotations",
+          "srf_history",
+          "reminders",
+          "observations",
+          "authorization",
+          "templates",
+          "lab_profile",
+          "payments",
+          "financials",
+          "edit",
+          "delete",
+        ],
+      ], // 12
       ["categories", ["create", "edit", "delete"]], // 3
       ["equipmentTypes", ["create", "delete"]], // 2
       ["blogs", ["create", "edit", "delete"]], // 3
@@ -492,12 +702,22 @@ const UserManagementPage = () => {
       ["contacts", ["view", "delete"]], // 2
       ["subscribers", ["view", "edit", "delete"]], // 3
       ["users", ["manage", "delete"]], // 2
+      ["expenses", ["view", "create", "edit", "delete", "approve"]], // 5
+      ["salary", ["view", "create", "edit", "delete", "process"]], // 5
+      ["developer", ["error_logs", "api_health", "system_config", "audit_logs"]], // 4
     ];
 
     modules.forEach(([mod, actions]) => {
       actions.forEach((act) => {
-        if (permissions[mod] && permissions[mod][act] === true) {
-          count++;
+        if (permissions[mod]) {
+          if (permissions[mod][act] === true) {
+            count++;
+          } else if (mod === "calibration") {
+            // backward compatibility checks for legacy saved user perms
+            if (act === "srf_history" && permissions[mod].create === true) count++;
+            else if (act === "quotations" && permissions[mod].documents === true) count++;
+            else if (act === "reminders" && permissions[mod].dispatch === true) count++;
+          }
         }
       });
     });
@@ -663,56 +883,219 @@ const UserManagementPage = () => {
                 </div>
               </div>
 
-              {/* 2. Calibration & QA Lab (ISO 17025) */}
-              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-                <span className="font-bold text-blue-300 flex items-center gap-1.5">
-                  <FaCertificate className="text-amber-400" /> Calibration &amp; QA Lab (5)
-                </span>
-                <div className="space-y-1.5 pl-2 text-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer">
+              {/* 2. Calibration Portal (All 10 Sections + Operations) */}
+              <div className="col-span-1 sm:col-span-2 md:col-span-3 p-4 rounded-xl bg-slate-900/95 border border-amber-500/30 shadow-lg space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                  <span className="font-bold text-amber-300 flex items-center gap-2 text-sm">
+                    <FaCertificate className="text-amber-400 text-base" /> Calibration Portal (10 Sections + 2 Operations)
+                  </span>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const keys = [
+                          "dashboard", "quotations", "srf_history", "reminders",
+                          "observations", "authorization", "templates", "lab_profile",
+                          "payments", "financials", "edit", "delete", "create", "documents", "dispatch"
+                        ];
+                        setGrantPermissions((prev) => {
+                          const cal = { ...(prev.calibration || {}) };
+                          keys.forEach((k) => (cal[k] = true));
+                          return { ...prev, calibration: cal };
+                        });
+                      }}
+                      className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 cursor-pointer"
+                    >
+                      Enable All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const keys = [
+                          "dashboard", "quotations", "srf_history", "reminders",
+                          "observations", "authorization", "templates", "lab_profile",
+                          "payments", "financials", "edit", "delete", "create", "documents", "dispatch"
+                        ];
+                        setGrantPermissions((prev) => {
+                          const cal = { ...(prev.calibration || {}) };
+                          keys.forEach((k) => (cal[k] = false));
+                          return { ...prev, calibration: cal };
+                        });
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                  {/* Section 1 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
                     <input
                       type="checkbox"
-                      checked={grantPermissions.calibration?.create ?? true}
-                      onChange={() => toggleGrantPerm("calibration", "create")}
-                      className="rounded text-amber-500 focus:ring-amber-400"
+                      checked={grantPermissions.calibration?.dashboard ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "dashboard")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
                     />
-                    <span>Add Inward Instruments / SRF</span>
+                    <div>
+                      <span className="font-semibold text-slate-100 block">1. Lab Dashboard</span>
+                      <span className="text-[10px] text-slate-400">Client overview &amp; live stats</span>
+                    </div>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+
+                  {/* Section 2 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.quotations ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "quotations")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">2. Calibration Quotations</span>
+                      <span className="text-[10px] text-slate-400">Commercial billing (PI/Tax/PO)</span>
+                    </div>
+                  </label>
+
+                  {/* Section 3 (includes 4. Inward Register) */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.srf_history ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "srf_history")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">3. SRF &amp; History (4. Inward)</span>
+                      <span className="text-[10px] text-slate-400">Inward register &amp; SRF history</span>
+                    </div>
+                  </label>
+
+                  {/* Section 5 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.reminders ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "reminders")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">5. Due Reminders</span>
+                      <span className="text-[10px] text-slate-400">Automated WhatsApp &amp; Email queue</span>
+                    </div>
+                  </label>
+
+                  {/* Section 6 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.observations ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "observations")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">6. Observation Worksheet</span>
+                      <span className="text-[10px] text-slate-400">Metrological readings &amp; MU entry</span>
+                    </div>
+                  </label>
+
+                  {/* Section 7 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.authorization ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "authorization")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">7. Quality Authorization</span>
+                      <span className="text-[10px] text-slate-400">Technical Signatory approval queue</span>
+                    </div>
+                  </label>
+
+                  {/* Section 8 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.templates ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "templates")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">8. Formats Studio</span>
+                      <span className="text-[10px] text-slate-400">PDF &amp; Excel sheets studio</span>
+                    </div>
+                  </label>
+
+                  {/* Section 9 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.lab_profile ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "lab_profile")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">9. NABL Scope &amp; Profile</span>
+                      <span className="text-[10px] text-slate-400">Accreditation &amp; master standards</span>
+                    </div>
+                  </label>
+
+                  {/* Section 10 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.payments ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "payments")}
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-100 block">10. UPI Payments</span>
+                      <span className="text-[10px] text-slate-400">UPI payment verification portal</span>
+                    </div>
+                  </label>
+
+                  {/* Section 11 */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/80 hover:border-emerald-400 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.calibration?.financials ?? true}
+                      onChange={() => toggleGrantPerm("calibration", "financials")}
+                      className="mt-0.5 rounded text-emerald-500 focus:ring-emerald-400"
+                    />
+                    <div>
+                      <span className="font-semibold text-emerald-200 block">11. Revenue &amp; Financials</span>
+                      <span className="text-[10px] text-emerald-300/80">Income received, pending dues &amp; date range filter</span>
+                    </div>
+                  </label>
+
+                  {/* Action 1: Edit */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-amber-950/30 border border-amber-900/60 hover:border-amber-500/40 cursor-pointer transition">
                     <input
                       type="checkbox"
                       checked={grantPermissions.calibration?.edit ?? true}
                       onChange={() => toggleGrantPerm("calibration", "edit")}
-                      className="rounded text-amber-500 focus:ring-amber-400"
+                      className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
                     />
-                    <span>Edit Records, Due &amp; Stages</span>
+                    <div>
+                      <span className="font-semibold text-amber-200 block">✏️ Edit Records</span>
+                      <span className="text-[10px] text-amber-400/80">Modify due dates, status &amp; data</span>
+                    </div>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={grantPermissions.calibration?.documents ?? true}
-                      onChange={() => toggleGrantPerm("calibration", "documents")}
-                      className="rounded text-amber-500 focus:ring-amber-400"
-                    />
-                    <span>Commercial Docs Editor (PI/Tax/PO)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={grantPermissions.calibration?.dispatch ?? true}
-                      onChange={() => toggleGrantPerm("calibration", "dispatch")}
-                      className="rounded text-amber-500 focus:ring-amber-400"
-                    />
-                    <span>Dispatch &amp; Mail/WhatsApp PDFs</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+
+                  {/* Action 2: Delete */}
+                  <label className="flex items-start gap-2 p-2 rounded-lg bg-rose-950/30 border border-rose-900/60 hover:border-rose-500/40 cursor-pointer transition">
                     <input
                       type="checkbox"
                       checked={grantPermissions.calibration?.delete ?? true}
                       onChange={() => toggleGrantPerm("calibration", "delete")}
-                      className="rounded text-rose-500 focus:ring-rose-400"
+                      className="mt-0.5 rounded text-rose-500 focus:ring-rose-400"
                     />
-                    <span className="text-rose-300">Delete Calibration Records</span>
+                    <div>
+                      <span className="font-semibold text-rose-300 block">🗑️ Delete Records</span>
+                      <span className="text-[10px] text-rose-400/80">Permanently delete instruments/batches</span>
+                    </div>
                   </label>
                 </div>
               </div>
@@ -941,6 +1324,174 @@ const UserManagementPage = () => {
                   </label>
                 </div>
               </div>
+
+              {/* 10. Company Expenses & Staff Wallets */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                  <FaReceipt className="text-emerald-400" /> Company Expenses &amp; Staff Wallets (5)
+                </span>
+                <div className="space-y-1.5 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.expenses?.view ?? true}
+                      onChange={() => toggleGrantPerm("expenses", "view")}
+                      className="rounded text-emerald-500 focus:ring-emerald-400"
+                    />
+                    <span>View Company Expenses Ledger &amp; Wallets</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.expenses?.create ?? true}
+                      onChange={() => toggleGrantPerm("expenses", "create")}
+                      className="rounded text-emerald-500 focus:ring-emerald-400"
+                    />
+                    <span>Record Daily Expense &amp; Zero Expense Confirms</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.expenses?.edit ?? true}
+                      onChange={() => toggleGrantPerm("expenses", "edit")}
+                      className="rounded text-blue-500 focus:ring-blue-400"
+                    />
+                    <span>Edit Existing Expense Entries</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.expenses?.approve ?? true}
+                      onChange={() => toggleGrantPerm("expenses", "approve")}
+                      className="rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <span className="text-amber-300">Approve / Reject Reimbursement Claims</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.expenses?.delete ?? true}
+                      onChange={() => toggleGrantPerm("expenses", "delete")}
+                      className="rounded text-rose-500 focus:ring-rose-400"
+                    />
+                    <span className="text-rose-300">Delete Company Expense Records</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 11. Salary & Monthly Payroll (5) */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="font-semibold text-white flex items-center gap-2">
+                    <FaMoneyCheckAlt className="text-emerald-400" /> Salary &amp; Monthly Payroll (5)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSelectAllModule(
+                        "salary",
+                        ["view", "create", "edit", "delete", "process"],
+                        !grantPermissions?.salary?.view
+                      )
+                    }
+                    className="text-xs text-blue-400 hover:underline"
+                  >
+                    Toggle All
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-300">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions?.salary?.view ?? true}
+                      onChange={() => handleGrantCheckboxChange("salary", "view")}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span>View Payroll Ledger &amp; Salary Slips</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions?.salary?.create ?? true}
+                      onChange={() => handleGrantCheckboxChange("salary", "create")}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span>Generate Payroll &amp; Add Slips</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions?.salary?.edit ?? true}
+                      onChange={() => handleGrantCheckboxChange("salary", "edit")}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span>Edit Slips, Attendance &amp; Deductions</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions?.salary?.delete ?? true}
+                      onChange={() => handleGrantCheckboxChange("salary", "delete")}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span>Delete Draft Salary Slips</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions?.salary?.process ?? true}
+                      onChange={() => handleGrantCheckboxChange("salary", "process")}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span>Disburse &amp; Mark Paid (UTR/Bank)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 12. Developer & System Diagnostics */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-cyan-800/60 space-y-2 sm:col-span-2">
+                <span className="font-bold text-cyan-300 flex items-center gap-1.5">
+                  <FaCode className="text-cyan-400" /> Developer &amp; System Diagnostics (4)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.developer?.error_logs ?? true}
+                      onChange={() => toggleGrantPerm("developer", "error_logs")}
+                      className="rounded text-cyan-500 focus:ring-cyan-400"
+                    />
+                    <span>View System Error Logs &amp; Client Telemetry</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.developer?.api_health ?? true}
+                      onChange={() => toggleGrantPerm("developer", "api_health")}
+                      className="rounded text-cyan-500 focus:ring-cyan-400"
+                    />
+                    <span>API Documentation &amp; Server Health Probes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.developer?.system_config ?? true}
+                      onChange={() => toggleGrantPerm("developer", "system_config")}
+                      className="rounded text-cyan-500 focus:ring-cyan-400"
+                    />
+                    <span>System Configuration &amp; Diagnostics</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grantPermissions.developer?.audit_logs ?? true}
+                      onChange={() => toggleGrantPerm("developer", "audit_logs")}
+                      className="rounded text-cyan-500 focus:ring-cyan-400"
+                    />
+                    <span>Developer Audit Trail &amp; Activity Logs</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -980,6 +1531,7 @@ const UserManagementPage = () => {
                 onChange={(e) => setGrantRole(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-800/90 border border-blue-700/60 rounded-xl text-amber-300 font-bold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition cursor-pointer"
               >
+                <option value="developer">Developer (System & API Access)</option>
                 <option value="admin">Admin Access</option>
                 <option value="user">Standard User</option>
               </select>
@@ -1060,6 +1612,7 @@ const UserManagementPage = () => {
             className="border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none bg-white text-gray-700 cursor-pointer focus:border-blue-500"
           >
             <option value="all">All Roles</option>
+            <option value="developer">Developers Only</option>
             <option value="admin">Administrators Only</option>
             <option value="user">Standard Users Only</option>
           </select>
@@ -1106,7 +1659,7 @@ const UserManagementPage = () => {
               <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredUsers.map((user) => {
                   const isAdmin =
-                    user.role === "admin" || user.role === "superadmin";
+                    user.role === "admin" || user.role === "superadmin" || user.role === "developer";
                   const permCount = getEnabledCount(user.permissions);
                   const isUserOnline = user.isOnline || user.activeStatus === "online";
                   const isUserAway = user.activeStatus === "away";
@@ -1197,8 +1750,9 @@ const UserManagementPage = () => {
                               }`}
                             >
                               <option value="superadmin">Super Admin (All Access)</option>
+                              <option value="developer">Developer (System & API Access)</option>
                               <option value="admin">Admin (Privileged)</option>
-                              <option value="user">User (No Admin Access)</option>
+                              <option value="user">User (Standard)</option>
                             </select>
 
                             {isAdmin && (
@@ -1213,30 +1767,46 @@ const UserManagementPage = () => {
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}
                       <td className="p-4">
                         {isSuperAdmin(user) ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-xs border border-slate-800">
-                            <FaShieldAlt className="text-amber-400" /> Full Access (26/26)
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPermissionsModal(user)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black shadow-xs border border-slate-800 cursor-pointer transition active:scale-95"
+                            title="Super Administrator (Full Unrestricted Access)"
+                          >
+                            <FaShieldAlt className="text-amber-400" /> Full Access ({TOTAL_PERMS_COUNT}/{TOTAL_PERMS_COUNT})
+                          </button>
                         ) : isAdmin ? (
                           <button
                             type="button"
                             onClick={() => handleOpenPermissionsModal(user)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
-                              permCount >= 26
+                              permCount >= TOTAL_PERMS_COUNT
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
                                 : "bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100"
                             }`}
                             title="Click to view & edit granular module permissions"
                           >
-                            <FaSlidersH className={permCount >= 26 ? "text-emerald-600" : "text-blue-600"} />
-                            <span>Permissions ({permCount}/26)</span>
+                            <FaSlidersH className={permCount >= TOTAL_PERMS_COUNT ? "text-emerald-600" : "text-blue-600"} />
+                            <span>Permissions ({permCount}/{TOTAL_PERMS_COUNT})</span>
                             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                              permCount >= 26 ? "bg-emerald-500 text-white" : "bg-blue-600 text-white"
+                              permCount >= TOTAL_PERMS_COUNT ? "bg-emerald-500 text-white" : "bg-blue-600 text-white"
                             }`}>
-                              {permCount >= 26 ? "Full" : "Custom"}
+                              {permCount >= TOTAL_PERMS_COUNT ? "Full" : "Custom"}
                             </span>
                           </button>
                         ) : (
-                          <span className="text-xs text-gray-400 italic">0/26 (Standard User)</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPermissionsModal(user)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 transition cursor-pointer active:scale-95"
+                            title="Click to grant permissions & assign admin roles"
+                          >
+                            <FaSlidersH className="text-purple-600" />
+                            <span>Assign Access ({permCount}/{TOTAL_PERMS_COUNT})</span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-900">
+                              User
+                            </span>
+                          </button>
                         )}
                       </td>
 
@@ -1280,22 +1850,34 @@ const UserManagementPage = () => {
 
                       {/* ACTIONS */}
                       <td className="p-4 text-center">
-                        {isSuperAdmin(user) ? (
-                          <span className="text-[10px] text-slate-400 font-semibold italic">Protected</span>
-                        ) : (
+                        <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => handleDeleteUser(user._id)}
-                            disabled={deletingId === user._id}
-                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer disabled:opacity-50"
-                            title="Delete User"
+                            type="button"
+                            onClick={() => handleOpenPermissionsModal(user)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition cursor-pointer"
+                            title="Edit Permissions & Role"
                           >
-                            {deletingId === user._id ? (
-                              <span className="w-3.5 h-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block"></span>
-                            ) : (
-                              <FaTrash size={13} />
-                            )}
+                            <FaSlidersH size={13} />
                           </button>
-                        )}
+
+                          {isSuperAdmin(user) ? (
+                            <span className="text-[10px] text-slate-400 font-semibold italic px-1">Protected</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(user._id)}
+                              disabled={deletingId === user._id}
+                              className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer disabled:opacity-50"
+                              title="Delete User"
+                            >
+                              {deletingId === user._id ? (
+                                <span className="w-3.5 h-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block"></span>
+                              ) : (
+                                <FaTrash size={13} />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1410,56 +1992,219 @@ const UserManagementPage = () => {
                   </div>
                 </div>
 
-                {/* 2. Calibration & QA Lab (5) */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <FaCertificate className="text-amber-600" /> Calibration &amp; QA Lab (5)
-                  </span>
-                  <div className="space-y-1.5 pl-2 text-slate-700">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                {/* 2. Calibration Portal (All 10 Sections + Operations) */}
+                <div className="sm:col-span-2 p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-200 shadow-xs space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200/80">
+                    <span className="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                      <FaCertificate className="text-amber-600 text-base" /> Calibration Portal (10 Sections + 2 Operations)
+                    </span>
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const keys = [
+                            "dashboard", "quotations", "srf_history", "reminders",
+                            "observations", "authorization", "templates", "lab_profile",
+                            "payments", "financials", "edit", "delete", "create", "documents", "dispatch"
+                          ];
+                          setModalPermissions((prev) => {
+                            const cal = { ...(prev.calibration || {}) };
+                            keys.forEach((k) => (cal[k] = true));
+                            return { ...prev, calibration: cal };
+                          });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-semibold hover:bg-amber-600 text-[11px] shadow-xs cursor-pointer"
+                      >
+                        Enable All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const keys = [
+                            "dashboard", "quotations", "srf_history", "reminders",
+                            "observations", "authorization", "templates", "lab_profile",
+                            "payments", "financials", "edit", "delete", "create", "documents", "dispatch"
+                          ];
+                          setModalPermissions((prev) => {
+                            const cal = { ...(prev.calibration || {}) };
+                            keys.forEach((k) => (cal[k] = false));
+                            return { ...prev, calibration: cal };
+                          });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold hover:bg-slate-300 text-[11px] cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs text-slate-800">
+                    {/* Section 1 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
                       <input
                         type="checkbox"
-                        checked={modalPermissions.calibration?.create ?? true}
-                        onChange={() => toggleModalPerm("calibration", "create")}
-                        className="rounded text-amber-500 focus:ring-amber-400"
+                        checked={modalPermissions.calibration?.dashboard ?? true}
+                        onChange={() => toggleModalPerm("calibration", "dashboard")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span>Add Inward Instruments / SRF</span>
+                      <div>
+                        <span className="font-bold text-slate-900 block">1. Lab Dashboard</span>
+                        <span className="text-[10px] text-slate-500">Overview, metrics &amp; client cards</span>
+                      </div>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+
+                    {/* Section 2 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.quotations ?? true}
+                        onChange={() => toggleModalPerm("calibration", "quotations")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">2. Calibration Quotations</span>
+                        <span className="text-[10px] text-slate-500">Commercial billing (PI/Tax/PO)</span>
+                      </div>
+                    </label>
+
+                    {/* Section 3 (includes 4. Inward Register) */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.srf_history ?? true}
+                        onChange={() => toggleModalPerm("calibration", "srf_history")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">3. SRF &amp; History (4. Inward)</span>
+                        <span className="text-[10px] text-slate-500">Inward registration &amp; history</span>
+                      </div>
+                    </label>
+
+                    {/* Section 5 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.reminders ?? true}
+                        onChange={() => toggleModalPerm("calibration", "reminders")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">5. Due Reminders</span>
+                        <span className="text-[10px] text-slate-500">Automated WhatsApp &amp; Email queue</span>
+                      </div>
+                    </label>
+
+                    {/* Section 6 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.observations ?? true}
+                        onChange={() => toggleModalPerm("calibration", "observations")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">6. Observation Worksheet</span>
+                        <span className="text-[10px] text-slate-500">Metrological raw readings &amp; MU</span>
+                      </div>
+                    </label>
+
+                    {/* Section 7 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.authorization ?? true}
+                        onChange={() => toggleModalPerm("calibration", "authorization")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">7. Quality Authorization</span>
+                        <span className="text-[10px] text-slate-500">Technical Signatory review queue</span>
+                      </div>
+                    </label>
+
+                    {/* Section 8 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.templates ?? true}
+                        onChange={() => toggleModalPerm("calibration", "templates")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">8. Formats Studio</span>
+                        <span className="text-[10px] text-slate-500">Excel / PDF template designer</span>
+                      </div>
+                    </label>
+
+                    {/* Section 9 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.lab_profile ?? true}
+                        onChange={() => toggleModalPerm("calibration", "lab_profile")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">9. NABL Scope &amp; Profile</span>
+                        <span className="text-[10px] text-slate-500">Accreditation &amp; master standards</span>
+                      </div>
+                    </label>
+
+                    {/* Section 10 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.payments ?? true}
+                        onChange={() => toggleModalPerm("calibration", "payments")}
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">10. UPI Payments</span>
+                        <span className="text-[10px] text-slate-500">UPI payment verification portal</span>
+                      </div>
+                    </label>
+
+                    {/* Section 11 */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-emerald-50/70 border border-emerald-200 hover:border-emerald-400 hover:shadow-xs cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.calibration?.financials ?? true}
+                        onChange={() => toggleModalPerm("calibration", "financials")}
+                        className="mt-0.5 rounded text-emerald-500 focus:ring-emerald-400"
+                      />
+                      <div>
+                        <span className="font-bold text-emerald-900 block">11. Revenue &amp; Financials</span>
+                        <span className="text-[10px] text-emerald-700">Income received, pending dues &amp; date range filter</span>
+                      </div>
+                    </label>
+
+                    {/* Action 1: Edit */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-amber-50/80 border border-amber-200 hover:border-amber-400 cursor-pointer transition">
                       <input
                         type="checkbox"
                         checked={modalPermissions.calibration?.edit ?? true}
                         onChange={() => toggleModalPerm("calibration", "edit")}
-                        className="rounded text-amber-500 focus:ring-amber-400"
+                        className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
                       />
-                      <span>Edit Records, Due &amp; Stages</span>
+                      <div>
+                        <span className="font-bold text-amber-900 block">✏️ Edit Records</span>
+                        <span className="text-[10px] text-amber-700">Modify due dates, status &amp; data</span>
+                      </div>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={modalPermissions.calibration?.documents ?? true}
-                        onChange={() => toggleModalPerm("calibration", "documents")}
-                        className="rounded text-amber-500 focus:ring-amber-400"
-                      />
-                      <span>Commercial Docs Editor (PI/Tax/PO)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={modalPermissions.calibration?.dispatch ?? true}
-                        onChange={() => toggleModalPerm("calibration", "dispatch")}
-                        className="rounded text-amber-500 focus:ring-amber-400"
-                      />
-                      <span>Dispatch &amp; Mail/WhatsApp PDFs</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+
+                    {/* Action 2: Delete */}
+                    <label className="flex items-start gap-2 p-2 rounded-xl bg-rose-50/80 border border-rose-200 hover:border-rose-400 cursor-pointer transition">
                       <input
                         type="checkbox"
                         checked={modalPermissions.calibration?.delete ?? true}
                         onChange={() => toggleModalPerm("calibration", "delete")}
-                        className="rounded text-rose-500 focus:ring-rose-400"
+                        className="mt-0.5 rounded text-rose-500 focus:ring-rose-400"
                       />
-                      <span className="text-rose-600 font-semibold">Delete Calibration Records</span>
+                      <div>
+                        <span className="font-bold text-rose-900 block">🗑️ Delete Records</span>
+                        <span className="text-[10px] text-rose-700">Permanently delete instruments/batches</span>
+                      </div>
                     </label>
                   </div>
                 </div>
@@ -1663,7 +2408,7 @@ const UserManagementPage = () => {
                 </div>
 
                 {/* 9. Admin & Role Access (2) */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 sm:col-span-2">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
                     <FaUserShield className="text-amber-600" /> Admin &amp; Role Access (2)
                   </span>
@@ -1685,6 +2430,174 @@ const UserManagementPage = () => {
                         className="rounded text-rose-500 focus:ring-rose-400"
                       />
                       <span className="text-rose-600 font-semibold">Delete / Suspend Users</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 10. Company Expenses & Staff Wallets (5) */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2 sm:col-span-2">
+                  <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                    <FaReceipt className="text-emerald-600" /> Company Expenses &amp; Staff Wallets (5)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.expenses?.view ?? true}
+                        onChange={() => toggleModalPerm("expenses", "view")}
+                        className="rounded text-emerald-600 focus:ring-emerald-400"
+                      />
+                      <span className="font-medium text-slate-800">View Expenses Ledger &amp; Wallets</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.expenses?.create ?? true}
+                        onChange={() => toggleModalPerm("expenses", "create")}
+                        className="rounded text-emerald-600 focus:ring-emerald-400"
+                      />
+                      <span className="font-medium text-slate-800">Record Daily Expense &amp; ₹0 Confirms</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.expenses?.edit ?? true}
+                        onChange={() => toggleModalPerm("expenses", "edit")}
+                        className="rounded text-blue-600 focus:ring-blue-400"
+                      />
+                      <span className="font-medium text-slate-800">Edit Existing Expense Entries</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.expenses?.approve ?? true}
+                        onChange={() => toggleModalPerm("expenses", "approve")}
+                        className="rounded text-amber-600 focus:ring-amber-400"
+                      />
+                      <span className="font-semibold text-amber-700">Approve / Reject Claims</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.expenses?.delete ?? true}
+                        onChange={() => toggleModalPerm("expenses", "delete")}
+                        className="rounded text-rose-500 focus:ring-rose-400"
+                      />
+                      <span className="text-rose-600 font-semibold">Delete Expense Records</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 11. Salary & Monthly Payroll (5) */}
+                <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2.5">
+                    <span className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+                      <FaMoneyCheckAlt className="text-emerald-600" /> Salary &amp; Monthly Payroll (5)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleToggleEditModule(
+                          "salary",
+                          ["view", "create", "edit", "delete", "process"],
+                          !editFormPermissions?.salary?.view
+                        )
+                      }
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 hover:underline"
+                    >
+                      Toggle All
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs sm:text-sm text-gray-700">
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editFormPermissions?.salary?.view ?? true}
+                        onChange={() => handleEditCheckboxChange("salary", "view")}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      />
+                      <span>View Payroll Ledger &amp; Salary Slips</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editFormPermissions?.salary?.create ?? true}
+                        onChange={() => handleEditCheckboxChange("salary", "create")}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      />
+                      <span>Generate Payroll &amp; Add Slips</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editFormPermissions?.salary?.edit ?? true}
+                        onChange={() => handleEditCheckboxChange("salary", "edit")}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      />
+                      <span>Edit Slips, Attendance &amp; Deductions</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editFormPermissions?.salary?.delete ?? true}
+                        onChange={() => handleEditCheckboxChange("salary", "delete")}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      />
+                      <span>Delete Draft Salary Slips</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editFormPermissions?.salary?.process ?? true}
+                        onChange={() => handleEditCheckboxChange("salary", "process")}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      />
+                      <span>Disburse &amp; Mark Paid (UTR/Bank)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 12. Developer & System Diagnostics (4) */}
+                <div className="p-3.5 rounded-2xl bg-cyan-50/50 border border-cyan-200 space-y-2 sm:col-span-2">
+                  <span className="font-bold text-cyan-950 flex items-center gap-1.5 text-xs">
+                    <FaCode className="text-cyan-600 text-sm" /> Developer &amp; System Diagnostics (4)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.developer?.error_logs ?? true}
+                        onChange={() => toggleModalPerm("developer", "error_logs")}
+                        className="rounded text-cyan-600 focus:ring-cyan-400"
+                      />
+                      <span className="font-medium text-slate-800">System Error Logs &amp; Telemetry</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.developer?.api_health ?? true}
+                        onChange={() => toggleModalPerm("developer", "api_health")}
+                        className="rounded text-cyan-600 focus:ring-cyan-400"
+                      />
+                      <span className="font-medium text-slate-800">API Documentation &amp; Health Probes</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.developer?.system_config ?? true}
+                        onChange={() => toggleModalPerm("developer", "system_config")}
+                        className="rounded text-cyan-600 focus:ring-cyan-400"
+                      />
+                      <span className="font-medium text-slate-800">System Configuration &amp; Diagnostics</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalPermissions.developer?.audit_logs ?? true}
+                        onChange={() => toggleModalPerm("developer", "audit_logs")}
+                        className="rounded text-cyan-600 focus:ring-cyan-400"
+                      />
+                      <span className="font-medium text-slate-800">Developer Audit Trail &amp; Logs</span>
                     </label>
                   </div>
                 </div>

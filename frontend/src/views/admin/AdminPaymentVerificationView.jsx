@@ -62,6 +62,7 @@ import { hasModuleAccess } from "../../utils/rbac.js";
 
 export default function AdminPaymentVerificationView() {
   const { user } = useAuthStore();
+  const canAccessPayments = hasModuleAccess(user, "calibration", "payments");
   const canEdit = hasModuleAccess(user, "calibration", "edit");
   const canDelete = hasModuleAccess(user, "calibration", "delete");
 
@@ -696,6 +697,20 @@ export default function AdminPaymentVerificationView() {
 
   const isAllSelected =
     displayedPayments.length > 0 && selectedPaymentIds.length === displayedPayments.length;
+
+  if (!canAccessPayments) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-950/50 border border-rose-800 flex items-center justify-center text-rose-400 mb-4 shadow-sm">
+          <FaLock className="text-2xl" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Access Restricted</h2>
+        <p className="text-slate-400 text-sm max-w-md mt-1 leading-relaxed">
+          You do not have permission to access Section 10: UPI Payment Verifications. Please contact your Super Administrator.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6 text-slate-100 font-sans">

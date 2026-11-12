@@ -210,6 +210,42 @@ function Calibration() {
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState("certificate");
 
+  const handlePrintPdf = async (pdfUrl) => {
+    try {
+      const response = await fetch(pdfUrl);
+      if (!response.ok) throw new Error("Failed to fetch PDF");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const printFrame = document.createElement("iframe");
+      printFrame.style.position = "fixed";
+      printFrame.style.right = "0";
+      printFrame.style.bottom = "0";
+      printFrame.style.width = "0";
+      printFrame.style.height = "0";
+      printFrame.style.border = "none";
+      printFrame.src = blobUrl;
+      document.body.appendChild(printFrame);
+      printFrame.onload = () => {
+        setTimeout(() => {
+          try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } catch (_) {
+            window.open(blobUrl, "_blank");
+          }
+        }, 500);
+      };
+      setTimeout(() => {
+        try {
+          document.body.removeChild(printFrame);
+          URL.revokeObjectURL(blobUrl);
+        } catch (_) {}
+      }, 120000);
+    } catch (_) {
+      window.open(pdfUrl, "_blank");
+    }
+  };
+
   const handleTrackSearch = async (queryToSearch) => {
     const q = (queryToSearch || trackQuery).trim();
     if (!q) {
@@ -1465,10 +1501,17 @@ function Calibration() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
+                  onClick={() => {
+                    const sNo = trackResult?.serialNo || trackResult?.records?.certificateNo || "";
+                    const base = API?.defaults?.baseURL || "http://localhost:5000/api/v1";
+                    const dcNo = trackResult?.dcNo || "";
+                    const comp = trackResult?.clientCompany || "";
+                    const url = `${base}/client/calibration/download-document?docType=${selectedDocType || "certificate"}&serialNo=${encodeURIComponent(sNo)}&dcNo=${encodeURIComponent(dcNo)}&clientCompany=${encodeURIComponent(comp)}&t=${Date.now()}`;
+                    handlePrintPdf(url);
+                  }}
+                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
                 >
-                  <FaPrint /> Print
+                  <FaPrint /> Print Official PDF
                 </button>
                 <button
                   type="button"

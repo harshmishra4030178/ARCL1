@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import CustomEquipment from "../models/CustomEquipment.js";
 import mongoose from "mongoose";
 import { generateDocumentPdf } from "../utils/pdfService.js";
 import { sendCalibrationDueEmail, sendCertificateDeliveryEmail, sendSpecificDocumentEmail } from "../utils/emailService.js";
@@ -7,10 +10,34 @@ import {
   toggleScheduler,
 } from "../services/calibrationReminderScheduler.js";
 import CalibrationRecord from "../models/CalibrationRecord.js";
+import ObservationTemplate from "../models/ObservationTemplate.js";
 import NablLabScope, { defaultArclNablScope } from "../models/NablLabScope.js";
+import { evaluateTemplateWorkbookResults } from "../utils/exactFormulaEngine.js";
+import {
+  acquireFromHardwareScanner,
+  extractFromFilledObservationFile,
+  listConnectedHardwareScanners,
+} from "../services/filledObservationParser.js";
+import {
+  allocateNextUlrNumbers,
+  ensureSequentialUlrNumbersForRecords,
+  extractRecordUlrNo,
+  isValidUlrNo,
+  normalizeUlrNo,
+} from "../utils/ulrGenerator.js";
+import {
+  allocateNextSrfNo,
+  ensureUniqueSrfNumbersForRecords,
+  extractRecordSrfNo,
+  findDbSrfState,
+  getRecordReceiptDate,
+  normalizeCustomerKey,
+} from "../utils/srfGenerator.js";
 import cloudinary from "../config/cloudinary.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
+
+export const invalidateCalibrationCache = () => {};
 
 const isValidMongoId = (id) => {
   return Boolean(id && typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id);
@@ -30,6 +57,170 @@ export const calculateDefaultDueDate = (calibDate) => {
   } catch (e) {
     return new Date();
   }
+};
+
+const splitRangeAndUnitHelper = (rawRange = "") => {
+  const s = String(rawRange || "").trim();
+  if (!s || s === "-") return { range: "", unit: "" };
+  const match = s.match(/^([0-9.\-–/\s()ltr]+?)\s*([a-zA-Z°%²³µμ/]+)$/i);
+  if (match) {
+    return { range: match[1].trim(), unit: match[2].trim() };
+  }
+  return { range: s, unit: "" };
+};
+
+const isCertifiedRecordStage = (rec, explicitStage = "") => {
+  if (!rec) return false;
+  if (rec.authorizationData?.status === "Approved") return true;
+  if (["Certificate Uploaded", "Invoice Sent"].includes(rec.stage)) return true;
+  if (["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(explicitStage)) return true;
+  const hasRealCert =
+    rec.records?.certificateNo && rec.records.certificateNo !== "ARCL-CAL-2026-001";
+  const hasReadings =
+    Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+  return Boolean(rec.stage === "Calibration Done" && (hasRealCert || hasReadings));
+};
+
+/**
+ * Shared helper invoked whenever a certificate is generated / authorized / advanced to certified state.
+ * Guarantees unique 18-char ULR No., unique customer SRF No., Certificate No., and complete Inward Register entry.
+ */
+const syncRecordUlrAndInwardOnCertification = async (
+  record,
+  { adminName = "Quality Manager", certNo = "", assignedSrfNo = "", assignedUlrNo = "" } = {}
+) => {
+  if (!record) return record;
+
+  let resolvedUlr = assignedUlrNo || extractRecordUlrNo(record);
+  if (resolvedUlr) {
+    const collision = await CalibrationRecord.findOne({
+      _id: { $ne: record._id },
+      $or: [
+        { "records.ulrNo": resolvedUlr },
+        { "inwardRegister.ulrNo": resolvedUlr },
+        { "authorizationData.ulrNo": resolvedUlr },
+      ],
+    })
+      .select("_id")
+      .lean();
+    if (collision) resolvedUlr = "";
+  }
+  if (!resolvedUlr) {
+    const [nextUlr] = await allocateNextUlrNumbers(1, { CalibrationRecord, mongoose });
+    resolvedUlr = nextUlr;
+  }
+
+  let resolvedSrf = assignedSrfNo || extractRecordSrfNo(record);
+  const { srfOwnerCustomer, maxSeqByPrefix } = await findDbSrfState(CalibrationRecord);
+  const custKey = normalizeCustomerKey(record.clientCompany);
+  if (resolvedSrf) {
+    const owner = srfOwnerCustomer.get(resolvedSrf.toLowerCase());
+    if (owner && owner !== custKey) resolvedSrf = "";
+  }
+  if (!resolvedSrf && record.clientCompany && record.dcNo && record.dcNo !== "-" && record.dcNo !== "N/A") {
+    const siblingWithSrf = await CalibrationRecord.findOne({
+      _id: { $ne: record._id },
+      clientCompany: record.clientCompany,
+      dcNo: record.dcNo,
+      $or: [
+        { srfNo: { $exists: true, $ne: "" } },
+        { "inwardRegister.srfNo": { $exists: true, $ne: "" } },
+      ],
+    })
+      .select("srfNo inwardRegister.srfNo")
+      .lean();
+    const candSrf = extractRecordSrfNo(siblingWithSrf);
+    if (candSrf) {
+      const owner = srfOwnerCustomer.get(candSrf.toLowerCase());
+      if (!owner || owner === custKey) resolvedSrf = candSrf;
+    }
+  }
+  if (!resolvedSrf) {
+    resolvedSrf = await allocateNextSrfNo(getRecordReceiptDate(record), {
+      CalibrationRecord,
+      srfOwnerCustomer,
+      maxSeqByPrefix,
+    });
+  }
+
+  const resolvedCert =
+    certNo ||
+    (record.records?.certificateNo && record.records.certificateNo !== "ARCL-CAL-2026-001"
+      ? record.records.certificateNo
+      : "ARCL/CERT/26-27/" +
+        (record.serialNo
+          ? record.serialNo.replace(/[^0-9]/g, "").slice(-4) || Math.floor(1000 + Math.random() * 9000)
+          : Math.floor(1000 + Math.random() * 9000)));
+
+  const existingReg =
+    record.inwardRegister && typeof record.inwardRegister.toObject === "function"
+      ? record.inwardRegister.toObject()
+      : record.inwardRegister || {};
+
+  const receiptDateRaw =
+    existingReg.dateOfReceipt ||
+    record.labPermission?.releaseDate ||
+    record.calibrationDate ||
+    record.challanDate ||
+    new Date();
+  const validReceipt = isNaN(new Date(receiptDateRaw).getTime()) ? new Date() : new Date(receiptDateRaw);
+  const daysNum =
+    existingReg.deliveryCommittedDays !== undefined && existingReg.deliveryCommittedDays !== null
+      ? Number(existingReg.deliveryCommittedDays)
+      : 2;
+  const resolvedDelivery = existingReg.dateOfDelivery || new Date(validReceipt.getTime() + daysNum * 86400000);
+
+  const { range: parsedRange, unit: parsedUnit } = splitRangeAndUnitHelper(record.instrumentRange);
+  const defaultMakeModel = [record.make, record.modelNo].filter((x) => x && x !== "-").join("/") || "ARCL/---";
+  const resolvedInwardNo =
+    existingReg.inwardNo ||
+    `${resolvedSrf}-${String(Math.max(1, Number(record.srNo) || 1)).padStart(2, "0")}`;
+
+  record.srfNo = resolvedSrf;
+  if (!record.records) record.records = {};
+  record.records.certificateNo = resolvedCert;
+  record.records.ulrNo = resolvedUlr;
+  record.records.certification = "Available";
+  record.markModified("records");
+
+  const existingPerm =
+    record.labPermission && typeof record.labPermission.toObject === "function"
+      ? record.labPermission.toObject()
+      : record.labPermission || {};
+  record.labPermission = {
+    ...existingPerm,
+    granted: true,
+    releaseDate: existingPerm.releaseDate || record.calibrationDate || validReceipt,
+    grantedAt: existingPerm.grantedAt || new Date(),
+    grantedBy: existingPerm.grantedBy || adminName,
+  };
+  record.markModified("labPermission");
+
+  record.inwardRegister = {
+    ...existingReg,
+    srfDone: true,
+    srfDoneAt: existingReg.srfDoneAt || new Date(),
+    srfDoneBy: existingReg.srfDoneBy || adminName,
+    srfNo: resolvedSrf,
+    inwardNo: resolvedInwardNo,
+    dateOfReceipt: validReceipt,
+    range: existingReg.range || parsedRange || "",
+    unit: existingReg.unit || parsedUnit || "",
+    leastCount: existingReg.leastCount || "-------",
+    dia: existingReg.dia || "-------",
+    makeModel: existingReg.makeModel || defaultMakeModel,
+    calibrationDoneAt:
+      existingReg.calibrationDoneAt ||
+      (String(record.sentToLab || "").toLowerCase().includes("site") ? "Site" : "Lab"),
+    certificateNo: resolvedCert,
+    ulrNo: resolvedUlr,
+    deliveryCommittedDays: daysNum,
+    dateOfDelivery: resolvedDelivery,
+    remarks: existingReg.remarks !== undefined ? existingReg.remarks : record.remarks || "",
+  };
+  record.markModified("inwardRegister");
+
+  return { resolvedUlr, resolvedSrf, resolvedCert };
 };
 
 // No automatic sample seeding - Admin adds genuine records
@@ -75,6 +266,8 @@ export const getCalibrationRecords = async (req, res, next) => {
         { modelNo: { $regex: search, $options: "i" } },
         { make: { $regex: search, $options: "i" } },
         { dcNo: { $regex: search, $options: "i" } },
+        { "records.ulrNo": { $regex: search, $options: "i" } },
+        { "inwardRegister.ulrNo": { $regex: search, $options: "i" } },
       ];
     }
 
@@ -102,12 +295,24 @@ export const getCalibrationRecords = async (req, res, next) => {
 
     const [records, total] = await Promise.all([
       CalibrationRecord.find(query)
-        .sort({ srNo: 1, createdAt: -1 })
+        .sort({ createdAt: 1, srNo: 1, _id: 1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
       CalibrationRecord.countDocuments(query),
     ]);
+
+    try {
+      await ensureUniqueSrfNumbersForRecords(records, { CalibrationRecord });
+    } catch (srfErr) {
+      console.warn("SRF auto-dedup warning:", srfErr?.message || srfErr);
+    }
+
+    try {
+      await ensureSequentialUlrNumbersForRecords(records, { CalibrationRecord, mongoose });
+    } catch (ulrErr) {
+      console.warn("ULR auto-backfill warning:", ulrErr?.message || ulrErr);
+    }
 
     const sanitizedRecords = records.map((r) => ({
       ...r,
@@ -242,7 +447,7 @@ export const createCalibrationRecord = async (req, res, next) => {
     const phone = clientPhone?.trim() || "";
     const gst = clientGst?.trim() || "";
     const address = clientAddress?.trim() || "";
-    const commonDc = dcNo?.trim() || "DC/25-26/0154";
+    const commonDc = dcNo?.trim() || `DC/${new Date().getFullYear()}/${Date.now().toString().slice(-6)}`;
     const commonChallanDate = challanDate ? new Date(challanDate) : new Date();
     const commonLab = sentToLab?.trim() || "ARCL Calibration Lab";
 
@@ -306,12 +511,64 @@ export const createCalibrationRecord = async (req, res, next) => {
     }
 
     const currentCount = await CalibrationRecord.countDocuments();
+    const { srfOwnerCustomer, maxSeqByPrefix } = await findDbSrfState(CalibrationRecord);
+    const custKey = normalizeCustomerKey(comp);
+    let batchSrfNo = String(req.body.srfNo || itemsToProcess[0]?.srfNo || "").trim();
+
+    if (batchSrfNo) {
+      const existingOwner = srfOwnerCustomer.get(batchSrfNo.toLowerCase());
+      if (existingOwner && existingOwner !== custKey) {
+        batchSrfNo = "";
+      }
+    }
+
+    if (!batchSrfNo && commonDc && commonDc !== "-" && commonDc !== "N/A") {
+      const siblingInDc = await CalibrationRecord.findOne({
+        clientCompany: comp,
+        dcNo: commonDc,
+        $or: [
+          { srfNo: { $exists: true, $ne: "" } },
+          { "inwardRegister.srfNo": { $exists: true, $ne: "" } },
+        ],
+      })
+        .select("srfNo inwardRegister.srfNo")
+        .lean();
+      batchSrfNo = extractRecordSrfNo(siblingInDc);
+    }
+
+    if (!batchSrfNo) {
+      batchSrfNo = await allocateNextSrfNo(commonChallanDate || itemsToProcess[0]?.calibrationDate, {
+        CalibrationRecord,
+        srfOwnerCustomer,
+        maxSeqByPrefix,
+      });
+    }
+
+    const seenIncomingUlrs = new Set();
+    const indicesNeedingUlr = [];
+    itemsToProcess.forEach((it, idx) => {
+      const providedUlr = normalizeUlrNo(it.ulrNo || it.records?.ulrNo || it.inwardRegister?.ulrNo);
+      if (providedUlr && !seenIncomingUlrs.has(providedUlr)) {
+        seenIncomingUlrs.add(providedUlr);
+      } else {
+        indicesNeedingUlr.push(idx);
+      }
+    });
+    const allocatedBatchUlrs =
+      indicesNeedingUlr.length > 0
+        ? await allocateNextUlrNumbers(indicesNeedingUlr.length, { CalibrationRecord, mongoose })
+        : [];
+    const autoUlrByIdx = new Map(indicesNeedingUlr.map((itemIdx, seqIdx) => [itemIdx, allocatedBatchUlrs[seqIdx]]));
+
     const recordsToInsert = itemsToProcess.map((it, idx) => {
       const idxCount = currentCount + idx + 1;
       const calibDate = it.calibrationDate ? new Date(it.calibrationDate) : new Date();
       const dueDate = it.calibrationDueDate
         ? new Date(it.calibrationDueDate)
         : calculateDefaultDueDate(calibDate);
+      const assignedUlrNo =
+        autoUlrByIdx.get(idx) ||
+        normalizeUlrNo(it.ulrNo || it.records?.ulrNo || it.inwardRegister?.ulrNo);
 
       return {
         srNo: idxCount,
@@ -323,6 +580,7 @@ export const createCalibrationRecord = async (req, res, next) => {
         calibrationDate: calibDate,
         calibrationDueDate: dueDate,
         dcNo: (it.dcNo || commonDc).trim(),
+        srfNo: batchSrfNo,
         challanDate: it.challanDate ? new Date(it.challanDate) : commonChallanDate,
         sentToLab: (it.sentToLab || commonLab).trim(),
         clientCompany: comp,
@@ -343,6 +601,7 @@ export const createCalibrationRecord = async (req, res, next) => {
           certificateNo:
             it.certificateNo?.trim() ||
             `ARCL-CAL-2026-${String(idxCount).padStart(3, "0")}`,
+          ulrNo: assignedUlrNo,
           recordExcel: "/docs/calibration-records.xlsx",
           stickerCheck:
             it.stickerCheck !== undefined
@@ -351,9 +610,53 @@ export const createCalibrationRecord = async (req, res, next) => {
               ? Boolean(stickerCheck)
               : true,
         },
+        inwardRegister: {
+          srfDone:
+            Boolean(it.srfDone) ||
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage),
+          ...(it.srfDone || ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+            ? { srfDoneAt: new Date() }
+            : {}),
+          srfNo: batchSrfNo,
+          inwardNo: `${batchSrfNo}-${String(idx + 1).padStart(2, "0")}`,
+          certificateNo:
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+              ? (it.certificateNo?.trim() || `ARCL-CAL-2026-${String(idxCount).padStart(3, "0")}`)
+              : "",
+          ulrNo: assignedUlrNo,
+        },
         stage: it.stage || stage || "Instrument Received",
         draftStatus: "Approved",
         remarks: it.remarks || remarks || "",
+        labPermission: {
+          granted:
+            req.body.releaseImmediately === true ||
+            req.body.releaseImmediately === "true" ||
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage),
+          releaseDate:
+            req.body.releaseImmediately === true ||
+            req.body.releaseImmediately === "true" ||
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+              ? calibDate
+              : null,
+          grantedAt:
+            req.body.releaseImmediately === true ||
+            req.body.releaseImmediately === "true" ||
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+              ? new Date()
+              : null,
+          grantedBy:
+            req.body.releaseImmediately === true ||
+            req.body.releaseImmediately === "true" ||
+            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+              ? (req.admin?.name || req.user?.name || "Admin")
+              : "",
+          notes:
+            req.body.releaseImmediately === true ||
+            req.body.releaseImmediately === "true"
+              ? "Released on inward entry"
+              : "Held pending Lab Permission",
+        },
       };
     });
 
@@ -391,6 +694,12 @@ export const updateCalibrationRecord = async (req, res, next) => {
       { $set: req.body },
       { new: true, runValidators: true }
     );
+
+    if (updated && isCertifiedRecordStage(updated, req.body?.stage)) {
+      const adminName = req.admin?.name || req.user?.name || "Admin";
+      await syncRecordUlrAndInwardOnCertification(updated, { adminName });
+      await updated.save();
+    }
 
     return res
       .status(200)
@@ -499,9 +808,18 @@ export const updateCalibrationBatch = async (req, res, next) => {
           { $set: updateData },
           { new: true }
         );
-        if (updated) results.push(updated);
+        if (updated) {
+          if (isCertifiedRecordStage(updated)) {
+            await syncRecordUlrAndInwardOnCertification(updated, {
+              adminName: req.admin?.name || req.user?.name || "Admin",
+            });
+            await updated.save();
+          }
+          results.push(updated);
+        }
       } else {
-        // New item added during batch edit
+        // New item added during batch edit -> hold permission until explicitly permitted unless already calibrated
+        const isPreDone = ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(updateData.stage);
         const newRecord = await CalibrationRecord.create({
           srNo: currentCount + i + 1,
           ...updateData,
@@ -518,8 +836,29 @@ export const updateCalibrationBatch = async (req, res, next) => {
             recordExcel: "/docs/calibration-records.xlsx",
             stickerCheck: updateData["records.stickerCheck"],
           },
+          labPermission: isPreDone
+            ? {
+                granted: true,
+                releaseDate: calibDate,
+                grantedAt: new Date(),
+                grantedBy: req.admin?.name || req.user?.name || "Admin",
+                notes: "Already calibrated",
+              }
+            : {
+                granted: false,
+                releaseDate: null,
+                grantedAt: null,
+                grantedBy: "",
+                notes: "Held pending Lab Permission (new product)",
+              },
           draftStatus: "Approved",
         });
+        if (isPreDone) {
+          await syncRecordUlrAndInwardOnCertification(newRecord, {
+            adminName: req.admin?.name || req.user?.name || "Admin",
+          });
+          await newRecord.save();
+        }
         results.push(newRecord);
       }
     }
@@ -1237,12 +1576,27 @@ export const downloadDocument = async (req, res, next) => {
       poNo,
       dcNo: queryDcNo,
       clientCompany: queryCompany,
+      recordIds: queryRecordIds,
+      selectedIds: querySelectedIds,
       docType = "certificate",
       format,
       download,
+      single,
+      all,
     } = req.query;
 
-    const targetId = id || recordId;
+    const rawExplicitIds = querySelectedIds || queryRecordIds;
+    const parsedExplicitIds = rawExplicitIds
+      ? String(rawExplicitIds)
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => isValidMongoId(s))
+      : [];
+
+    const singleItemRequested = String(single || "").toLowerCase() === "true";
+    const allItemsRequested = String(all || "").toLowerCase() === "true";
+
+    const targetId = id || recordId || parsedExplicitIds[0];
     let record = null;
     if (isValidMongoId(targetId)) {
       record = await CalibrationRecord.findById(targetId).lean();
@@ -1303,24 +1657,45 @@ export const downloadDocument = async (req, res, next) => {
       record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
     }
 
-    // Fetch all batch records sharing the same DC No & Client Company (or single record)
+    // Fetch all batch records (scoped strictly to parsedExplicitIds if provided, e.g., date-released SRF items)
     let batchRecords = [];
     const dcClean = String(record?.dcNo || queryDcNo || "").trim();
     const compClean = String(record?.clientCompany || queryCompany || "").trim();
 
-    if (dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
+    if (singleItemRequested && record) {
+      batchRecords = [record];
+    } else if (parsedExplicitIds.length > 0) {
+      batchRecords = await CalibrationRecord.find({
+        _id: { $in: parsedExplicitIds.map((eid) => new mongoose.Types.ObjectId(eid)) },
+      }).sort({ srNo: 1, createdAt: 1 }).lean();
+      if (batchRecords.length > 0 && !record) {
+        record = batchRecords[0];
+      }
+    }
+
+    if (!singleItemRequested && !allItemsRequested && batchRecords.length === 0 && parsedExplicitIds.length === 0 && record) {
+      // Only expand batch when caller explicitly wants batch/multi-item docs or when docType is quotation/invoice/pi/po/srf
+      const isBatchDocType = ["quotation", "invoice", "tax_invoice", "pi", "proforma_invoice", "po", "purchase_order", "srf"].includes(
+        String(docType || "").toLowerCase()
+      );
+      if (!isBatchDocType && targetId && isValidMongoId(targetId)) {
+        batchRecords = [record];
+      }
+    }
+
+    if (batchRecords.length === 0 && dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
       batchRecords = await CalibrationRecord.find({
         dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
         clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
     }
-    if (batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
+    if (parsedExplicitIds.length === 0 && batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
       const byDc = await CalibrationRecord.find({
         dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
       if (byDc.length > batchRecords.length) batchRecords = byDc;
     }
-    if (batchRecords.length <= 1 && compClean && record?.createdAt) {
+    if (parsedExplicitIds.length === 0 && batchRecords.length <= 1 && compClean && record?.createdAt && (!dcClean || dcClean === "-" || dcClean === "N/A") && !record?.quotationData?.quotationNo) {
       const cDate = new Date(record.createdAt);
       const tStart = new Date(cDate.getTime() - 15 * 60 * 1000);
       const tEnd = new Date(cDate.getTime() + 15 * 60 * 1000);
@@ -1438,7 +1813,7 @@ export const downloadDocument = async (req, res, next) => {
     if (docType === "quotation") {
       const qd = record?.quotationData;
       const qdItems = Array.isArray(qd?.items) ? qd.items : [];
-      const hasFullItems = qdItems.length === batchInstruments.length && qdItems.length > 0;
+      const hasFullItems = qdItems.length > 0;
       customDocData = {
         quotationNo: qd?.quotationNo || `ARCL/QTN/26-27/${sNo.replace(/[^0-9]/g, "").slice(-3) || "47"}`,
         quotationDate: qd?.quotationDate || (calDate instanceof Date ? calDate.toLocaleDateString("en-GB") : String(calDate)),
@@ -1582,24 +1957,215 @@ export const downloadDocument = async (req, res, next) => {
       };
     }
 
+    const allTemplates = !["quotation", "invoice", "tax_invoice", "pi", "proforma_invoice", "po", "srf"].includes(
+      String(docType || "").toLowerCase()
+    )
+      ? await ObservationTemplate.find({ isActive: true }).lean()
+      : [];
+
+    const findMatchingTemplateForRec = (recItem) => {
+      const obs = recItem?.observationData || {};
+      if (obs.templateId && isValidMongoId(String(obs.templateId))) {
+        const byId = allTemplates.find((t) => String(t._id) === String(obs.templateId));
+        if (byId) return byId;
+      }
+      if (obs.templateName) {
+        const byTName = allTemplates.find(
+          (t) => t.name && t.name.toLowerCase() === String(obs.templateName).toLowerCase()
+        );
+        if (byTName) return byTName;
+      }
+      const instLow = String(obs.instrument || recItem?.instrument || "").toLowerCase().trim();
+      if (!instLow) return null;
+      const instWords = instLow.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
+      const exactHit = allTemplates.find(
+        (t) =>
+          (t.name && t.name.toLowerCase().trim() === instLow) ||
+          (t.pdfFileName && t.pdfFileName.toLowerCase().replace(/\.(xlsx|xls|pdf)$/i, "").trim() === instLow)
+      );
+      if (exactHit) return exactHit;
+
+      let bestTmpl = null;
+      let bestScore = 0;
+      for (const t of allTemplates) {
+        const candidates = [t.name, t.pdfFileName?.replace(/\.(xlsx|xls|pdf)$/i, "")].filter(Boolean);
+        for (const cand of candidates) {
+          const cLow = cand.toLowerCase().trim();
+          let sc = 0;
+          if (instLow.includes(cLow) || cLow.includes(instLow)) sc += 50;
+          const cWords = cLow.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
+          instWords.forEach((w) => {
+            if (cWords.includes(w)) sc += 15;
+          });
+          if (sc > bestScore) {
+            bestScore = sc;
+            bestTmpl = t;
+          }
+        }
+      }
+      return bestScore >= 15 ? bestTmpl : null;
+    };
+
+    const buildEnrichedCalDocItem = (recItem, idx) => {
+      const obs = recItem?.observationData || {};
+      const auth = recItem?.authorizationData || {};
+      const matchedTmpl = allTemplates.length ? findMatchingTemplateForRec(recItem) : null;
+      const params = matchedTmpl?.parameters || {};
+      const calc = evaluateTemplateWorkbookResults({
+        template: matchedTmpl,
+        observationData: obs,
+        record: recItem,
+      });
+      const activeReportTable =
+        auth.reportResultTable?.rows?.length > 0
+          ? auth.reportResultTable
+          : calc.reportTable;
+      const customCols =
+        activeReportTable?.columns?.length >= 2
+          ? activeReportTable.columns
+          : obs.tableColumns?.length >= 2
+          ? obs.tableColumns
+          : matchedTmpl?.tableColumns?.length >= 2
+          ? matchedTmpl.tableColumns
+          : null;
+      const evaluatedRows =
+        activeReportTable?.rows?.length > 0
+          ? activeReportTable.rows
+          : calc.evaluatedReadings?.length > 0
+          ? calc.evaluatedReadings
+          : obs.readings;
+
+      const resolvedUncertainty =
+        activeReportTable?.uncertaintyValue ||
+        auth.uncertaintyBudget?.expandedUncertainty ||
+        calc.amu?.expandedUncertainty ||
+        "";
+
+      const isSingleItem = batchRecords.length === 1;
+      const itemCertNo =
+        recItem?.records?.certificateNo ||
+        recItem?.authorizationData?.certificateNo ||
+        (isSingleItem ? certNo : `${certNo}-${idx + 1}`);
+
+      const resolvedUlr =
+        extractRecordUlrNo(recItem) ||
+        recItem?.records?.ulrNo ||
+        recItem?.inwardRegister?.ulrNo ||
+        recItem?.authorizationData?.ulrNo ||
+        obs.ulrNo ||
+        recItem?.ulrNo ||
+        matchedTmpl?.reportData?.ulrNo ||
+        "";
+
+      return {
+        _id: recItem?._id ? String(recItem._id) : "",
+        recordId: recItem?._id ? String(recItem._id) : "",
+        certificateNo: itemCertNo,
+        worksheetNo: obs.worksheetNo || `WS-ARCL-2026-${recItem?.serialNo || idx + 1}`,
+        ulrNo: resolvedUlr,
+        receiptDate: obs.receiptDate || params.receiptDate || recItem?.inwardDate || recItem?.challanDate || challanDate || "",
+        calibrationDate: obs.calibrationDate || recItem?.calibrationDate || calDate,
+        calibrationDueDate: obs.calibrationDueDate || recItem?.calibrationDueDate || dueDate,
+        issueDate: obs.issueDate || auth.authorizedAt || recItem?.calibrationDate || calDate,
+        challanDate: recItem?.challanDate || challanDate,
+        formatNo: obs.formatNo || params.formatNo || matchedTmpl?.reportData?.formatNo || "FM/CC/05 Rev-01 Dt 10-11-2026",
+        authorizedBy:
+          (!/^(|rupak\s*kumar|quality\s*manager|authorized\s*signatory|technical\s*manager.*|dr\.?\s*r\.?\s*k\.?\s*verma.*)$/i.test(
+            String(auth.authorizedBy || "").trim()
+          )
+            ? auth.authorizedBy
+            : "") ||
+          req.user?.name ||
+          (req.user?.email ? req.user.email.split("@")[0] : "") ||
+          (!/^(|rupak\s*kumar|quality\s*manager|authorized\s*signatory|technical\s*manager.*|dr\.?\s*r\.?\s*k\.?\s*verma.*)$/i.test(
+            String(obs.reviewedBy || "").trim()
+          )
+            ? obs.reviewedBy
+            : "") ||
+          "Authorized Signatory",
+        resultUnit: obs.unit || params.unit || (matchedTmpl?.tableColumns?.find((c) => c.unit)?.unit) || "",
+        muUnit: obs.muUnit || (activeReportTable?.uncertaintyUnit) || "",
+        clientCompany: recItem?.clientCompany || comp,
+        clientAddress: obs.clientAddress || recItem?.clientAddress || clientAddress,
+        contactPerson: recItem?.clientContactPerson || person,
+        clientPhone: recItem?.clientPhone || phone,
+        clientEmail: recItem?.clientEmail || email,
+        clientGst: recItem?.clientGst || clientGst,
+        instrument: obs.instrument || recItem?.instrument || instName,
+        serialNo: obs.serialNo || recItem?.serialNo || sNo,
+        dcNo: recItem?.dcNo || dcNo,
+        sentToLab,
+        make: recItem?.make || make,
+        modelNo: recItem?.modelNo || modelNo,
+        makeModel: obs.makeModel || [recItem?.make, recItem?.modelNo].filter(Boolean).join(" / "),
+        range: obs.range || params.range || recItem?.instrumentRange || "",
+        instrumentRange: obs.range || params.range || recItem?.instrumentRange || "",
+        leastCount: obs.leastCount || params.leastCount || recItem?.leastCount || "",
+        location: obs.location || params.location || recItem?.location || "",
+        conditionOfItem: obs.conditionOfItem || params.conditionOfItem || "OK",
+        temperature: obs.temperature || params.temperature || "",
+        humidity: obs.humidity || params.humidity || "",
+        calibrationMethod: obs.calibrationMethod || matchedTmpl?.calibrationMethod || "",
+        referenceStandard: obs.referenceStandard || matchedTmpl?.standardReference || "",
+        masterDescription: obs.masterDescription || params.masterDescription || "",
+        masterId: obs.masterId || params.masterId || "",
+        masterCertNo: obs.masterCertNo || params.masterCertNo || "",
+        masterDueDate: obs.masterDueDate || params.masterDueDate || "",
+        masterTraceable: obs.masterTraceable || params.masterTraceable || "",
+        masterEquipments:
+          Array.isArray(obs.masterEquipments) && obs.masterEquipments.length > 0
+            ? obs.masterEquipments
+            : params.masterEquipments || [],
+        mode: obs.mode || params.mode || "",
+        discipline: obs.discipline || params.discipline || matchedTmpl?.equipmentType || "",
+        calibratedBySite: obs.calibratedBySite || obs.calibratedBy || "VK",
+        tableColumns: customCols,
+        readings: evaluatedRows,
+        expandedUncertainty: resolvedUncertainty ? String(resolvedUncertainty) : "",
+      };
+    };
+
+    if (String(docType || "").toLowerCase() === "certificate" && batchRecords.length > 0) {
+      try {
+        await ensureSequentialUlrNumbersForRecords(batchRecords, {
+          CalibrationRecord,
+          mongoose,
+          forceAllProvided: true,
+        });
+      } catch (ulrErr) {
+        console.warn("Certificate download ULR assignment warning:", ulrErr?.message || ulrErr);
+      }
+    }
+
+    const enrichedDocItems = batchRecords.map((r, i) => buildEnrichedCalDocItem(r, i));
+    const matchedTargetIdx = targetId
+      ? batchRecords.findIndex((r) => String(r._id) === String(targetId))
+      : -1;
+    const primaryCalDoc =
+      (matchedTargetIdx >= 0 ? enrichedDocItems[matchedTargetIdx] : enrichedDocItems[0]) || {};
+
     const pdfBuffer = await generateDocumentPdf(docType, customDocData || {
-      certificateNo: certNo,
-      calibrationDate: calDate,
-      calibrationDueDate: dueDate,
+      ...primaryCalDoc,
+      _id: primaryCalDoc._id || (record?._id ? String(record._id) : ""),
+      recordId: primaryCalDoc.recordId || (record?._id ? String(record._id) : ""),
+      certificateNo: primaryCalDoc.certificateNo || certNo,
+      calibrationDate: primaryCalDoc.calibrationDate || calDate,
+      calibrationDueDate: primaryCalDoc.calibrationDueDate || dueDate,
       challanDate: challanDate,
       clientCompany: comp,
       contactPerson: person,
       clientPhone: phone,
       clientEmail: email,
       clientGst: clientGst,
-      clientAddress: clientAddress,
-      instrument: instName,
-      serialNo: sNo,
+      clientAddress: primaryCalDoc.clientAddress || clientAddress,
+      instrument: primaryCalDoc.instrument || instName,
+      serialNo: primaryCalDoc.serialNo || sNo,
       dcNo: dcNo,
       sentToLab: sentToLab,
       make: make,
       modelNo: modelNo,
       instruments: batchInstruments,
+      items: singleItemRequested ? [primaryCalDoc] : enrichedDocItems,
     });
 
     const sanitizedDocType = (docType || "certificate").replace(/[^a-zA-Z0-9_-]/g, "");
@@ -1700,53 +2266,215 @@ export const getQuotationData = async (req, res, next) => {
   }
 };
 
-// 12. Save Quotation Data
+// 12. Save Quotation Data (Creates brand new record when creating a quotation, or updates existing record when editing)
 export const saveQuotationData = async (req, res, next) => {
   try {
-    const { recordId, id, serialNo, quotationData } = req.body;
+    const { recordId, id, isNewQuotation, serialNo, dcNo, clientCompany, quotationData } = req.body;
     const targetId = recordId || id;
+    const isCreateNew = Boolean(isNewQuotation) || !isValidMongoId(targetId);
     let record = null;
 
-    if (isValidMongoId(targetId)) {
+    // Only look up an existing record when explicitly editing (valid recordId & not new quotation)
+    if (!isCreateNew && isValidMongoId(targetId)) {
       record = await CalibrationRecord.findById(targetId);
     }
 
-    if (!record) {
-      const searchSn = String(serialNo || targetId || quotationData?.quotationNo || "").trim();
-      if (searchSn && searchSn !== "null" && searchSn !== "undefined") {
-        record = await CalibrationRecord.findOne({
-          $or: [
-            { serialNo: { $regex: `^${searchSn}$`, $options: "i" } },
-            { "quotationData.quotationNo": { $regex: `^${searchSn}$`, $options: "i" } },
-          ],
-        });
+    const itemsList = Array.isArray(quotationData?.items) ? quotationData.items : [];
+    const firstItemName = (itemsList[0]?.name || "Precision Equipment")
+      .replace(/\s*-\s*Calibration$/i, "")
+      .trim();
+    const createdRecords = [];
+
+    // CREATE BRAND NEW CalibrationRecord when creating a new quotation
+    if (isCreateNew || !record) {
+      const uniqueTs = Date.now().toString();
+      const randSuffix = Math.floor(10 + Math.random() * 90);
+      const rawDc = String(quotationData?.dcNo || dcNo || "").trim();
+      const newDc = rawDc && rawDc !== "-" ? rawDc : `DC-${new Date().getFullYear()}-${uniqueTs.slice(-5)}`;
+      const newSerial = `ARCL-QTN-${uniqueTs.slice(-6)}-${randSuffix}`;
+
+      const finalQuotationData = {
+        ...(quotationData || {}),
+        dcNo: newDc,
+        quotationNo: quotationData?.quotationNo || `ARCL/QTN/26-27/${uniqueTs.slice(-4)}`,
+      };
+
+      record = new CalibrationRecord({
+        srNo: 1,
+        instrument: firstItemName || "Precision Calibration Instrument",
+        serialNo: newSerial,
+        dcNo: newDc,
+        challanDate: finalQuotationData.quotationDate || new Date(),
+        calibrationDate: finalQuotationData.quotationDate || new Date(),
+        calibrationDueDate: finalQuotationData.validityDate || new Date(Date.now() + 365 * 86400000),
+        clientCompany: finalQuotationData.billTo?.companyName || clientCompany || "Valued Client",
+        clientContactPerson: finalQuotationData.billTo?.contactPerson || "Quality Manager",
+        clientEmail: finalQuotationData.billTo?.email || "arclinstruments@gmail.com",
+        clientPhone: finalQuotationData.billTo?.phone || "+91 8009559900",
+        clientAddress: finalQuotationData.billTo?.address || "",
+        clientGst: finalQuotationData.billTo?.gstin || "",
+        stage: "Instrument Received",
+        commercialDocs: {
+          quotationStatus: "Draft",
+          poRaised: "",
+        },
+        labPermission: {
+          granted: false,
+          releaseDate: null,
+          grantedAt: null,
+          grantedBy: "",
+          notes: "",
+        },
+        quotationData: finalQuotationData,
+      });
+
+      await record.save();
+      createdRecords.push(record);
+
+      // Create additional item records linked strictly to this new quotation batch
+      if (itemsList.length > 1) {
+        for (let k = 1; k < itemsList.length; k++) {
+          const newItem = itemsList[k];
+          const newCleanName = (newItem?.name || `Equipment ${k + 1}`).replace(/\s*-\s*Calibration$/i, "").trim();
+          const sibSerial = `ARCL-${uniqueTs.slice(-5)}-${randSuffix}-${k + 1}`;
+          const newSibling = new CalibrationRecord({
+            srNo: k + 1,
+            instrument: newCleanName,
+            serialNo: sibSerial,
+            clientCompany: record.clientCompany,
+            clientContactPerson: record.clientContactPerson || "Quality Manager",
+            clientEmail: record.clientEmail,
+            clientPhone: record.clientPhone,
+            clientAddress: record.clientAddress,
+            clientGst: record.clientGst,
+            dcNo: record.dcNo,
+            challanDate: record.challanDate || new Date(),
+            calibrationDate: record.calibrationDate || new Date(),
+            calibrationDueDate: record.calibrationDueDate || new Date(Date.now() + 365 * 86400000),
+            stage: "Instrument Received",
+            commercialDocs: {
+              quotationStatus: "Draft",
+              poRaised: "",
+            },
+            labPermission: {
+              granted: false,
+              releaseDate: null,
+              grantedAt: null,
+              grantedBy: "",
+              notes: "",
+            },
+            quotationData: finalQuotationData,
+          });
+          await newSibling.save();
+          createdRecords.push(newSibling);
+        }
+      }
+    } else {
+      // Updating an EXISTING quotation record
+      if (firstItemName) {
+        record.instrument = firstItemName;
+        record.markModified("instrument");
+        if (record.observationData) {
+          record.observationData.instrument = firstItemName;
+          record.markModified("observationData");
+        }
+      }
+
+      const prevQNo = record.quotationData?.quotationNo;
+      record.quotationData = quotationData;
+      if (quotationData?.billTo?.companyName) record.clientCompany = quotationData.billTo.companyName;
+      if (quotationData?.billTo?.email) record.clientEmail = quotationData.billTo.email;
+      if (quotationData?.billTo?.phone) record.clientPhone = quotationData.billTo.phone;
+      if (quotationData?.billTo?.address) record.clientAddress = quotationData.billTo.address;
+      if (quotationData?.billTo?.gstin) record.clientGst = quotationData.billTo.gstin;
+      if (quotationData?.dcNo) record.dcNo = quotationData.dcNo;
+      record.markModified("quotationData");
+
+      await record.save();
+
+      // Only update siblings that belong to THIS exact quotation batch (same DC + Company, or same quotationNo)
+      if (itemsList.length > 1) {
+        let siblingRecords = [];
+        if (prevQNo) {
+          siblingRecords = await CalibrationRecord.find({
+            _id: { $ne: record._id },
+            "quotationData.quotationNo": prevQNo,
+          }).sort({ srNo: 1, createdAt: 1 });
+        } else if (record.dcNo && record.dcNo !== "-") {
+          siblingRecords = await CalibrationRecord.find({
+            _id: { $ne: record._id },
+            dcNo: record.dcNo,
+            clientCompany: record.clientCompany,
+          }).sort({ srNo: 1, createdAt: 1 });
+        }
+
+        for (let i = 0; i < siblingRecords.length; i++) {
+          const sib = siblingRecords[i];
+          sib.quotationData = quotationData;
+          if (quotationData?.billTo?.companyName) sib.clientCompany = quotationData.billTo.companyName;
+          const itemIdx = i + 1;
+          if (itemsList[itemIdx]?.name) {
+            sib.instrument = itemsList[itemIdx].name.replace(/\s*-\s*Calibration$/i, "").trim();
+            sib.markModified("instrument");
+          }
+          sib.markModified("quotationData");
+          await sib.save();
+        }
+
+        const totalInBatch = 1 + siblingRecords.length;
+        if (itemsList.length > totalInBatch) {
+          const uniqueTs = Date.now().toString().slice(-5);
+          for (let k = totalInBatch; k < itemsList.length; k++) {
+            const newItem = itemsList[k];
+            const newCleanName = (newItem?.name || `Equipment ${k + 1}`).replace(/\s*-\s*Calibration$/i, "").trim();
+            const newSerial = `ARCL-${uniqueTs}-${k + 1}-${Math.floor(10 + Math.random() * 90)}`;
+            const newSibling = new CalibrationRecord({
+              srNo: k + 1,
+              instrument: newCleanName,
+              serialNo: newSerial,
+              clientCompany: record.clientCompany,
+              clientContactPerson: record.clientContactPerson || "Quality Manager",
+              clientEmail: record.clientEmail,
+              clientPhone: record.clientPhone,
+              clientAddress: record.clientAddress,
+              clientGst: record.clientGst,
+              dcNo: record.dcNo,
+              challanDate: record.challanDate || new Date(),
+              calibrationDate: record.calibrationDate || new Date(),
+              calibrationDueDate: record.calibrationDueDate || new Date(Date.now() + 365 * 86400000),
+              stage: record.stage || "Instrument Received",
+              commercialDocs: {
+                quotationStatus: record.commercialDocs?.quotationStatus || "Draft",
+                poRaised: record.commercialDocs?.poRaised || "",
+              },
+              labPermission: {
+                granted: false,
+                releaseDate: null,
+                grantedAt: null,
+                grantedBy: "",
+                notes: "",
+              },
+              quotationData: quotationData,
+            });
+            await newSibling.save();
+          }
+        }
       }
     }
 
-    if (!record) {
-      record = await CalibrationRecord.findOne().sort({ createdAt: -1 });
-    }
-
-    if (!record) {
-      record = new CalibrationRecord({
-        instrument: quotationData?.items?.[0]?.name || "Calibration Instrument Package",
-        serialNo: serialNo && serialNo !== "null" ? serialNo : `ARCL-QTN-${Date.now().toString().slice(-6)}`,
-        clientCompany: quotationData?.billTo?.companyName || "Valued Client",
-        clientEmail: quotationData?.billTo?.email || "arclinstruments@gmail.com",
-        clientPhone: quotationData?.billTo?.phone || "+91 8009559900",
-      });
-    }
-
-    record.quotationData = quotationData;
-    if (quotationData?.billTo?.companyName) record.clientCompany = quotationData.billTo.companyName;
-    if (quotationData?.billTo?.email) record.clientEmail = quotationData.billTo.email;
-    if (quotationData?.billTo?.phone) record.clientPhone = quotationData.billTo.phone;
-
-    record.markModified("quotationData");
-    await record.save();
+    invalidateCalibrationCache();
 
     return res.status(200).json(
-      new ApiResponse(200, { record, quotationData: record.quotationData }, "Quotation data saved successfully")
+      new ApiResponse(
+        200,
+        {
+          record,
+          createdRecords: createdRecords.length > 0 ? createdRecords : [record],
+          isNewQuotation: isCreateNew,
+          quotationData: record.quotationData,
+        },
+        isCreateNew ? "New quotation created successfully" : "Quotation data updated successfully"
+      )
     );
   } catch (err) {
     next(err);
@@ -2409,3 +3137,1299 @@ export const deletePoDocument = async (req, res, next) => {
 };
 
 
+
+// ==========================================
+// 24. Custom Equipment Master Controller
+// ==========================================
+export const getCustomEquipments = async (req, res, next) => {
+  try {
+    const list = await CustomEquipment.find({ isActive: true }).sort({ name: 1 }).lean();
+    return res.status(200).json(new ApiResponse(200, list, "Custom equipments fetched successfully"));
+  } catch (err) {
+    console.error("Error in getCustomEquipments:", err);
+    next(err);
+  }
+};
+
+export const saveCustomEquipment = async (req, res, next) => {
+  try {
+    const { name, range, leastCount, make, modelNo, category, nablScope, conditionOfItem, temperature, relativeHumidity, remarks } = req.body;
+    if (!name || !String(name).trim()) {
+      throw new ApiError(400, "Equipment name is required");
+    }
+
+    const cleanName = String(name).trim();
+    let equip = await CustomEquipment.findOne({ name: { $regex: "^" + escapeRegex(cleanName) + "$", $options: "i" } });
+    if (!equip) {
+      equip = new CustomEquipment({ name: cleanName });
+    }
+
+    if (range !== undefined) equip.range = range;
+    if (leastCount !== undefined) equip.leastCount = leastCount;
+    if (make !== undefined) equip.make = make;
+    if (modelNo !== undefined) equip.modelNo = modelNo;
+    if (category !== undefined) equip.category = category;
+    if (nablScope !== undefined) equip.nablScope = nablScope;
+    if (conditionOfItem !== undefined) equip.conditionOfItem = conditionOfItem;
+    if (temperature !== undefined) equip.temperature = temperature;
+    if (relativeHumidity !== undefined) equip.relativeHumidity = relativeHumidity;
+    if (remarks !== undefined) equip.remarks = remarks;
+    equip.isActive = true;
+
+    await equip.save();
+    return res.status(200).json(new ApiResponse(200, equip, "Equipment saved to directory successfully"));
+  } catch (err) {
+    console.error("Error in saveCustomEquipment:", err);
+    next(err);
+  }
+};
+
+/**
+ * Enforce strict one-way Section 6 lock: once submitted/locked or authorized,
+ * only Section 7 Quality Authorization (`action: "reject"`) can unlock it for edits.
+ */
+const assertObservationUnlocked = (record) => {
+  const existingObs =
+    record?.observationData && typeof record.observationData.toObject === "function"
+      ? record.observationData.toObject()
+      : (record?.observationData || {});
+
+  const existingObsStatus = String(existingObs.status || "").trim();
+  const existingAuthStatus = String(record?.authorizationData?.status || "").trim();
+  const hasLockedObservationData =
+    (Array.isArray(existingObs.readings) && existingObs.readings.length > 0) ||
+    Boolean(existingObs.exactSheetValues && Object.keys(existingObs.exactSheetValues).length > 0);
+
+  if (
+    existingObsStatus === "Submitted" ||
+    existingObsStatus === "Authorized" ||
+    (existingAuthStatus === "Approved" && hasLockedObservationData)
+  ) {
+    throw new ApiError(
+      403,
+      "Observation worksheet is locked and cannot be modified or unlocked until Quality Authorization (Section 7) returns it for correction."
+    );
+  }
+
+  return { existingObs, existingAuthStatus };
+};
+
+const saveHardCopyProofToDiskAndCloud = async (fileBuffer, mimetype, originalname = "scan.png") => {
+  const ext = path.extname(originalname || "") || (mimetype === "application/pdf" ? ".pdf" : ".png");
+  const safeBase = path.basename(originalname || "scan", ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48);
+  const cleanFileName = `obs_scan_${Date.now()}_${safeBase}${ext}`;
+  const publicUrl = `/uploads/observation_scans/${cleanFileName}`;
+
+  const dirs = [
+    path.resolve(process.cwd(), "backend/public/uploads/observation_scans"),
+    path.resolve(process.cwd(), "frontend/public/uploads/observation_scans"),
+    path.resolve(process.cwd(), "public/uploads/observation_scans"),
+  ];
+  for (const dir of dirs) {
+    try {
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      await fs.promises.writeFile(path.join(dir, cleanFileName), fileBuffer);
+    } catch {
+      // ignore non-existent root candidate
+    }
+  }
+
+  let cloudUrl = "";
+  try {
+    cloudUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "calibration_observation_scans",
+          resource_type: mimetype?.startsWith("image/") ? "image" : "raw",
+          public_id: cleanFileName.replace(/\.[^.]+$/, ""),
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result?.secure_url || "");
+        }
+      );
+      stream.end(fileBuffer);
+    });
+  } catch {
+    // Local /uploads fallback works reliably offline
+  }
+
+  return {
+    url: publicUrl,
+    cloudUrl: cloudUrl || "",
+    fileName: originalname,
+    mimeType: mimetype || "application/octet-stream",
+    size: fileBuffer.length,
+    uploadedAt: new Date().toISOString(),
+  };
+};
+
+// ==========================================
+// 25. Save Calibration Observation
+// ==========================================
+export const saveCalibrationObservation = async (req, res, next) => {
+  try {
+    const recordId = req.params?.recordId || req.body?.recordId;
+    const rawBody = req.body || {};
+    const observationPayload =
+      rawBody.observationData && typeof rawBody.observationData === "object"
+        ? rawBody.observationData
+        : rawBody;
+
+    if (!recordId || !mongoose.Types.ObjectId.isValid(recordId)) {
+      throw new ApiError(400, "Valid record ID is required");
+    }
+
+    const record = await CalibrationRecord.findById(recordId);
+    if (!record) {
+      throw new ApiError(404, "Calibration record not found");
+    }
+
+    const { existingObs, existingAuthStatus } = assertObservationUnlocked(record);
+
+    const preservedUlr = extractRecordUlrNo(record);
+    const nextObs = {
+      ...existingObs,
+      ...observationPayload,
+      updatedAt: new Date(),
+    };
+    if (preservedUlr && !isValidUlrNo(nextObs.ulrNo)) {
+      nextObs.ulrNo = preservedUlr;
+    }
+
+    record.observationData = nextObs;
+
+    if (observationPayload.status === "Submitted") {
+      record.stage = "Under Calibration";
+      if (existingAuthStatus === "Rejected" || existingAuthStatus === "Recalled") {
+        const existingAuth =
+          record.authorizationData && typeof record.authorizationData.toObject === "function"
+            ? record.authorizationData.toObject()
+            : (record.authorizationData || {});
+        record.authorizationData = {
+          ...existingAuth,
+          status: "Pending",
+        };
+        record.markModified("authorizationData");
+      }
+    }
+
+    record.markModified("observationData");
+    await record.save();
+    invalidateCalibrationCache();
+
+    return res.status(200).json(new ApiResponse(200, record, "Observation sheet saved successfully"));
+  } catch (err) {
+    console.error("Error in saveCalibrationObservation:", err);
+    next(err);
+  }
+};
+
+// Shared processor for both uploaded filled sheets and direct hardware scanner acquisitions
+const processFilledObservationBufferAndAttach = async ({
+  req,
+  fileBuffer,
+  originalName,
+  mimeType,
+  recordId,
+  templateId,
+  tableColumnsRaw,
+  currentReadingsRaw,
+  currentExactSheetValuesRaw,
+  currentRepeatabilityRaw,
+}) => {
+  let record = null;
+  if (recordId) {
+    if (!mongoose.Types.ObjectId.isValid(recordId)) {
+      throw new ApiError(400, "Valid record ID is required");
+    }
+    record = await CalibrationRecord.findById(recordId);
+    if (!record) {
+      throw new ApiError(404, "Calibration record not found");
+    }
+    assertObservationUnlocked(record);
+  }
+
+  let currentColumns = [];
+  if (tableColumnsRaw) {
+    try {
+      const parsedCols = typeof tableColumnsRaw === "string" ? JSON.parse(tableColumnsRaw) : tableColumnsRaw;
+      if (Array.isArray(parsedCols)) currentColumns = parsedCols;
+    } catch {
+      // fallback to template columns
+    }
+  }
+
+  let currentReadings = [];
+  if (currentReadingsRaw) {
+    try {
+      const parsedRows = typeof currentReadingsRaw === "string" ? JSON.parse(currentReadingsRaw) : currentReadingsRaw;
+      if (Array.isArray(parsedRows)) currentReadings = parsedRows;
+    } catch {
+      // fallback to template default readings
+    }
+  }
+
+  let currentExactSheetValues = {};
+  if (currentExactSheetValuesRaw) {
+    try {
+      const parsedExact =
+        typeof currentExactSheetValuesRaw === "string"
+          ? JSON.parse(currentExactSheetValuesRaw)
+          : currentExactSheetValuesRaw;
+      if (parsedExact && typeof parsedExact === "object") currentExactSheetValues = parsedExact;
+    } catch {
+      // fallback to record exactSheetValues
+    }
+  }
+
+  let currentRepeatabilityReadings = null;
+  if (currentRepeatabilityRaw) {
+    try {
+      const parsedRep =
+        typeof currentRepeatabilityRaw === "string"
+          ? JSON.parse(currentRepeatabilityRaw)
+          : currentRepeatabilityRaw;
+      if (Array.isArray(parsedRep)) currentRepeatabilityReadings = parsedRep;
+    } catch {
+      // fallback to record repeatabilityReadings
+    }
+  }
+
+  let activeTemplate = null;
+  if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
+    activeTemplate = await ObservationTemplate.findById(templateId).lean();
+  }
+
+  const [parseResult, hardCopyFile] = await Promise.all([
+    extractFromFilledObservationFile({
+      fileBuffer,
+      originalName,
+      mimeType,
+      activeTemplate,
+      currentColumns,
+      currentReadings,
+      currentExactSheetValues,
+      currentRepeatabilityReadings,
+      activeRecord: record,
+    }),
+    saveHardCopyProofToDiskAndCloud(fileBuffer, mimeType, originalName),
+  ]);
+
+  hardCopyFile.uploadedBy =
+    req.user?.name || req.user?.email || req.admin?.name || req.admin?.email || "Calibration Engineer";
+
+  if (record) {
+    const existingObs =
+      record.observationData && typeof record.observationData.toObject === "function"
+        ? record.observationData.toObject()
+        : (record.observationData || {});
+    const prevGallery = Array.isArray(existingObs.hardCopyHistory) ? existingObs.hardCopyHistory : [];
+    record.observationData = {
+      ...existingObs,
+      hardCopyScan: hardCopyFile,
+      hardCopyHistory: [hardCopyFile, ...prevGallery].slice(0, 5),
+    };
+    record.markModified("observationData");
+    await record.save();
+    invalidateCalibrationCache();
+  }
+
+  return {
+    hardCopyFile,
+    engine: parseResult.engine,
+    formatMatch: parseResult.formatMatch || null,
+    rawText: parseResult.rawText || "",
+    extracted: parseResult.extracted || { metadata: {}, repeatabilityReadings: null, exactSheetValues: {}, readings: [] },
+    cellPreviews: parseResult.cellPreviews || [],
+    repeatabilityPreviews: parseResult.repeatabilityPreviews || [],
+    warnings: parseResult.warnings || [],
+    record,
+  };
+};
+
+// ==========================================
+// 25B. Scan / Upload Filled Hard-Copy Observation -> Auto-Extract Soft Copy
+// ==========================================
+export const parseAndAttachFilledObservation = async (req, res, next) => {
+  try {
+    const uploadedFile = req.file || (Array.isArray(req.files) ? req.files[0] : null);
+    if (!uploadedFile || !uploadedFile.buffer) {
+      throw new ApiError(400, "Please upload a filled photo, scan, PDF, or Excel observation file.");
+    }
+
+    const {
+      recordId,
+      templateId,
+      tableColumns: tableColumnsRaw,
+      currentReadings: currentReadingsRaw,
+      currentExactSheetValues: currentExactSheetValuesRaw,
+      currentRepeatabilityReadings: currentRepeatabilityRaw,
+    } = req.body || {};
+    const result = await processFilledObservationBufferAndAttach({
+      req,
+      fileBuffer: uploadedFile.buffer,
+      originalName: uploadedFile.originalname,
+      mimeType: uploadedFile.mimetype,
+      recordId,
+      templateId,
+      tableColumnsRaw,
+      currentReadingsRaw,
+      currentExactSheetValuesRaw,
+      currentRepeatabilityRaw,
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        result,
+        `Scanned "${uploadedFile.originalname}" using ${result.engine}`
+      )
+    );
+  } catch (err) {
+    console.error("Error in parseAndAttachFilledObservation:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 25C. List Connected Physical Hardware Scanners (Windows WIA)
+// ==========================================
+export const listHardwareScanners = async (req, res, next) => {
+  try {
+    const data = await listConnectedHardwareScanners();
+    return res.status(200).json(new ApiResponse(200, data, "Hardware scanner list fetched"));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 25D. Trigger Direct Physical Scanner Capture -> Auto-Extract Soft Copy
+// ==========================================
+export const scanObservationFromHardwareScanner = async (req, res, next) => {
+  try {
+    const {
+      recordId,
+      templateId,
+      tableColumns: tableColumnsRaw,
+      currentReadings: currentReadingsRaw,
+      currentExactSheetValues: currentExactSheetValuesRaw,
+      currentRepeatabilityReadings: currentRepeatabilityRaw,
+      deviceId,
+      dpi,
+    } = req.body || {};
+    if (recordId) {
+      if (!mongoose.Types.ObjectId.isValid(recordId)) {
+        throw new ApiError(400, "Valid record ID is required");
+      }
+      const preCheck = await CalibrationRecord.findById(recordId);
+      if (!preCheck) {
+        throw new ApiError(404, "Calibration record not found");
+      }
+      assertObservationUnlocked(preCheck);
+    }
+
+    let acquired;
+    try {
+      acquired = await acquireFromHardwareScanner({ deviceId, dpi: Number(dpi) || 200 });
+    } catch (scanErr) {
+      throw new ApiError(400, scanErr.message || "Unable to scan from hardware scanner.");
+    }
+
+    const result = await processFilledObservationBufferAndAttach({
+      req,
+      fileBuffer: acquired.fileBuffer,
+      originalName: acquired.originalName,
+      mimeType: acquired.mimeType,
+      recordId,
+      templateId,
+      tableColumnsRaw,
+      currentReadingsRaw,
+      currentExactSheetValuesRaw,
+      currentRepeatabilityRaw,
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { ...result, scannerName: acquired.scannerName },
+        `Directly scanned from "${acquired.scannerName}" using ${result.engine}`
+      )
+    );
+  } catch (err) {
+    console.error("Error in scanObservationFromHardwareScanner:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 26. Authorize Calibration Observation
+// ==========================================
+export const authorizeCalibrationObservation = async (req, res, next) => {
+  try {
+    const recordId = req.params?.recordId || req.body?.recordId;
+    const {
+      status,
+      action,
+      remarks,
+      rejectionReason,
+      authorizedBy,
+      calculatedResults,
+      uncertaintyBudget,
+      reportResultTable,
+      evaluatedReadings,
+    } = req.body || {};
+
+    if (!recordId || !mongoose.Types.ObjectId.isValid(recordId)) {
+      throw new ApiError(400, "Valid record ID is required");
+    }
+
+    const record = await CalibrationRecord.findById(recordId);
+    if (!record) {
+      throw new ApiError(404, "Calibration record not found");
+    }
+
+    const resolvedStatus =
+      action === "reject" || status === "Rejected"
+        ? "Rejected"
+        : "Approved";
+
+    const certNo =
+      record.records?.certificateNo && record.records.certificateNo !== "ARCL-CAL-2026-001"
+        ? record.records.certificateNo
+        : "ARCL/CERT/26-27/" + (record.serialNo ? record.serialNo.replace(/[^0-9]/g, "").slice(-4) : Math.floor(1000 + Math.random() * 9000));
+
+    const verifiedUserName = String(
+      req.user?.name ||
+        (req.user?.email ? req.user.email.split("@")[0] : "") ||
+        req.admin?.name ||
+        (req.admin?.email ? req.admin.email.split("@")[0] : "") ||
+        authorizedBy ||
+        "Authorized Signatory"
+    ).trim();
+    const verifiedUserEmail = String(req.user?.email || req.admin?.email || "")
+      .trim()
+      .toLowerCase();
+
+    let certifiedInfo = null;
+    if (resolvedStatus === "Approved") {
+      record.stage = "Calibration Done";
+      certifiedInfo = await syncRecordUlrAndInwardOnCertification(record, {
+        adminName: verifiedUserName,
+        certNo,
+      });
+    }
+
+    const existingAuth =
+      record.authorizationData && typeof record.authorizationData.toObject === "function"
+        ? record.authorizationData.toObject()
+        : record.authorizationData || {};
+
+    record.authorizationData = {
+      ...existingAuth,
+      status: resolvedStatus,
+      remarks: remarks || (resolvedStatus === "Rejected" ? "Returned for observation data correction." : "Verified and authorized for certificate generation."),
+      ...(rejectionReason ? { rejectionReason } : {}),
+      authorizedBy: verifiedUserName,
+      ...(verifiedUserEmail ? { authorizedEmail: verifiedUserEmail } : {}),
+      authorizedAt: new Date(),
+      ...(calculatedResults ? { calculatedResults } : {}),
+      ...(uncertaintyBudget ? { uncertaintyBudget } : {}),
+      ...(reportResultTable ? { reportResultTable } : {}),
+      ...(resolvedStatus === "Approved" && certifiedInfo
+        ? { certificateNo: certifiedInfo.resolvedCert, ulrNo: certifiedInfo.resolvedUlr }
+        : {}),
+    };
+
+    if (resolvedStatus === "Approved" && (Array.isArray(evaluatedReadings) || reportResultTable || certifiedInfo?.resolvedUlr)) {
+      const existingObs =
+        record.observationData && typeof record.observationData.toObject === "function"
+          ? record.observationData.toObject()
+          : (record.observationData || {});
+      record.observationData = {
+        ...existingObs,
+        ...(Array.isArray(evaluatedReadings) && evaluatedReadings.length > 0 ? { readings: evaluatedReadings } : {}),
+        ...(reportResultTable ? { computedReportTable: reportResultTable } : {}),
+        ...(certifiedInfo?.resolvedUlr ? { ulrNo: certifiedInfo.resolvedUlr } : {}),
+      };
+      record.markModified("observationData");
+    }
+
+    if (resolvedStatus === "Rejected") {
+      record.stage = "Under Calibration";
+      const existingObs =
+        record.observationData && typeof record.observationData.toObject === "function"
+          ? record.observationData.toObject()
+          : (record.observationData || {});
+      record.observationData = {
+        ...existingObs,
+        status: "Rejected",
+        rejectionReason: rejectionReason || remarks || "Returned by Quality Authority for correction.",
+        updatedAt: new Date(),
+      };
+      record.markModified("observationData");
+    }
+
+    record.markModified("authorizationData");
+    await record.save();
+    invalidateCalibrationCache();
+
+    return res.status(200).json(new ApiResponse(200, record, "Calibration record authorization updated"));
+  } catch (err) {
+    console.error("Error in authorizeCalibrationObservation:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 27. Update Calibration Batch Payment
+// ==========================================
+export const updateCalibrationBatchPayment = async (req, res, next) => {
+  try {
+    const { batchId, dcNo, clientCompany, paymentStatus, paymentMethod, paymentDate, referenceNo, remarks, recordIds } = req.body;
+    if (!paymentStatus) {
+      throw new ApiError(400, "paymentStatus is required");
+    }
+
+    const query = {};
+    if (Array.isArray(recordIds) && recordIds.length > 0) {
+      const validIds = recordIds
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+        .map((id) => new mongoose.Types.ObjectId(String(id)));
+      if (validIds.length > 0) {
+        query._id = { $in: validIds };
+      }
+    }
+    if (!query._id) {
+      if (dcNo && String(dcNo).trim() && String(dcNo).trim() !== "-") {
+        query.dcNo = String(dcNo).trim();
+        if (clientCompany) query.clientCompany = clientCompany;
+      } else if (batchId && mongoose.Types.ObjectId.isValid(String(batchId))) {
+        query._id = new mongoose.Types.ObjectId(String(batchId));
+      } else if (clientCompany) {
+        query.clientCompany = clientCompany;
+      } else {
+        throw new ApiError(400, "Valid recordIds, dcNo, clientCompany, or batchId is required");
+      }
+    }
+
+    const updateFields = {
+      "commercialDocs.paymentStatus": paymentStatus,
+    };
+    if (paymentMethod) updateFields["commercialDocs.paymentMethod"] = paymentMethod;
+    if (paymentDate) updateFields["commercialDocs.paymentDate"] = new Date(paymentDate);
+    if (referenceNo) updateFields["commercialDocs.paymentReferenceNo"] = referenceNo;
+    if (remarks) updateFields["commercialDocs.paymentRemarks"] = remarks;
+
+    const result = await CalibrationRecord.updateMany(query, { $set: updateFields });
+    invalidateCalibrationCache();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, paymentStatus },
+        "Payment status updated for batch"
+      )
+    );
+  } catch (err) {
+    console.error("Error in updateCalibrationBatchPayment:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 28. Update Calibration Quotation Status (Single / Batch)
+// ==========================================
+export const updateCalibrationQuotationStatus = async (req, res, next) => {
+  try {
+    const { batchId, dcNo, clientCompany, recordIds, quotationStatus } = req.body;
+    if (!quotationStatus) {
+      throw new ApiError(400, "quotationStatus is required");
+    }
+
+    const query = {};
+    if (Array.isArray(recordIds) && recordIds.length > 0) {
+      const validIds = recordIds
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+        .map((id) => new mongoose.Types.ObjectId(String(id)));
+      if (validIds.length > 0) {
+        query._id = { $in: validIds };
+      }
+    }
+    if (!query._id) {
+      if (dcNo && String(dcNo).trim() && String(dcNo).trim() !== "-") {
+        query.dcNo = String(dcNo).trim();
+        if (clientCompany) query.clientCompany = clientCompany;
+      } else if (batchId && mongoose.Types.ObjectId.isValid(String(batchId))) {
+        query._id = new mongoose.Types.ObjectId(String(batchId));
+      } else if (clientCompany) {
+        query.clientCompany = clientCompany;
+      } else {
+        throw new ApiError(400, "Valid recordIds, dcNo, clientCompany, or batchId is required");
+      }
+    }
+
+    const commonCommercialSet = {
+      "commercialDocs.quotationStatus": quotationStatus,
+    };
+    let stageToSet = null;
+    if (quotationStatus === "Sent to Client") {
+      commonCommercialSet["commercialDocs.quotationSentAt"] = new Date();
+      stageToSet = "Quotation Shared";
+    } else if (quotationStatus === "PO Confirmed" || quotationStatus === "Approved" || quotationStatus === "Invoiced") {
+      commonCommercialSet["commercialDocs.quotationApprovedAt"] = new Date();
+      commonCommercialSet["commercialDocs.poRaised"] = "Confirmed by Client";
+      stageToSet = "Under Calibration";
+    } else if (quotationStatus === "Draft") {
+      commonCommercialSet["commercialDocs.poRaised"] = "";
+      stageToSet = "Instrument Received";
+    } else if (quotationStatus === "Under Review" || quotationStatus === "Declined") {
+      stageToSet = "Quotation Shared";
+    }
+
+    const result = await CalibrationRecord.updateMany(query, { $set: commonCommercialSet });
+    if (stageToSet) {
+      // Never downgrade already-calibrated/submitted equipments back to an earlier stage
+      await CalibrationRecord.updateMany(
+        {
+          ...query,
+          stage: { $nin: ["Calibration Done", "Certificate Uploaded", "Invoice Sent"] },
+          "authorizationData.status": { $ne: "Approved" },
+          "observationData.status": { $nin: ["Submitted", "Authorized"] },
+        },
+        { $set: { stage: stageToSet } }
+      );
+    }
+    invalidateCalibrationCache();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, quotationStatus },
+        "Quotation status updated to " + quotationStatus + " for " + result.modifiedCount + " item(s)"
+      )
+    );
+  } catch (err) {
+    console.error("Error in updateCalibrationQuotationStatus:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 29. Grant / Hold Per-Equipment Lab Permission & Release Date
+// ==========================================
+export const releaseCalibrationEquipments = async (req, res, next) => {
+  try {
+    const { recordIds, granted = true, releaseDate, notes } = req.body;
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      throw new ApiError(400, "At least one equipment recordId is required");
+    }
+
+    const validIds = recordIds
+      .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    if (validIds.length === 0) {
+      throw new ApiError(400, "Valid recordIds are required");
+    }
+
+    const isGrant = Boolean(granted);
+    const adminName = req.admin?.name || req.user?.name || "Admin";
+    const records = await CalibrationRecord.find({ _id: { $in: validIds } });
+
+    const isCalibratedOrSubmitted = (rec) => {
+      const obsSt = rec.observationData?.status;
+      const authSt = rec.authorizationData?.status;
+      if (obsSt === "Submitted" || obsSt === "Authorized" || authSt === "Approved") return true;
+      if (["Certificate Uploaded", "Invoice Sent"].includes(rec.stage)) return true;
+      const hasReadings =
+        Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+      const hasIssuedCert =
+        rec.records?.certificateNo && rec.records.certificateNo !== "ARCL-CAL-2026-001";
+      return Boolean(rec.stage === "Calibration Done" && (hasReadings || hasIssuedCert));
+    };
+
+    if (isGrant) {
+      const parsedDate = releaseDate ? new Date(releaseDate) : new Date();
+      const validRelDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+      const dueDate = calculateDefaultDueDate(validRelDate);
+
+      let modifiedCount = 0;
+      let skippedCalibrated = 0;
+      for (const rec of records) {
+        if (isCalibratedOrSubmitted(rec)) {
+          // Ensure calibrated items remain permitted without overwriting completed calibration dates/stage
+          if (!rec.labPermission || rec.labPermission.granted !== true) {
+            rec.labPermission = {
+              ...(rec.labPermission || {}),
+              granted: true,
+              releaseDate: rec.labPermission?.releaseDate || rec.calibrationDate || validRelDate,
+              grantedAt: rec.labPermission?.grantedAt || new Date(),
+              grantedBy: rec.labPermission?.grantedBy || adminName,
+            };
+            rec.markModified("labPermission");
+            await rec.save();
+          }
+          skippedCalibrated++;
+          continue;
+        }
+        rec.labPermission = {
+          granted: true,
+          releaseDate: validRelDate,
+          grantedAt: new Date(),
+          grantedBy: adminName,
+          notes: notes ? String(notes).trim() : "",
+        };
+        rec.calibrationDate = validRelDate;
+        rec.calibrationDueDate = dueDate;
+        rec.challanDate = validRelDate;
+        if (!rec.stage || rec.stage === "Instrument Received" || rec.stage === "Quotation Shared") {
+          rec.stage = "Under Calibration";
+        }
+        rec.markModified("labPermission");
+        await rec.save();
+        modifiedCount++;
+      }
+
+      invalidateCalibrationCache();
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          {
+            modifiedCount,
+            skippedCalibrated,
+            granted: true,
+            releaseDate: validRelDate,
+            calibrationDueDate: dueDate,
+            updatedRecords: records,
+          },
+          `Permission granted for ${modifiedCount} uncalibrated equipment(s) on ${validRelDate.toLocaleDateString("en-GB")}!`
+        )
+      );
+    } else {
+      let modifiedCount = 0;
+      let skippedLocked = 0;
+      for (const rec of records) {
+        if (isCalibratedOrSubmitted(rec)) {
+          skippedLocked++;
+          continue;
+        }
+        rec.labPermission = {
+          granted: false,
+          releaseDate: null,
+          grantedAt: new Date(),
+          grantedBy: adminName,
+          notes: notes ? String(notes).trim() : "Held back in quotation",
+        };
+        rec.markModified("labPermission");
+        await rec.save();
+        modifiedCount++;
+      }
+
+      invalidateCalibrationCache();
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          { modifiedCount, skippedLocked, granted: false, updatedRecords: records },
+          skippedLocked > 0
+            ? `Held back ${modifiedCount} item(s). ${skippedLocked} already submitted/approved item(s) stayed active.`
+            : `${modifiedCount} equipment(s) put on hold in Quotation.`
+        )
+      );
+    }
+  } catch (err) {
+    console.error("Error in releaseCalibrationEquipments:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 30. Mark SRF Done -> Push Batch into Inward Register
+// ==========================================
+export const markCalibrationSrfDone = async (req, res, next) => {
+  try {
+    const {
+      recordIds,
+      srfDone = true,
+      srfNo,
+      dateOfReceipt,
+      calibrationDoneAt,
+      deliveryCommittedDays,
+      dateOfDelivery,
+      remarks,
+    } = req.body;
+
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      throw new ApiError(400, "At least one equipment recordId is required");
+    }
+
+    const validIds = recordIds
+      .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    if (validIds.length === 0) {
+      throw new ApiError(400, "Valid recordIds are required");
+    }
+
+    const records = await CalibrationRecord.find({ _id: { $in: validIds } }).sort({ srNo: 1, createdAt: 1 });
+    if (records.length === 0) {
+      throw new ApiError(404, "No matching calibration records found");
+    }
+
+    const isDone = Boolean(srfDone);
+    const adminName = req.admin?.name || req.user?.name || "Admin";
+
+    if (!isDone) {
+      for (const rec of records) {
+        rec.inwardRegister = {
+          ...(rec.inwardRegister ? (typeof rec.inwardRegister.toObject === "function" ? rec.inwardRegister.toObject() : rec.inwardRegister) : {}),
+          srfDone: false,
+        };
+        rec.markModified("inwardRegister");
+        await rec.save();
+      }
+      invalidateCalibrationCache();
+      return res.status(200).json(
+        new ApiResponse(200, { modifiedCount: records.length, srfDone: false, updatedRecords: records }, "Removed batch from Inward Register (SRF unmarked).")
+      );
+    }
+
+    // Determine Receipt Date
+    const baseReceipt = dateOfReceipt
+      ? new Date(dateOfReceipt)
+      : records[0]?.labPermission?.releaseDate || records[0]?.calibrationDate || records[0]?.challanDate || new Date();
+    const validReceipt = isNaN(new Date(baseReceipt).getTime()) ? new Date() : new Date(baseReceipt);
+
+    // Format YYMMDD/NN matching ARCL Inward Register Excel (each customer batch gets its own unique sequential SRF No.)
+    const { srfOwnerCustomer, maxSeqByPrefix } = await findDbSrfState(CalibrationRecord);
+    const batchCustKey = normalizeCustomerKey(records[0]?.clientCompany);
+    let resolvedSrfNo = String(srfNo || records[0]?.inwardRegister?.srfNo || records[0]?.srfNo || "").trim();
+    if (resolvedSrfNo) {
+      const existingOwner = srfOwnerCustomer.get(resolvedSrfNo.toLowerCase());
+      if (existingOwner && existingOwner !== batchCustKey) {
+        resolvedSrfNo = "";
+      }
+    }
+    if (!resolvedSrfNo) {
+      resolvedSrfNo = await allocateNextSrfNo(validReceipt, {
+        CalibrationRecord,
+        srfOwnerCustomer,
+        maxSeqByPrefix,
+      });
+    }
+
+    const daysNum = deliveryCommittedDays !== undefined && deliveryCommittedDays !== "" ? Number(deliveryCommittedDays) : 2;
+    let resolvedDelivery = dateOfDelivery ? new Date(dateOfDelivery) : new Date(validReceipt.getTime() + daysNum * 86400000);
+    if (isNaN(resolvedDelivery.getTime())) {
+      resolvedDelivery = new Date(validReceipt.getTime() + 2 * 86400000);
+    }
+
+    // Group sequential Inward sub-numbers by equipment name / sub-group (like 260715/01-01 Cube Moulds, 260715/01-02 Mortar Cube Moulds)
+    const inwardMap = new Map();
+    let inwardCounter = 1;
+
+    // Ensure every single equipment record receives its own unique sequential 18-char ULR (CC2863YY000000001F, 2F, ...)
+    const seenBatchUlrs = new Set();
+    const recordIdsNeedingUlr = [];
+    for (const rec of records) {
+      const existingUlr = extractRecordUlrNo(rec);
+      if (existingUlr && !seenBatchUlrs.has(existingUlr)) {
+        seenBatchUlrs.add(existingUlr);
+      } else {
+        recordIdsNeedingUlr.push(String(rec._id));
+      }
+    }
+    const allocatedBatchUlrs =
+      recordIdsNeedingUlr.length > 0
+        ? await allocateNextUlrNumbers(recordIdsNeedingUlr.length, { CalibrationRecord, mongoose })
+        : [];
+    const batchUlrMap = new Map(recordIdsNeedingUlr.map((id, i) => [id, allocatedBatchUlrs[i]]));
+
+    for (let idx = 0; idx < records.length; idx++) {
+      const rec = records[idx];
+      const existingReg = rec.inwardRegister
+        ? (typeof rec.inwardRegister.toObject === "function" ? rec.inwardRegister.toObject() : rec.inwardRegister)
+        : {};
+      const instGroupKey = String(rec.instrument || `item-${idx}`).trim().toLowerCase();
+      if (!inwardMap.has(instGroupKey)) {
+        const defaultInward = `${resolvedSrfNo}-${String(inwardCounter).padStart(2, "0")}`;
+        inwardMap.set(instGroupKey, existingReg.inwardNo || defaultInward);
+        inwardCounter++;
+      }
+      const assignedInwardNo = existingReg.inwardNo || inwardMap.get(instGroupKey);
+
+      const { range: parsedRange, unit: parsedUnit } = splitRangeAndUnitHelper(rec.instrumentRange);
+      const defaultMakeModel = [rec.make, rec.modelNo].filter((x) => x && x !== "-").join("/") || "ARCL/---";
+      const isCertified = rec.authorizationData?.status === "Approved" || rec.stage === "Calibration Done" || rec.stage === "Certificate Uploaded";
+      const resolvedCertNo = existingReg.certificateNo || (isCertified ? rec.records?.certificateNo || "" : "");
+      const resolvedUlrNo = batchUlrMap.get(String(rec._id)) || extractRecordUlrNo(rec) || "";
+
+      if (resolvedUlrNo) {
+        if (!rec.records) rec.records = {};
+        rec.records.ulrNo = resolvedUlrNo;
+        rec.markModified("records");
+        if (rec.authorizationData?.status === "Approved") {
+          rec.authorizationData = { ...(rec.authorizationData || {}), ulrNo: resolvedUlrNo };
+          rec.markModified("authorizationData");
+        }
+      }
+
+      rec.srfNo = resolvedSrfNo;
+      rec.inwardRegister = {
+        ...existingReg,
+        srfDone: true,
+        srfDoneAt: existingReg.srfDoneAt || new Date(),
+        srfDoneBy: adminName,
+        srfNo: resolvedSrfNo,
+        inwardNo: assignedInwardNo,
+        dateOfReceipt: validReceipt,
+        range: existingReg.range || parsedRange || "",
+        unit: existingReg.unit || parsedUnit || "",
+        leastCount: existingReg.leastCount || "-------",
+        dia: existingReg.dia || "-------",
+        makeModel: existingReg.makeModel || defaultMakeModel,
+        calibrationDoneAt: calibrationDoneAt || existingReg.calibrationDoneAt || (String(rec.sentToLab || "").toLowerCase().includes("site") ? "Site" : "Lab"),
+        certificateNo: resolvedCertNo,
+        ulrNo: resolvedUlrNo,
+        deliveryCommittedDays: daysNum,
+        dateOfDelivery: resolvedDelivery,
+        remarks: remarks !== undefined ? String(remarks) : (existingReg.remarks || rec.remarks || ""),
+      };
+      rec.markModified("inwardRegister");
+      await rec.save();
+    }
+
+    invalidateCalibrationCache();
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { modifiedCount: records.length, srfDone: true, srfNo: resolvedSrfNo, updatedRecords: records },
+        `SRF Done! ${records.length} item(s) added to Inward Register under SRF No. ${resolvedSrfNo}.`
+      )
+    );
+  } catch (err) {
+    console.error("Error in markCalibrationSrfDone:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 31. Update Single Inward Register Row (Excel Cell Inline Edit)
+// ==========================================
+export const updateInwardRegisterRow = async (req, res, next) => {
+  try {
+    const { recordId } = req.params;
+    if (!recordId || !mongoose.Types.ObjectId.isValid(recordId)) {
+      throw new ApiError(400, "Valid recordId is required");
+    }
+
+    const record = await CalibrationRecord.findById(recordId);
+    if (!record) {
+      throw new ApiError(404, "Calibration record not found");
+    }
+
+    const {
+      srfNo,
+      inwardNo,
+      dateOfReceipt,
+      clientCompany,
+      clientAddress,
+      instrument,
+      serialNo,
+      range,
+      unit,
+      leastCount,
+      dia,
+      makeModel,
+      calibrationDoneAt,
+      certificateNo,
+      ulrNo,
+      deliveryCommittedDays,
+      dateOfDelivery,
+      remarks,
+    } = req.body;
+
+    let normalizedManualUlr = undefined;
+    if (ulrNo !== undefined) {
+      const cleanedUlr = String(ulrNo || "").trim().toUpperCase();
+      if (cleanedUlr) {
+        if (!isValidUlrNo(cleanedUlr)) {
+          throw new ApiError(
+            400,
+            "ULR No must be 18 characters in exact format CC2863YY000000001F (e.g. CC286326000000001F)"
+          );
+        }
+        const conflict = await CalibrationRecord.findOne({
+          _id: { $ne: record._id },
+          $or: [
+            { "records.ulrNo": cleanedUlr },
+            { "inwardRegister.ulrNo": cleanedUlr },
+            { "authorizationData.ulrNo": cleanedUlr },
+          ],
+        })
+          .select("_id instrument serialNo")
+          .lean();
+        if (conflict) {
+          throw new ApiError(
+            409,
+            `ULR No ${cleanedUlr} is already assigned to ${conflict.instrument || conflict.serialNo || "another record"}. Duplicate ULR numbers are not allowed.`
+          );
+        }
+        normalizedManualUlr = cleanedUlr;
+      } else {
+        normalizedManualUlr = "";
+      }
+    }
+
+    const existingReg = record.inwardRegister
+      ? (typeof record.inwardRegister.toObject === "function" ? record.inwardRegister.toObject() : record.inwardRegister)
+      : {};
+
+    const nextReceipt = dateOfReceipt ? new Date(dateOfReceipt) : (existingReg.dateOfReceipt || record.calibrationDate || new Date());
+    const nextDays = deliveryCommittedDays !== undefined && deliveryCommittedDays !== "" ? Number(deliveryCommittedDays) : (existingReg.deliveryCommittedDays ?? 2);
+    const nextDelivery = dateOfDelivery
+      ? new Date(dateOfDelivery)
+      : existingReg.dateOfDelivery || new Date(new Date(nextReceipt).getTime() + nextDays * 86400000);
+
+    if (srfNo !== undefined) {
+      const cleanedSrf = String(srfNo).trim();
+      if (cleanedSrf) {
+        const targetCompany = clientCompany !== undefined && String(clientCompany).trim()
+          ? String(clientCompany).trim()
+          : record.clientCompany;
+        const targetCustKey = normalizeCustomerKey(targetCompany);
+        const { srfOwnerCustomer } = await findDbSrfState(CalibrationRecord);
+        const existingOwner = srfOwnerCustomer.get(cleanedSrf.toLowerCase());
+        if (existingOwner && existingOwner !== targetCustKey) {
+          throw new ApiError(
+            409,
+            `SRF No "${cleanedSrf}" is already assigned to another customer. Each customer must have a different SRF No.`
+          );
+        }
+      }
+      record.srfNo = cleanedSrf;
+    }
+    if (clientCompany !== undefined && String(clientCompany).trim()) record.clientCompany = String(clientCompany).trim();
+    if (clientAddress !== undefined) record.clientAddress = String(clientAddress).trim();
+    if (instrument !== undefined && String(instrument).trim()) record.instrument = String(instrument).trim();
+    if (serialNo !== undefined && String(serialNo).trim()) record.serialNo = String(serialNo).trim();
+    if (range !== undefined || unit !== undefined) {
+      const rStr = range !== undefined ? String(range).trim() : (existingReg.range || "");
+      const uStr = unit !== undefined ? String(unit).trim() : (existingReg.unit || "");
+      record.instrumentRange = [rStr, uStr].filter(Boolean).join(" ");
+    }
+    if (certificateNo !== undefined) {
+      if (!record.records) record.records = {};
+      record.records.certificateNo = String(certificateNo).trim();
+      record.markModified("records");
+    }
+    if (normalizedManualUlr !== undefined) {
+      if (!record.records) record.records = {};
+      record.records.ulrNo = normalizedManualUlr;
+      record.markModified("records");
+      if (record.authorizationData) {
+        record.authorizationData = { ...(record.authorizationData || {}), ulrNo: normalizedManualUlr };
+        record.markModified("authorizationData");
+      }
+      if (record.observationData) {
+        const existingObs =
+          typeof record.observationData.toObject === "function"
+            ? record.observationData.toObject()
+            : record.observationData;
+        record.observationData = { ...existingObs, ulrNo: normalizedManualUlr };
+        record.markModified("observationData");
+      }
+    }
+
+    record.inwardRegister = {
+      ...existingReg,
+      srfDone: true,
+      srfDoneAt: existingReg.srfDoneAt || new Date(),
+      srfNo: srfNo !== undefined ? String(srfNo).trim() : (existingReg.srfNo || record.srfNo || ""),
+      inwardNo: inwardNo !== undefined ? String(inwardNo).trim() : (existingReg.inwardNo || ""),
+      dateOfReceipt: nextReceipt,
+      range: range !== undefined ? String(range).trim() : (existingReg.range || ""),
+      unit: unit !== undefined ? String(unit).trim() : (existingReg.unit || ""),
+      leastCount: leastCount !== undefined ? String(leastCount).trim() : (existingReg.leastCount || ""),
+      dia: dia !== undefined ? String(dia).trim() : (existingReg.dia || ""),
+      makeModel: makeModel !== undefined ? String(makeModel).trim() : (existingReg.makeModel || ""),
+      calibrationDoneAt: calibrationDoneAt !== undefined ? String(calibrationDoneAt).trim() : (existingReg.calibrationDoneAt || "Lab"),
+      certificateNo: certificateNo !== undefined ? String(certificateNo).trim() : (existingReg.certificateNo || ""),
+      ulrNo: normalizedManualUlr !== undefined ? normalizedManualUlr : (existingReg.ulrNo || extractRecordUlrNo(record) || ""),
+      deliveryCommittedDays: nextDays,
+      dateOfDelivery: nextDelivery,
+      remarks: remarks !== undefined ? String(remarks).trim() : (existingReg.remarks || ""),
+    };
+
+    record.markModified("inwardRegister");
+    await record.save();
+    invalidateCalibrationCache();
+
+    return res.status(200).json(new ApiResponse(200, record, "Inward Register row updated successfully"));
+  } catch (err) {
+    console.error("Error in updateInwardRegisterRow:", err);
+    next(err);
+  }
+};
+
+// ==========================================
+// 29. Public QR Verification Dashboard Payload
+//     (Returns 3-section portal data: NABL Certificate, NABL Scope, Website Info)
+// ==========================================
+export const verifyCalibrationCertificate = async (req, res, next) => {
+  try {
+    const { id, recordId, cert, ulr, sn, doc } = req.query || {};
+    const targetId = String(id || recordId || "").trim();
+
+    let record = null;
+    if (isValidMongoId(targetId)) {
+      record = await CalibrationRecord.findById(targetId).lean();
+    }
+
+    if (!record && (cert || ulr || sn)) {
+      const orClauses = [];
+      if (cert && String(cert).trim()) {
+        const cleanCert = escapeRegex(String(cert).trim());
+        orClauses.push(
+          { "records.certificateNo": { $regex: `^${cleanCert}$`, $options: "i" } },
+          { "authorizationData.certificateNo": { $regex: `^${cleanCert}$`, $options: "i" } }
+        );
+      }
+      if (ulr && String(ulr).trim()) {
+        const cleanUlr = escapeRegex(String(ulr).trim());
+        orClauses.push(
+          { "records.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } },
+          { "inwardRegister.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } },
+          { "authorizationData.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } }
+        );
+      }
+      if (sn && String(sn).trim() && String(sn).trim() !== "-") {
+        const cleanSn = escapeRegex(String(sn).trim());
+        orClauses.push({ serialNo: { $regex: `^${cleanSn}$`, $options: "i" } });
+      }
+      if (orClauses.length > 0) {
+        record = await CalibrationRecord.findOne({ $or: orClauses }).lean();
+      }
+    }
+
+    let labScope = await NablLabScope.findOne().lean();
+    if (!labScope) {
+      const createdScope = await NablLabScope.create({
+        labName: "ARCL Instruments Pvt. Ltd.",
+        labCode: "ARCL-LAB-01",
+        accreditationStandard: "ISO/IEC 17025:2017",
+        certificateNo: "CC-4313",
+        validUntil: new Date("2026-07-28"),
+        status: "Active",
+        masterTraceability: "National Physical Laboratory (NPL), New Delhi & ERTL",
+        referralCode: "ARCL-LAB-01",
+        referralRate: 30,
+        annualSubscriptionRate: 11000,
+        scopeItems: defaultArclNablScope,
+      });
+      labScope = createdScope.toObject();
+    }
+
+    const activeScopeItems = (labScope.scopeItems || []).filter((item) => item?.isActive !== false);
+
+    let certificateSummary = null;
+    let matchedScopeItems = [];
+
+    if (record) {
+      const obs = record.observationData || {};
+      const auth = record.authorizationData || {};
+      const params = obs.parameters || {};
+      const recIdStr = String(record._id);
+      const resolvedCertNo =
+        record.records?.certificateNo ||
+        auth.certificateNo ||
+        record.inwardRegister?.certificateNo ||
+        obs.worksheetNo ||
+        "";
+      const resolvedUlr =
+        extractRecordUlrNo(record) ||
+        record.records?.ulrNo ||
+        record.inwardRegister?.ulrNo ||
+        auth.ulrNo ||
+        obs.ulrNo ||
+        "";
+      const instName = obs.instrument || record.instrument || "Calibration Instrument";
+      const instLower = instName.toLowerCase();
+      const instWords = instLower
+        .split(/[\s,/()-]+/)
+        .filter((w) => w.length > 2 && !["and", "the", "for", "with", "type", "digital"].includes(w));
+
+      matchedScopeItems = activeScopeItems.filter((item) => {
+        const pLower = String(item?.parameter || "").toLowerCase();
+        return instWords.some((kw) => pLower.includes(kw));
+      });
+
+      const isObsOnly = String(doc || "").toLowerCase() === "obs";
+      const isApproved = String(auth.status || "").toLowerCase() === "approved";
+
+      certificateSummary = {
+        found: true,
+        recordId: recIdStr,
+        isObservationDoc: isObsOnly,
+        isCertified: isApproved,
+        statusLabel: isApproved ? "Verified & NABL Authorized" : "Recorded Calibration Report",
+        certificateNo: resolvedCertNo,
+        ulrNo: resolvedUlr,
+        instrument: instName,
+        make: record.make || "ARCL Instruments",
+        modelNo: record.modelNo || "-",
+        serialNo: obs.serialNo || record.serialNo || "-",
+        range: obs.range || params.range || record.instrumentRange || "-",
+        leastCount: obs.leastCount || params.leastCount || record.leastCount || "-",
+        clientCompany: record.clientCompany || "Valued Client",
+        dcNo: record.dcNo || "-",
+        srfNo: record.inwardRegister?.srfNo || record.srfNo || "",
+        calibrationDate: obs.calibrationDate || record.calibrationDate || null,
+        calibrationDueDate: obs.calibrationDueDate || record.calibrationDueDate || null,
+        issueDate: obs.issueDate || auth.authorizedAt || record.calibrationDate || null,
+        authorizedBy: auth.authorizedBy || obs.reviewedBy || "Authorized Technical Signatory",
+        discipline: obs.discipline || params.discipline || "Mechanical Calibration",
+        calibrationMethod: obs.calibrationMethod || "",
+        referenceStandard: obs.referenceStandard || "",
+        pdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=${isObsOnly ? "observation_sheet" : "certificate"}&single=true`,
+        certificatePdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=certificate&single=true`,
+      };
+    }
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          found: Boolean(record),
+          certificate: certificateSummary,
+          labProfile: {
+            labName: labScope.labName || "ARCL Instruments Pvt. Ltd.",
+            labCode: labScope.labCode || "ARCL-LAB-01",
+            accreditationStandard: labScope.accreditationStandard || "ISO/IEC 17025:2017",
+            certificateNo: labScope.certificateNo || "CC-4313",
+            validUntil: labScope.validUntil || null,
+            status: labScope.status || "Active",
+            masterTraceability: labScope.masterTraceability || "National Physical Laboratory (NPL), New Delhi & ERTL",
+            totalScopeParameters: activeScopeItems.length,
+            matchedScopeItems,
+            scopeItems: activeScopeItems,
+          },
+          website: {
+            name: "ARCL Instruments Pvt. Ltd.",
+            url: "https://www.arclinstruments.com",
+            phone: "+91 - 8369458583 / 6205691085",
+            email: "info@arclinstruments.com",
+            address: "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
+          },
+        },
+        "QR Certificate Verification Data Fetched"
+      )
+    );
+  } catch (err) {
+    console.error("Error in verifyCalibrationCertificate:", err);
+    next(err);
+  }
+};
