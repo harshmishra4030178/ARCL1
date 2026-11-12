@@ -1762,17 +1762,23 @@ export const downloadDocument = async (req, res, next) => {
 
     const docTypeLower = String(docType || "").toLowerCase();
     if (docTypeLower === "certificate" || docTypeLower === "observation_sheet") {
-      batchRecords = batchRecords.filter((r) => isRecordCalibratedAndObserved(r));
+      const checkFn =
+        docTypeLower === "certificate"
+          ? isRecordCertificateAuthorizedForPortal
+          : isRecordCalibratedAndObserved;
+      batchRecords = batchRecords.filter((r) => checkFn(r));
       if (batchRecords.length === 0) {
         return res.status(403).json(
           new ApiResponse(
             403,
             null,
-            "Calibration and observation sheet have not been completed yet for this instrument"
+            docTypeLower === "certificate"
+              ? "Certificate has not been authorized/approved by Quality In-Charge yet"
+              : "Calibration and observation sheet have not been completed yet for this instrument"
           )
         );
       }
-      if (!isRecordCalibratedAndObserved(record)) {
+      if (!checkFn(record)) {
         record = batchRecords[0];
       }
     }
@@ -4613,6 +4619,36 @@ const isRecordCalibratedAndObserved = (docRecord) => {
   return COMPLETED_CALIBRATION_STAGES.has(stageNorm);
 };
 
+// Strict certificate gate: ONLY certificates explicitly Passed/Approved from Quality Authorization are issued/shown on QR scans
+const isRecordCertificateAuthorizedForPortal = (docRecord) => {
+  if (!docRecord) return false;
+  const obs = docRecord.observationData || {};
+  const auth = docRecord.authorizationData || {};
+  const obsStatus = String(obs.status || "").trim().toLowerCase();
+  const authStatus = String(auth.status || "").trim().toLowerCase();
+
+  if (obsStatus === "rejected" || authStatus === "rejected") {
+    return false;
+  }
+  if (authStatus !== "approved") {
+    return false;
+  }
+
+  const certPath = String(docRecord.records?.certificate || "").trim();
+  const hasUploadedCertFile = Boolean(
+    certPath &&
+      !certPath.includes("sample-calibration-certificate") &&
+      (certPath.startsWith("http") || certPath.startsWith("/uploads/"))
+  );
+
+  return Boolean(
+    hasUploadedCertFile ||
+      hasRealObservationValues(docRecord) ||
+      obsStatus === "submitted" ||
+      obsStatus === "authorized"
+  );
+};
+
 // ==========================================
 // 29. Public QR Verification Dashboard Payload
 //     (Returns 4-section portal data: Calibration Certificate(s), NABL Scope, Govt NABL Cert, Website Info)
@@ -4622,7 +4658,9 @@ const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
   const auth = docRecord.authorizationData || {};
   const params = obs.parameters || {};
   const recIdStr = String(docRecord._id);
-  const readyForReport = isRecordCalibratedAndObserved(docRecord);
+  const readyForReport = isObsDoc
+    ? isRecordCalibratedAndObserved(docRecord)
+    : isRecordCertificateAuthorizedForPortal(docRecord);
   const resolvedCertNo = readyForReport
     ? docRecord.records?.certificateNo ||
       auth.certificateNo ||
@@ -4798,8 +4836,8 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
       const mergedDocs = [];
       for (const d of [record, ...rawCustomerDocs]) {
         if (!strictlyMatchesScannedCustomer(d, record)) continue;
-        // Exclude uncalibrated / un-observed records so pending inward instruments never appear as reports
-        if (!isRecordCalibratedAndObserved(d)) continue;
+        // Strictly exclude any product not yet Passed/Authorized from Quality Authorization
+        if (!isRecordCertificateAuthorizedForPortal(d)) continue;
         const idKey = String(d._id);
         if (!seenIds.has(idKey)) {
           seenIds.add(idKey);

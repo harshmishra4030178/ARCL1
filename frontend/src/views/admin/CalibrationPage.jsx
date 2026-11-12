@@ -2878,6 +2878,10 @@ export default function CalibrationPageView() {
     return Boolean(r.stage === "Calibration Done" && (hasReadings || hasIssuedCert));
   };
 
+  // Strict rule: A product's Certificate only becomes available after Quality Authorization (Section 7) Passes/Approves it.
+  const isRecordCertificateAuthorized = (r) =>
+    Boolean(r && String(r?.authorizationData?.status || "").trim().toLowerCase() === "approved");
+
   // Per-equipment daily Lab Release Permission helper:
   // - Already calibrated / submitted / certified records stay active & cannot be held
   // - New or uncalibrated records start Held (granted: false) unless explicitly granted
@@ -9458,6 +9462,17 @@ export default function CalibrationPageView() {
         markAuthRecordViewed(primary?._id);
       }
     }
+    if (String(docType || "").toLowerCase() === "certificate") {
+      const authorizedItems = (batchItems || []).filter((it) => isRecordCertificateAuthorized(it));
+      if (authorizedItems.length === 0) {
+        toast.warning("Certificate abhi Quality Authorization (Section 7) se Pass nahi hua hai — pehle Authorization se Pass karein!");
+        return;
+      }
+      batchItems = authorizedItems;
+      if (!isRecordCertificateAuthorized(primary)) {
+        primary = authorizedItems[0];
+      }
+    }
     setSelectedDoc({
       type: docType,
       record: primary,
@@ -9688,18 +9703,7 @@ export default function CalibrationPageView() {
       toast.warning("Pehle customer ka inward record save karein, tab auto-generated QR banega.");
       return;
     }
-    const calibratedItems = allCustRecords.filter((r) => {
-      const obs = r?.observationData || {};
-      const auth = r?.authorizationData || {};
-      const obsSt = String(obs.status || "").toLowerCase();
-      const authSt = String(auth.status || "").toLowerCase();
-      if (obsSt === "rejected" || authSt === "rejected" || obsSt === "draft") return false;
-      const metaOnly = new Set(["sno", "srno", "sr_no", "slno", "rowno", "id", "_id", "key", "unit", "nominal", "setpoint", "target", "standard", "parameter", "label", "range", "tolerance", "spec", "remarks"]);
-      const hasReadings = Array.isArray(obs.readings) && obs.readings.some((row) => row && Object.entries(row).some(([k, v]) => !metaOnly.has(String(k).toLowerCase()) && v !== null && v !== undefined && String(v).trim() !== "" && String(v).trim() !== "-"));
-      const hasExact = obs.exactSheetValues && Object.values(obs.exactSheetValues).some((v) => v !== null && v !== undefined && String(v).trim() !== "" && String(v).trim() !== "-" && String(v).trim().toLowerCase() !== String(r?.instrumentRange || obs.range || "").trim().toLowerCase());
-      if (!hasReadings && !hasExact) return false;
-      return authSt === "approved" || obsSt === "submitted" || obsSt === "authorized" || ["Calibration Done", "Quality Reviewed", "Certificate Uploaded", "Delivered to Client"].includes(r?.stage);
-    });
+    const calibratedItems = allCustRecords.filter((r) => isRecordCertificateAuthorized(r));
     const verifyUrl = buildCustomerQrVerifyUrl({ recordId: primaryId, clientCompany: companyName });
     const sig = computeCustomerQrSignature(companyName);
     try {
@@ -9725,7 +9729,14 @@ export default function CalibrationPageView() {
 
   const handlePrintCalibrationDoc = (docType, target, options = {}) => {
     if (isClientRenderedCertDoc(docType)) {
-      const items = resolveCertExportItems(target, options);
+      let items = resolveCertExportItems(target, options);
+      if (String(docType || "").toLowerCase() === "certificate") {
+        items = items.filter((it) => isRecordCertificateAuthorized(it));
+        if (items.length === 0) {
+          toast.warning("Certificate abhi Quality Authorization (Section 7) se Pass nahi hua hai!");
+          return;
+        }
+      }
       toast.info(`Preparing ${items.length} page${items.length > 1 ? "s" : ""} for exact 1:1 Print...`, { autoClose: 1400 });
       setPdfExportJob({ docType, items, mode: "print" });
       return;
@@ -9736,7 +9747,14 @@ export default function CalibrationPageView() {
 
   const handleDownloadCalibrationDoc = (docType, target, options = {}) => {
     if (isClientRenderedCertDoc(docType)) {
-      const items = resolveCertExportItems(target, options);
+      let items = resolveCertExportItems(target, options);
+      if (String(docType || "").toLowerCase() === "certificate") {
+        items = items.filter((it) => isRecordCertificateAuthorized(it));
+        if (items.length === 0) {
+          toast.warning("Certificate abhi Quality Authorization (Section 7) se Pass nahi hua hai!");
+          return;
+        }
+      }
       toast.info(`Generating exact 1:1 Official PDF (${items.length} page${items.length > 1 ? "s" : ""})...`, { autoClose: 1400 });
       setPdfExportJob({ docType, items, mode: "download" });
       return;
@@ -11856,16 +11874,43 @@ export default function CalibrationPageView() {
                             })()}
                           </td>
 
-                          {/* 4. Certification Column - Multi-Product Support (View/Print/Download: Ek, Pura ya 3) */}
+                          {/* 4. Certification Column - Strict Authorization Gate (Only Authorized items appear) */}
                           <td className="p-2 border-r border-gray-200 text-center">
                             {(() => {
-                              const bItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch];
+                              const allBatchItems = Array.isArray(batch.items) && batch.items.length > 0 ? batch.items : [batch.primaryRecord || batch];
+                              const bItems = allBatchItems.filter((it) => isRecordCertificateAuthorized(it));
+                              const totalCount = allBatchItems.length;
                               const count = bItems.length;
 
-                              if (count <= 1) {
+                              if (count === 0) {
+                                return (
+                                  <div className="flex flex-col items-center gap-1 min-w-[130px]">
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                      ⏳ Pending Auth{totalCount > 1 ? ` (0/${totalCount})` : ""}
+                                    </span>
+                                    {canAuthorization && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveTab("authorization")}
+                                        className="text-[8.5px] font-bold text-[#021C57] hover:underline cursor-pointer"
+                                        title="Go to 7. Quality Authorization to Pass & Issue Certificate"
+                                      >
+                                        Go to Authorization →
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (count === 1) {
                                 const singleItem = bItems[0] || {};
                                 return (
                                   <div className="flex flex-col items-center gap-1 min-w-[120px]">
+                                    {totalCount > 1 && (
+                                      <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        ✓ 1 / {totalCount} Authorized
+                                      </span>
+                                    )}
                                     <div className="flex items-center gap-1 justify-center">
                                       <button
                                         type="button"
@@ -11904,53 +11949,54 @@ export default function CalibrationPageView() {
                                 );
                               }
 
-                              // Multiple products in batch: Ek, Pura (All) ya 3 Download / Print / View
+                              // Multiple authorized products in batch: Ek, Pura (All) ya Selected
+                              const authBatch = { ...batch, items: bItems, primaryRecord: bItems[0] };
                               return (
                                 <div className="flex flex-col items-center gap-1 min-w-[160px]">
                                   {/* Multi-Selection Manager Button */}
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setPrintCertBatchModal(batch);
+                                      setPrintCertBatchModal(authBatch);
                                       setSelectedPrintEquipIds(new Set(bItems.map(it => it._id || it.id)));
                                     }}
                                     className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                                    title="Choose Ek, Pura (All) ya 3 Print/Download/View"
+                                    title="Choose Ek, Pura (All) ya Selected Print/Download/View"
                                   >
-                                    <span>📑</span> {count} Products • Ek / Pura / 3
+                                    <span>📑</span> {count}{totalCount > count ? `/${totalCount}` : ""} Authorized • Ek / Pura
                                   </button>
 
                                   {/* Quick Action Pills: View All, Print All, DL All, Send */}
                                   <div className="flex items-center gap-1 justify-center flex-wrap">
                                     <button
                                       type="button"
-                                      onClick={() => openDocViewer("certificate", batch, { viewMode: "all" })}
+                                      onClick={() => openDocViewer("certificate", authBatch, { viewMode: "all" })}
                                       className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
-                                      title="View Sab Ka (All Certificates Stacked)"
+                                      title="View Sab Ka (All Authorized Certificates Stacked)"
                                     >
                                       <FaEye className="text-[8.5px]" /> View All
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handlePrintCalibrationDoc("certificate", batch, { all: true })}
+                                      onClick={() => handlePrintCalibrationDoc("certificate", authBatch, { all: true })}
                                       className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white border border-purple-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
-                                      title="Print Sab Ka (Pura Batch)"
+                                      title="Print Sab Ka (Authorized Batch)"
                                     >
                                       <FaPrint className="text-[8.5px]" /> Print All
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleDownloadCalibrationDoc("certificate", batch, { all: true })}
+                                      onClick={() => handleDownloadCalibrationDoc("certificate", authBatch, { all: true })}
                                       className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
-                                      title="Download Sab Ka (Full Batch Combined PDF)"
+                                      title="Download Sab Ka (Authorized Batch PDF)"
                                     >
                                       <FaDownload className="text-[8.5px]" /> DL All
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenSendDocModal("certificate", batch)}
+                                      onClick={() => handleOpenSendDocModal("certificate", authBatch)}
                                       className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition cursor-pointer flex items-center gap-0.5"
-                                      title="Send All Certificates"
+                                      title="Send All Authorized Certificates"
                                     >
                                       🚀
                                     </button>
@@ -17987,7 +18033,7 @@ export default function CalibrationPageView() {
 
               {/* Equipment Checklist with Inline View/Print/Download per product */}
               <div className="max-h-72 overflow-y-auto space-y-2 border border-gray-200 rounded-2xl p-2.5 bg-gray-50/50">
-                {(printCertBatchModal.items || []).map((it, idx) => {
+                {(printCertBatchModal.items || []).filter((it) => isRecordCertificateAuthorized(it)).map((it, idx) => {
                   const isChecked = selectedPrintEquipIds.has(it._id || it.id);
                   const certNo = it.records?.certificateNo || `Cert #${idx + 1}`;
                   const itUlr = it.records?.ulrNo || it.inwardRegister?.ulrNo || it.authorizationData?.ulrNo || "";
