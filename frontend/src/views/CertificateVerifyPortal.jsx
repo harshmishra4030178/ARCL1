@@ -4,12 +4,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
+  FaArrowLeft,
   FaAward,
   FaCheckCircle,
   FaDownload,
   FaExternalLinkAlt,
   FaFilePdf,
   FaGlobe,
+  FaListUl,
   FaQrcode,
   FaSearch,
   FaShieldAlt,
@@ -41,6 +43,9 @@ export default function CertificateVerifyPortal() {
   const [scopeSearch, setScopeSearch] = useState("");
   const [scopeDiscipline, setScopeDiscipline] = useState("all");
   const [activeDocModal, setActiveDocModal] = useState(null);
+  const [showCustomerCertsModal, setShowCustomerCertsModal] = useState(false);
+  const [certListSearch, setCertListSearch] = useState("");
+  const [certListFilter, setCertListFilter] = useState("all");
 
   const scopePanelRef = useRef(null);
 
@@ -71,6 +76,10 @@ export default function CertificateVerifyPortal() {
   }, [fetchVerification]);
 
   const cert = payload?.certificate || null;
+  const customerCertificates = useMemo(
+    () => (Array.isArray(payload?.customerCertificates) ? payload.customerCertificates : []),
+    [payload?.customerCertificates]
+  );
   const labProfile = payload?.labProfile || {};
   const website = payload?.website || {};
 
@@ -131,6 +140,67 @@ export default function CertificateVerifyPortal() {
     qs.set("single", "true");
     return `${backendBase}/calibration/download-document?${qs.toString()}`;
   }, [backendBase, cert?.recordId, idParam, snParam]);
+
+  const buildRecordPdfUrl = useCallback(
+    (recItem, useObs = false) => {
+      if (!recItem) return "";
+      if (useObs && recItem.recordId) {
+        return `${backendBase}/calibration/download-document?recordId=${encodeURIComponent(
+          recItem.recordId
+        )}&docType=observation_sheet&single=true`;
+      }
+      if (recItem.certificatePdfPath || recItem.recordId) {
+        const path =
+          recItem.certificatePdfPath ||
+          `/calibration/download-document?recordId=${encodeURIComponent(
+            recItem.recordId
+          )}&docType=certificate&single=true`;
+        return `${backendBase}${path.startsWith("/") ? "" : "/"}${path}`;
+      }
+      return "";
+    },
+    [backendBase]
+  );
+
+  const sameBatchCertCount = useMemo(
+    () => customerCertificates.filter((c) => c?.isSameBatch).length,
+    [customerCertificates]
+  );
+
+  const filteredCustomerCerts = useMemo(() => {
+    const q = certListSearch.trim().toLowerCase();
+    return customerCertificates.filter((item) => {
+      const batchOk = certListFilter !== "batch" || item?.isSameBatch;
+      const textOk =
+        !q ||
+        String(item?.instrument || "").toLowerCase().includes(q) ||
+        String(item?.serialNo || "").toLowerCase().includes(q) ||
+        String(item?.certificateNo || "").toLowerCase().includes(q) ||
+        String(item?.ulrNo || "").toLowerCase().includes(q) ||
+        String(item?.dcNo || "").toLowerCase().includes(q);
+      return batchOk && textOk;
+    });
+  }, [customerCertificates, certListFilter, certListSearch]);
+
+  const openCertificateInModal = useCallback(
+    (recItem, { fromList = false, useObs = false } = {}) => {
+      const targetCert =
+        recItem?.certificateNo || certParam || snParam || "Calibration Certificate";
+      const chosenUrl = buildRecordPdfUrl(recItem, useObs) || certificatePdfUrl;
+      if (!chosenUrl) return;
+      if (fromList) setShowCustomerCertsModal(false);
+      setActiveDocModal({
+        title: useObs
+          ? `Observation Report (${recItem?.serialNo || snParam || targetCert})`
+          : `${recItem?.instrument || "Calibration Certificate"} (${targetCert})`,
+        url: chosenUrl,
+        downloadUrl: `${chosenUrl}${chosenUrl.includes("?") ? "&" : "?"}download=true`,
+        isImage: false,
+        fromCertList: fromList,
+      });
+    },
+    [buildRecordPdfUrl, certParam, certificatePdfUrl, snParam]
+  );
 
   const scopeItems = useMemo(
     () => (Array.isArray(labProfile.scopeItems) ? labProfile.scopeItems : []),
@@ -278,7 +348,7 @@ export default function CertificateVerifyPortal() {
 
         {/* MAIN 4-SECTION QR DASHBOARD */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-          {/* SECTION 1: GO TO THE NABL CERTIFICATE */}
+          {/* SECTION 1: GO TO THE CALIBRATION CERTIFICATE */}
           <section className="bg-white rounded-3xl border-2 border-[#021C57]/20 shadow-md p-6 flex flex-col justify-between space-y-5 relative overflow-hidden">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -289,11 +359,11 @@ export default function CertificateVerifyPortal() {
                   <FaFilePdf />
                 </div>
               </div>
-              <h2 className="text-xl font-black text-slate-900">Go to the NABL Certificate</h2>
+              <h2 className="text-xl font-black text-slate-900">Go to the Calibration Certificate</h2>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {cert?.found
                   ? `Official digitally verifiable ${cert.isCertified ? "NABL Calibration Certificate" : "Calibration Report"} for ${cert.instrument} (Cert: ${cert.certificateNo || "Issued"}).`
-                  : "Open and verify official ARCL NABL Calibration Certificate PDFs directly from our laboratory server."}
+                  : "Open and verify official ARCL Calibration Certificate PDFs directly from our laboratory server."}
               </p>
 
               {cert?.found && (
@@ -301,16 +371,27 @@ export default function CertificateVerifyPortal() {
                   <div><strong>Cert No:</strong> {cert.certificateNo || "-"}</div>
                   {cert.ulrNo && <div><strong>ULR No:</strong> {cert.ulrNo}</div>}
                   <div><strong>S/N:</strong> {cert.serialNo}</div>
+                  {customerCertificates.length > 1 && (
+                    <div className="pt-1 font-sans text-blue-800 font-bold flex items-center gap-1">
+                      <FaListUl className="text-[10px]" /> {customerCertificates.length} Certificates available for this customer
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             <div className="space-y-2 pt-2">
-              {certificatePdfUrl ? (
+              {certificatePdfUrl || customerCertificates.length > 0 ? (
                 <>
                   <button
                     type="button"
                     onClick={() => {
+                      if (customerCertificates.length > 1) {
+                        setCertListSearch("");
+                        setCertListFilter("all");
+                        setShowCustomerCertsModal(true);
+                        return;
+                      }
                       const targetCert = cert?.certificateNo || certParam || snParam || "Official Certificate";
                       const chosenUrl =
                         (docParam === "obs" || cert?.isObservationDoc) && observationPdfUrl
@@ -320,24 +401,42 @@ export default function CertificateVerifyPortal() {
                         title:
                           docParam === "obs" || cert?.isObservationDoc
                             ? `Observation Report (${cert?.serialNo || snParam || targetCert})`
-                            : `NABL Certificate (${targetCert})`,
+                            : `Calibration Certificate (${targetCert})`,
                         url: chosenUrl,
                         downloadUrl: `${chosenUrl}${chosenUrl.includes("?") ? "&" : "?"}download=true`,
                         isImage: false,
+                        fromCertList: false,
                       });
                     }}
                     className="w-full py-3 px-4 bg-[#021C57] hover:bg-blue-900 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <FaFilePdf /> Go to the NABL Certificate →
+                    <FaFilePdf />
+                    {customerCertificates.length > 1
+                      ? `Go to the Calibration Certificate (${customerCertificates.length}) →`
+                      : "Go to the Calibration Certificate →"}
                   </button>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {customerCertificates.length > 1 && certificatePdfUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openCertificateInModal(cert, {
+                            fromList: false,
+                            useObs: docParam === "obs" || cert?.isObservationDoc,
+                          })
+                        }
+                        className="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-[#021C57] border border-blue-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <FaFilePdf /> Scanned PDF
+                      </button>
+                    )}
                     <a
                       href={`${certificatePdfUrl}&download=true`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
                     >
-                      <FaDownload /> Download Certificate
+                      <FaDownload /> Download
                     </a>
                     <a
                       href={certificatePdfUrl}
@@ -640,12 +739,167 @@ export default function CertificateVerifyPortal() {
         )}
       </div>
 
+      {/* Customer All Calibration Certificates List Modal (Opens when customer has multiple reports) */}
+      {showCustomerCertsModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="px-4 sm:px-6 py-4 bg-[#021C57] text-white flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 font-black text-sm sm:text-base truncate">
+                  <FaListUl className="text-amber-400 shrink-0" />
+                  <span className="truncate">
+                    Calibration Certificates ({customerCertificates.length})
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                  Customer: <strong className="text-white">{cert?.clientCompany || "Valued Client"}</strong>
+                  {cert?.dcNo && cert.dcNo !== "-" ? ` • DC: ${cert.dcNo}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomerCertsModal(false)}
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1 shrink-0"
+              >
+                <FaTimes /> Close
+              </button>
+            </div>
+
+            <div className="px-4 sm:px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <FaSearch className="absolute left-3 top-2.5 text-slate-400 text-xs" />
+                <input
+                  type="text"
+                  value={certListSearch}
+                  onChange={(e) => setCertListSearch(e.target.value)}
+                  placeholder="Search instrument, S/N, certificate no, DC no..."
+                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#021C57]"
+                />
+              </div>
+              {sameBatchCertCount > 0 && sameBatchCertCount < customerCertificates.length && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCertListFilter("all")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition ${
+                      certListFilter === "all"
+                        ? "bg-[#021C57] text-white"
+                        : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    All Reports ({customerCertificates.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCertListFilter("batch")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition ${
+                      certListFilter === "batch"
+                        ? "bg-[#021C57] text-white"
+                        : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    This Batch / DC ({sameBatchCertCount})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2.5 bg-slate-50/50">
+              {filteredCustomerCerts.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 bg-white rounded-2xl border border-slate-200">
+                  No calibration certificates matched your search.
+                </div>
+              ) : (
+                filteredCustomerCerts.map((item, idx) => {
+                  const rowPdfUrl = buildRecordPdfUrl(item, false);
+                  return (
+                    <div
+                      key={item.recordId || idx}
+                      onClick={() => openCertificateInModal(item, { fromList: true })}
+                      className={`p-3.5 sm:p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:shadow-md ${
+                        item.isCurrentScan
+                          ? "border-[#021C57]/50 bg-blue-50/30"
+                          : "border-slate-200 hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-mono text-[11px] font-black">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-black text-slate-900 text-sm truncate">
+                            {item.instrument}
+                          </span>
+                          {item.isCurrentScan && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase">
+                              Scanned QR
+                            </span>
+                          )}
+                          {!item.isCurrentScan && item.isSameBatch && (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                              Same DC
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-600 font-mono">
+                          <span>Cert: <strong className="text-[#021C57]">{item.certificateNo || "Issued"}</strong></span>
+                          {item.ulrNo && <span>ULR: <strong className="text-teal-700">{item.ulrNo}</strong></span>}
+                          <span>S/N: <strong className="text-slate-800">{item.serialNo}</strong></span>
+                          {item.dcNo && item.dcNo !== "-" && <span>DC: {item.dcNo}</span>}
+                          <span>Due: <strong className="text-emerald-700">{formatDisplayDate(item.calibrationDueDate)}</strong></span>
+                        </div>
+                      </div>
+
+                      <div
+                        className="flex items-center gap-2 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openCertificateInModal(item, { fromList: true })}
+                          className="px-3.5 py-2 rounded-xl bg-[#021C57] hover:bg-blue-900 text-white text-xs font-black inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <FaFilePdf /> View PDF →
+                        </button>
+                        {rowPdfUrl && (
+                          <a
+                            href={`${rowPdfUrl}&download=true`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs transition"
+                            title="Download PDF"
+                          >
+                            <FaDownload />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Embedded Document / Certificate Modal */}
       {activeDocModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
           <div className="bg-white rounded-3xl max-w-5xl w-full h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
             <div className="px-4 py-3 bg-[#021C57] text-white flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-black text-sm truncate">
+                {activeDocModal.fromCertList && customerCertificates.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDocModal(null);
+                      setShowCustomerCertsModal(true);
+                    }}
+                    className="px-2.5 py-1 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black inline-flex items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <FaArrowLeft /> All ({customerCertificates.length})
+                  </button>
+                )}
                 <FaFilePdf className="text-amber-400 shrink-0" />
                 <span className="truncate">{activeDocModal.title || "Official NABL Document"}</span>
               </div>

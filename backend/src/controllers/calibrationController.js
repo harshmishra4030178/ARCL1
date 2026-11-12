@@ -4322,8 +4322,58 @@ export const uploadGovtNablCertificate = async (req, res, next) => {
 
 // ==========================================
 // 29. Public QR Verification Dashboard Payload
-//     (Returns 4-section portal data: NABL Certificate, NABL Scope, Govt NABL Cert, Website Info)
+//     (Returns 4-section portal data: Calibration Certificate(s), NABL Scope, Govt NABL Cert, Website Info)
 // ==========================================
+const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
+  const obs = docRecord.observationData || {};
+  const auth = docRecord.authorizationData || {};
+  const params = obs.parameters || {};
+  const recIdStr = String(docRecord._id);
+  const resolvedCertNo =
+    docRecord.records?.certificateNo ||
+    auth.certificateNo ||
+    docRecord.inwardRegister?.certificateNo ||
+    obs.worksheetNo ||
+    "";
+  const resolvedUlr =
+    extractRecordUlrNo(docRecord) ||
+    docRecord.records?.ulrNo ||
+    docRecord.inwardRegister?.ulrNo ||
+    auth.ulrNo ||
+    obs.ulrNo ||
+    "";
+  const isApproved = String(auth.status || "").toLowerCase() === "approved";
+
+  return {
+    found: true,
+    recordId: recIdStr,
+    srNo: docRecord.srNo || 1,
+    isObservationDoc: Boolean(isObsDoc),
+    isCertified: isApproved,
+    statusLabel: isApproved ? "Verified & NABL Authorized" : "Recorded Calibration Report",
+    certificateNo: resolvedCertNo,
+    ulrNo: resolvedUlr,
+    instrument: obs.instrument || docRecord.instrument || "Calibration Instrument",
+    make: docRecord.make || "ARCL Instruments",
+    modelNo: docRecord.modelNo || "-",
+    serialNo: obs.serialNo || docRecord.serialNo || "-",
+    range: obs.range || params.range || docRecord.instrumentRange || "-",
+    leastCount: obs.leastCount || params.leastCount || docRecord.leastCount || "-",
+    clientCompany: docRecord.clientCompany || "Valued Client",
+    dcNo: docRecord.dcNo || "-",
+    srfNo: docRecord.inwardRegister?.srfNo || docRecord.srfNo || "",
+    calibrationDate: obs.calibrationDate || docRecord.calibrationDate || null,
+    calibrationDueDate: obs.calibrationDueDate || docRecord.calibrationDueDate || null,
+    issueDate: obs.issueDate || auth.authorizedAt || docRecord.calibrationDate || null,
+    authorizedBy: auth.authorizedBy || obs.reviewedBy || "Authorized Technical Signatory",
+    discipline: obs.discipline || params.discipline || "Mechanical Calibration",
+    calibrationMethod: obs.calibrationMethod || "",
+    referenceStandard: obs.referenceStandard || "",
+    pdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=${isObsDoc ? "observation_sheet" : "certificate"}&single=true`,
+    certificatePdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=certificate&single=true`,
+  };
+};
+
 export const verifyCalibrationCertificate = async (req, res, next) => {
   try {
     const { id, recordId, cert, ulr, sn, doc } = req.query || {};
@@ -4353,10 +4403,14 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
       }
       if (sn && String(sn).trim() && String(sn).trim() !== "-") {
         const cleanSn = escapeRegex(String(sn).trim());
-        orClauses.push({ serialNo: { $regex: `^${cleanSn}$`, $options: "i" } });
+        orClauses.push(
+          { serialNo: { $regex: `^${cleanSn}$`, $options: "i" } },
+          { dcNo: { $regex: `^${cleanSn}$`, $options: "i" } },
+          { clientCompany: { $regex: cleanSn, $options: "i" } }
+        );
       }
       if (orClauses.length > 0) {
-        record = await CalibrationRecord.findOne({ $or: orClauses }).lean();
+        record = await CalibrationRecord.findOne({ $or: orClauses }).sort({ calibrationDate: -1, _id: -1 }).lean();
       }
     }
 
@@ -4382,28 +4436,14 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
 
     let certificateSummary = null;
     let matchedScopeItems = [];
+    let customerCertificates = [];
 
     if (record) {
-      const obs = record.observationData || {};
-      const auth = record.authorizationData || {};
-      const params = obs.parameters || {};
-      const recIdStr = String(record._id);
-      const resolvedCertNo =
-        record.records?.certificateNo ||
-        auth.certificateNo ||
-        record.inwardRegister?.certificateNo ||
-        obs.worksheetNo ||
-        "";
-      const resolvedUlr =
-        extractRecordUlrNo(record) ||
-        record.records?.ulrNo ||
-        record.inwardRegister?.ulrNo ||
-        auth.ulrNo ||
-        obs.ulrNo ||
-        "";
-      const instName = obs.instrument || record.instrument || "Calibration Instrument";
-      const instLower = instName.toLowerCase();
-      const instWords = instLower
+      const isObsOnly = String(doc || "").toLowerCase() === "obs";
+      certificateSummary = buildVerifyCertificateSummary(record, isObsOnly);
+
+      const instWords = String(certificateSummary.instrument || "")
+        .toLowerCase()
         .split(/[\s,/()-]+/)
         .filter((w) => w.length > 2 && !["and", "the", "for", "with", "type", "digital"].includes(w));
 
@@ -4412,36 +4452,69 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
         return instWords.some((kw) => pLower.includes(kw));
       });
 
-      const isObsOnly = String(doc || "").toLowerCase() === "obs";
-      const isApproved = String(auth.status || "").toLowerCase() === "approved";
+      const companyTrim = String(record.clientCompany || "").trim();
+      const dcTrim = String(record.dcNo || "").trim();
+      const customerOr = [];
+      if (companyTrim && companyTrim !== "-" && companyTrim.toLowerCase() !== "valued client") {
+        customerOr.push({
+          clientCompany: { $regex: `^${escapeRegex(companyTrim)}$`, $options: "i" },
+        });
+      }
+      if (dcTrim && dcTrim !== "-") {
+        customerOr.push({
+          dcNo: { $regex: `^${escapeRegex(dcTrim)}$`, $options: "i" },
+        });
+      }
 
-      certificateSummary = {
-        found: true,
-        recordId: recIdStr,
-        isObservationDoc: isObsOnly,
-        isCertified: isApproved,
-        statusLabel: isApproved ? "Verified & NABL Authorized" : "Recorded Calibration Report",
-        certificateNo: resolvedCertNo,
-        ulrNo: resolvedUlr,
-        instrument: instName,
-        make: record.make || "ARCL Instruments",
-        modelNo: record.modelNo || "-",
-        serialNo: obs.serialNo || record.serialNo || "-",
-        range: obs.range || params.range || record.instrumentRange || "-",
-        leastCount: obs.leastCount || params.leastCount || record.leastCount || "-",
-        clientCompany: record.clientCompany || "Valued Client",
-        dcNo: record.dcNo || "-",
-        srfNo: record.inwardRegister?.srfNo || record.srfNo || "",
-        calibrationDate: obs.calibrationDate || record.calibrationDate || null,
-        calibrationDueDate: obs.calibrationDueDate || record.calibrationDueDate || null,
-        issueDate: obs.issueDate || auth.authorizedAt || record.calibrationDate || null,
-        authorizedBy: auth.authorizedBy || obs.reviewedBy || "Authorized Technical Signatory",
-        discipline: obs.discipline || params.discipline || "Mechanical Calibration",
-        calibrationMethod: obs.calibrationMethod || "",
-        referenceStandard: obs.referenceStandard || "",
-        pdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=${isObsOnly ? "observation_sheet" : "certificate"}&single=true`,
-        certificatePdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=certificate&single=true`,
-      };
+      const rawCustomerDocs =
+        customerOr.length > 0
+          ? await CalibrationRecord.find({ $or: customerOr })
+              .sort({ calibrationDate: -1, srNo: 1, _id: 1 })
+              .limit(100)
+              .lean()
+          : [record];
+
+      const seenIds = new Set();
+      const mergedDocs = [];
+      for (const d of [record, ...rawCustomerDocs]) {
+        const idKey = String(d._id);
+        if (!seenIds.has(idKey)) {
+          seenIds.add(idKey);
+          mergedDocs.push(d);
+        }
+      }
+
+      const currentIdStr = String(record._id);
+      const currentDcNorm = dcTrim.toLowerCase();
+      mergedDocs.sort((a, b) => {
+        const aCur = String(a._id) === currentIdStr ? 1 : 0;
+        const bCur = String(b._id) === currentIdStr ? 1 : 0;
+        if (aCur !== bCur) return bCur - aCur;
+
+        const aBatch = currentDcNorm && currentDcNorm !== "-" && String(a.dcNo || "").trim().toLowerCase() === currentDcNorm ? 1 : 0;
+        const bBatch = currentDcNorm && currentDcNorm !== "-" && String(b.dcNo || "").trim().toLowerCase() === currentDcNorm ? 1 : 0;
+        if (aBatch !== bBatch) return bBatch - aBatch;
+
+        const aTime = a.calibrationDate ? new Date(a.calibrationDate).getTime() : 0;
+        const bTime = b.calibrationDate ? new Date(b.calibrationDate).getTime() : 0;
+        if (aTime !== bTime) return bTime - aTime;
+
+        return (Number(a.srNo) || 0) - (Number(b.srNo) || 0);
+      });
+
+      customerCertificates = mergedDocs.map((d) => {
+        const idStr = String(d._id);
+        const summary = buildVerifyCertificateSummary(d, idStr === currentIdStr && isObsOnly);
+        return {
+          ...summary,
+          isCurrentScan: idStr === currentIdStr,
+          isSameBatch: Boolean(
+            currentDcNorm &&
+              currentDcNorm !== "-" &&
+              String(d.dcNo || "").trim().toLowerCase() === currentDcNorm
+          ),
+        };
+      });
     }
 
     return res.status(200).json(
@@ -4450,6 +4523,7 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
         {
           found: Boolean(record),
           certificate: certificateSummary,
+          customerCertificates,
           labProfile: {
             labName: labScope.labName || "ARCL Instruments Pvt. Ltd.",
             labCode: labScope.labCode || "ARCL-LAB-01",
