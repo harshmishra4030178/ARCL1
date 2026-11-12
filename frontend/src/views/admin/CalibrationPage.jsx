@@ -2730,12 +2730,11 @@ export default function CalibrationPageView() {
     return "Authorized Signatory";
   }, [user]);
   const authSignatoryEmail = useMemo(() => String(user?.email || "").trim().toLowerCase(), [user]);
-  // Only Harsh's login retains post-Pass Reopen/Revoke/Return privileges
-  const isHarshLogin = useMemo(() => {
-    const email = String(user?.email || "").trim().toLowerCase();
-    const name = String(user?.name || "").trim().toLowerCase();
-    return email === "hm4030178@gmail.com" || email.includes("harsh") || name.includes("harsh");
-  }, [user]);
+  // Strictly ONLY hm4030178@gmail.com sees Return / Unlock / Reopen / Revoke after submit or pass
+  const isHarshLogin = useMemo(
+    () => String(user?.email || "").trim().toLowerCase() === "hm4030178@gmail.com",
+    [user]
+  );
   const [authRemarks, setAuthRemarks] = useState("Observations verified against NABL ISO/IEC 17025 standards. All test points are within allowable accuracy limits. Certificate approved.");
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -3717,12 +3716,12 @@ export default function CalibrationPageView() {
 
   const handleRejectObservation = async (rec) => {
     if (!rec) return;
-    const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
-    const isAlreadyApproved = Boolean(rec.authorizationData?.status === "Approved" && hasReadings);
-    if (isAlreadyApproved && !isHarshLogin) {
-      toast.error("Once passed, only Harsh's login can revoke or return this certificate.");
+    if (!isHarshLogin) {
+      toast.error("Only hm4030178@gmail.com can return, unlock, or revoke submitted records.");
       return;
     }
+    const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+    const isAlreadyApproved = Boolean(rec.authorizationData?.status === "Approved" && hasReadings);
     try {
       setIsAuthProcessing(true);
       await authorizeCalibrationObservationApi({
@@ -14878,7 +14877,7 @@ export default function CalibrationPageView() {
                               </>
                             )}
 
-                            {/* If Pending: Pass, Return for Correction, and Direct Edit Buttons */}
+                            {/* If Pending: Pass, and Return/Unlock (ONLY visible to hm4030178@gmail.com) */}
                             {isPending && (
                               <>
                                 <button
@@ -14893,48 +14892,52 @@ export default function CalibrationPageView() {
                                 >
                                   <FaCheckDouble className="text-xs" /> PASS &amp; ISSUE CERT
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAuthorizingRecord(r);
-                                    setIsRejectModalOpen(true);
-                                  }}
-                                  disabled={isAuthProcessing}
-                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                  title="Return observation to Section 6 for technician correction"
-                                >
-                                  <FaUndo className="text-[10px]" /> Return for Correction
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    if (window.confirm("Return this observation to Section 6 and unlock it for technician correction?")) {
-                                      try {
-                                        setIsAuthProcessing(true);
-                                        await authorizeCalibrationObservationApi({
-                                          recordId: r._id,
-                                          action: "reject",
-                                          authorizedBy: authSignatoryName,
-                                          rejectionReason: "Returned by Quality Authorization for correction in Section 6.",
-                                          remarks: authRemarks || "Unlocked by Quality Authorization in Section 7.",
-                                        });
-                                        await fetchRecords();
-                                        setSelectedObsInstrumentId(r._id);
-                                        setActiveTab("observations");
-                                        toast.success("Returned by Authorization & unlocked in Section 6! 🔓");
-                                      } catch (err) {
-                                        toast.error(err.response?.data?.message || "Failed to return observation");
-                                      } finally {
-                                        setIsAuthProcessing(false);
-                                      }
-                                    }
-                                  }}
-                                  disabled={isAuthProcessing}
-                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs disabled:opacity-50"
-                                  title="Return from Quality Authorization and unlock in Section 6 for editing"
-                                >
-                                  <FaUndo className="text-[10px]" /> Return to Sec 6 (Unlock)
-                                </button>
+                                {isHarshLogin && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAuthorizingRecord(r);
+                                        setIsRejectModalOpen(true);
+                                      }}
+                                      disabled={isAuthProcessing}
+                                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                      title="hm4030178@gmail.com Only: Return observation to Section 6 for correction"
+                                    >
+                                      <FaUndo className="text-[10px]" /> Return for Correction
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (window.confirm("Return this observation to Section 6 and unlock it for technician correction?")) {
+                                          try {
+                                            setIsAuthProcessing(true);
+                                            await authorizeCalibrationObservationApi({
+                                              recordId: r._id,
+                                              action: "reject",
+                                              authorizedBy: authSignatoryName,
+                                              rejectionReason: "Returned by Quality Authorization for correction in Section 6.",
+                                              remarks: authRemarks || "Unlocked by Quality Authorization in Section 7.",
+                                            });
+                                            await fetchRecords();
+                                            setSelectedObsInstrumentId(r._id);
+                                            setActiveTab("observations");
+                                            toast.success("Returned by Authorization & unlocked in Section 6! 🔓");
+                                          } catch (err) {
+                                            toast.error(err.response?.data?.message || "Failed to return observation");
+                                          } finally {
+                                            setIsAuthProcessing(false);
+                                          }
+                                        }
+                                      }}
+                                      disabled={isAuthProcessing}
+                                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                                      title="hm4030178@gmail.com Only: Return from Quality Authorization and unlock in Section 6"
+                                    >
+                                      <FaUndo className="text-[10px]" /> Return to Sec 6 (Unlock)
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
 

@@ -3575,9 +3575,7 @@ export const scanObservationFromHardwareScanner = async (req, res, next) => {
 // ==========================================
 const isHarshOperator = (u) => {
   if (!u) return false;
-  const email = String(u.email || "").trim().toLowerCase();
-  const name = String(u.name || "").trim().toLowerCase();
-  return email === "hm4030178@gmail.com" || email.includes("harsh") || name.includes("harsh");
+  return String(u.email || "").trim().toLowerCase() === "hm4030178@gmail.com";
 };
 
 export const authorizeCalibrationObservation = async (req, res, next) => {
@@ -3614,14 +3612,10 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
         ? record.authorizationData.toObject()
         : record.authorizationData || {};
 
-    if (
-      resolvedStatus === "Rejected" &&
-      String(existingAuth.status || "") === "Approved" &&
-      !isHarshOperator(req.user || req.admin)
-    ) {
+    if (resolvedStatus === "Rejected" && !isHarshOperator(req.user || req.admin)) {
       throw new ApiError(
         403,
-        "Certificate is already passed & issued. Only Harsh's login can revoke or return it."
+        "Only hm4030178@gmail.com can return, unlock, or revoke a submitted/passed worksheet."
       );
     }
 
