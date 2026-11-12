@@ -2730,6 +2730,12 @@ export default function CalibrationPageView() {
     return "Authorized Signatory";
   }, [user]);
   const authSignatoryEmail = useMemo(() => String(user?.email || "").trim().toLowerCase(), [user]);
+  // Only Harsh's login retains post-Pass Reopen/Revoke/Return privileges
+  const isHarshLogin = useMemo(() => {
+    const email = String(user?.email || "").trim().toLowerCase();
+    const name = String(user?.name || "").trim().toLowerCase();
+    return email === "hm4030178@gmail.com" || email.includes("harsh") || name.includes("harsh");
+  }, [user]);
   const [authRemarks, setAuthRemarks] = useState("Observations verified against NABL ISO/IEC 17025 standards. All test points are within allowable accuracy limits. Certificate approved.");
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -3711,10 +3717,14 @@ export default function CalibrationPageView() {
 
   const handleRejectObservation = async (rec) => {
     if (!rec) return;
+    const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
+    const isAlreadyApproved = Boolean(rec.authorizationData?.status === "Approved" && hasReadings);
+    if (isAlreadyApproved && !isHarshLogin) {
+      toast.error("Once passed, only Harsh's login can revoke or return this certificate.");
+      return;
+    }
     try {
       setIsAuthProcessing(true);
-      const hasReadings = Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
-      const isAlreadyApproved = Boolean(rec.authorizationData?.status === "Approved" && hasReadings);
       await authorizeCalibrationObservationApi({
         recordId: rec._id,
         action: "reject",
@@ -3746,7 +3756,12 @@ export default function CalibrationPageView() {
   }, [records]);
 
   const authCountPending = useMemo(() => {
-    return records.filter((r) => r.observationData?.status === "Submitted").length;
+    return records.filter((r) => {
+      const hasReadings = Array.isArray(r.observationData?.readings) && r.observationData.readings.length > 0;
+      const isApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
+      const isRejected = !isApproved && (r.authorizationData?.status === "Rejected" || r.observationData?.status === "Rejected");
+      return !isApproved && !isRejected && r.observationData?.status === "Submitted";
+    }).length;
   }, [records]);
 
   const authCountApproved = useMemo(() => {
@@ -14647,8 +14662,8 @@ export default function CalibrationPageView() {
                     const obs = r.observationData || {};
                     const hasReadings = Array.isArray(obs.readings) && obs.readings.length > 0;
                     const isApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
-                    const isPending = obs.status === "Submitted";
-                    const isRejected = r.authorizationData?.status === "Rejected" || obs.status === "Rejected";
+                    const isRejected = !isApproved && (r.authorizationData?.status === "Rejected" || obs.status === "Rejected");
+                    const isPending = !isApproved && !isRejected && obs.status === "Submitted";
 
                     if (authFilter === "pending") return isPending;
                     if (authFilter === "approved") return isApproved;
@@ -14669,8 +14684,8 @@ export default function CalibrationPageView() {
                     const obs = r.observationData || {};
                     const hasReadings = Array.isArray(obs.readings) && obs.readings.length > 0;
                     const isApproved = Boolean(r.authorizationData?.status === "Approved" && hasReadings);
-                    const isPending = obs.status === "Submitted";
-                    const isRejected = r.authorizationData?.status === "Rejected" || obs.status === "Rejected";
+                    const isRejected = !isApproved && (r.authorizationData?.status === "Rejected" || obs.status === "Rejected");
+                    const isPending = !isApproved && !isRejected && obs.status === "Submitted";
                     const readingsCount = Array.isArray(obs.readings) ? obs.readings.length : 0;
                     const certNo = r.records?.certificateNo || r.authorizationData?.certificateNo;
                     const hasExactVals = Boolean(obs.exactSheetValues && Object.keys(obs.exactSheetValues).length > 0);
@@ -14826,7 +14841,7 @@ export default function CalibrationPageView() {
                               <FaFilePdf />
                             </button>
 
-                            {/* If Authorized: View/Download Certificate + Revise / Edit & Reopen / Revoke */}
+                            {/* If Authorized: View/Download Certificate (Reopen/Revoke visible ONLY to Harsh's login) */}
                             {isApproved && (
                               <>
                                 <button
@@ -14845,19 +14860,21 @@ export default function CalibrationPageView() {
                                 >
                                   <FaPrint />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAuthorizingRecord(r);
-                                    setRejectionReason("");
-                                    setIsRejectModalOpen(true);
-                                  }}
-                                  disabled={isAuthProcessing}
-                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
-                                  title="Revoke authorization and reopen worksheet in Section 6 for correction"
-                                >
-                                  <FaUndo className="text-[10px]" /> Reopen / Revoke
-                                </button>
+                                {isHarshLogin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAuthorizingRecord(r);
+                                      setRejectionReason("");
+                                      setIsRejectModalOpen(true);
+                                    }}
+                                    disabled={isAuthProcessing}
+                                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
+                                    title="Harsh Only: Revoke authorization and return worksheet to Section 6"
+                                  >
+                                    <FaUndo className="text-[10px]" /> Reopen / Revoke
+                                  </button>
+                                )}
                               </>
                             )}
 
@@ -19988,7 +20005,7 @@ export default function CalibrationPageView() {
                       )}
 
                       {/* Quick Authorization Action Banner inside Calculation Tab */}
-                      {inspectingObsRecord.observationData?.status === "Submitted" && (
+                      {inspectingObsRecord.authorizationData?.status !== "Approved" && inspectingObsRecord.observationData?.status === "Submitted" && (
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
                           <div className="text-xs text-slate-600">
                             <strong className="text-slate-900">Ready to Authorize:</strong> All calculated values and uncertainty budgets will be locked and saved into the Official NABL Certificate.
@@ -20617,7 +20634,7 @@ export default function CalibrationPageView() {
               </button>
 
               <div className="flex items-center gap-2">
-                {inspectingObsRecord.observationData?.status === "Submitted" && (
+                {inspectingObsRecord.authorizationData?.status !== "Approved" && inspectingObsRecord.observationData?.status === "Submitted" && (
                   <button
                     type="button"
                     onClick={() => {

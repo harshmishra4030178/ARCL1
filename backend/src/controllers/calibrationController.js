@@ -3573,6 +3573,13 @@ export const scanObservationFromHardwareScanner = async (req, res, next) => {
 // ==========================================
 // 26. Authorize Calibration Observation
 // ==========================================
+const isHarshOperator = (u) => {
+  if (!u) return false;
+  const email = String(u.email || "").trim().toLowerCase();
+  const name = String(u.name || "").trim().toLowerCase();
+  return email === "hm4030178@gmail.com" || email.includes("harsh") || name.includes("harsh");
+};
+
 export const authorizeCalibrationObservation = async (req, res, next) => {
   try {
     const recordId = req.params?.recordId || req.body?.recordId;
@@ -3602,6 +3609,22 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
         ? "Rejected"
         : "Approved";
 
+    const existingAuth =
+      record.authorizationData && typeof record.authorizationData.toObject === "function"
+        ? record.authorizationData.toObject()
+        : record.authorizationData || {};
+
+    if (
+      resolvedStatus === "Rejected" &&
+      String(existingAuth.status || "") === "Approved" &&
+      !isHarshOperator(req.user || req.admin)
+    ) {
+      throw new ApiError(
+        403,
+        "Certificate is already passed & issued. Only Harsh's login can revoke or return it."
+      );
+    }
+
     const certNo =
       record.records?.certificateNo && record.records.certificateNo !== "ARCL-CAL-2026-001"
         ? record.records.certificateNo
@@ -3628,11 +3651,6 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
       });
     }
 
-    const existingAuth =
-      record.authorizationData && typeof record.authorizationData.toObject === "function"
-        ? record.authorizationData.toObject()
-        : record.authorizationData || {};
-
     record.authorizationData = {
       ...existingAuth,
       status: resolvedStatus,
@@ -3649,13 +3667,15 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
         : {}),
     };
 
-    if (resolvedStatus === "Approved" && (Array.isArray(evaluatedReadings) || reportResultTable || certifiedInfo?.resolvedUlr)) {
+    if (resolvedStatus === "Approved") {
       const existingObs =
         record.observationData && typeof record.observationData.toObject === "function"
           ? record.observationData.toObject()
           : (record.observationData || {});
       record.observationData = {
         ...existingObs,
+        status: "Approved",
+        updatedAt: new Date(),
         ...(Array.isArray(evaluatedReadings) && evaluatedReadings.length > 0 ? { readings: evaluatedReadings } : {}),
         ...(reportResultTable ? { computedReportTable: reportResultTable } : {}),
         ...(certifiedInfo?.resolvedUlr ? { ulrNo: certifiedInfo.resolvedUlr } : {}),
