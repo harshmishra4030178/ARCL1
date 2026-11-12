@@ -39,13 +39,14 @@ export const getPublicSiteBaseUrl = () => {
   return String(base).trim().replace(/\/+$/, "");
 };
 
-export const buildCustomerQrVerifyPath = ({ recordId, clientCompany } = {}) => {
+export const buildCustomerQrVerifyPath = ({ recordId, clientCompany, source = "" } = {}) => {
   const params = new URLSearchParams();
   if (recordId && /^[a-f0-9]{24}$/i.test(String(recordId))) {
     params.set("cust", String(recordId));
   }
   const ck = computeCustomerQrSignature(clientCompany);
   if (ck) params.set("ck", ck);
+  if (source) params.set("src", String(source).trim());
   const qs = params.toString();
   return qs ? `/certificate-verify?${qs}` : "/certificate-verify";
 };

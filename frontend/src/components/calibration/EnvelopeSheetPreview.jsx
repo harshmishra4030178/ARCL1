@@ -277,6 +277,24 @@ export default function EnvelopeSheetPreview({
       </div>
 
       {/* RIGHT COLUMN: DEDICATED 32mm x 32mm QR CODE AREA */}
+      {showRulerGuides && (
+        <div
+          className="arcl-no-print"
+          style={{
+            position: "absolute",
+            top: "49mm",
+            right: "12mm",
+            width: "32mm",
+            textAlign: "center",
+            fontSize: "6.5pt",
+            color: "#64748B",
+            fontFamily: "monospace",
+          }}
+        >
+          3.2 × 3.2 cm QR
+        </div>
+      )}
+
       <div
         style={{
           position: "absolute",
@@ -308,23 +326,69 @@ export default function EnvelopeSheetPreview({
         ) : null}
       </div>
 
-      {showRulerGuides && (
+      {/* Permanent Descriptive Caption Under QR Code */}
+      <div
+        style={{
+          position: "absolute",
+          top: "86.5mm",
+          right: "8mm",
+          width: "40mm",
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          pointerEvents: "none",
+        }}
+      >
         <div
-          className="arcl-no-print"
           style={{
-            position: "absolute",
-            top: "86.5mm",
-            right: "12mm",
-            width: "32mm",
-            textAlign: "center",
-            fontSize: "6.5pt",
-            color: "#64748B",
-            fontFamily: "monospace",
+            fontSize: "7.2pt",
+            fontWeight: 800,
+            color: "#021C57",
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            lineHeight: 1.15,
           }}
         >
-          3.2 × 3.2 cm QR
+          SCAN TO VERIFY
         </div>
-      )}
+        <div
+          style={{
+            fontSize: "6.2pt",
+            fontWeight: 700,
+            color: "#1D4ED8",
+            letterSpacing: "0.03em",
+            textTransform: "uppercase",
+            marginTop: "0.4mm",
+            lineHeight: 1.15,
+          }}
+        >
+          CALIBRATION CERTIFICATES
+        </div>
+        <div
+          style={{
+            fontSize: "5.2pt",
+            fontWeight: 600,
+            color: "#475569",
+            marginTop: "0.6mm",
+            letterSpacing: "0.02em",
+            lineHeight: 1.15,
+          }}
+        >
+          NABL CC-4313 • ISO/IEC 17025
+        </div>
+        <div
+          style={{
+            fontSize: "4.8pt",
+            fontWeight: 500,
+            color: "#64748B",
+            marginTop: "0.3mm",
+            lineHeight: 1.15,
+          }}
+        >
+          ARCL Instruments Pvt. Ltd.
+        </div>
+      </div>
 
       {/* Bottom Corporate Framing Strip */}
       <div

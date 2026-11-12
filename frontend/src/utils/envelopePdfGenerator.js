@@ -47,16 +47,16 @@ export const computeAspectFitBox = (imgWidth, imgHeight, boxX, boxY, boxW, boxH)
 export const generateCustomerEnvelopeQrPng = async (verifyUrl) => {
   if (!verifyUrl) return null;
   const dataUrl = await QRCode.toDataURL(verifyUrl, {
-    errorCorrectionLevel: "M",
-    width: 320,
+    errorCorrectionLevel: "H",
+    width: 340,
     margin: 1,
     color: { dark: "#021C57", light: "#ffffff" },
   });
   return {
     dataUrl,
-    width: 320,
-    height: 320,
-    fileName: "Customer_Verification_QR.png",
+    width: 340,
+    height: 340,
+    fileName: "Customer_Envelope_QR.png",
     fileSizeKb: Math.max(1, Math.round((dataUrl.length * 3) / 4 / 1024)),
   };
 };
@@ -345,6 +345,32 @@ export const buildEnvelopePdfDocument = async ({
       doc.setLineDashPattern([], 0);
     }
   }
+
+  // DESCRIPTIVE CAPTION UNDER QR CODE (What the QR is for)
+  const qrCenterX = qrX + qrSizeMm / 2; // 252 mm
+  let curQrTextY = qrY + qrSizeMm + 3.8; // 88.8 mm
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.6);
+  doc.setTextColor(2, 28, 87);
+  doc.text("SCAN TO VERIFY", qrCenterX, curQrTextY, { align: "center" });
+
+  curQrTextY += 3.6;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.4);
+  doc.setTextColor(29, 78, 216);
+  doc.text("CALIBRATION CERTIFICATES", qrCenterX, curQrTextY, { align: "center" });
+
+  curQrTextY += 3.2;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text("NABL CC-4313  \u2022  ISO/IEC 17025", qrCenterX, curQrTextY, { align: "center" });
+
+  curQrTextY += 2.8;
+  doc.setFontSize(4.9);
+  doc.setTextColor(100, 116, 139);
+  doc.text("ARCL Instruments Pvt. Ltd.", qrCenterX, curQrTextY, { align: "center" });
 
   return doc;
 };

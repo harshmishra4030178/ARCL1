@@ -9763,7 +9763,7 @@ export default function CalibrationPageView() {
 
     const verifyUrl =
       primaryId && /^[a-f0-9]{24}$/i.test(primaryId)
-        ? buildCustomerQrVerifyUrl({ recordId: primaryId, clientCompany: companyName })
+        ? buildCustomerQrVerifyUrl({ recordId: primaryId, clientCompany: companyName, source: "envelope" })
         : "";
     const autoQrImage = verifyUrl ? await generateCustomerEnvelopeQrPng(verifyUrl) : null;
     const authorizedCount = allCustRecords.filter((r) => isRecordCertificateAuthorized(r)).length;

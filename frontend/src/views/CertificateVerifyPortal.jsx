@@ -8,6 +8,7 @@ import {
   FaAward,
   FaCheckCircle,
   FaDownload,
+  FaEnvelope,
   FaExternalLinkAlt,
   FaFilePdf,
   FaGlobe,
@@ -43,6 +44,7 @@ export default function CertificateVerifyPortal() {
   const ulrParam = searchParams.get("ulr") || searchParams.get("ulrNo") || "";
   const snParam = searchParams.get("sn") || searchParams.get("serialNo") || "";
   const docParam = searchParams.get("doc") || "";
+  const srcParam = searchParams.get("src") || "";
 
   const [loading, setLoading] = useState(true);
   const [payload, setPayload] = useState(null);
@@ -310,6 +312,39 @@ export default function CertificateVerifyPortal() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        {/* Envelope Dispatch QR Verification Banner */}
+        {srcParam === "envelope" && cert?.found && (
+          <div className="bg-gradient-to-r from-[#021C57] via-blue-900 to-[#021C57] text-white p-4 rounded-2xl shadow-md border-2 border-amber-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-[#021C57] flex items-center justify-center shrink-0 text-xl font-black">
+                <FaEnvelope />
+              </div>
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <FaQrcode /> Envelope Dispatch Verification QR • Official ARCL Package
+                </div>
+                <div className="text-sm font-bold text-white mt-0.5">
+                  {cert?.clientCompany ? `${cert.clientCompany} — Calibrated Instruments Package` : "Customer Calibration Verification Portal"}
+                </div>
+                <div className="text-[11px] text-blue-200 mt-0.5">
+                  Is customer ke sabhi authorized NABL calibration certificates neeche verified state mein uplabdh hain.
+                </div>
+              </div>
+            </div>
+            {customerCertificates.length > 0 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerCertsModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <FaListUl /> View All Certificates ({customerCertificates.length})
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Verified Record Overview Strip (if matched) */}
         {loading ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500 animate-pulse shadow-xs">
