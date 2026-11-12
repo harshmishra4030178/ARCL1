@@ -113,6 +113,7 @@ import {
   updateNablScopeItemApi,
   deleteNablScopeItemApi,
   resetNablLabScopeApi,
+  uploadGovtNablCertificateApi,
   uploadPoApi,
   deletePoApi,
   saveCalibrationObservationApi,
@@ -1238,6 +1239,7 @@ export default function CalibrationPageView() {
   const [labScopeStats, setLabScopeStats] = useState(null);
   const [labScopeLoading, setLabScopeLoading] = useState(false);
   const [labScopeSaving, setLabScopeSaving] = useState(false);
+  const [uploadingGovtNablCert, setUploadingGovtNablCert] = useState(false);
   const [labScopeFilterDiscipline, setLabScopeFilterDiscipline] = useState("all");
   const [labScopeSearch, setLabScopeSearch] = useState("");
   const [isEditLabProfileOpen, setIsEditLabProfileOpen] = useState(false);
@@ -5061,6 +5063,25 @@ export default function CalibrationPageView() {
       toast.error(err.response?.data?.message || "Failed to update lab profile");
     } finally {
       setLabScopeSaving(false);
+    }
+  };
+
+  const handleUploadGovtNablCert = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      setUploadingGovtNablCert(true);
+      const fd = new FormData();
+      fd.append("govtNablCertificate", file);
+      await uploadGovtNablCertificateApi(fd);
+      toast.success("Official Govt NABL Accreditation Certificate uploaded! QR portals updated. ✅");
+      await fetchLabScope();
+    } catch (err) {
+      console.error("Failed to upload Govt NABL certificate:", err);
+      toast.error(err.response?.data?.message || "Failed to upload Govt NABL certificate");
+    } finally {
+      setUploadingGovtNablCert(false);
     }
   };
 
@@ -16837,6 +16858,30 @@ export default function CalibrationPageView() {
                   <p className="text-xs text-gray-500">
                     Central Metrology Calibration Facility • Scope Valid Across Pan-India Projects
                   </p>
+                  {(() => {
+                    const govtCertUrl =
+                      lab?.govtNablCertificate?.cloudUrl ||
+                      (lab?.govtNablCertificate?.url
+                        ? `${String(API?.defaults?.baseURL || "http://localhost:5000/api/v1").replace(/\/api\/v1\/?$/, "")}${lab.govtNablCertificate.url}`
+                        : "");
+                    return govtCertUrl ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-emerald-700 font-semibold">
+                        <span>Govt NABL Cert: {lab.govtNablCertificate.fileName || "Uploaded"}</span>
+                        <a
+                          href={govtCertUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline font-bold text-blue-700 hover:text-blue-900"
+                        >
+                          View Govt Cert ↗
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-[11px] text-amber-700 font-semibold">
+                        Govt NABL Certificate not uploaded yet — upload PDF/Image so QR scans show Section 3 document.
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -16848,6 +16893,22 @@ export default function CalibrationPageView() {
                 >
                   <FaEdit className="text-blue-600" /> Edit Lab Profile
                 </button>
+                <label
+                  className={`px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 cursor-pointer ${
+                    uploadingGovtNablCert ? "opacity-60 pointer-events-none" : ""
+                  }`}
+                  title="Upload Official Government / NABL Accreditation Certificate (PDF or Image)"
+                >
+                  <FaUpload />
+                  {uploadingGovtNablCert ? "Uploading..." : lab?.govtNablCertificate?.url || lab?.govtNablCertificate?.cloudUrl ? "Replace Govt NABL Cert" : "Upload Govt NABL Cert"}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={handleUploadGovtNablCert}
+                    disabled={uploadingGovtNablCert}
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={handleOpenAddScopeModal}

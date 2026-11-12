@@ -3214,16 +3214,21 @@ const assertObservationUnlocked = (record) => {
   return { existingObs, existingAuthStatus };
 };
 
-const saveHardCopyProofToDiskAndCloud = async (fileBuffer, mimetype, originalname = "scan.png") => {
+const saveHardCopyProofToDiskAndCloud = async (
+  fileBuffer,
+  mimetype,
+  originalname = "scan.png",
+  { subdir = "observation_scans", prefix = "obs_scan", folder = "calibration_observation_scans" } = {}
+) => {
   const ext = path.extname(originalname || "") || (mimetype === "application/pdf" ? ".pdf" : ".png");
   const safeBase = path.basename(originalname || "scan", ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48);
-  const cleanFileName = `obs_scan_${Date.now()}_${safeBase}${ext}`;
-  const publicUrl = `/uploads/observation_scans/${cleanFileName}`;
+  const cleanFileName = `${prefix}_${Date.now()}_${safeBase}${ext}`;
+  const publicUrl = `/uploads/${subdir}/${cleanFileName}`;
 
   const dirs = [
-    path.resolve(process.cwd(), "backend/public/uploads/observation_scans"),
-    path.resolve(process.cwd(), "frontend/public/uploads/observation_scans"),
-    path.resolve(process.cwd(), "public/uploads/observation_scans"),
+    path.resolve(process.cwd(), `backend/public/uploads/${subdir}`),
+    path.resolve(process.cwd(), `frontend/public/uploads/${subdir}`),
+    path.resolve(process.cwd(), `public/uploads/${subdir}`),
   ];
   for (const dir of dirs) {
     try {
@@ -3241,7 +3246,7 @@ const saveHardCopyProofToDiskAndCloud = async (fileBuffer, mimetype, originalnam
     cloudUrl = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: "calibration_observation_scans",
+          folder,
           resource_type: mimetype?.startsWith("image/") ? "image" : "raw",
           public_id: cleanFileName.replace(/\.[^.]+$/, ""),
         },
@@ -4276,8 +4281,48 @@ export const updateInwardRegisterRow = async (req, res, next) => {
 };
 
 // ==========================================
+// 28B. Admin: Upload Official Govt / NABL Accreditation Certificate (PDF / Image)
+// ==========================================
+export const uploadGovtNablCertificate = async (req, res, next) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      throw new ApiError(400, "Please upload a Govt NABL Certificate file (PDF or Image)");
+    }
+
+    const uploadedMeta = await saveHardCopyProofToDiskAndCloud(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname || "govt_nabl_certificate.pdf",
+      {
+        subdir: "nabl_certificates",
+        prefix: "govt_nabl",
+        folder: "arcl_nabl_certificates",
+      }
+    );
+
+    const labScope = await ensureLabScopeSeeded();
+    labScope.govtNablCertificate = {
+      url: uploadedMeta.url,
+      cloudUrl: uploadedMeta.cloudUrl,
+      fileName: uploadedMeta.fileName,
+      mimeType: uploadedMeta.mimeType,
+      uploadedAt: uploadedMeta.uploadedAt,
+      uploadedBy: req.admin?.name || req.admin?.email || "Admin",
+    };
+    await labScope.save();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, labScope, "Official Govt NABL Accreditation Certificate uploaded successfully"));
+  } catch (err) {
+    console.error("Error uploading Govt NABL Certificate:", err);
+    next(err);
+  }
+};
+
+// ==========================================
 // 29. Public QR Verification Dashboard Payload
-//     (Returns 3-section portal data: NABL Certificate, NABL Scope, Website Info)
+//     (Returns 4-section portal data: NABL Certificate, NABL Scope, Govt NABL Cert, Website Info)
 // ==========================================
 export const verifyCalibrationCertificate = async (req, res, next) => {
   try {
@@ -4413,6 +4458,7 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
             validUntil: labScope.validUntil || null,
             status: labScope.status || "Active",
             masterTraceability: labScope.masterTraceability || "National Physical Laboratory (NPL), New Delhi & ERTL",
+            govtNablCertificate: labScope.govtNablCertificate || null,
             totalScopeParameters: activeScopeItems.length,
             matchedScopeItems,
             scopeItems: activeScopeItems,

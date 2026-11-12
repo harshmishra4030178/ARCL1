@@ -153,8 +153,12 @@ export const updateNablScopeItemApi = (itemId, data) =>
 export const deleteNablScopeItemApi = (itemId) =>
   API.delete(`/admin/calibration/lab-scope/item/${itemId}`);
 
-export const resetNablLabScopeApi = () =>
-  API.post("/admin/calibration/lab-scope/reset");
+export const resetNablLabScopeApi = () => API.post("/admin/calibration/lab-scope/reset");
+
+export const uploadGovtNablCertificateApi = (formData) =>
+  API.post("/admin/calibration/lab-scope/govt-certificate", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 
 export const uploadPoApi = (formData) =>
   API.post("/admin/calibration/upload-po", formData, {

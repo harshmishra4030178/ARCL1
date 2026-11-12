@@ -27,6 +27,7 @@ import {
   clearAllCalibrationData,
   getNablLabScope,
   updateNablLabScope,
+  uploadGovtNablCertificate,
   addNablScopeItem,
   updateNablScopeItem,
   deleteNablScopeItem,
@@ -84,6 +85,7 @@ router.get("/", checkModulePermission("calibration"), getCalibrationRecords);
 router.get("/stats", checkModulePermission("calibration"), getCalibrationStats);
 router.get("/lab-scope", checkModulePermission("calibration"), getNablLabScope);
 router.put("/lab-scope", checkModulePermission("calibration", "edit"), updateNablLabScope);
+router.post("/lab-scope/govt-certificate", checkModulePermission("calibration", "edit"), upload.single("govtNablCertificate"), uploadGovtNablCertificate);
 router.post("/lab-scope/item", checkModulePermission("calibration", "create"), addNablScopeItem);
 router.put("/lab-scope/item/:itemId", checkModulePermission("calibration", "edit"), updateNablScopeItem);
 router.delete("/lab-scope/item/:itemId", checkModulePermission("calibration", "delete"), deleteNablScopeItem);

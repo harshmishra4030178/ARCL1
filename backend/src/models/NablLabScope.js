@@ -105,6 +105,14 @@ const nablLabScopeSchema = new mongoose.Schema(
       type: Number,
       default: 11000,
     },
+    govtNablCertificate: {
+      url: { type: String, default: "" },
+      cloudUrl: { type: String, default: "" },
+      fileName: { type: String, default: "" },
+      mimeType: { type: String, default: "" },
+      uploadedAt: { type: String, default: "" },
+      uploadedBy: { type: String, default: "" },
+    },
     scopeItems: [scopeItemSchema],
   },
   { timestamps: true }

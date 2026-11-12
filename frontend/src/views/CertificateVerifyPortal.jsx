@@ -13,6 +13,7 @@ import {
   FaQrcode,
   FaSearch,
   FaShieldAlt,
+  FaStamp,
   FaTimes,
 } from "react-icons/fa";
 import API from "../api/axios.js";
@@ -39,8 +40,7 @@ export default function CertificateVerifyPortal() {
   const [showScopePanel, setShowScopePanel] = useState(false);
   const [scopeSearch, setScopeSearch] = useState("");
   const [scopeDiscipline, setScopeDiscipline] = useState("all");
-  const [activePdfModalUrl, setActivePdfModalUrl] = useState("");
-  const [activePdfModalTitle, setActivePdfModalTitle] = useState("");
+  const [activeDocModal, setActiveDocModal] = useState(null);
 
   const scopePanelRef = useRef(null);
 
@@ -78,6 +78,29 @@ export default function CertificateVerifyPortal() {
     const raw = String(API?.defaults?.baseURL || "http://localhost:5000/api/v1").replace(/\/+$/, "");
     return raw.endsWith("/api/v1") ? raw : `${raw}/api/v1`;
   }, []);
+
+  const backendOrigin = useMemo(
+    () => backendBase.replace(/\/api\/v1\/?$/, ""),
+    [backendBase]
+  );
+
+  const govtCert = labProfile?.govtNablCertificate || null;
+
+  const govtCertUrl = useMemo(() => {
+    if (!govtCert) return "";
+    if (govtCert.cloudUrl) return govtCert.cloudUrl;
+    if (govtCert.url) {
+      return govtCert.url.startsWith("http")
+        ? govtCert.url
+        : `${backendOrigin}${govtCert.url.startsWith("/") ? "" : "/"}${govtCert.url}`;
+    }
+    return "";
+  }, [backendOrigin, govtCert]);
+
+  const isGovtCertImage = Boolean(
+    govtCert?.mimeType?.startsWith("image/") ||
+      /\.(png|jpe?g|webp|gif)(\?|$)/i.test(govtCertUrl)
+  );
 
   const certificatePdfUrl = useMemo(() => {
     if (cert?.certificatePdfPath || cert?.recordId) {
@@ -163,7 +186,7 @@ export default function CertificateVerifyPortal() {
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-14">
       {/* Top Official ARCL Verification Header */}
       <div className="bg-gradient-to-r from-[#021C57] via-slate-900 to-[#021C57] text-white border-b-4 border-[#FA9703] shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-white p-1.5 shadow-md shrink-0 flex items-center justify-center">
               <img src="/assets/LOGO.png" alt="ARCL Instruments" className="w-full h-full object-contain" />
@@ -196,7 +219,7 @@ export default function CertificateVerifyPortal() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
         {/* Verified Record Overview Strip (if matched) */}
         {loading ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500 animate-pulse shadow-xs">
@@ -253,8 +276,8 @@ export default function CertificateVerifyPortal() {
           </div>
         )}
 
-        {/* MAIN 3-SECTION QR DASHBOARD */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* MAIN 4-SECTION QR DASHBOARD */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
           {/* SECTION 1: GO TO THE NABL CERTIFICATE */}
           <section className="bg-white rounded-3xl border-2 border-[#021C57]/20 shadow-md p-6 flex flex-col justify-between space-y-5 relative overflow-hidden">
             <div className="space-y-3">
@@ -289,16 +312,19 @@ export default function CertificateVerifyPortal() {
                     type="button"
                     onClick={() => {
                       const targetCert = cert?.certificateNo || certParam || snParam || "Official Certificate";
-                      setActivePdfModalTitle(
-                        docParam === "obs" || cert?.isObservationDoc
-                          ? `Observation Report (${cert?.serialNo || snParam || targetCert})`
-                          : `NABL Certificate (${targetCert})`
-                      );
-                      setActivePdfModalUrl(
+                      const chosenUrl =
                         (docParam === "obs" || cert?.isObservationDoc) && observationPdfUrl
                           ? observationPdfUrl
-                          : certificatePdfUrl
-                      );
+                          : certificatePdfUrl;
+                      setActiveDocModal({
+                        title:
+                          docParam === "obs" || cert?.isObservationDoc
+                            ? `Observation Report (${cert?.serialNo || snParam || targetCert})`
+                            : `NABL Certificate (${targetCert})`,
+                        url: chosenUrl,
+                        downloadUrl: `${chosenUrl}${chosenUrl.includes("?") ? "&" : "?"}download=true`,
+                        isImage: false,
+                      });
                     }}
                     className="w-full py-3 px-4 bg-[#021C57] hover:bg-blue-900 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -380,12 +406,94 @@ export default function CertificateVerifyPortal() {
             </div>
           </section>
 
-          {/* SECTION 3: GO TO WEBSITE */}
+          {/* SECTION 3: GOVT / NABL ACCREDITATION CERTIFICATE */}
+          <section className="bg-white rounded-3xl border-2 border-indigo-500/30 shadow-md p-6 flex flex-col justify-between space-y-5 relative overflow-hidden">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-800 border border-indigo-200">
+                  Section 03
+                </span>
+                <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg shadow-sm">
+                  <FaStamp />
+                </div>
+              </div>
+              <h2 className="text-xl font-black text-slate-900">Govt NABL Certificate</h2>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                View ARCL Calibration Laboratory&apos;s official Government-recognized{" "}
+                <strong>NABL Accreditation Certificate</strong> under{" "}
+                <strong>{labProfile.accreditationStandard || "ISO/IEC 17025:2017"}</strong>.
+              </p>
+
+              <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200 text-[11px] space-y-1 text-indigo-950">
+                <div>
+                  <strong>NABL Cert No:</strong>{" "}
+                  <span className="font-mono font-black">{labProfile.certificateNo || "CC-4313"}</span>
+                </div>
+                <div>
+                  <strong>Status:</strong>{" "}
+                  <span className="font-bold text-emerald-700">{labProfile.status || "Active"}</span>
+                  {labProfile.validUntil && ` • Valid: ${formatDisplayDate(labProfile.validUntil)}`}
+                </div>
+                {govtCert?.fileName && (
+                  <div className="text-indigo-800 font-semibold truncate" title={govtCert.fileName}>
+                    ✓ File: {govtCert.fileName}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {govtCertUrl ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveDocModal({
+                        title: `Govt NABL Accreditation Certificate (${labProfile.certificateNo || "CC-4313"})`,
+                        url: govtCertUrl,
+                        downloadUrl: govtCertUrl,
+                        isImage: isGovtCertImage,
+                      })
+                    }
+                    className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FaStamp /> View Govt NABL Certificate →
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={govtCertUrl}
+                      download={govtCert?.fileName || "ARCL_Govt_NABL_Certificate"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <FaDownload /> Download
+                    </a>
+                    <a
+                      href={govtCertUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition"
+                      title="Open Govt NABL Certificate in new tab"
+                    >
+                      <FaExternalLinkAlt /> New Tab
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 text-center font-semibold">
+                  Govt NABL Certificate document will be viewable &amp; downloadable here once uploaded in Admin Lab Scope.
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* SECTION 4: GO TO WEBSITE */}
           <section className="bg-white rounded-3xl border-2 border-[#FA9703]/40 shadow-md p-6 flex flex-col justify-between space-y-5 relative overflow-hidden">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-50 text-amber-900 border border-amber-300">
-                  Section 03
+                  Section 04
                 </span>
                 <div className="w-11 h-11 rounded-2xl bg-[#FA9703] text-slate-950 flex items-center justify-center text-lg shadow-sm">
                   <FaGlobe />
@@ -532,18 +640,19 @@ export default function CertificateVerifyPortal() {
         )}
       </div>
 
-      {/* Embedded Certificate PDF Modal */}
-      {activePdfModalUrl && (
+      {/* Embedded Document / Certificate Modal */}
+      {activeDocModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
           <div className="bg-white rounded-3xl max-w-5xl w-full h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
             <div className="px-4 py-3 bg-[#021C57] text-white flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-black text-sm truncate">
                 <FaFilePdf className="text-amber-400 shrink-0" />
-                <span className="truncate">{activePdfModalTitle || "Official NABL Document"}</span>
+                <span className="truncate">{activeDocModal.title || "Official NABL Document"}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={`${activePdfModalUrl}&download=true`}
+                  href={activeDocModal.downloadUrl || activeDocModal.url}
+                  download
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black inline-flex items-center gap-1"
@@ -552,18 +661,28 @@ export default function CertificateVerifyPortal() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => setActivePdfModalUrl("")}
+                  onClick={() => setActiveDocModal(null)}
                   className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
                 >
                   <FaTimes /> Close
                 </button>
               </div>
             </div>
-            <iframe
-              src={activePdfModalUrl}
-              title={activePdfModalTitle || "Official ARCL Certificate"}
-              className="flex-1 w-full bg-slate-100"
-            />
+            {activeDocModal.isImage ? (
+              <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center p-4">
+                <img
+                  src={activeDocModal.url}
+                  alt={activeDocModal.title || "Official NABL Certificate"}
+                  className="max-h-full max-w-full object-contain rounded-lg shadow-lg"
+                />
+              </div>
+            ) : (
+              <iframe
+                src={activeDocModal.url}
+                title={activeDocModal.title || "Official ARCL Certificate"}
+                className="flex-1 w-full bg-slate-100"
+              />
+            )}
           </div>
         </div>
       )}
