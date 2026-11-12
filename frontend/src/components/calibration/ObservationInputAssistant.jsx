@@ -30,6 +30,7 @@ import useVoiceInput from "../../hooks/useVoiceInput.js";
 import {
   findFirstEmptyCellCursor,
   getEmptyCellSlotsForward,
+  getExactSheetEmptySlots,
   getFillableObservationColumns,
   isObservationCellEmpty,
   parseRawOcrTextForObservation,
@@ -59,6 +60,9 @@ export default function ObservationInputAssistant({
   hardCopyScan = null,
   inputMode: controlledInputMode,
   onInputModeChange,
+  isExactMode = false,
+  activeExactCellKey = "",
+  onActiveExactCellChange = null,
 }) {
   const [internalInputMode, setInternalInputMode] = useState("manual"); // "manual" | "scan" | "voice"
   const inputMode = controlledInputMode !== undefined ? controlledInputMode : internalInputMode;
@@ -80,8 +84,19 @@ export default function ObservationInputAssistant({
   const [voiceLang, setVoiceLang] = useState("en-IN");
   const [cursorRowIdx, setCursorRowIdx] = useState(0);
   const [cursorColIdx, setCursorColIdx] = useState(0);
+  const [internalExactCellKey, setInternalExactCellKey] = useState("");
+  const [manualVoicePhrase, setManualVoicePhrase] = useState("");
   const [voiceHistory, setVoiceHistory] = useState([]);
   const [voiceUndoStack, setVoiceUndoStack] = useState([]);
+
+  const cursorExactCellKey = activeExactCellKey || internalExactCellKey;
+  const setCursorExactCellKey = useCallback(
+    (nextKey) => {
+      setInternalExactCellKey(nextKey || "");
+      onActiveExactCellChange?.(nextKey || "");
+    },
+    [onActiveExactCellChange]
+  );
 
   const videoRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -118,7 +133,27 @@ export default function ObservationInputAssistant({
     [readings, tableColumns, lockedCellMap]
   );
 
+  const exactEmptySlots = useMemo(
+    () =>
+      isExactMode && Array.isArray(activeTemplate?.exactSheets) && activeTemplate.exactSheets.length > 0
+        ? getExactSheetEmptySlots(activeTemplate.exactSheets, exactSheetValues)
+        : null,
+    [isExactMode, activeTemplate?.exactSheets, exactSheetValues]
+  );
+
   useEffect(() => {
+    if (Array.isArray(exactEmptySlots)) {
+      if (exactEmptySlots.length === 0) {
+        if (cursorExactCellKey) setCursorExactCellKey("");
+        return;
+      }
+      const stillExists = cursorExactCellKey && exactEmptySlots.some((s) => s.cellKey === cursorExactCellKey);
+      if (!stillExists) {
+        setCursorExactCellKey(exactEmptySlots[0].cellKey);
+      }
+      return;
+    }
+
     const currentCol = fillableCols[cursorColIdx];
     const currentStillEmpty =
       currentCol &&
@@ -129,7 +164,17 @@ export default function ObservationInputAssistant({
       if (next.rowIdx !== cursorRowIdx) setCursorRowIdx(next.rowIdx);
       if (next.colIdx !== cursorColIdx) setCursorColIdx(next.colIdx);
     }
-  }, [readings, tableColumns, fillableCols, cursorRowIdx, cursorColIdx, lockedCellMap]);
+  }, [
+    exactEmptySlots,
+    cursorExactCellKey,
+    setCursorExactCellKey,
+    readings,
+    tableColumns,
+    fillableCols,
+    cursorRowIdx,
+    cursorColIdx,
+    lockedCellMap,
+  ]);
 
   const stopLiveCamera = useCallback(() => {
     if (cameraStreamRef.current) {
@@ -178,6 +223,8 @@ export default function ObservationInputAssistant({
     cursorColIdx,
     lockedCellMap,
     voiceUndoStack,
+    exactEmptySlots,
+    cursorExactCellKey,
   };
 
   const resolveAttachmentUrl = (rawUrl) => {
@@ -200,10 +247,18 @@ export default function ObservationInputAssistant({
     }
     const lastBatch = stack[0];
     lastBatch.cells.forEach((cell) => {
-      onVoiceRevertCell?.(cell.rowIdx, cell.colKey);
+      onVoiceRevertCell?.(
+        cell.rowIdx !== undefined ? cell.rowIdx : cell.obsRowIdx,
+        cell.colKey || cell.obsKey || "",
+        cell.cellKey || ""
+      );
     });
-    setCursorRowIdx(lastBatch.cells[0].rowIdx);
-    setCursorColIdx(lastBatch.cells[0].colIdx);
+    if (lastBatch.cells[0]?.cellKey) {
+      setCursorExactCellKey(lastBatch.cells[0].cellKey);
+    } else if (typeof lastBatch.cells[0]?.rowIdx === "number") {
+      setCursorRowIdx(lastBatch.cells[0].rowIdx);
+      setCursorColIdx(lastBatch.cells[0].colIdx || 0);
+    }
     setVoiceUndoStack((prev) => prev.slice(1));
     pushVoiceLog(`Reverted ${lastBatch.cells.length} voice cell(s)`, true);
   };
@@ -216,6 +271,8 @@ export default function ObservationInputAssistant({
       activeRowIdx: state.cursorRowIdx,
       activeColIdx: state.cursorColIdx,
       lockedCellMap: state.lockedCellMap,
+      exactSlots: state.exactEmptySlots,
+      activeExactCellKey: state.cursorExactCellKey,
     });
 
     if (cmd.type === "noop") return;
@@ -240,6 +297,12 @@ export default function ObservationInputAssistant({
       return;
     }
 
+    if (cmd.type === "move_exact") {
+      setCursorExactCellKey(cmd.nextExactCellKey || "");
+      pushVoiceLog(cmd.message);
+      return;
+    }
+
     if (cmd.type === "move") {
       setCursorRowIdx(cmd.nextRowIdx);
       setCursorColIdx(cmd.nextColIdx);
@@ -253,6 +316,20 @@ export default function ObservationInputAssistant({
         ? `Updated ${updateSummary.appliedCount} empty parameter(s)`
         : "Already fixed/filled — no existing fields changed";
       pushVoiceLog(`"${spokenText}" -> ${label}`, updateSummary?.appliedCount > 0);
+      return;
+    }
+
+    if (cmd.type === "exact_cells" && Array.isArray(cmd.cells)) {
+      const appliedCells = [];
+      cmd.cells.forEach((cell) => {
+        const applied = onVoiceFillCell?.(cell.obsRowIdx, cell.obsKey, cell.value, cell.cellKey);
+        if (applied !== false) appliedCells.push(cell);
+      });
+      if (appliedCells.length > 0) {
+        setVoiceUndoStack((prev) => [{ cells: appliedCells }, ...(prev || [])].slice(0, 15));
+      }
+      setCursorExactCellKey(cmd.nextExactCellKey || "");
+      pushVoiceLog(`"${spokenText}" -> ${cmd.message}`, appliedCells.length > 0);
       return;
     }
 
@@ -271,7 +348,7 @@ export default function ObservationInputAssistant({
       return;
     }
 
-    pushVoiceLog(`Not recognized as numbers/command: "${spokenText}"`, false);
+    pushVoiceLog(`Samajh nahi aaya ("${spokenText}") — numbers ya command bolein`, false);
   };
 
   const obsVoice = useVoiceInput({
@@ -879,50 +956,111 @@ export default function ObservationInputAssistant({
 
           <div className="flex flex-wrap items-center gap-2 bg-teal-50/70 border border-teal-200 rounded-xl p-2.5 text-xs">
             <span className="font-black text-teal-950">Next Empty Box:</span>
-            <label className="inline-flex items-center gap-1 font-bold text-slate-700">
-              Row:
-              <select
-                value={safeRowIdx}
-                onChange={(e) => {
-                  const nextR = Number(e.target.value);
-                  const found = findFirstEmptyCellCursor(readings, tableColumns, nextR, 0, lockedCellMap);
-                  setCursorRowIdx(found.rowIdx);
-                  setCursorColIdx(found.colIdx);
-                }}
-                className="px-2 py-1 bg-white border border-teal-300 rounded-lg text-xs font-mono font-bold"
-              >
-                {Array.from({ length: Math.max(1, readings?.length || 1) }).map((_, idx) => (
-                  <option key={idx} value={idx}>
-                    Row {idx + 1}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {Array.isArray(exactEmptySlots) ? (
+              <>
+                <select
+                  value={cursorExactCellKey}
+                  onChange={(e) => setCursorExactCellKey(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-teal-300 rounded-lg text-xs font-bold text-slate-800 max-w-[290px]"
+                >
+                  {exactEmptySlots.length === 0 ? (
+                    <option value="">All sheet cells filled</option>
+                  ) : (
+                    exactEmptySlots.map((slot) => (
+                      <option key={slot.cellKey} value={slot.cellKey}>
+                        {slot.label}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <span className="text-[11px] font-semibold text-teal-900">
+                  {exactEmptySlots.length > 0 ? (
+                    <>
+                      → Will fill{" "}
+                      <b>
+                        {(exactEmptySlots.find((s) => s.cellKey === cursorExactCellKey) || exactEmptySlots[0])?.label}
+                      </b>{" "}
+                      • {exactEmptySlots.length} empty cells left (ya sheet ke kisi bhi box par click karke bolein)
+                    </>
+                  ) : (
+                    <span className="text-amber-800 font-bold">
+                      Sheet ke sabhi khali boxes bhar chuke hain.
+                    </span>
+                  )}
+                </span>
+              </>
+            ) : (
+              <>
+                <label className="inline-flex items-center gap-1 font-bold text-slate-700">
+                  Row:
+                  <select
+                    value={safeRowIdx}
+                    onChange={(e) => {
+                      const nextR = Number(e.target.value);
+                      const found = findFirstEmptyCellCursor(readings, tableColumns, nextR, 0, lockedCellMap);
+                      setCursorRowIdx(found.rowIdx);
+                      setCursorColIdx(found.colIdx);
+                    }}
+                    className="px-2 py-1 bg-white border border-teal-300 rounded-lg text-xs font-mono font-bold"
+                  >
+                    {Array.from({ length: Math.max(1, readings?.length || 1) }).map((_, idx) => (
+                      <option key={idx} value={idx}>
+                        Row {idx + 1}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label className="inline-flex items-center gap-1 font-bold text-slate-700">
-              Column:
-              <select
-                value={cursorColIdx}
-                onChange={(e) => setCursorColIdx(Number(e.target.value))}
-                className="px-2 py-1 bg-white border border-teal-300 rounded-lg text-xs font-bold max-w-[230px]"
-              >
-                {fillableCols.map((col, idx) => {
-                  const isEmpty = isObservationCellEmpty(readings, safeRowIdx, col.key, lockedCellMap);
-                  return (
-                    <option key={col.key || idx} value={idx} disabled={!isEmpty}>
-                      {col.label || col.key} {isEmpty ? "" : "(Fixed / Filled)"}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
+                <label className="inline-flex items-center gap-1 font-bold text-slate-700">
+                  Column:
+                  <select
+                    value={cursorColIdx}
+                    onChange={(e) => setCursorColIdx(Number(e.target.value))}
+                    className="px-2 py-1 bg-white border border-teal-300 rounded-lg text-xs font-bold max-w-[230px]"
+                  >
+                    {fillableCols.map((col, idx) => {
+                      const isEmpty = isObservationCellEmpty(readings, safeRowIdx, col.key, lockedCellMap);
+                      return (
+                        <option key={col.key || idx} value={idx} disabled={!isEmpty}>
+                          {col.label || col.key} {isEmpty ? "" : "(Fixed / Filled)"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
 
-            <span className="text-[11px] font-semibold text-teal-900">
-              {emptySlotsTotal.length > 0 && activeTargetCol && isObservationCellEmpty(readings, safeRowIdx, activeTargetCol.key, lockedCellMap)
-                ? <>→ Will fill <b>Row {safeRowIdx + 1} ({activeTargetCol.label || activeTargetCol.key})</b> • {emptySlotsTotal.length} empty cells left</>
-                : <span className="text-amber-800 font-bold">All cells in existing rows are filled/fixed — say &quot;New row&quot; to add more.</span>}
-            </span>
+                <span className="text-[11px] font-semibold text-teal-900">
+                  {emptySlotsTotal.length > 0 && activeTargetCol && isObservationCellEmpty(readings, safeRowIdx, activeTargetCol.key, lockedCellMap)
+                    ? <>→ Will fill <b>Row {safeRowIdx + 1} ({activeTargetCol.label || activeTargetCol.key})</b> • {emptySlotsTotal.length} empty cells left</>
+                    : <span className="text-amber-800 font-bold">All cells in existing rows are filled/fixed — say &quot;New row&quot; to add more.</span>}
+                </span>
+              </>
+            )}
           </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!manualVoicePhrase.trim()) return;
+              handleVoiceTranscript(manualVoicePhrase);
+              setManualVoicePhrase("");
+            }}
+            className="flex flex-wrap items-center gap-2 text-xs"
+          >
+            <input
+              type="text"
+              value={manualVoicePhrase}
+              onChange={(e) => setManualVoicePhrase(e.target.value)}
+              placeholder='Quick dictate / type phrase (e.g. "100 by 500" or "500.1 100.0 99.9")'
+              className="flex-1 min-w-[220px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-teal-500"
+            />
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Fill Box →
+            </button>
+          </form>
 
           {(obsVoice.statusText || obsVoice.transcript || voiceHistory.length > 0) && (
             <div className="space-y-1.5 text-xs">

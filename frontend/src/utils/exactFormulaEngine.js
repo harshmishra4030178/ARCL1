@@ -82,6 +82,48 @@ const shiftExcelFormulaRows = (formulaStr, deltaRows) => {
   );
 };
 
+export const collectReferencedSheetCells = (exactSheets = []) => {
+  const referenced = new Set();
+  const sheetNamesLower = new Map();
+  (exactSheets || []).forEach((sh) => {
+    const sName = sh?.sheetName || "Sheet";
+    sheetNamesLower.set(sName.toLowerCase(), sName);
+  });
+  const resolve = (raw) => {
+    const clean = String(raw || "").replace(/^'+|'+$/g, "").trim();
+    return sheetNamesLower.get(clean.toLowerCase()) || clean;
+  };
+  (exactSheets || []).forEach((sh) => {
+    const curSheet = sh?.sheetName || "Sheet";
+    (sh?.blocks || []).forEach((blk) => {
+      if (blk.kind !== "table") return;
+      (blk.rows || []).forEach((rw) => {
+        (rw.cells || []).forEach((cell) => {
+          if (!cell?.formula) return;
+          // Strip string literals first so quotes don't mimic cell refs
+          const f = String(cell.formula).replace(/"[^"]*"/g, " ");
+          const crossQuoted = /'([^']+)'!\$?([A-Za-z]{1,3})\$?(\d{1,5})/g;
+          let m;
+          while ((m = crossQuoted.exec(f)) !== null) {
+            referenced.add(`${resolve(m[1])}!${m[2].toUpperCase()}${m[3]}`);
+          }
+          const fNoQuoted = f.replace(/'[^']+'!\$?[A-Za-z]{1,3}\$?\d{1,5}/g, " ");
+          const crossUnquoted = /([A-Za-z][A-Za-z0-9_. ]*?)!\$?([A-Za-z]{1,3})\$?(\d{1,5})/g;
+          while ((m = crossUnquoted.exec(fNoQuoted)) !== null) {
+            referenced.add(`${resolve(m[1])}!${m[2].toUpperCase()}${m[3]}`);
+          }
+          const fLocalOnly = fNoQuoted.replace(/[A-Za-z][A-Za-z0-9_. ]*?![^,\s)+/*-]+/g, " ");
+          const localSingle = /\$?([A-Za-z]{1,3})\$?(\d{1,5})(?![A-Za-z0-9_])/g;
+          while ((m = localSingle.exec(fLocalOnly)) !== null) {
+            referenced.add(`${curSheet}!${m[1].toUpperCase()}${m[2]}`);
+          }
+        });
+      });
+    });
+  });
+  return referenced;
+};
+
 /**
  * Safely evaluate standard Excel arithmetic & functions (=A1+B1, AVERAGE(B16:D16), 'Sheet'!B17, etc.)
  */
@@ -203,16 +245,60 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
       return expr.slice(1, -1);
     }
 
+    const splitComparisonExpr = (condStr) => {
+      const s = String(condStr || "").trim();
+      let paren = 0;
+      let inDouble = false;
+      let inSingle = false;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (inDouble) {
+          if (ch === '"') inDouble = false;
+        } else if (inSingle) {
+          if (ch === "'") inSingle = false;
+        } else if (ch === '"') {
+          inDouble = true;
+        } else if (ch === "'") {
+          inSingle = true;
+        } else if (ch === "(") {
+          paren++;
+        } else if (ch === ")") {
+          paren--;
+        } else if (paren === 0) {
+          const two = s.slice(i, i + 2);
+          if (two === "<=" || two === ">=" || two === "<>" || two === "!=") {
+            return { leftStr: s.slice(0, i), op: two, rightStr: s.slice(i + 2) };
+          }
+          if (ch === "=" || ch === "<" || ch === ">") {
+            return { leftStr: s.slice(0, i), op: ch, rightStr: s.slice(i + 1) };
+          }
+        }
+      }
+      return null;
+    };
+
+    const normalizeDimOrText = (val) => {
+      const base = String(val ?? "").trim().toLowerCase();
+      if (/^\d+(?:\.\d+)?\s*[x×*]\s*\d+(?:\.\d+)?(?:\s*[x×*]\s*\d+(?:\.\d+)?)?(?:\s*mm)?$/i.test(base)) {
+        return base.replace(/\s*mm$/i, "").replace(/\s*[x×*]\s*/g, "*");
+      }
+      return base;
+    };
+
     const evalComparison = (condStr) => {
-      const m = condStr.match(/^(.+?)(<=|>=|<>|!=|=|<|>)(.+)$/);
-      if (!m) return Boolean(toNumOrNull(evalExpr(condStr, currentSheet, depth)));
-      const left = evalExpr(m[1], currentSheet, depth);
-      const op = m[2];
-      const right = evalExpr(m[3], currentSheet, depth);
+      const parts = splitComparisonExpr(condStr);
+      if (!parts) {
+        const v = evalExpr(condStr, currentSheet, depth);
+        if (typeof v === "boolean") return v;
+        return Boolean(toNumOrNull(v));
+      }
+      const left = evalExpr(parts.leftStr, currentSheet, depth);
+      const op = parts.op;
+      const right = evalExpr(parts.rightStr, currentSheet, depth);
       const ln = toNumOrNull(left);
       const rn = toNumOrNull(right);
-      const lVal = ln !== null && rn !== null ? ln : String(left ?? "");
-      const rVal = ln !== null && rn !== null ? rn : String(right ?? "");
+      const lVal = ln !== null && rn !== null ? ln : normalizeDimOrText(left);
+      const rVal = ln !== null && rn !== null ? rn : normalizeDimOrText(right);
       if (op === "=") return lVal === rVal;
       if (op === "<>" || op === "!=") return lVal !== rVal;
       if (op === "<") return lVal < rVal;
@@ -227,6 +313,21 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
 
     const skipWs = () => {
       while (pos < len && /\s/.test(expr[pos])) pos++;
+    };
+
+    const parseConcat = () => {
+      let left = parseAddSub();
+      while (true) {
+        skipWs();
+        if (expr[pos] === "&") {
+          pos++;
+          const right = parseAddSub();
+          left = `${left ?? ""}${right ?? ""}`;
+        } else {
+          break;
+        }
+      }
+      return left;
     };
 
     const parseAddSub = () => {
@@ -301,7 +402,7 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
       skipWs();
       if (expr[pos] === "(") {
         pos++;
-        const val = parseAddSub();
+        const val = parseConcat();
         skipWs();
         if (expr[pos] === ")") pos++;
         return val;
@@ -327,11 +428,17 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
         }
       }
 
-      // Number literal
+      // Number literal (with optional % suffix, e.g. 10% -> 0.1)
       const numMatch = expr.slice(pos).match(/^\d+(?:\.\d+)?/);
       if (numMatch) {
         pos += numMatch[0].length;
-        return Number(numMatch[0]);
+        let numVal = Number(numMatch[0]);
+        skipWs();
+        if (expr[pos] === "%") {
+          pos++;
+          numVal = numVal / 100;
+        }
+        return numVal;
       }
 
       // Function call: NAME(...)
@@ -353,6 +460,25 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
         const args = splitArgs(rawArgsStr);
 
         if (fnName === "PI") return Math.PI;
+        if (fnName === "CHAR") {
+          const code = toNumOrNull(evalExpr(args[0] || "", currentSheet, depth + 1));
+          return code !== null && code >= 0 ? String.fromCharCode(Math.floor(code)) : "";
+        }
+        if (fnName === "TRIM") {
+          return String(evalExpr(args[0] || "", currentSheet, depth + 1) ?? "").trim();
+        }
+        if (fnName === "UPPER") {
+          return String(evalExpr(args[0] || "", currentSheet, depth + 1) ?? "").toUpperCase();
+        }
+        if (fnName === "LOWER") {
+          return String(evalExpr(args[0] || "", currentSheet, depth + 1) ?? "").toLowerCase();
+        }
+        if (fnName === "AND") {
+          return args.every((a) => evalComparison(a));
+        }
+        if (fnName === "OR") {
+          return args.some((a) => evalComparison(a));
+        }
         if (fnName === "IF") {
           const cond = evalComparison(args[0] || "");
           return evalExpr(cond ? (args[1] || '""') : (args[2] || '""'), currentSheet, depth + 1);
@@ -471,7 +597,7 @@ export const buildFormulaEvaluator = (exactSheets, liveValues, rowVarResolver = 
     };
 
     try {
-      return parseAddSub();
+      return parseConcat();
     } catch {
       return "";
     }

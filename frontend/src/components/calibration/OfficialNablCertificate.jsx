@@ -67,11 +67,12 @@ export default function OfficialNablCertificate({
     activeReportTable?.columns?.length >= 2 && activeReportTable?.rows?.length > 0
   );
 
+  const resolvedSrfRef = rec.inwardRegister?.srfNo || rec.srfNo || "SRF";
   const cNo = isObsDoc
     ? obs.worksheetNo || `WS-ARCL-2026-${rec.serialNo || itemIdx + 1}`
     : rec.records?.certificateNo ||
       auth.certificateNo ||
-      `ARCL-CAL-2026-${String(rec.srNo || itemIdx + 1).padStart(3, "0")}`;
+      `ARCL/F/${resolvedSrfRef}/${String(rec.srNo || itemIdx + 1).padStart(2, "0")}`;
 
   const isForceInst =
     String(rec.instrument || obs.instrument || "").toLowerCase().includes("testing machine") ||

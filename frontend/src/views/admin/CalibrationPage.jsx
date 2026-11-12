@@ -1498,6 +1498,7 @@ export default function CalibrationPageView() {
   const [obsExactMode, setObsExactMode] = useState(true);
   const [obsExactSheetValues, setObsExactSheetValues] = useState({});
   const [obsInputMode, setObsInputMode] = useState("manual");
+  const [activeVoiceCellKey, setActiveVoiceCellKey] = useState("");
   const obsAssistantSectionRef = useRef(null);
 
   // Custom Categories & PDF Compression States
@@ -1748,9 +1749,42 @@ export default function CalibrationPageView() {
     if (normRec.length >= 4 && normTmpl.includes(normRec)) return 200;
     if (normTmpl.length >= 4 && normRec.includes(normTmpl)) return 150;
 
-    // 4. Token overlap
-    const recTokens = normRec.split(" ").filter((w) => w.length > 2);
-    const tmplTokens = normTmpl.split(" ").filter((w) => w.length > 2);
+    // 4. Token overlap (ignore generic words like equipment, testing, calibration, precision, digital, machine)
+    const GENERIC_TOKENS = new Set([
+      "precision",
+      "equipment",
+      "equipments",
+      "instrument",
+      "instruments",
+      "calibration",
+      "calibrated",
+      "testing",
+      "machine",
+      "standard",
+      "digital",
+      "electronic",
+      "manual",
+      "hydraulic",
+      "mechanical",
+      "automatic",
+      "semi",
+      "apparatus",
+      "tester",
+      "indicator",
+      "system",
+      "unit",
+      "device",
+      "tool",
+      "bench",
+      "lab",
+      "laboratory",
+      "arcl",
+      "model",
+      "type",
+      "series",
+    ]);
+    const recTokens = normRec.split(" ").filter((w) => w.length > 2 && !GENERIC_TOKENS.has(w));
+    const tmplTokens = normTmpl.split(" ").filter((w) => w.length > 2 && !GENERIC_TOKENS.has(w));
     let overlapCount = 0;
     for (const t of recTokens) {
       if (tmplTokens.includes(t)) overlapCount++;
@@ -2002,23 +2036,18 @@ export default function CalibrationPageView() {
     if (!matched) {
       setActiveObsTemplateId("");
       setActiveObsPdfUrl(obs.pdfUrl || "");
-      if (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0) {
+      setShowObsPdfPreview(Boolean(obs.pdfUrl));
+      setObsExactMode(Boolean(obs.exactSheetValues && Object.keys(obs.exactSheetValues).length > 0));
+      setObsExactSheetValues(
+        obs.exactSheetValues && typeof obs.exactSheetValues === "object" ? obs.exactSheetValues : {}
+      );
+      if (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0 && !isCorruptedTableColumns(obs.tableColumns)) {
         setObsTableColumns(obs.tableColumns);
-        if (Array.isArray(obs.readings)) setObsReadings(obs.readings);
+        setObsReadings(Array.isArray(obs.readings) ? obs.readings : []);
       } else {
-        // Standard metrological observation columns
-        setObsTableColumns([
-          { key: "sNo", label: "S. No.", type: "text", minWidth: "60px" },
-          { key: "nominal", label: "Specified Nominal Value", type: "number", minWidth: "140px" },
-          { key: "observed", label: "Observed Reading", type: "number", minWidth: "130px" },
-          { key: "error", label: "Error", type: "formula", minWidth: "110px" },
-          { key: "uncertainty", label: "Expanded Uncertainty (±)", type: "number", minWidth: "140px" },
-        ]);
-        setObsReadings([
-          { sNo: "1", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
-          { sNo: "2", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
-          { sNo: "3", nominal: 0, observed: 0, error: 0, uncertainty: 0 },
-        ]);
+        // Strictly do NOT auto-generate fake worksheet columns if no observation sheet format exists
+        setObsTableColumns([]);
+        setObsReadings([]);
       }
       return;
     }
@@ -2735,6 +2764,33 @@ export default function CalibrationPageView() {
     () => String(user?.email || "").trim().toLowerCase() === "hm4030178@gmail.com",
     [user]
   );
+  // Enforce full view/review before Quality In-Charge can Pass any submitted worksheet
+  const [viewedAuthRecords, setViewedAuthRecords] = useState({});
+  const inspectModalScrollRef = useRef(null);
+
+  const markAuthRecordViewed = (recId) => {
+    if (!recId) return;
+    setViewedAuthRecords((prev) => (prev[recId] ? prev : { ...prev, [recId]: true }));
+  };
+
+  const checkInspectModalFullyViewed = () => {
+    const recId = inspectingObsRecord?._id;
+    const el = inspectModalScrollRef.current;
+    if (!recId || !el) return;
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (remaining <= 48) {
+      markAuthRecordViewed(recId);
+    }
+  };
+
+  useEffect(() => {
+    if (!inspectingObsRecord?._id) return;
+    const timer = setTimeout(() => {
+      checkInspectModalFullyViewed();
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspectingObsRecord?._id, inspectionModalTab]);
   const [authRemarks, setAuthRemarks] = useState("Observations verified against NABL ISO/IEC 17025 standards. All test points are within allowable accuracy limits. Certificate approved.");
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -2957,22 +3013,39 @@ export default function CalibrationPageView() {
     }
   }, [activeTab, filteredObsRecords, selectedObsInstrumentId]);
 
+  const lastSyncedObsRecordIdRef = useRef("");
   useEffect(() => {
     if (!activeObsRecord) return;
     const obs = activeObsRecord.observationData || {};
     const matched = findTemplateForInstrument(activeObsRecord, obsTemplates);
-    
-    // Determine template for this specific active record
-    const activeTmpl = (obs.templateId && obsTemplates.find((t) => String(t._id) === String(obs.templateId))) || matched || null;
+    const activeRecordKey = String(activeObsRecord._id || "");
+    const recordChanged = lastSyncedObsRecordIdRef.current !== activeRecordKey;
+    if (recordChanged) {
+      lastSyncedObsRecordIdRef.current = activeRecordKey;
+    }
+
+    // Determine template for this specific active record (never inherit previous record's template)
+    const manualTmplForSameRecord =
+      !recordChanged && activeObsTemplateId
+        ? obsTemplates.find((t) => String(t._id) === String(activeObsTemplateId)) || null
+        : null;
+    const activeTmpl =
+      (obs.templateId && obsTemplates.find((t) => String(t._id) === String(obs.templateId))) ||
+      manualTmplForSameRecord ||
+      matched ||
+      null;
     const targetTmplId = activeTmpl?._id || "";
 
-    if (targetTmplId && targetTmplId !== activeObsTemplateId) {
+    if (targetTmplId !== activeObsTemplateId) {
       setActiveObsTemplateId(targetTmplId);
     }
     const targetPdf = obs.pdfUrl || activeTmpl?.pdfUrl || "";
-    if (targetPdf && targetPdf !== activeObsPdfUrl) {
+    if (targetPdf !== activeObsPdfUrl) {
       setActiveObsPdfUrl(targetPdf);
-      setShowObsPdfPreview(true);
+      setShowObsPdfPreview(Boolean(targetPdf));
+    }
+    if (!activeTmpl && !(obs.exactSheetValues && Object.keys(obs.exactSheetValues).length > 0)) {
+      setObsExactMode(false);
     }
 
     // Automatically convert older saved templates that lack 1:1 exactSheets in background
@@ -3061,11 +3134,17 @@ export default function CalibrationPageView() {
     setObsRepeatabilityReadings(repParsed);
     setObsRepeatabilityMu(Array.isArray(repRaw) ? repRaw.filter(Boolean).join(", ") : String(repRaw || ""));
     setObsReviewedBy(obs.reviewedBy || "Technical Manager");
-    setObsExactSheetValues(
+    const initialExactVals =
       obs.exactSheetValues && typeof obs.exactSheetValues === "object"
-        ? obs.exactSheetValues
-        : {}
-    );
+        ? { ...obs.exactSheetValues }
+        : {};
+    const resolvedInitialRange = obs.range || activeObsRecord.instrumentRange || activeTmpl?.parameters?.range || "";
+    if (resolvedInitialRange && resolvedInitialRange !== "Standard" && activeTmpl) {
+      getExactSizeOrRangeCellKeys(activeTmpl).forEach((k) => {
+        if (!initialExactVals[k]) initialExactVals[k] = resolvedInitialRange;
+      });
+    }
+    setObsExactSheetValues(initialExactVals);
     if (Array.isArray(activeTmpl?.exactSheets) && activeTmpl.exactSheets.length > 0) {
       setObsExactMode(true);
     }
@@ -3268,8 +3347,39 @@ export default function CalibrationPageView() {
     });
   };
 
+  const getExactSizeOrRangeCellKeys = (tmpl) => {
+    const keys = [];
+    const sheets = Array.isArray(tmpl?.exactSheets) ? tmpl.exactSheets : [];
+    sheets.forEach((sh) => {
+      if (sh?.role && sh.role !== "observation") return;
+      const sName = sh?.sheetName || "Sheet";
+      (sh?.blocks || []).forEach((blk) => {
+        if (blk.kind !== "table") return;
+        (blk.rows || []).forEach((rw) => {
+          const cells = rw.cells || [];
+          for (let i = 0; i < cells.length - 1; i++) {
+            const lbl = String(cells[i]?.value || "").trim().toLowerCase();
+            if (/\b(?:size|range)\b/i.test(lbl) && !/tolerance|standard|reference/i.test(lbl)) {
+              let nextIdx = i + 1;
+              while (nextIdx < cells.length && /^[:\-\s]*$/.test(String(cells[nextIdx]?.value || ""))) {
+                nextIdx++;
+              }
+              if (nextIdx < cells.length && cells[nextIdx]?.ref && cells[nextIdx]?.kind !== "formula") {
+                keys.push(`${sName}!${cells[nextIdx].ref}`);
+              }
+            }
+          }
+        });
+      });
+    });
+    return keys;
+  };
+
   const handleExactCellChange = ({ cellKey, value, obsKey, obsRowIdx }) => {
     setObsExactSheetValues((prev) => ({ ...(prev || {}), [cellKey]: value }));
+    if (getExactSizeOrRangeCellKeys(getActiveObsExactTemplate()).includes(cellKey)) {
+      setObsRange(value);
+    }
     if (obsKey && typeof obsRowIdx === "number" && obsRowIdx >= 0) {
       setObsReadings((prev) => {
         const next = Array.isArray(prev) ? [...prev] : [];
@@ -3488,8 +3598,42 @@ export default function CalibrationPageView() {
   };
 
   // Voice strictly populates ONLY empty/unfilled cells; existing fixed/filled data is never modified.
-  const handleVoiceFillObservationCell = (rowIdx, colKey, value) => {
+  const handleVoiceFillObservationCell = (rowIdx, colKey, value, exactCellKey = "") => {
     if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return false;
+    if (exactCellKey) {
+      const liveExactVal = obsExactSheetValues?.[exactCellKey];
+      if (liveExactVal !== undefined && liveExactVal !== null && String(liveExactVal).trim() !== "") {
+        return false;
+      }
+      const bangIdx = String(exactCellKey).indexOf("!");
+      const targetSheet = bangIdx >= 0 ? exactCellKey.slice(0, bangIdx) : "";
+      const targetRef = bangIdx >= 0 ? exactCellKey.slice(bangIdx + 1) : exactCellKey;
+      const sheets = getActiveObsExactTemplate()?.exactSheets || [];
+      for (const s of sheets) {
+        if (targetSheet && (s.sheetName || "Sheet1") !== targetSheet) continue;
+        const blockRows = (s.blocks || []).flatMap((blk) =>
+          blk?.kind === "table" && Array.isArray(blk.rows) ? blk.rows : []
+        );
+        const allRows = blockRows.length > 0 ? blockRows : s.rows || [];
+        for (const r of allRows) {
+          const foundCell = (r.cells || []).find((c) => c?.ref === targetRef);
+          if (foundCell) {
+            if (foundCell.kind === "formula" || foundCell.formula) return false;
+            const baseVal = foundCell.value;
+            if (baseVal !== undefined && baseVal !== null && String(baseVal).trim() !== "") {
+              return false;
+            }
+          }
+        }
+      }
+      handleExactCellChange({
+        cellKey: exactCellKey,
+        value,
+        obsKey: colKey || "",
+        obsRowIdx: typeof rowIdx === "number" ? rowIdx : -1,
+      });
+      return true;
+    }
     const currentVal = obsReadings?.[rowIdx]?.[colKey];
     if (currentVal !== undefined && currentVal !== null && String(currentVal).trim() !== "") {
       return false;
@@ -3499,8 +3643,17 @@ export default function CalibrationPageView() {
     return true;
   };
 
-  const handleVoiceRevertObservationCell = (rowIdx, colKey) => {
+  const handleVoiceRevertObservationCell = (rowIdx, colKey, exactCellKey = "") => {
     if (!activeObsRecord || getObservationLockState(activeObsRecord).isLocked) return;
+    if (exactCellKey) {
+      handleExactCellChange({
+        cellKey: exactCellKey,
+        value: "",
+        obsKey: colKey || "",
+        obsRowIdx: typeof rowIdx === "number" ? rowIdx : -1,
+      });
+      return;
+    }
     handleReadingChange(rowIdx, colKey, "");
     syncMappedCellsToExactSheets([{ obsRowIdx: rowIdx, obsKey: colKey, value: "" }]);
   };
@@ -3653,6 +3806,12 @@ export default function CalibrationPageView() {
       setIsObsSaving(false);
 
       if (status === "Submitted") {
+        setViewedAuthRecords((prev) => {
+          if (!prev[activeObsRecord._id]) return prev;
+          const next = { ...prev };
+          delete next[activeObsRecord._id];
+          return next;
+        });
         setObsSubmissionSuccess({
           message: "Observation worksheet submitted to Quality Authorization! The form is now LOCKED to prevent modifications.",
           instrument: currentInstrument,
@@ -3672,6 +3831,12 @@ export default function CalibrationPageView() {
 
   const handleApproveObservation = async (rec) => {
     if (!rec) return;
+    if (!viewedAuthRecords[rec._id]) {
+      toast.warning("Bina poora report view kiye Pass nahi kar sakte — pehle full report view/scroll karein ya PDF dekhein!");
+      setInspectingObsRecord(rec);
+      setInspectionModalTab("calculation");
+      return;
+    }
     try {
       setIsAuthProcessing(true);
       const calc = computeMetrologicalCalculations(rec);
@@ -3736,6 +3901,12 @@ export default function CalibrationPageView() {
       setIsRejectModalOpen(false);
       setAuthorizingRecord(null);
       setRejectionReason("");
+      setViewedAuthRecords((prev) => {
+        if (!prev[rec._id]) return prev;
+        const next = { ...prev };
+        delete next[rec._id];
+        return next;
+      });
       setSelectedObsInstrumentId(rec._id);
       setActiveTab("observations");
       if (isAlreadyApproved) {
@@ -5645,18 +5816,30 @@ export default function CalibrationPageView() {
       let lastInwardNo = null;
       let autoInwardCounter = 1;
       const seenInstruments = new Map();
+      const srfGroupCount = matchingItems.length;
 
-      matchingItems.forEach((r, idx) => {
+      const resolvedInwardNos = matchingItems.map((r, idx) => {
         const reg = r.inwardRegister || {};
         const instKey = String(r.instrument || `item-${idx}`).trim().toLowerCase();
         if (!seenInstruments.has(instKey)) {
           seenInstruments.set(instKey, `${grp.srfNo}-${String(autoInwardCounter).padStart(2, "0")}`);
           autoInwardCounter++;
         }
-        const rawInwardNo = String(reg.inwardNo || seenInstruments.get(instKey)).trim();
+        return String(reg.inwardNo || seenInstruments.get(instKey)).trim();
+      });
+
+      matchingItems.forEach((r, idx) => {
+        const reg = r.inwardRegister || {};
+        const rawInwardNo = resolvedInwardNos[idx];
         const isFirstInSrf = idx === 0;
         const isLastInSrf = idx === matchingItems.length - 1;
         const isFirstInInward = idx === 0 || rawInwardNo !== lastInwardNo;
+        let inwardGroupCount = 1;
+        if (isFirstInInward) {
+          for (let j = idx + 1; j < resolvedInwardNos.length && resolvedInwardNos[j] === rawInwardNo; j++) {
+            inwardGroupCount++;
+          }
+        }
         lastInwardNo = rawInwardNo;
 
         const { range: parsedRange, unit: parsedUnit } = splitRangeAndUnit(r.instrumentRange);
@@ -5680,6 +5863,8 @@ export default function CalibrationPageView() {
           id: r._id || r.id || `${grp.groupKey}-${idx}`,
           rawRecord: r,
           srfGroupIdx,
+          srfGroupCount,
+          inwardGroupCount,
           isFirstInSrf,
           isLastInSrf,
           isFirstInInward,
@@ -5966,10 +6151,24 @@ export default function CalibrationPageView() {
       { wch: 14 },
       { wch: 20 },
     ];
-    ws["!merges"] = [
+    const merges = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
       { s: { r: 0, c: 5 }, e: { r: 0, c: 17 } },
     ];
+    const srfMergeCols = [0, 2, 3, 4, 15, 16];
+    inwardRegisterData.rows.forEach((row, rIdx) => {
+      const sheetRow = rIdx + 2;
+      if (row.isFirstInSrf && (row.srfGroupCount || 1) > 1) {
+        const endRow = sheetRow + row.srfGroupCount - 1;
+        srfMergeCols.forEach((colIdx) => {
+          merges.push({ s: { r: sheetRow, c: colIdx }, e: { r: endRow, c: colIdx } });
+        });
+      }
+      if (row.isFirstInInward && (row.inwardGroupCount || 1) > 1) {
+        merges.push({ s: { r: sheetRow, c: 1 }, e: { r: sheetRow + row.inwardGroupCount - 1, c: 1 } });
+      }
+    });
+    ws["!merges"] = merges;
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inward Register");
@@ -6041,12 +6240,16 @@ export default function CalibrationPageView() {
           ? `<span class="badge badge-site">${esc(row.calibrationDoneAt)}</span>`
           : `<span class="badge badge-lab">${esc(row.calibrationDoneAt)}</span>`;
 
+        const srfSpan = row.srfGroupCount || 1;
+        const inwardSpan = row.inwardGroupCount || 1;
+        const mergedCellStyle = `vertical-align: middle; background:${rowBg};`;
+
         return `<tr style="background:${rowBg};${groupTopBorder}">
-          <td class="mono bold navy nowrap">${esc(row.displaySrfNo)}</td>
-          <td class="mono bold blue nowrap">${esc(row.displayInwardNo)}</td>
-          <td class="mono nowrap">${esc(row.displayDateOfReceipt)}</td>
-          <td class="bold">${esc(row.displayCustomer)}</td>
-          <td>${esc(row.displayAddress)}</td>
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" class="mono bold navy nowrap" style="${mergedCellStyle}">${esc(row.displaySrfNo)}</td>` : ""}
+          ${row.isFirstInInward ? `<td rowspan="${inwardSpan}" class="mono bold blue nowrap" style="${mergedCellStyle}">${esc(row.displayInwardNo)}</td>` : ""}
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" class="mono nowrap" style="${mergedCellStyle}">${esc(row.displayDateOfReceipt)}</td>` : ""}
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" class="bold" style="${mergedCellStyle}">${esc(row.displayCustomer)}</td>` : ""}
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" style="${mergedCellStyle}">${esc(row.displayAddress)}</td>` : ""}
           <td class="bold">${esc(row.instrumentName)}</td>
           <td class="mono bold nowrap">${esc(row.serialNo)}</td>
           <td class="mono center nowrap">${esc(row.range)}</td>
@@ -6057,8 +6260,8 @@ export default function CalibrationPageView() {
           <td class="center nowrap">${doneAtBadge}</td>
           <td class="mono bold indigo nowrap">${esc(row.displayCertificateNo)}</td>
           <td class="mono bold nowrap" style="color:#0f766e;">${esc(row.displayUlrNo)}</td>
-          <td class="mono center bold nowrap">${esc(row.displayDeliveryDays)}</td>
-          <td class="mono nowrap">${esc(row.displayDateOfDelivery)}</td>
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" class="mono center bold nowrap" style="${mergedCellStyle}">${esc(row.displayDeliveryDays)}</td>` : ""}
+          ${row.isFirstInSrf ? `<td rowspan="${srfSpan}" class="mono nowrap" style="${mergedCellStyle}">${esc(row.displayDateOfDelivery)}</td>` : ""}
           <td>${esc(row.remarks)}</td>
         </tr>`;
       })
@@ -9229,6 +9432,29 @@ export default function CalibrationPageView() {
     // Fallback for certificate / observation sheet / srf
     const isExplicitBatchTarget = Boolean(target?.items && target.items.length > 1);
     const resolvedViewMode = options?.viewMode || (isExplicitBatchTarget ? "all" : "single");
+    if (docType === "observation_sheet" && resolvedViewMode === "single") {
+      const obs = primary?.observationData || {};
+      const matchedTmpl = findTemplateForInstrument(primary, obsTemplates);
+      const hasSheetFormat = Boolean(
+        matchedTmpl ||
+          obs.templateId ||
+          obs.pdfUrl ||
+          (Array.isArray(obs.readings) && obs.readings.length > 0) ||
+          (Array.isArray(obs.tableColumns) && obs.tableColumns.length > 0) ||
+          (obs.exactSheetValues && Object.keys(obs.exactSheetValues).length > 0)
+      );
+      if (!hasSheetFormat) {
+        toast.warning(`"${primary?.instrument || "Is equipment"}" ke liye abhi koi Observation Sheet format upload ya assign nahi hua hai.`);
+        return;
+      }
+    }
+    if (docType === "observation_sheet") {
+      if (resolvedViewMode === "all" && Array.isArray(batchItems)) {
+        batchItems.forEach((it) => markAuthRecordViewed(it?._id));
+      } else {
+        markAuthRecordViewed(primary?._id);
+      }
+    }
     setSelectedDoc({
       type: docType,
       record: primary,
@@ -12370,30 +12596,58 @@ export default function CalibrationPageView() {
                   ) : (
                     inwardRegisterData.rows.map((row, rIdx) => {
                       const isEvenGroup = row.srfGroupIdx % 2 === 0;
+                      const groupBgClass = isEvenGroup ? "bg-white" : "bg-slate-50/70";
+                      const srfSpan = row.srfGroupCount || 1;
+                      const inwardSpan = row.inwardGroupCount || 1;
                       return (
                         <tr
                           key={row.id || rIdx}
                           onDoubleClick={() => handleOpenInwardEditModal(row)}
-                          className={`transition hover:bg-cyan-50/60 ${
-                            isEvenGroup ? "bg-white" : "bg-slate-50/70"
-                          } ${row.isFirstInSrf && rIdx > 0 ? "border-t-2 border-t-slate-500" : ""}`}
+                          className={`transition hover:bg-cyan-50/60 ${groupBgClass} ${
+                            row.isFirstInSrf && rIdx > 0 ? "border-t-2 border-t-slate-500" : ""
+                          }`}
                           title="Double-click or click Edit icon to update any cell"
                         >
-                          <td className="border border-slate-300 px-2 py-1.5 font-mono font-bold text-[#021C57] whitespace-nowrap">
-                            {row.displaySrfNo}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-1.5 font-mono text-blue-900 font-semibold whitespace-nowrap">
-                            {row.displayInwardNo}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800">
-                            {row.displayDateOfReceipt}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-1.5 font-bold text-gray-900">
-                            {row.displayCustomer}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-1.5 text-gray-700 text-[10.5px] max-w-[260px] whitespace-normal">
-                            {row.displayAddress}
-                          </td>
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 font-mono font-bold text-[#021C57] whitespace-nowrap align-middle ${groupBgClass}`}
+                            >
+                              {row.displaySrfNo}
+                            </td>
+                          )}
+                          {row.isFirstInInward && (
+                            <td
+                              rowSpan={inwardSpan}
+                              className={`border border-slate-300 px-2 py-1.5 font-mono text-blue-900 font-semibold whitespace-nowrap align-middle ${groupBgClass}`}
+                            >
+                              {row.displayInwardNo}
+                            </td>
+                          )}
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800 align-middle ${groupBgClass}`}
+                            >
+                              {row.displayDateOfReceipt}
+                            </td>
+                          )}
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 font-bold text-gray-900 align-middle ${groupBgClass}`}
+                            >
+                              {row.displayCustomer}
+                            </td>
+                          )}
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 text-gray-700 text-[10.5px] max-w-[260px] whitespace-normal align-middle ${groupBgClass}`}
+                            >
+                              {row.displayAddress}
+                            </td>
+                          )}
                           <td className="border border-slate-300 px-2 py-1.5 font-semibold text-gray-900 whitespace-nowrap">
                             {row.instrumentName}
                           </td>
@@ -12432,12 +12686,22 @@ export default function CalibrationPageView() {
                           <td className="border border-slate-300 px-2 py-1.5 font-mono font-bold text-teal-800 whitespace-nowrap">
                             {row.displayUlrNo}
                           </td>
-                          <td className="border border-slate-300 px-2 py-1.5 text-center font-mono font-bold text-gray-800 whitespace-nowrap">
-                            {row.displayDeliveryDays}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800">
-                            {row.displayDateOfDelivery}
-                          </td>
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 text-center font-mono font-bold text-gray-800 whitespace-nowrap align-middle ${groupBgClass}`}
+                            >
+                              {row.displayDeliveryDays}
+                            </td>
+                          )}
+                          {row.isFirstInSrf && (
+                            <td
+                              rowSpan={srfSpan}
+                              className={`border border-slate-300 px-2 py-1.5 font-mono whitespace-nowrap text-gray-800 align-middle ${groupBgClass}`}
+                            >
+                              {row.displayDateOfDelivery}
+                            </td>
+                          )}
                           <td className="border border-slate-300 px-2 py-1.5 text-gray-700 text-[10.5px]">
                             {row.remarks}
                           </td>
@@ -13522,6 +13786,13 @@ export default function CalibrationPageView() {
                             readings={obsReadings}
                             repeatabilityReadings={obsRepeatabilityReadings}
                             exactSheetValues={obsExactSheetValues}
+                            isExactMode={
+                              obsExactMode &&
+                              Array.isArray(currentSelectedTemplate?.exactSheets) &&
+                              currentSelectedTemplate.exactSheets.length > 0
+                            }
+                            activeExactCellKey={activeVoiceCellKey}
+                            onActiveExactCellChange={setActiveVoiceCellKey}
                             onApplyExtractedData={handleApplyExtractedObservationData}
                             onUpdateScannedCell={handleUpdateScannedCell}
                             onUpdateScannedRepeatability={handleUpdateScannedRepeatability}
@@ -13576,6 +13847,8 @@ export default function CalibrationPageView() {
                                 exactSheets={currentSelectedTemplate.exactSheets}
                                 values={obsExactSheetValues}
                                 onCellChange={handleExactCellChange}
+                                onCellFocus={obsInputMode === "voice" ? setActiveVoiceCellKey : null}
+                                voiceActiveCellKey={obsInputMode === "voice" ? activeVoiceCellKey : ""}
                                 onAddExtraRow={handleExactAddExtraRow}
                                 onRemoveExtraRow={handleExactRemoveExtraRow}
                                 allowAddRows={true}
@@ -13860,7 +14133,20 @@ export default function CalibrationPageView() {
                                   <input
                                     type="text"
                                     value={obsRange}
-                                    onChange={(e) => setObsRange(e.target.value)}
+                                    onChange={(e) => {
+                                      const nextVal = e.target.value;
+                                      setObsRange(nextVal);
+                                      const sizeKeys = getExactSizeOrRangeCellKeys(currentSelectedTemplate);
+                                      if (sizeKeys.length > 0) {
+                                        setObsExactSheetValues((prev) => {
+                                          const next = { ...(prev || {}) };
+                                          sizeKeys.forEach((k) => {
+                                            next[k] = nextVal;
+                                          });
+                                          return next;
+                                        });
+                                      }
+                                    }}
                                     disabled={isObsLocked}
                                     placeholder="Range(mm)"
                                     className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-teal-500"
@@ -14877,21 +15163,45 @@ export default function CalibrationPageView() {
                               </>
                             )}
 
-                            {/* If Pending: Pass, and Return/Unlock (ONLY visible to hm4030178@gmail.com) */}
-                            {isPending && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAuthorizingRecord(r);
-                                    handleApproveObservation(r);
-                                  }}
-                                  disabled={isAuthProcessing}
-                                  className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-                                  title="Pass observation and officially issue Certificate into SRF"
-                                >
-                                  <FaCheckDouble className="text-xs" /> PASS &amp; ISSUE CERT
-                                </button>
+                            {/* If Pending: Pass (locked until fully viewed), and Return/Unlock (ONLY visible to hm4030178@gmail.com) */}
+                            {isPending && (() => {
+                              const hasViewedForPass = Boolean(viewedAuthRecords[r._id]);
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!hasViewedForPass) {
+                                        toast.info("Pehle poora worksheet & calculation view karein (neeche tak scroll karein ya PDF dekhein), uske baad hi Pass hoga!");
+                                        setInspectingObsRecord(r);
+                                        setInspectionModalTab("calculation");
+                                        return;
+                                      }
+                                      setAuthorizingRecord(r);
+                                      handleApproveObservation(r);
+                                    }}
+                                    disabled={isAuthProcessing}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
+                                      hasViewedForPass
+                                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                                        : "bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300"
+                                    }`}
+                                    title={
+                                      hasViewedForPass
+                                        ? "Pass observation and officially issue Certificate into SRF"
+                                        : "View full report first (Calculate & Review or Raw PDF) before Passing"
+                                    }
+                                  >
+                                    {hasViewedForPass ? (
+                                      <>
+                                        <FaCheckDouble className="text-xs" /> PASS &amp; ISSUE CERT
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FaLock className="text-[10px]" /> VIEW FIRST TO PASS
+                                      </>
+                                    )}
+                                  </button>
                                 {isHarshLogin && (
                                   <>
                                     <button
@@ -14939,7 +15249,8 @@ export default function CalibrationPageView() {
                                   </>
                                 )}
                               </>
-                            )}
+                              );
+                            })()}
 
                             {/* If Draft / Not recorded yet: Quick link to Sec 6 */}
                             {!isPending && !isApproved && (
@@ -19745,13 +20056,31 @@ export default function CalibrationPageView() {
       {/* ========================================================================= */}
       {inspectingObsRecord && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4 p-6">
+          <div
+            ref={inspectModalScrollRef}
+            onScroll={checkInspectModalFullyViewed}
+            className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto space-y-4 p-6"
+          >
             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <FaClipboardCheck className="text-teal-600 text-xl" />
                 <h3 className="font-extrabold text-base text-gray-900">
                   Observation Worksheet: {inspectingObsRecord.instrument}
                 </h3>
+                {inspectingObsRecord.authorizationData?.status !== "Approved" &&
+                  inspectingObsRecord.observationData?.status === "Submitted" && (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                        viewedAuthRecords[inspectingObsRecord._id]
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                          : "bg-amber-50 text-amber-800 border-amber-300 animate-pulse"
+                      }`}
+                    >
+                      {viewedAuthRecords[inspectingObsRecord._id]
+                        ? "✓ Full Report Viewed — Ready to Pass"
+                        : "Scroll down to view full report before Pass ↓"}
+                    </span>
+                  )}
               </div>
               <button
                 onClick={() => setInspectingObsRecord(null)}
@@ -20016,13 +20345,29 @@ export default function CalibrationPageView() {
                           <button
                             type="button"
                             onClick={() => {
+                              if (!viewedAuthRecords[inspectingObsRecord._id]) {
+                                toast.warning("Pehle poora sheet neeche tak scroll karke view karein ya 'View Full PDF' dekhein!");
+                                return;
+                              }
                               const rec = inspectingObsRecord;
                               setInspectingObsRecord(null);
                               handleApproveObservation(rec);
                             }}
-                            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            className={`px-4 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                              viewedAuthRecords[inspectingObsRecord._id]
+                                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white"
+                                : "bg-amber-200 text-amber-950 border border-amber-400"
+                            }`}
                           >
-                            <FaCheckDouble /> PASS &amp; ISSUE CERTIFICATE
+                            {viewedAuthRecords[inspectingObsRecord._id] ? (
+                              <>
+                                <FaCheckDouble /> PASS &amp; ISSUE CERTIFICATE
+                              </>
+                            ) : (
+                              <>
+                                <FaLock /> SCROLL TO END / VIEW PDF TO PASS
+                              </>
+                            )}
                           </button>
                         </div>
                       )}
@@ -20641,13 +20986,29 @@ export default function CalibrationPageView() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (!viewedAuthRecords[inspectingObsRecord._id]) {
+                        toast.warning("Pehle poora report scroll karke view karein ya 'View Full PDF' open karein!");
+                        return;
+                      }
                       const rec = inspectingObsRecord;
                       setInspectingObsRecord(null);
                       handleApproveObservation(rec);
                     }}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className={`px-4 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                      viewedAuthRecords[inspectingObsRecord._id]
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white"
+                        : "bg-amber-200 text-amber-950 border border-amber-400"
+                    }`}
                   >
-                    <FaCheckDouble /> Approve &amp; Issue Certificate
+                    {viewedAuthRecords[inspectingObsRecord._id] ? (
+                      <>
+                        <FaCheckDouble /> Approve &amp; Issue Certificate
+                      </>
+                    ) : (
+                      <>
+                        <FaLock /> View Full Report First
+                      </>
+                    )}
                   </button>
                 )}
                 <button
@@ -21152,9 +21513,10 @@ export default function CalibrationPageView() {
                   null;
                 const calc = computeMetrologicalCalculations(rec);
                 const isObsDoc = selectedDoc.type === "observation_sheet" || selectedDoc.type === "observation";
+                const resolvedSrfRef = rec.inwardRegister?.srfNo || rec.srfNo || "SRF";
                 const cNo = isObsDoc
                   ? (obs.worksheetNo || `WS-ARCL-2026-${rec.serialNo || itemIdx + 1}`)
-                  : (rec.records?.certificateNo || rec.authorizationData?.certificateNo || `ARCL-CAL-2026-${String(rec.srNo || itemIdx + 1).padStart(3, "0")}`);
+                  : (rec.records?.certificateNo || rec.authorizationData?.certificateNo || `ARCL/F/${resolvedSrfRef}/${String(rec.srNo || itemIdx + 1).padStart(2, "0")}`);
 
                 return (
                   <div key={rec._id || itemIdx} className="space-y-2">

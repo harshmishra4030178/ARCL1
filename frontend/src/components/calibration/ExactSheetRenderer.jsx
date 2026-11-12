@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { FaCalculator, FaFileExcel, FaFilePdf, FaPlus, FaTable, FaTrashAlt } from "react-icons/fa";
-import { buildFormulaEvaluator } from "../../utils/exactFormulaEngine";
+import { buildFormulaEvaluator, collectReferencedSheetCells } from "../../utils/exactFormulaEngine";
 
 export default function ExactSheetRenderer({
   exactSheets = [],
@@ -13,6 +13,8 @@ export default function ExactSheetRenderer({
   pdfUrl = "",
   title = "",
   allowAddRows = false,
+  voiceActiveCellKey = "",
+  onCellFocus = null,
 }) {
   const [activeSheetIdx, setActiveSheetIdx] = useState(0);
 
@@ -27,6 +29,11 @@ export default function ExactSheetRenderer({
   const evaluator = useMemo(
     () => buildFormulaEvaluator(sheets, values),
     [sheets, values]
+  );
+
+  const formulaReferencedCells = useMemo(
+    () => collectReferencedSheetCells(sheets),
+    [sheets]
   );
 
   if (!activeSheet) {
@@ -193,13 +200,36 @@ export default function ExactSheetRenderer({
           const totalColsCount = colsMeta.length || 1;
           const totalWidth = colsMeta.reduce((sum, cm) => sum + (cm.wpx || 78), 0) || 800;
 
-          const renderCellContent = (cell) => {
+          const isRowValueInputContext = (rowCells, colArrIdx) => {
+            for (let k = colArrIdx - 1; k >= 0; k--) {
+              const prevTxt = String(rowCells[k]?.value ?? "").trim();
+              if (!prevTxt) continue;
+              const cleanLbl = prevTxt.replace(/^\d+(?:\.\d+)?\s*\.\s*/g, "").replace(/[:-]+$/g, "").trim();
+              return /^(?:size(?:\([^)]*\))?|range(?:\([^)]*\))?|capacity(?:\([^)]*\))?|serial\s*no\.?\s*\/?\s*id\s*no\.?|sr\.?\s*no\.?\s*\/?\s*id\s*no\.?|id\s*no\.?|length|width|height|diameter|dia\.?|thickness|depth)$/i.test(cleanLbl);
+            }
+            return false;
+          };
+
+          const isEditableCell = (cell, rowCells = null, colArrIdx = -1) => {
+            if (!cell) return false;
+            if (cell.kind === "input") return true;
+            if (cell.kind === "label" && String(cell.value ?? "").trim() === "") {
+              if (formulaReferencedCells.has(`${sheetName}!${cell.ref}`)) return true;
+              if (rowCells && colArrIdx > 0 && isRowValueInputContext(rowCells, colArrIdx)) return true;
+            }
+            return false;
+          };
+
+          const renderCellContent = (cell, rowCells = null, colArrIdx = -1) => {
             if (cell.kind === "formula") {
               const evalRaw = evaluator.evalFormula(cell.formula, sheetName, 0);
               const formatted = evaluator.formatOutput(evalRaw, cell.numFormat, cell.value || "0");
+              const isMultiline = String(formatted || "").includes("\n");
               return (
                 <div
-                  className="px-1.5 py-1 font-mono font-bold text-indigo-950 bg-indigo-50/40 w-full h-full flex items-center justify-center text-[11px]"
+                  className={`px-1.5 py-1 font-mono font-bold text-indigo-950 bg-indigo-50/40 w-full h-full flex items-center text-[11px] ${
+                    isMultiline ? "whitespace-pre-line text-left justify-start leading-snug" : "justify-center"
+                  }`}
                   title={`Formula: =${cell.formula}`}
                 >
                   {formatted}
@@ -207,8 +237,10 @@ export default function ExactSheetRenderer({
               );
             }
 
-            if (cell.kind === "input") {
+            if (isEditableCell(cell, rowCells, colArrIdx)) {
               const val = getCellDisplayValue(cell);
+              const cellKey = `${sheetName}!${cell.ref}`;
+              const isVoiceTargeted = Boolean(voiceActiveCellKey && voiceActiveCellKey === cellKey);
               if (readOnly) {
                 return (
                   <div className="px-1.5 py-1 font-mono text-slate-900 text-[11px] min-h-[22px]">
@@ -220,9 +252,14 @@ export default function ExactSheetRenderer({
                 <input
                   type="text"
                   value={val}
+                  onFocus={() => onCellFocus?.(cellKey)}
                   onChange={(e) => handleInputChange(cell, e.target.value)}
                   placeholder={cell.placeholder || ""}
-                  className={`w-full min-w-[44px] px-1.5 py-1 text-[11px] font-mono bg-sky-50/55 hover:bg-sky-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-900 placeholder:text-slate-400/80 placeholder:text-[9.5px] ${
+                  className={`w-full min-w-[44px] px-1.5 py-1 text-[11px] font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-900 placeholder:text-slate-400/80 placeholder:text-[9.5px] ${
+                    isVoiceTargeted
+                      ? "bg-teal-100/80 ring-2 ring-teal-500"
+                      : "bg-sky-50/55 hover:bg-sky-50"
+                  } ${
                     cell.align === "left" ? "text-left" : cell.align === "right" ? "text-right" : "text-center"
                   }`}
                 />
@@ -253,7 +290,7 @@ export default function ExactSheetRenderer({
                   <td colSpan={totalColsCount} className="border-x border-slate-300 h-2" />
                 ) : (
                   rw.cells.map((cell, cIdx) => {
-                    const hasAnyValue = Boolean(cell.value || cell.formula || cell.kind === "input");
+                    const hasAnyValue = Boolean(cell.value || cell.formula || isEditableCell(cell, rw.cells, cIdx));
                     let bgClass = "bg-white";
                     if (cell.kind === "title") bgClass = "bg-slate-100 font-black text-xs sm:text-sm text-slate-950";
                     else if (cell.kind === "section") bgClass = "bg-slate-200/75 font-extrabold text-[11.5px] text-slate-950";
@@ -269,7 +306,7 @@ export default function ExactSheetRenderer({
                           hasAnyValue ? "border-slate-700" : "border-slate-300"
                         } ${bgClass}`}
                       >
-                        {renderCellContent(cell)}
+                        {renderCellContent(cell, rw.cells, cIdx)}
                       </td>
                     );
                   })

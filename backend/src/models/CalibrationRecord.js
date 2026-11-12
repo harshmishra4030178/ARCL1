@@ -196,7 +196,7 @@ const calibrationRecordSchema = new mongoose.Schema(
       },
       certificateNo: {
         type: String,
-        default: "ARCL-CAL-2026-001",
+        default: "",
       },
       ulrNo: {
         type: String,

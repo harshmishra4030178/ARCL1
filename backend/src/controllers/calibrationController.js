@@ -33,6 +33,10 @@ import {
   getRecordReceiptDate,
   normalizeCustomerKey,
 } from "../utils/srfGenerator.js";
+import {
+  allocateNextCertificateNo,
+  isPlaceholderCertificateNo,
+} from "../utils/certificateNoGenerator.js";
 import cloudinary from "../config/cloudinary.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
@@ -74,8 +78,7 @@ const isCertifiedRecordStage = (rec, explicitStage = "") => {
   if (rec.authorizationData?.status === "Approved") return true;
   if (["Certificate Uploaded", "Invoice Sent"].includes(rec.stage)) return true;
   if (["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(explicitStage)) return true;
-  const hasRealCert =
-    rec.records?.certificateNo && rec.records.certificateNo !== "ARCL-CAL-2026-001";
+  const hasRealCert = !isPlaceholderCertificateNo(rec.records?.certificateNo);
   const hasReadings =
     Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
   return Boolean(rec.stage === "Calibration Done" && (hasRealCert || hasReadings));
@@ -83,11 +86,11 @@ const isCertifiedRecordStage = (rec, explicitStage = "") => {
 
 /**
  * Shared helper invoked whenever a certificate is generated / authorized / advanced to certified state.
- * Guarantees unique 18-char ULR No., unique customer SRF No., Certificate No., and complete Inward Register entry.
+ * Guarantees unique 18-char ULR No., unique customer SRF No., discipline-based Certificate No., and complete Inward Register entry.
  */
 const syncRecordUlrAndInwardOnCertification = async (
   record,
-  { adminName = "Quality Manager", certNo = "", assignedSrfNo = "", assignedUlrNo = "" } = {}
+  { adminName = "Quality Manager", certNo = "", assignedSrfNo = "", assignedUlrNo = "", usedCertNos = null } = {}
 ) => {
   if (!record) return record;
 
@@ -143,14 +146,18 @@ const syncRecordUlrAndInwardOnCertification = async (
     });
   }
 
+  const explicitCert = !isPlaceholderCertificateNo(certNo)
+    ? String(certNo).trim()
+    : !isPlaceholderCertificateNo(record.records?.certificateNo)
+    ? String(record.records.certificateNo).trim()
+    : "";
   const resolvedCert =
-    certNo ||
-    (record.records?.certificateNo && record.records.certificateNo !== "ARCL-CAL-2026-001"
-      ? record.records.certificateNo
-      : "ARCL/CERT/26-27/" +
-        (record.serialNo
-          ? record.serialNo.replace(/[^0-9]/g, "").slice(-4) || Math.floor(1000 + Math.random() * 9000)
-          : Math.floor(1000 + Math.random() * 9000)));
+    explicitCert ||
+    (await allocateNextCertificateNo(record, {
+      CalibrationRecord,
+      srfNo: resolvedSrf,
+      usedCertNos,
+    }));
 
   const existingReg =
     record.inwardRegister && typeof record.inwardRegister.toObject === "function"
@@ -560,7 +567,10 @@ export const createCalibrationRecord = async (req, res, next) => {
         : [];
     const autoUlrByIdx = new Map(indicesNeedingUlr.map((itemIdx, seqIdx) => [itemIdx, allocatedBatchUlrs[seqIdx]]));
 
-    const recordsToInsert = itemsToProcess.map((it, idx) => {
+    const usedBatchCerts = new Set();
+    const recordsToInsert = [];
+    for (let idx = 0; idx < itemsToProcess.length; idx++) {
+      const it = itemsToProcess[idx];
       const idxCount = currentCount + idx + 1;
       const calibDate = it.calibrationDate ? new Date(it.calibrationDate) : new Date();
       const dueDate = it.calibrationDueDate
@@ -569,8 +579,25 @@ export const createCalibrationRecord = async (req, res, next) => {
       const assignedUlrNo =
         autoUlrByIdx.get(idx) ||
         normalizeUlrNo(it.ulrNo || it.records?.ulrNo || it.inwardRegister?.ulrNo);
+      const isItemPreDone = ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage);
+      const manualCert = !isPlaceholderCertificateNo(it.certificateNo) ? String(it.certificateNo).trim() : "";
+      const allocatedItemCert =
+        manualCert ||
+        (isItemPreDone
+          ? await allocateNextCertificateNo(
+              {
+                instrument: it.instrument.trim(),
+                instrumentRange: it.instrumentRange !== undefined ? it.instrumentRange.trim() : "",
+                make: it.make !== undefined ? it.make.trim() : "",
+                modelNo: it.modelNo !== undefined ? it.modelNo.trim() : "",
+                srfNo: batchSrfNo,
+                calibrationDate: calibDate,
+              },
+              { CalibrationRecord, srfNo: batchSrfNo, usedCertNos: usedBatchCerts }
+            )
+          : "");
 
-      return {
+      recordsToInsert.push({
         srNo: idxCount,
         instrument: it.instrument.trim(),
         make: it.make !== undefined ? it.make.trim() : "",
@@ -598,9 +625,7 @@ export const createCalibrationRecord = async (req, res, next) => {
         },
         records: {
           certificate: "/docs/sample-calibration-certificate.pdf",
-          certificateNo:
-            it.certificateNo?.trim() ||
-            `ARCL-CAL-2026-${String(idxCount).padStart(3, "0")}`,
+          certificateNo: allocatedItemCert,
           ulrNo: assignedUlrNo,
           recordExcel: "/docs/calibration-records.xlsx",
           stickerCheck:
@@ -611,18 +636,11 @@ export const createCalibrationRecord = async (req, res, next) => {
               : true,
         },
         inwardRegister: {
-          srfDone:
-            Boolean(it.srfDone) ||
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage),
-          ...(it.srfDone || ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
-            ? { srfDoneAt: new Date() }
-            : {}),
+          srfDone: Boolean(it.srfDone) || isItemPreDone,
+          ...(it.srfDone || isItemPreDone ? { srfDoneAt: new Date() } : {}),
           srfNo: batchSrfNo,
           inwardNo: `${batchSrfNo}-${String(idx + 1).padStart(2, "0")}`,
-          certificateNo:
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
-              ? (it.certificateNo?.trim() || `ARCL-CAL-2026-${String(idxCount).padStart(3, "0")}`)
-              : "",
+          certificateNo: isItemPreDone ? allocatedItemCert : "",
           ulrNo: assignedUlrNo,
         },
         stage: it.stage || stage || "Instrument Received",
@@ -632,23 +650,23 @@ export const createCalibrationRecord = async (req, res, next) => {
           granted:
             req.body.releaseImmediately === true ||
             req.body.releaseImmediately === "true" ||
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage),
+            isItemPreDone,
           releaseDate:
             req.body.releaseImmediately === true ||
             req.body.releaseImmediately === "true" ||
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+            isItemPreDone
               ? calibDate
               : null,
           grantedAt:
             req.body.releaseImmediately === true ||
             req.body.releaseImmediately === "true" ||
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+            isItemPreDone
               ? new Date()
               : null,
           grantedBy:
             req.body.releaseImmediately === true ||
             req.body.releaseImmediately === "true" ||
-            ["Calibration Done", "Certificate Uploaded", "Invoice Sent"].includes(it.stage || stage)
+            isItemPreDone
               ? (req.admin?.name || req.user?.name || "Admin")
               : "",
           notes:
@@ -657,8 +675,8 @@ export const createCalibrationRecord = async (req, res, next) => {
               ? "Released on inward entry"
               : "Held pending Lab Permission",
         },
-      };
-    });
+      });
+    }
 
     const createdRecords = await CalibrationRecord.insertMany(recordsToInsert);
 
@@ -765,6 +783,7 @@ export const updateCalibrationBatch = async (req, res, next) => {
     // 2. Process all instruments (Update existing or Insert new)
     const results = [];
     const currentCount = await CalibrationRecord.countDocuments();
+    const usedBatchUpdateCerts = new Set();
 
     for (let i = 0; i < instruments.length; i++) {
       const it = instruments[i];
@@ -799,7 +818,10 @@ export const updateCalibrationBatch = async (req, res, next) => {
         remarks: it.remarks || "",
         "commercialDocs.paymentStatus": it.paymentStatus || it.commercialDocs?.paymentStatus || "Paid",
         "records.stickerCheck": it.stickerCheck !== undefined ? Boolean(it.stickerCheck) : true,
-        "records.certificateNo": it.certificateNo?.trim() || it.records?.certificateNo || `ARCL-CAL-2026-${String(currentCount + i + 1).padStart(3, "0")}`,
+        "records.certificateNo":
+          (!isPlaceholderCertificateNo(it.certificateNo) && it.certificateNo.trim()) ||
+          (!isPlaceholderCertificateNo(it.records?.certificateNo) && it.records.certificateNo.trim()) ||
+          "",
       };
 
       if (it._id && isValidMongoId(it._id)) {
@@ -812,6 +834,7 @@ export const updateCalibrationBatch = async (req, res, next) => {
           if (isCertifiedRecordStage(updated)) {
             await syncRecordUlrAndInwardOnCertification(updated, {
               adminName: req.admin?.name || req.user?.name || "Admin",
+              usedCertNos: usedBatchUpdateCerts,
             });
             await updated.save();
           }
@@ -856,6 +879,7 @@ export const updateCalibrationBatch = async (req, res, next) => {
         if (isPreDone) {
           await syncRecordUlrAndInwardOnCertification(newRecord, {
             adminName: req.admin?.name || req.user?.name || "Admin",
+            usedCertNos: usedBatchUpdateCerts,
           });
           await newRecord.save();
         }
@@ -897,12 +921,13 @@ export const trackInstrument = async (req, res, next) => {
       throw new ApiError(400, "Please provide a Serial Number or DC Challan Number to track");
     }
 
-    const trimmed = query.trim();
+    const trimmed = String(query || "").trim();
+    const safeTrimmed = escapeRegex(trimmed);
     const record = await CalibrationRecord.findOne({
       $or: [
-        { serialNo: { $regex: `^${trimmed}$`, $options: "i" } },
-        { dcNo: { $regex: `^${trimmed}$`, $options: "i" } },
-        { "records.certificateNo": { $regex: `^${trimmed}$`, $options: "i" } },
+        { serialNo: { $regex: `^\\s*${safeTrimmed}\\s*$`, $options: "i" } },
+        { dcNo: { $regex: `^\\s*${safeTrimmed}\\s*$`, $options: "i" } },
+        { "records.certificateNo": { $regex: `^\\s*${safeTrimmed}\\s*$`, $options: "i" } },
       ],
     }).lean();
 
@@ -1640,6 +1665,24 @@ export const downloadDocument = async (req, res, next) => {
       }
     }
 
+    const hasExplicitLookup = Boolean(
+      targetId ||
+        serialNo ||
+        certificateNo ||
+        invoiceNo ||
+        quotationNo ||
+        proformaNo ||
+        poNo ||
+        queryDcNo ||
+        parsedExplicitIds.length > 0
+    );
+
+    if (!record && hasExplicitLookup) {
+      return res.status(404).json(
+        new ApiResponse(404, null, "Requested calibration document record was not found")
+      );
+    }
+
     if (!record && (docType === "tax_invoice" || docType === "invoice")) {
       record = await CalibrationRecord.findOne({ taxInvoiceData: { $exists: true, $ne: null } }).sort({ updatedAt: -1 }).lean();
     }
@@ -1654,13 +1697,17 @@ export const downloadDocument = async (req, res, next) => {
     }
 
     if (!record) {
-      record = await CalibrationRecord.findOne().sort({ createdAt: -1 }).lean();
+      return res.status(404).json(
+        new ApiResponse(404, null, "Calibration document record not found")
+      );
     }
 
-    // Fetch all batch records (scoped strictly to parsedExplicitIds if provided, e.g., date-released SRF items)
+    // Fetch all batch records (scoped strictly to parsedExplicitIds if provided, or strictly to the SAME customer)
     let batchRecords = [];
     const dcClean = String(record?.dcNo || queryDcNo || "").trim();
     const compClean = String(record?.clientCompany || queryCompany || "").trim();
+    const validDcForBatch = !isGenericVerifyPlaceholder(dcClean);
+    const validCompForBatch = !isGenericVerifyPlaceholder(compClean);
 
     if (singleItemRequested && record) {
       batchRecords = [record];
@@ -1683,30 +1730,50 @@ export const downloadDocument = async (req, res, next) => {
       }
     }
 
-    if (batchRecords.length === 0 && dcClean && dcClean !== "-" && dcClean !== "N/A" && compClean) {
-      batchRecords = await CalibrationRecord.find({
-        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
-        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
+    if (batchRecords.length === 0 && validDcForBatch && validCompForBatch) {
+      const byDcCompany = await CalibrationRecord.find({
+        dcNo: { $regex: buildWhitespaceFlexibleExactRegex(dcClean), $options: "i" },
+        clientCompany: { $regex: buildWhitespaceFlexibleExactRegex(compClean), $options: "i" },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
+      batchRecords = byDcCompany.filter((d) => strictlyMatchesScannedCustomer(d, record));
     }
-    if (parsedExplicitIds.length === 0 && batchRecords.length <= 1 && dcClean && dcClean !== "-" && dcClean !== "N/A") {
-      const byDc = await CalibrationRecord.find({
-        dcNo: { $regex: `^\\s*${escapeRegex(dcClean)}\\s*$`, $options: "i" },
-      }).sort({ srNo: 1, createdAt: 1 }).lean();
-      if (byDc.length > batchRecords.length) batchRecords = byDc;
-    }
-    if (parsedExplicitIds.length === 0 && batchRecords.length <= 1 && compClean && record?.createdAt && (!dcClean || dcClean === "-" || dcClean === "N/A") && !record?.quotationData?.quotationNo) {
+    if (
+      parsedExplicitIds.length === 0 &&
+      batchRecords.length <= 1 &&
+      validCompForBatch &&
+      record?.createdAt &&
+      !validDcForBatch &&
+      !record?.quotationData?.quotationNo
+    ) {
       const cDate = new Date(record.createdAt);
       const tStart = new Date(cDate.getTime() - 15 * 60 * 1000);
       const tEnd = new Date(cDate.getTime() + 15 * 60 * 1000);
       const byTime = await CalibrationRecord.find({
-        clientCompany: { $regex: `^\\s*${escapeRegex(compClean)}\\s*$`, $options: "i" },
+        clientCompany: { $regex: buildWhitespaceFlexibleExactRegex(compClean), $options: "i" },
         createdAt: { $gte: tStart, $lte: tEnd },
       }).sort({ srNo: 1, createdAt: 1 }).lean();
-      if (byTime.length > batchRecords.length) batchRecords = byTime;
+      const sameCustByTime = byTime.filter((d) => strictlyMatchesScannedCustomer(d, record));
+      if (sameCustByTime.length > batchRecords.length) batchRecords = sameCustByTime;
     }
     if (!batchRecords.length && record) {
       batchRecords = [record];
+    }
+
+    const docTypeLower = String(docType || "").toLowerCase();
+    if (docTypeLower === "certificate" || docTypeLower === "observation_sheet") {
+      batchRecords = batchRecords.filter((r) => isRecordCalibratedAndObserved(r));
+      if (batchRecords.length === 0) {
+        return res.status(403).json(
+          new ApiResponse(
+            403,
+            null,
+            "Calibration and observation sheet have not been completed yet for this instrument"
+          )
+        );
+      }
+      if (!isRecordCalibratedAndObserved(record)) {
+        record = batchRecords[0];
+      }
     }
 
     const batchInstruments = batchRecords.map((r, idx) => ({
@@ -3619,10 +3686,9 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
       );
     }
 
-    const certNo =
-      record.records?.certificateNo && record.records.certificateNo !== "ARCL-CAL-2026-001"
-        ? record.records.certificateNo
-        : "ARCL/CERT/26-27/" + (record.serialNo ? record.serialNo.replace(/[^0-9]/g, "").slice(-4) : Math.floor(1000 + Math.random() * 9000));
+    const existingExplicitCert = !isPlaceholderCertificateNo(record.records?.certificateNo)
+      ? record.records.certificateNo
+      : "";
 
     const verifiedUserName = String(
       req.user?.name ||
@@ -3641,7 +3707,7 @@ export const authorizeCalibrationObservation = async (req, res, next) => {
       record.stage = "Calibration Done";
       certifiedInfo = await syncRecordUlrAndInwardOnCertification(record, {
         adminName: verifiedUserName,
-        certNo,
+        certNo: existingExplicitCert,
       });
     }
 
@@ -3866,8 +3932,7 @@ export const releaseCalibrationEquipments = async (req, res, next) => {
       if (["Certificate Uploaded", "Invoice Sent"].includes(rec.stage)) return true;
       const hasReadings =
         Array.isArray(rec.observationData?.readings) && rec.observationData.readings.length > 0;
-      const hasIssuedCert =
-        rec.records?.certificateNo && rec.records.certificateNo !== "ARCL-CAL-2026-001";
+      const hasIssuedCert = !isPlaceholderCertificateNo(rec.records?.certificateNo);
       return Boolean(rec.stage === "Calibration Done" && (hasReadings || hasIssuedCert));
     };
 
@@ -4067,6 +4132,7 @@ export const markCalibrationSrfDone = async (req, res, next) => {
         : [];
     const batchUlrMap = new Map(recordIdsNeedingUlr.map((id, i) => [id, allocatedBatchUlrs[i]]));
 
+    const usedBatchCerts = new Set();
     for (let idx = 0; idx < records.length; idx++) {
       const rec = records[idx];
       const existingReg = rec.inwardRegister
@@ -4083,7 +4149,25 @@ export const markCalibrationSrfDone = async (req, res, next) => {
       const { range: parsedRange, unit: parsedUnit } = splitRangeAndUnitHelper(rec.instrumentRange);
       const defaultMakeModel = [rec.make, rec.modelNo].filter((x) => x && x !== "-").join("/") || "ARCL/---";
       const isCertified = rec.authorizationData?.status === "Approved" || rec.stage === "Calibration Done" || rec.stage === "Certificate Uploaded";
-      const resolvedCertNo = existingReg.certificateNo || (isCertified ? rec.records?.certificateNo || "" : "");
+      let resolvedCertNo =
+        (!isPlaceholderCertificateNo(existingReg.certificateNo) ? existingReg.certificateNo : "") ||
+        (!isPlaceholderCertificateNo(rec.records?.certificateNo) ? rec.records.certificateNo : "");
+      if (isCertified && !resolvedCertNo) {
+        resolvedCertNo = await allocateNextCertificateNo(rec, {
+          CalibrationRecord,
+          srfNo: resolvedSrfNo,
+          usedCertNos: usedBatchCerts,
+        });
+      }
+      if (resolvedCertNo) {
+        if (!rec.records) rec.records = {};
+        rec.records.certificateNo = resolvedCertNo;
+        rec.markModified("records");
+        if (rec.authorizationData?.status === "Approved") {
+          rec.authorizationData = { ...(rec.authorizationData || {}), certificateNo: resolvedCertNo };
+          rec.markModified("authorizationData");
+        }
+      }
       const resolvedUlrNo = batchUlrMap.get(String(rec._id)) || extractRecordUlrNo(rec) || "";
 
       if (resolvedUlrNo) {
@@ -4334,6 +4418,168 @@ export const uploadGovtNablCertificate = async (req, res, next) => {
   }
 };
 
+const VERIFY_PLACEHOLDER_SET = new Set([
+  "-",
+  "--",
+  "---",
+  ".",
+  "..",
+  "n/a",
+  "na",
+  "nil",
+  "none",
+  "null",
+  "undefined",
+  "valued client",
+  "registered client",
+  "client",
+  "customer",
+  "unknown",
+  "self",
+  "by hand",
+  "cash",
+  "direct",
+  "verbal",
+  "pending",
+  "issued",
+  "0",
+  "00",
+  "not applicable",
+]);
+
+const isGenericVerifyPlaceholder = (val) => {
+  const norm = normalizeCustomerKey(val);
+  return !norm || VERIFY_PLACEHOLDER_SET.has(norm);
+};
+
+const buildWhitespaceFlexibleExactRegex = (val) => {
+  const parts = String(val || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((p) => escapeRegex(p));
+  return `^\\s*${parts.join("\\s+")}\\s*$`;
+};
+
+const strictlyMatchesScannedCustomer = (candidateDoc, targetDoc) => {
+  if (!candidateDoc || !targetDoc) return false;
+  if (String(candidateDoc._id) === String(targetDoc._id)) return true;
+
+  const targetCompanyRaw = String(targetDoc.clientCompany || "").trim();
+  const candCompanyRaw = String(candidateDoc.clientCompany || "").trim();
+  if (isGenericVerifyPlaceholder(targetCompanyRaw) || isGenericVerifyPlaceholder(candCompanyRaw)) {
+    return false;
+  }
+
+  if (normalizeCustomerKey(candCompanyRaw) !== normalizeCustomerKey(targetCompanyRaw)) {
+    return false;
+  }
+
+  const targetGst = String(targetDoc.clientGst || targetDoc.clientGstin || "").trim().toUpperCase();
+  const candGst = String(candidateDoc.clientGst || candidateDoc.clientGstin || "").trim().toUpperCase();
+  if (targetGst.length >= 10 && candGst.length >= 10 && targetGst !== candGst) {
+    return false;
+  }
+
+  return true;
+};
+
+const READING_META_ONLY_KEYS = new Set([
+  "sno",
+  "srno",
+  "sr_no",
+  "rowno",
+  "rowindex",
+  "rowkey",
+  "id",
+  "_id",
+  "key",
+  "isheader",
+  "istotal",
+  "unit",
+]);
+
+const hasRealObservationValues = (docRecord) => {
+  if (!docRecord) return false;
+  const obs = docRecord.observationData || {};
+
+  if (Array.isArray(obs.readings) && obs.readings.length > 0) {
+    const hasFilledReadingCell = obs.readings.some((row) => {
+      if (!row || typeof row !== "object") return false;
+      return Object.entries(row).some(([k, v]) => {
+        if (READING_META_ONLY_KEYS.has(String(k || "").toLowerCase())) return false;
+        if (v === null || v === undefined || typeof v === "boolean") return false;
+        const s = String(v).trim();
+        return s !== "" && s !== "-" && s.toLowerCase() !== "n/a";
+      });
+    });
+    if (hasFilledReadingCell) return true;
+  }
+
+  if (obs.exactSheetValues && typeof obs.exactSheetValues === "object") {
+    const hasFilledExactCell = Object.values(obs.exactSheetValues).some((v) => {
+      if (v === null || v === undefined || typeof v === "boolean") return false;
+      const s = String(v).trim();
+      return s !== "" && s !== "-";
+    });
+    if (hasFilledExactCell) return true;
+  }
+
+  if (Array.isArray(obs.repeatabilityReadings)) {
+    const hasRepVal = obs.repeatabilityReadings.some((v) => {
+      const s = String(v ?? "").trim();
+      return s !== "" && s !== "-";
+    });
+    if (hasRepVal) return true;
+  }
+
+  if (obs.hardCopyScan?.uploadedUrl || obs.hardCopyScan?.scannedAt) {
+    return true;
+  }
+
+  return false;
+};
+
+const COMPLETED_CALIBRATION_STAGES = new Set([
+  "calibration done",
+  "quality reviewed",
+  "certificate uploaded",
+  "delivered to client",
+  "invoice sent",
+  "invoice generated",
+]);
+
+const isRecordCalibratedAndObserved = (docRecord) => {
+  if (!docRecord) return false;
+  const obs = docRecord.observationData || {};
+  const auth = docRecord.authorizationData || {};
+  const obsStatus = String(obs.status || "").trim().toLowerCase();
+  const authStatus = String(auth.status || "").trim().toLowerCase();
+
+  if (obsStatus === "rejected" || authStatus === "rejected") {
+    return false;
+  }
+
+  const certPath = String(docRecord.records?.certificate || "").trim();
+  const hasUploadedCertFile = Boolean(
+    certPath &&
+      !certPath.includes("sample-calibration-certificate") &&
+      (certPath.startsWith("http") || certPath.startsWith("/uploads/"))
+  );
+
+  const hasObs = hasRealObservationValues(docRecord);
+  if (!hasObs && !(authStatus === "approved" && hasUploadedCertFile)) {
+    return false;
+  }
+
+  if (authStatus === "approved") return true;
+  if (obsStatus === "submitted" || obsStatus === "authorized") return true;
+  if (obsStatus === "draft") return false;
+
+  const stageNorm = String(docRecord.stage || "").trim().toLowerCase();
+  return COMPLETED_CALIBRATION_STAGES.has(stageNorm);
+};
+
 // ==========================================
 // 29. Public QR Verification Dashboard Payload
 //     (Returns 4-section portal data: Calibration Certificate(s), NABL Scope, Govt NABL Cert, Website Info)
@@ -4343,28 +4589,36 @@ const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
   const auth = docRecord.authorizationData || {};
   const params = obs.parameters || {};
   const recIdStr = String(docRecord._id);
-  const resolvedCertNo =
-    docRecord.records?.certificateNo ||
-    auth.certificateNo ||
-    docRecord.inwardRegister?.certificateNo ||
-    obs.worksheetNo ||
-    "";
-  const resolvedUlr =
-    extractRecordUlrNo(docRecord) ||
-    docRecord.records?.ulrNo ||
-    docRecord.inwardRegister?.ulrNo ||
-    auth.ulrNo ||
-    obs.ulrNo ||
-    "";
-  const isApproved = String(auth.status || "").toLowerCase() === "approved";
+  const readyForReport = isRecordCalibratedAndObserved(docRecord);
+  const resolvedCertNo = readyForReport
+    ? docRecord.records?.certificateNo ||
+      auth.certificateNo ||
+      docRecord.inwardRegister?.certificateNo ||
+      obs.worksheetNo ||
+      ""
+    : "";
+  const resolvedUlr = readyForReport
+    ? extractRecordUlrNo(docRecord) ||
+      docRecord.records?.ulrNo ||
+      docRecord.inwardRegister?.ulrNo ||
+      auth.ulrNo ||
+      obs.ulrNo ||
+      ""
+    : "";
+  const isApproved = readyForReport && String(auth.status || "").toLowerCase() === "approved";
 
   return {
     found: true,
+    isPendingCalibration: !readyForReport,
     recordId: recIdStr,
     srNo: docRecord.srNo || 1,
     isObservationDoc: Boolean(isObsDoc),
     isCertified: isApproved,
-    statusLabel: isApproved ? "Verified & NABL Authorized" : "Recorded Calibration Report",
+    statusLabel: !readyForReport
+      ? "Calibration / Observation Pending"
+      : isApproved
+      ? "Verified & NABL Authorized"
+      : "Recorded Calibration Report",
     certificateNo: resolvedCertNo,
     ulrNo: resolvedUlr,
     instrument: obs.instrument || docRecord.instrument || "Calibration Instrument",
@@ -4383,8 +4637,12 @@ const buildVerifyCertificateSummary = (docRecord, isObsDoc = false) => {
     discipline: obs.discipline || params.discipline || "Mechanical Calibration",
     calibrationMethod: obs.calibrationMethod || "",
     referenceStandard: obs.referenceStandard || "",
-    pdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=${isObsDoc ? "observation_sheet" : "certificate"}&single=true`,
-    certificatePdfPath: `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=certificate&single=true`,
+    pdfPath: readyForReport
+      ? `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=${isObsDoc ? "observation_sheet" : "certificate"}&single=true`
+      : "",
+    certificatePdfPath: readyForReport
+      ? `/calibration/download-document?recordId=${encodeURIComponent(recIdStr)}&docType=certificate&single=true`
+      : "",
   };
 };
 
@@ -4398,29 +4656,38 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
       record = await CalibrationRecord.findById(targetId).lean();
     }
 
-    if (!record && (cert || ulr || sn)) {
+    if (!record && !isValidMongoId(targetId) && (cert || ulr || sn)) {
+      const certClean = String(cert || "").trim();
+      const ulrClean = String(ulr || "").trim();
+      const snClean = String(sn || "").trim();
+
       const orClauses = [];
-      if (cert && String(cert).trim()) {
-        const cleanCert = escapeRegex(String(cert).trim());
+      if (certClean && !isGenericVerifyPlaceholder(certClean) && !isPlaceholderCertificateNo(certClean)) {
+        const cleanCert = escapeRegex(certClean);
         orClauses.push(
-          { "records.certificateNo": { $regex: `^${cleanCert}$`, $options: "i" } },
-          { "authorizationData.certificateNo": { $regex: `^${cleanCert}$`, $options: "i" } }
+          { "records.certificateNo": { $regex: `^\\s*${cleanCert}\\s*$`, $options: "i" } },
+          { "authorizationData.certificateNo": { $regex: `^\\s*${cleanCert}\\s*$`, $options: "i" } },
+          { "inwardRegister.certificateNo": { $regex: `^\\s*${cleanCert}\\s*$`, $options: "i" } }
         );
       }
-      if (ulr && String(ulr).trim()) {
-        const cleanUlr = escapeRegex(String(ulr).trim());
+      if (ulrClean && !isGenericVerifyPlaceholder(ulrClean)) {
+        const cleanUlr = escapeRegex(ulrClean);
         orClauses.push(
-          { "records.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } },
-          { "inwardRegister.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } },
-          { "authorizationData.ulrNo": { $regex: `^${cleanUlr}$`, $options: "i" } }
+          { "records.ulrNo": { $regex: `^\\s*${cleanUlr}\\s*$`, $options: "i" } },
+          { "inwardRegister.ulrNo": { $regex: `^\\s*${cleanUlr}\\s*$`, $options: "i" } },
+          { "authorizationData.ulrNo": { $regex: `^\\s*${cleanUlr}\\s*$`, $options: "i" } },
+          { "observationData.ulrNo": { $regex: `^\\s*${cleanUlr}\\s*$`, $options: "i" } }
         );
       }
-      if (sn && String(sn).trim() && String(sn).trim() !== "-") {
-        const cleanSn = escapeRegex(String(sn).trim());
+      if (snClean && !isGenericVerifyPlaceholder(snClean)) {
+        const cleanSn = escapeRegex(snClean);
         orClauses.push(
-          { serialNo: { $regex: `^${cleanSn}$`, $options: "i" } },
-          { dcNo: { $regex: `^${cleanSn}$`, $options: "i" } },
-          { clientCompany: { $regex: cleanSn, $options: "i" } }
+          { serialNo: { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } },
+          { "observationData.serialNo": { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } },
+          { "records.certificateNo": { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } },
+          { "authorizationData.certificateNo": { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } },
+          { "records.ulrNo": { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } },
+          { "inwardRegister.ulrNo": { $regex: `^\\s*${cleanSn}\\s*$`, $options: "i" } }
         );
       }
       if (orClauses.length > 0) {
@@ -4468,29 +4735,25 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
 
       const companyTrim = String(record.clientCompany || "").trim();
       const dcTrim = String(record.dcNo || "").trim();
-      const customerOr = [];
-      if (companyTrim && companyTrim !== "-" && companyTrim.toLowerCase() !== "valued client") {
-        customerOr.push({
-          clientCompany: { $regex: `^${escapeRegex(companyTrim)}$`, $options: "i" },
-        });
-      }
-      if (dcTrim && dcTrim !== "-") {
-        customerOr.push({
-          dcNo: { $regex: `^${escapeRegex(dcTrim)}$`, $options: "i" },
-        });
-      }
+      const hasValidCustomerCompany = !isGenericVerifyPlaceholder(companyTrim);
+      const hasValidDc = !isGenericVerifyPlaceholder(dcTrim);
 
-      const rawCustomerDocs =
-        customerOr.length > 0
-          ? await CalibrationRecord.find({ $or: customerOr })
-              .sort({ calibrationDate: -1, srNo: 1, _id: 1 })
-              .limit(100)
-              .lean()
-          : [record];
+      // Strictly fetch ONLY records belonging to this exact customer company (never match other customers via shared/placeholder dcNo)
+      const rawCustomerDocs = hasValidCustomerCompany
+        ? await CalibrationRecord.find({
+            clientCompany: { $regex: buildWhitespaceFlexibleExactRegex(companyTrim), $options: "i" },
+          })
+            .sort({ calibrationDate: -1, srNo: 1, _id: 1 })
+            .limit(200)
+            .lean()
+        : [record];
 
       const seenIds = new Set();
       const mergedDocs = [];
       for (const d of [record, ...rawCustomerDocs]) {
+        if (!strictlyMatchesScannedCustomer(d, record)) continue;
+        // Exclude uncalibrated / un-observed records so pending inward instruments never appear as reports
+        if (!isRecordCalibratedAndObserved(d)) continue;
         const idKey = String(d._id);
         if (!seenIds.has(idKey)) {
           seenIds.add(idKey);
@@ -4499,14 +4762,14 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
       }
 
       const currentIdStr = String(record._id);
-      const currentDcNorm = dcTrim.toLowerCase();
+      const currentDcNorm = hasValidDc ? normalizeCustomerKey(dcTrim) : "";
       mergedDocs.sort((a, b) => {
         const aCur = String(a._id) === currentIdStr ? 1 : 0;
         const bCur = String(b._id) === currentIdStr ? 1 : 0;
         if (aCur !== bCur) return bCur - aCur;
 
-        const aBatch = currentDcNorm && currentDcNorm !== "-" && String(a.dcNo || "").trim().toLowerCase() === currentDcNorm ? 1 : 0;
-        const bBatch = currentDcNorm && currentDcNorm !== "-" && String(b.dcNo || "").trim().toLowerCase() === currentDcNorm ? 1 : 0;
+        const aBatch = currentDcNorm && normalizeCustomerKey(a.dcNo) === currentDcNorm ? 1 : 0;
+        const bBatch = currentDcNorm && normalizeCustomerKey(b.dcNo) === currentDcNorm ? 1 : 0;
         if (aBatch !== bBatch) return bBatch - aBatch;
 
         const aTime = a.calibrationDate ? new Date(a.calibrationDate).getTime() : 0;
@@ -4524,8 +4787,8 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
           isCurrentScan: idStr === currentIdStr,
           isSameBatch: Boolean(
             currentDcNorm &&
-              currentDcNorm !== "-" &&
-              String(d.dcNo || "").trim().toLowerCase() === currentDcNorm
+              strictlyMatchesScannedCustomer(d, record) &&
+              normalizeCustomerKey(d.dcNo) === currentDcNorm
           ),
         };
       });

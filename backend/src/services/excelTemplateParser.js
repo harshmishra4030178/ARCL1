@@ -1221,7 +1221,7 @@ const extractExactExcelSheets = (workbook, roleInfo, obsLayoutMeta) => {
     }
 
     const isValueInputLabel = (txt) =>
-      /^(?:instrument\s*name|make\s*\/?\s*model|sr\.?\s*no\.?\s*\/?\s*id\s*no\.?|range(?:\([^)]*\))?|least\s*count(?:\([^)]*\))?|location|inward\s*no\.?|ulr\s*no\.?|cert(?:ificate)?\s*no\.?|date\s*of\s*(?:rec(?:eip|ie|i)pt|calibration|issue)|(?:next\s*)?due\s*date(?:\s*of\s*calibration)?|format\s*no\.?|format\s*issue\s*no\.?|format\s*issue\s*date\.?|calibrated\s*for|client|temp\.?|temperature|rh|humidity|condition\s*of\s*item|method\s*of\s*calibration|reference\s*standard|calibrat(?:ed?|ion)\s*by)/i.test(
+      /^(?:instrument\s*name|make\s*\/?\s*model|sr\.?\s*no\.?\s*\/?\s*id\s*no\.?|serial\s*no\.?\s*\/?\s*id\s*no\.?|id\s*no\.?|range(?:\([^)]*\))?|size(?:\([^)]*\))?|capacity(?:\([^)]*\))?|length|width|height|diameter|dia\.?|thickness|depth|least\s*count(?:\([^)]*\))?|location|inward\s*no\.?|ulr\s*no\.?|cert(?:ificate)?\s*no\.?|date\s*of\s*(?:rec(?:eip|ie|i)pt|calibration|issue)|(?:next\s*)?due\s*date(?:\s*of\s*calibration)?|format\s*no\.?|format\s*issue\s*no\.?|format\s*issue\s*date\.?|calibrated\s*for|client|temp\.?|temperature|rh|humidity|condition\s*of\s*item|method\s*of\s*calibration|reference\s*standard|calibrat(?:ed?|ion)\s*by)/i.test(
         txt.replace(/^\d+(?:\.\d+)?\s*\.\s*/g, "").replace(/[:\-]+$/g, "").trim()
       );
 

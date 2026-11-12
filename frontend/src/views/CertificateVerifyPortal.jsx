@@ -28,6 +28,12 @@ const formatDisplayDate = (val, fallback = "-") => {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const normalizeVerifyCompany = (name) =>
+  String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
 export default function CertificateVerifyPortal() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id") || searchParams.get("recordId") || "";
@@ -76,10 +82,22 @@ export default function CertificateVerifyPortal() {
   }, [fetchVerification]);
 
   const cert = payload?.certificate || null;
-  const customerCertificates = useMemo(
-    () => (Array.isArray(payload?.customerCertificates) ? payload.customerCertificates : []),
-    [payload?.customerCertificates]
-  );
+  const customerCertificates = useMemo(() => {
+    const rawList = Array.isArray(payload?.customerCertificates) ? payload.customerCertificates : [];
+    if (!cert?.found) return [];
+    const targetCompany = normalizeVerifyCompany(cert.clientCompany);
+    const targetRecordId = String(cert.recordId || "");
+    const completedOnly = rawList.filter((item) => Boolean(item && !item.isPendingCalibration && item.certificatePdfPath));
+    if (!targetCompany || ["-", "n/a", "na", "nil", "valued client", "unknown"].includes(targetCompany)) {
+      return completedOnly.filter(
+        (item) => item?.isCurrentScan || (targetRecordId && String(item?.recordId || "") === targetRecordId)
+      );
+    }
+    return completedOnly.filter((item) => {
+      if (item?.isCurrentScan || (targetRecordId && String(item?.recordId || "") === targetRecordId)) return true;
+      return normalizeVerifyCompany(item?.clientCompany) === targetCompany;
+    });
+  }, [cert?.clientCompany, cert?.found, cert?.recordId, payload?.customerCertificates]);
   const labProfile = payload?.labProfile || {};
   const website = payload?.website || {};
 
@@ -112,34 +130,26 @@ export default function CertificateVerifyPortal() {
   );
 
   const certificatePdfUrl = useMemo(() => {
+    if (!cert?.found || cert?.isPendingCalibration) return "";
     if (cert?.certificatePdfPath || cert?.recordId) {
       const path =
         cert.certificatePdfPath ||
         `/calibration/download-document?recordId=${encodeURIComponent(cert.recordId)}&docType=certificate&single=true`;
       return `${backendBase}${path.startsWith("/") ? "" : "/"}${path}`;
     }
-    if (idParam || certParam || snParam) {
-      const qs = new URLSearchParams();
-      if (idParam) qs.set("recordId", idParam);
-      if (certParam) qs.set("certificateNo", certParam);
-      if (snParam) qs.set("serialNo", snParam);
-      qs.set("docType", docParam === "obs" ? "observation_sheet" : "certificate");
-      qs.set("single", "true");
-      return `${backendBase}/calibration/download-document?${qs.toString()}`;
-    }
     return "";
-  }, [backendBase, cert, idParam, certParam, snParam, docParam]);
+  }, [backendBase, cert]);
 
   const observationPdfUrl = useMemo(() => {
+    if (!cert?.found || cert?.isPendingCalibration) return "";
     const rid = cert?.recordId || idParam;
-    if (!rid && !snParam) return "";
+    if (!rid) return "";
     const qs = new URLSearchParams();
-    if (rid) qs.set("recordId", rid);
-    if (snParam) qs.set("serialNo", snParam);
+    qs.set("recordId", rid);
     qs.set("docType", "observation_sheet");
     qs.set("single", "true");
     return `${backendBase}/calibration/download-document?${qs.toString()}`;
-  }, [backendBase, cert?.recordId, idParam, snParam]);
+  }, [backendBase, cert?.found, cert?.isPendingCalibration, cert?.recordId, idParam]);
 
   const buildRecordPdfUrl = useCallback(
     (recItem, useObs = false) => {
@@ -243,7 +253,7 @@ export default function CertificateVerifyPortal() {
     const val = lookupInput.trim();
     if (!val) return;
     const isUlr = /^cc-/i.test(val);
-    const isCert = /arcl\/cert/i.test(val);
+    const isCert = /^arcl[-/]/i.test(val);
     fetchVerification({
       id: "",
       cert: isCert ? val : "",
@@ -277,9 +287,15 @@ export default function CertificateVerifyPortal() {
 
           <div className="flex items-center gap-2 shrink-0">
             {cert?.found ? (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-500 text-slate-950 shadow-md">
-                <FaCheckCircle /> {cert.statusLabel || "Verified Authentic"}
-              </span>
+              cert?.isPendingCalibration ? (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-amber-400 text-slate-950 shadow-md">
+                  <FaShieldAlt /> {cert.statusLabel || "Calibration / Observation Pending"}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-500 text-slate-950 shadow-md">
+                  <FaCheckCircle /> {cert.statusLabel || "Verified Authentic"}
+                </span>
+              )
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-amber-200 border border-white/20">
                 <FaShieldAlt /> Official Verification Portal
@@ -362,14 +378,16 @@ export default function CertificateVerifyPortal() {
               <h2 className="text-xl font-black text-slate-900">Go to the Calibration Certificate</h2>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {cert?.found
-                  ? `Official digitally verifiable ${cert.isCertified ? "NABL Calibration Certificate" : "Calibration Report"} for ${cert.instrument} (Cert: ${cert.certificateNo || "Issued"}).`
+                  ? cert?.isPendingCalibration
+                    ? `Calibration / observation sheet is still pending for ${cert.instrument}. Official report will appear once calibration is completed.`
+                    : `Official digitally verifiable ${cert.isCertified ? "NABL Calibration Certificate" : "Calibration Report"} for ${cert.instrument} (Cert: ${cert.certificateNo || "Issued"}).`
                   : "Open and verify official ARCL Calibration Certificate PDFs directly from our laboratory server."}
               </p>
 
               {cert?.found && (
                 <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] space-y-1 font-mono text-slate-700">
-                  <div><strong>Cert No:</strong> {cert.certificateNo || "-"}</div>
-                  {cert.ulrNo && <div><strong>ULR No:</strong> {cert.ulrNo}</div>}
+                  <div><strong>Cert No:</strong> {cert.isPendingCalibration ? "Pending Calibration" : cert.certificateNo || "-"}</div>
+                  {cert.ulrNo && !cert.isPendingCalibration && <div><strong>ULR No:</strong> {cert.ulrNo}</div>}
                   <div><strong>S/N:</strong> {cert.serialNo}</div>
                   {customerCertificates.length > 1 && (
                     <div className="pt-1 font-sans text-blue-800 font-bold flex items-center gap-1">
@@ -392,11 +410,16 @@ export default function CertificateVerifyPortal() {
                         setShowCustomerCertsModal(true);
                         return;
                       }
+                      if (cert?.isPendingCalibration && customerCertificates.length === 1) {
+                        openCertificateInModal(customerCertificates[0], { fromList: false });
+                        return;
+                      }
                       const targetCert = cert?.certificateNo || certParam || snParam || "Official Certificate";
                       const chosenUrl =
                         (docParam === "obs" || cert?.isObservationDoc) && observationPdfUrl
                           ? observationPdfUrl
                           : certificatePdfUrl;
+                      if (!chosenUrl) return;
                       setActiveDocModal({
                         title:
                           docParam === "obs" || cert?.isObservationDoc
@@ -430,25 +453,38 @@ export default function CertificateVerifyPortal() {
                         <FaFilePdf /> Scanned PDF
                       </button>
                     )}
-                    <a
-                      href={`${certificatePdfUrl}&download=true`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                    >
-                      <FaDownload /> Download
-                    </a>
-                    <a
-                      href={certificatePdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition"
-                      title="Open PDF in new browser tab"
-                    >
-                      <FaExternalLinkAlt /> New Tab
-                    </a>
+                    {(() => {
+                      const singleFallbackUrl =
+                        certificatePdfUrl || (customerCertificates.length === 1 ? buildRecordPdfUrl(customerCertificates[0], false) : "");
+                      if (!singleFallbackUrl) return null;
+                      return (
+                        <>
+                          <a
+                            href={`${singleFallbackUrl}&download=true`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                          >
+                            <FaDownload /> Download
+                          </a>
+                          <a
+                            href={singleFallbackUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition"
+                            title="Open PDF in new browser tab"
+                          >
+                            <FaExternalLinkAlt /> New Tab
+                          </a>
+                        </>
+                      );
+                    })()}
                   </div>
                 </>
+              ) : cert?.isPendingCalibration ? (
+                <div className="w-full py-3 px-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold text-center">
+                  Calibration / Observation Not Completed Yet — Report Pending
+                </div>
               ) : (
                 <Link
                   href="/calibration-services"
