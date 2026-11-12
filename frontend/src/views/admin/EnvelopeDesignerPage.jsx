@@ -413,10 +413,22 @@ export default function EnvelopeDesignerPage() {
                 </div>
                 <input
                   type="text"
-                  value={config.headerSubtitle}
+                  value={config.headerSubtitle || ""}
                   onChange={(e) => handleFieldChange("headerSubtitle", e.target.value)}
                   disabled={!config.showHeaderSubtitle}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57] disabled:opacity-50"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Header Address &amp; GSTIN (Image 1 Standard)
+                </label>
+                <input
+                  type="text"
+                  value={config.headerAddress || ""}
+                  onChange={(e) => handleFieldChange("headerAddress", e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57] text-xs"
                 />
               </div>
 

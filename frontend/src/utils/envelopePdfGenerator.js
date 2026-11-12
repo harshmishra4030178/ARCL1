@@ -13,7 +13,8 @@ export const ENVELOPE_SPECS = {
 
 export const DEFAULT_ENVELOPE_CONFIG = {
   headerCompanyName: "ARCL INSTRUMENTS PRIVATE LIMITED",
-  headerSubtitle: "Precision Civil & Material Testing Instruments  •  ISO/IEC 17025 Calibration Lab",
+  headerSubtitle: "NABL Accredited Calibration Laboratory (CC-4313) • ISO/IEC 17025:2017",
+  headerAddress: "Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra • GSTIN: 27AATCA7874C1ZB",
   showHeaderSubtitle: true,
   fromCompanyName: "ARCL INSTRUMENTS",
   address: "Shop No. 6, Siddhivinayak Park CHS, Sector-8A, Airoli, Navi Mumbai, Maharashtra 400708, India",
@@ -21,6 +22,13 @@ export const DEFAULT_ENVELOPE_CONFIG = {
   emailPrimary: "arclinstruments@gmail.com",
   emailSecondary: "info@arclinstruments.com",
   website: "https://arclinstruments.com/",
+  footerServices: [
+    "Calibration",
+    "Service",
+    "Sales",
+    "Spares",
+    "Manufacturing",
+  ],
 };
 
 /**
@@ -63,7 +71,19 @@ export const generateCustomerEnvelopeQrPng = async (verifyUrl) => {
 
 export const loadImageDetails = (src) =>
   new Promise((resolve) => {
-    if (!src || typeof window === "undefined") {
+    if (!src) {
+      resolve(null);
+      return;
+    }
+    if (typeof src === "string" && src.startsWith("data:image/")) {
+      resolve({
+        dataUrl: src,
+        width: 320,
+        height: 180,
+      });
+      return;
+    }
+    if (typeof window === "undefined") {
       resolve(null);
       return;
     }
@@ -119,59 +139,84 @@ export const buildEnvelopePdfDocument = async ({
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, widthMm, heightMm, "F");
 
-  // Brand top bars (Dark Navy + Blue corporate accent)
+  // Brand top bars (Dark Navy + Orange corporate accent)
   doc.setFillColor(2, 28, 87);
   doc.rect(0, 0, widthMm, 3.2, "F");
-  doc.setFillColor(29, 78, 216);
+  doc.setFillColor(245, 130, 32);
   doc.rect(0, 3.2, widthMm, 0.9, "F");
 
-  // Bottom framing bar
-  doc.setFillColor(29, 78, 216);
-  doc.rect(0, heightMm - 3.6, widthMm, 0.8, "F");
-  doc.setFillColor(2, 28, 87);
-  doc.rect(0, heightMm - 2.8, widthMm, 2.8, "F");
-
-  // Header Logo + Full Company Name (y: 5.5 mm to 24.5 mm)
+  // Header Logo + 3-Line Company Header (Matching User Image 1)
   const marginX = 12;
-  const headerBottomY = 25.5;
-  let logoImg = await loadImageDetails(logoSrc);
-  if (!logoImg && fallbackLogoSrc) {
-    logoImg = await loadImageDetails(fallbackLogoSrc);
+  const headerBottomY = 24.5;
+  let logoImg = await loadImageDetails(fallbackLogoSrc || logoSrc);
+  if (!logoImg && logoSrc) {
+    logoImg = await loadImageDetails(logoSrc);
   }
 
-  let textStartX = marginX;
+  const logoCardX = marginX;
+  const logoCardY = 5.2;
+  const logoCardW = 28;
+  const logoCardH = 16.8;
+
+  // Logo Card with subtle rounded border (matching Image 1 badge)
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.35);
+  if (typeof doc.roundedRect === "function") {
+    doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.2, 2.2, "S");
+  } else {
+    doc.rect(logoCardX, logoCardY, logoCardW, logoCardH, "S");
+  }
+
   if (logoImg?.dataUrl) {
-    const logoBox = computeAspectFitBox(logoImg.width, logoImg.height, marginX, 6.2, 28, 16);
+    const logoBox = computeAspectFitBox(
+      logoImg.width,
+      logoImg.height,
+      logoCardX + 1.4,
+      logoCardY + 1.2,
+      logoCardW - 2.8,
+      logoCardH - 2.4
+    );
     doc.addImage(logoImg.dataUrl, "PNG", logoBox.x, logoBox.y, logoBox.width, logoBox.height, undefined, "FAST");
-    textStartX = marginX + logoBox.width + 4.5;
   }
 
+  const textStartX = logoCardX + logoCardW + 4.5;
   const headerName = String(config.headerCompanyName || DEFAULT_ENVELOPE_CONFIG.headerCompanyName).trim();
   const headerSub = String(config.headerSubtitle || DEFAULT_ENVELOPE_CONFIG.headerSubtitle).trim();
+  const headerAddr = String(config.headerAddress || DEFAULT_ENVELOPE_CONFIG.headerAddress).trim();
 
+  // Line 1: Full Company Name (Bold Navy #021C57)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15.5);
+  doc.setFontSize(13.8);
   doc.setTextColor(2, 28, 87);
-  doc.text(headerName, textStartX, config.showHeaderSubtitle !== false && headerSub ? 13.8 : 16.0);
+  doc.text(headerName, textStartX, 10.5);
 
+  // Line 2: NABL Accreditation Laboratory & Standard (Bold Emerald Green #047857)
   if (config.showHeaderSubtitle !== false && headerSub) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    doc.setTextColor(29, 78, 216);
-    doc.text(headerSub, textStartX, 19.2);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.3);
+    doc.setTextColor(4, 120, 87);
+    doc.text(headerSub, textStartX, 15.2);
   }
 
-  // Clean horizontal header divider rule
+  // Line 3: Official Address & GSTIN (Slate #475569)
+  if (headerAddr) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.1);
+    doc.setTextColor(71, 85, 105);
+    doc.text(headerAddr, textStartX, 19.5);
+  }
+
+  // Clean horizontal header divider rules (Navy + Accent Orange)
   doc.setDrawColor(2, 28, 87);
-  doc.setLineWidth(0.55);
+  doc.setLineWidth(0.45);
   doc.line(marginX, headerBottomY, widthMm - marginX, headerBottomY);
-  doc.setDrawColor(191, 219, 254);
-  doc.setLineWidth(0.3);
-  doc.line(marginX, headerBottomY + 0.9, widthMm - marginX, headerBottomY + 0.9);
+  doc.setDrawColor(245, 130, 32);
+  doc.setLineWidth(0.35);
+  doc.line(marginX, headerBottomY + 0.8, widthMm - marginX, headerBottomY + 0.8);
 
   // Body layout coordinates (mm)
-  const bodyTopY = 31.5;
-  const bodyBottomY = 114.5;
+  const bodyTopY = 30.0;
+  const bodyBottomY = 99.0;
 
   // ==========================================
   // LEFT ZONE: FROM SECTION (x: 12 .. 110 mm)
@@ -180,55 +225,55 @@ export const buildEnvelopePdfDocument = async ({
   const fromMaxW = 94;
 
   doc.setFillColor(2, 28, 87);
-  doc.rect(fromX, bodyTopY, 1.4, 78, "F");
+  doc.rect(fromX, bodyTopY, 1.4, 66, "F");
 
   const fromTextX = fromX + 4.2;
-  let curY = bodyTopY + 3.2;
+  let curY = bodyTopY + 3.0;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(29, 78, 216);
   doc.text("FROM", fromTextX, curY);
-  curY += 5.5;
+  curY += 5.0;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(10.8);
   doc.setTextColor(2, 28, 87);
   doc.text(String(config.fromCompanyName || DEFAULT_ENVELOPE_CONFIG.fromCompanyName).trim(), fromTextX, curY);
-  curY += 6.0;
+  curY += 5.5;
 
   // Address
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(7.8);
   doc.setTextColor(2, 28, 87);
   doc.text("Address:", fromTextX, curY);
-  curY += 4.0;
+  curY += 3.8;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.1);
+  doc.setFontSize(7.9);
   doc.setTextColor(30, 41, 59);
   const addrLines = doc.splitTextToSize(
     String(config.address || DEFAULT_ENVELOPE_CONFIG.address).trim(),
     fromMaxW - 4.2
   );
-  doc.text(addrLines, fromTextX, curY, { lineHeightFactor: 1.32 });
-  curY += addrLines.length * 3.8 + 2.8;
+  doc.text(addrLines, fromTextX, curY, { lineHeightFactor: 1.30 });
+  curY += addrLines.length * 3.6 + 2.5;
 
   // Phone
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.1);
+  doc.setFontSize(7.9);
   doc.setTextColor(2, 28, 87);
   doc.text("Phone:", fromTextX, curY);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(30, 41, 59);
-  doc.text(String(config.phone || DEFAULT_ENVELOPE_CONFIG.phone).trim(), fromTextX + 12.2, curY);
-  curY += 5.2;
+  doc.text(String(config.phone || DEFAULT_ENVELOPE_CONFIG.phone).trim(), fromTextX + 11.5, curY);
+  curY += 4.8;
 
   // Email
   doc.setFont("helvetica", "bold");
   doc.setTextColor(2, 28, 87);
   doc.text("Email:", fromTextX, curY);
-  curY += 4.0;
+  curY += 3.8;
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(30, 41, 59);
@@ -236,11 +281,11 @@ export const buildEnvelopePdfDocument = async ({
   const email2 = String(config.emailSecondary || DEFAULT_ENVELOPE_CONFIG.emailSecondary).trim();
   if (email1) {
     doc.text(email1, fromTextX, curY);
-    curY += 3.9;
+    curY += 3.7;
   }
   if (email2) {
     doc.text(email2, fromTextX, curY);
-    curY += 4.6;
+    curY += 4.2;
   }
 
   // Website
@@ -249,7 +294,7 @@ export const buildEnvelopePdfDocument = async ({
   doc.text("Website:", fromTextX, curY);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(29, 78, 216);
-  doc.text(String(config.website || DEFAULT_ENVELOPE_CONFIG.website).trim(), fromTextX + 14.5, curY);
+  doc.text(String(config.website || DEFAULT_ENVELOPE_CONFIG.website).trim(), fromTextX + 13.8, curY);
 
   // Subtle vertical divider between FROM and TO
   doc.setDrawColor(203, 213, 225);
@@ -261,7 +306,7 @@ export const buildEnvelopePdfDocument = async ({
   // ==========================================
   const toX = 120;
   const toMaxW = 104;
-  let toY = bodyTopY + 3.2;
+  let toY = bodyTopY + 3.0;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
@@ -313,7 +358,7 @@ export const buildEnvelopePdfDocument = async ({
   // RIGHT ZONE: QR CODE AREA (32 mm x 32 mm)
   // ==========================================
   const qrX = widthMm - marginX - qrSizeMm; // 236 mm
-  const qrY = 53;
+  const qrY = 47.5;
 
   if (qrImage?.dataUrl) {
     const qrFit = computeAspectFitBox(
@@ -348,29 +393,79 @@ export const buildEnvelopePdfDocument = async ({
 
   // DESCRIPTIVE CAPTION UNDER QR CODE (What the QR is for)
   const qrCenterX = qrX + qrSizeMm / 2; // 252 mm
-  let curQrTextY = qrY + qrSizeMm + 3.8; // 88.8 mm
+  let curQrTextY = qrY + qrSizeMm + 3.2; // 82.7 mm
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.6);
+  doc.setFontSize(7.5);
   doc.setTextColor(2, 28, 87);
   doc.text("SCAN TO VERIFY", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 3.6;
+  curQrTextY += 3.4;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.4);
+  doc.setFontSize(6.3);
   doc.setTextColor(29, 78, 216);
   doc.text("CALIBRATION CERTIFICATES", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 3.2;
+  curQrTextY += 3.0;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.5);
+  doc.setFontSize(5.4);
   doc.setTextColor(71, 85, 105);
   doc.text("NABL CC-4313  \u2022  ISO/IEC 17025", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 2.8;
-  doc.setFontSize(4.9);
+  curQrTextY += 2.6;
+  doc.setFontSize(4.8);
   doc.setTextColor(100, 116, 139);
   doc.text("ARCL Instruments Pvt. Ltd.", qrCenterX, curQrTextY, { align: "center" });
+
+  // ==========================================
+  // FOOTER SERVICES SECTION (Matching User Image 2)
+  // Calibration | Service | Sales | Spares | Manufacturing
+  // ==========================================
+  const footerBoxX = marginX; // 12 mm
+  const footerBoxY = 103.5; // 103.5 mm
+  const footerBoxW = widthMm - marginX * 2; // 256 mm
+  const footerBoxH = 9.4; // 9.4 mm
+
+  // Orange framed box with rounded corners
+  doc.setDrawColor(245, 130, 32); // #F58220 Image 2 orange
+  doc.setLineWidth(0.65);
+  if (typeof doc.roundedRect === "function") {
+    doc.roundedRect(footerBoxX, footerBoxY, footerBoxW, footerBoxH, 1.8, 1.8, "S");
+  } else {
+    doc.rect(footerBoxX, footerBoxY, footerBoxW, footerBoxH, "S");
+  }
+
+  // Render 5 services with orange vertical pipe dividers
+  const services = Array.isArray(config.footerServices) && config.footerServices.length > 0
+    ? config.footerServices
+    : ["Calibration", "Service", "Sales", "Spares", "Manufacturing"];
+
+  const totalSlots = services.length;
+  const slotW = footerBoxW / totalSlots;
+  const textBaselineY = footerBoxY + 6.2;
+
+  services.forEach((serviceName, idx) => {
+    const slotCenterX = footerBoxX + slotW * idx + slotW / 2;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.2);
+    doc.setTextColor(2, 28, 87); // #021C57 Navy
+    doc.text(String(serviceName).trim(), slotCenterX, textBaselineY, { align: "center" });
+
+    // Draw vertical orange divider pipe between items
+    if (idx < totalSlots - 1) {
+      const dividerX = footerBoxX + slotW * (idx + 1);
+      doc.setDrawColor(245, 130, 32);
+      doc.setLineWidth(0.55);
+      doc.line(dividerX, footerBoxY + 1.8, dividerX, footerBoxY + footerBoxH - 1.8);
+    }
+  });
+
+  // Bottom framing bar (Accent Orange + Corporate Navy)
+  doc.setFillColor(245, 130, 32);
+  doc.rect(0, heightMm - 3.4, widthMm, 0.8, "F");
+  doc.setFillColor(2, 28, 87);
+  doc.rect(0, heightMm - 2.6, widthMm, 2.6, "F");
 
   return doc;
 };
