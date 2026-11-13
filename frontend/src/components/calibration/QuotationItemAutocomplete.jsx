@@ -6,8 +6,9 @@ import {
   FaMicrophone,
   FaTimes,
   FaTag,
+  FaExpand,
 } from "react-icons/fa";
-import useVoiceInput from "../../hooks/useVoiceInput.js";
+import { toast } from "react-toastify";
 import GoogleVoiceModal from "../common/GoogleVoiceModal.jsx";
 import { getSavedQuotationItems } from "../../utils/quotationStorage.js";
 
@@ -35,28 +36,25 @@ export default function QuotationItemAutocomplete({
     setSavedCustomItems(getSavedQuotationItems());
   }, []);
 
-  // Direct Inline Speech Recognition (YouTube / Google Search Model)
-  const toggleDirectVoice = (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-
-    if (isDirectListeningRef.current) {
-      isDirectListeningRef.current = false;
-      setIsDirectListening(false);
-      if (directRecRef.current) {
-        try {
-          directRecRef.current.onend = null;
-          directRecRef.current.onerror = null;
-          directRecRef.current.stop();
-        } catch {
-          // ignore
-        }
-        directRecRef.current = null;
+  const stopDirectVoiceSession = () => {
+    isDirectListeningRef.current = false;
+    setIsDirectListening(false);
+    if (directRecRef.current) {
+      try {
+        directRecRef.current.onstart = null;
+        directRecRef.current.onresult = null;
+        directRecRef.current.onerror = null;
+        directRecRef.current.onend = null;
+        directRecRef.current.stop();
+      } catch {
+        // ignore
       }
-      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped-item", autoClose: 1500 });
-      return;
+      directRecRef.current = null;
     }
+  };
 
+  const startDirectVoiceSession = () => {
+    if (typeof window === "undefined") return;
     const SpeechRec =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -65,20 +63,15 @@ export default function QuotationItemAutocomplete({
       return;
     }
 
-    try {
-      if (directRecRef.current) {
-        try {
-          directRecRef.current.abort();
-        } catch {
-          // ignore
-        }
-      }
+    stopDirectVoiceSession();
 
+    try {
       const recognition = new SpeechRec();
       directRecRef.current = recognition;
       recognition.lang = voiceLang || "en-IN";
       recognition.interimResults = true;
-      recognition.continuous = false; // Fast single-session streaming with auto-restart on pause
+      recognition.continuous = true; // Continuous listening across pauses
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         isDirectListeningRef.current = true;
@@ -93,22 +86,32 @@ export default function QuotationItemAutocomplete({
       recognition.onresult = (event) => {
         if (!event || !event.results) return;
 
-        const liveText = Array.from(event.results)
-          .map((r) => (r && r[0] ? r[0].transcript : ""))
-          .join("");
+        let liveText = "";
+        let hasFinal = false;
+
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res && res[0]) {
+            const chunk = (res[0].transcript || "").trim();
+            if (chunk) {
+              liveText += (liveText ? " " : "") + chunk;
+            }
+            if (res.isFinal) {
+              hasFinal = true;
+            }
+          }
+        }
 
         const clean = liveText.trim().replace(/[.,!?;]+$/, "");
         if (clean) {
           onChange?.(clean);
           setIsOpen(true);
-          toast.success(`🗣️ Suna: "${clean}"`, { toastId: "live-heard-item", autoClose: 1500 });
 
-          const last = event.results[event.results.length - 1];
-          if (last?.isFinal) {
+          if (hasFinal) {
             const cleanLower = clean.toLowerCase();
             const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
             const match = allItemsPool.find((it) => {
-              const itLower = it.name.toLowerCase();
+              const itLower = (it.name || "").toLowerCase();
               if (
                 itLower === cleanLower ||
                 itLower.includes(cleanLower) ||
@@ -142,26 +145,17 @@ export default function QuotationItemAutocomplete({
           toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
         } else if (err === "network") {
           toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "item-net-retry", autoClose: 2500 });
-        } else {
-          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "item-err-notice", autoClose: 3000 });
         }
       };
 
       recognition.onend = () => {
+        // Auto-restart with a FRESH INSTANCE so Chrome doesn't throw InvalidStateError
         if (isDirectListeningRef.current) {
-          try {
-            recognition.start();
-          } catch {
-            setTimeout(() => {
-              if (isDirectListeningRef.current) {
-                try {
-                  recognition.start();
-                } catch {
-                  // ignore
-                }
-              }
-            }, 100);
-          }
+          setTimeout(() => {
+            if (isDirectListeningRef.current) {
+              startDirectVoiceSession();
+            }
+          }, 150);
         } else {
           setIsDirectListening(false);
           if (inputRef.current) {
@@ -179,35 +173,18 @@ export default function QuotationItemAutocomplete({
     }
   };
 
-  // Voice Input Hook
-  const voice = useVoiceInput({
-    lang: voiceLang,
-    continuous: true,
-    interimResults: true,
-    onResult: (spokenText) => {
-      if (!spokenText) return;
-      const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
-      onChange?.(clean);
-      setIsOpen(true);
-    },
-    onFinal: (finalText) => {
-      if (!finalText) return;
-      const clean = finalText.trim().replace(/[.,!?;]+$/, "");
-      onChange?.(clean);
+  // Direct Inline Speech Recognition (YouTube / Google Search Model)
+  const toggleDirectVoice = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
 
-      const cleanLower = clean.toLowerCase();
-      const match = allItemsPool.find(
-        (it) =>
-          it.name.toLowerCase() === cleanLower ||
-          it.name.toLowerCase().includes(cleanLower) ||
-          cleanLower.includes(it.name.toLowerCase())
-      );
-      if (match) {
-        onSelectItem?.(match);
-        setIsOpen(false);
-      }
-    },
-  });
+    if (isDirectListeningRef.current) {
+      stopDirectVoiceSession();
+      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped-item", autoClose: 1500 });
+    } else {
+      startDirectVoiceSession();
+    }
+  };
 
   const handleVoiceModalApply = (spokenText) => {
     if (!spokenText) return;
@@ -410,8 +387,50 @@ export default function QuotationItemAutocomplete({
           >
             <FaMicrophone className="text-[10px]" />
           </button>
+
+          {/* Open Google Voice Dialog Modal */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsVoiceModalOpen(true);
+            }}
+            disabled={disabled}
+            className="p-1 rounded text-[10px] font-bold transition flex items-center justify-center cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700"
+            title="Open Voice Assistant Dialog"
+          >
+            <FaExpand className="text-[9px]" />
+          </button>
         </div>
       </div>
+
+      {/* 1-Tap Quick Fill Equipment Chips */}
+      {allItemsPool.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <span className="text-[9px] font-bold text-slate-500">Quick 1-Tap:</span>
+          {allItemsPool.slice(0, 4).map((it, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange?.(it.name);
+                onSelectItem?.(it);
+                setIsOpen(false);
+                toast.success(`✅ Item: ${it.name}`);
+              }}
+              className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
+              title={`1-Click auto-fill ${it.name}`}
+            >
+              <FaTools className="text-emerald-600 text-[8.5px] shrink-0" />
+              <span className="max-w-[130px] truncate">{it.name}</span>
+              <span className="text-emerald-600 font-bold">↵</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Voice Status Pill */}
       {isDirectListening && (

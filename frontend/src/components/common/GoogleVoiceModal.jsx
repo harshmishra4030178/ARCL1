@@ -61,6 +61,7 @@ export default function GoogleVoiceModal({
     return () => {
       stopVoiceSession();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const stopVoiceSession = useCallback(() => {
@@ -99,7 +100,7 @@ export default function GoogleVoiceModal({
         recognitionRef.current = recognition;
         recognition.lang = useLang;
         recognition.interimResults = true;
-        recognition.continuous = false; // Fast, reliable YouTube/Google Search single-session streaming
+        recognition.continuous = true; // Continuous listening: never disconnects on pauses
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {
@@ -110,7 +111,7 @@ export default function GoogleVoiceModal({
           setStatusMessage(
             useLang.startsWith("hi")
               ? "🎙️ Mic On: हिन्दी में बोलना शुरू करें..."
-              : "🎙️ Mic On: Speak clearly in English..."
+              : "🎙️ Mic On: Speak clearly now..."
           );
         };
 
@@ -129,12 +130,11 @@ export default function GoogleVoiceModal({
         };
 
         recognition.onspeechend = () => {
-          setStatusMessage("⏳ Speech paused. Finalizing words...");
+          setStatusMessage("⏳ Speech paused. Listening for more...");
         };
 
         recognition.onsoundend = () => {
-          setSoundDetected(false);
-          setSpeechDetected(false);
+          // Sound pause in continuous session
         };
 
         recognition.onresult = (event) => {
@@ -159,6 +159,8 @@ export default function GoogleVoiceModal({
           const cleaned = fullLive.replace(/[.,!?;]+$/, "").trim();
           if (cleaned) {
             setTranscript(cleaned);
+            setSoundDetected(true);
+            setSpeechDetected(true);
             if (finalFound) {
               setIsFinalized(true);
               setStatusMessage(`✅ Suna gaya: "${cleaned}"`);
@@ -169,7 +171,7 @@ export default function GoogleVoiceModal({
         };
 
         recognition.onnomatch = () => {
-          setStatusMessage("⚠️ Shabd samajh nahi aaye. Thoda aur saaf ya paas se bolein.");
+          setStatusMessage("⚠️ Shabd samajh nahi aaye. Thoda saaf ya mic ke paas se bolein.");
         };
 
         recognition.onerror = (event) => {
@@ -179,8 +181,7 @@ export default function GoogleVoiceModal({
           setLastError(err);
 
           if (err === "no-speech") {
-            // Keep listening in continuous mode
-            setStatusMessage("🎙️ Listening... Bolna shuru karein");
+            // Normal pause in continuous mode, don't abort
             return;
           }
 
@@ -189,13 +190,13 @@ export default function GoogleVoiceModal({
             setIsListening(false);
             setStatusMessage("❌ Microphone Blocked! Browser me lock icon se allow karein");
             toast.error(
-              "🎙️ Microphone Blocked! Browser URL bar ke paas 🔒 Lock icon pe click karke 'Microphone: Allow' karein.",
+              "🎙️ Microphone Blocked! Chrome URL bar ke paas 🔒 Lock icon pe click karke 'Microphone: Allow' karein.",
               { autoClose: 7000 }
             );
           } else if (err === "network") {
-            setStatusMessage("⚠️ Google Speech Network timeout / proxy issue");
+            setStatusMessage("⚠️ Google Speech Network timeout / reconnecting...");
           } else if (err === "audio-capture") {
-            setStatusMessage("❌ Koi microphone nahi mila. Check audio cable / device.");
+            setStatusMessage("❌ Koi microphone nahi mila. Check audio device.");
           } else {
             setStatusMessage(`Speech note: ${err}`);
           }
@@ -203,13 +204,12 @@ export default function GoogleVoiceModal({
 
         recognition.onend = () => {
           if (isListeningRef.current) {
-            // Auto-restart if user still wants listening
-            try {
-              recognition.start();
-            } catch {
-              setIsListening(false);
-              isListeningRef.current = false;
-            }
+            // Create a FRESH instance on restart to prevent InvalidStateError
+            setTimeout(() => {
+              if (isListeningRef.current) {
+                startVoiceSession(useLang);
+              }
+            }, 150);
           } else {
             setIsListening(false);
           }
@@ -341,7 +341,12 @@ export default function GoogleVoiceModal({
 
         {/* Live Status Diagnostics Badge */}
         <div className="flex items-center gap-1.5 my-1.5 px-3 py-1 rounded-full text-xs font-bold border transition bg-slate-50 border-slate-200 text-slate-700">
-          {soundDetected ? (
+          {speechDetected ? (
+            <span className="flex items-center gap-1 text-blue-600">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              🗣️ Speech Detected
+            </span>
+          ) : soundDetected ? (
             <span className="flex items-center gap-1 text-emerald-600">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
               🔊 Sound Detected
@@ -369,6 +374,11 @@ export default function GoogleVoiceModal({
             placeholder={placeholder}
             className="w-full p-2.5 bg-slate-50 border-2 border-blue-200 focus:border-blue-500 rounded-xl text-center text-sm sm:text-base font-black text-slate-900 focus:outline-none resize-none transition shadow-inner placeholder:text-slate-400 placeholder:text-xs placeholder:font-normal"
           />
+          {isFinalized && transcript && (
+            <div className="absolute right-2 bottom-2 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold flex items-center gap-0.5">
+              <FaCheck className="text-[8px]" /> Captured
+            </div>
+          )}
         </div>
 
         {/* 1-Tap Quick Select Chips (Fastest Method: 1 Click Auto-Fills Everything) */}
@@ -401,6 +411,21 @@ export default function GoogleVoiceModal({
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Helper Tip if no sound detected */}
+        {isListening && !soundDetected && !transcript && (
+          <div className="w-full mt-2.5 p-2.5 bg-amber-50 border border-amber-300 rounded-2xl text-[11px] text-amber-900 text-left flex items-start gap-2 shadow-xs">
+            <FaExclamationTriangle className="text-amber-600 text-sm shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <div className="font-bold">Aawaz type nahi ho rahi?</div>
+              <div className="text-[10px] text-amber-800 leading-relaxed">
+                • <strong>Mic Volume:</strong> Windows Settings &gt; Sound &gt; Microphone volume 100% karein ya Mute switch check karein.<br />
+                • <strong>Browser:</strong> Google Chrome ya Edge use karein (Brave browser me Google speech blocked rehti hai).<br />
+                • <strong>Instant Solution:</strong> Upar ya neeche diye gaye Quick 1-Tap chips pe click karke 1 second me fill karein!
+              </div>
             </div>
           </div>
         )}

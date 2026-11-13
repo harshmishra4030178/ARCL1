@@ -4,15 +4,15 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   FaBuilding,
   FaMicrophone,
-  FaMicrophoneSlash,
   FaCheck,
   FaMapMarkerAlt,
   FaIdCard,
   FaTrashAlt,
   FaTimes,
   FaStar,
+  FaExpand,
 } from "react-icons/fa";
-import useVoiceInput from "../../hooks/useVoiceInput.js";
+import { toast } from "react-toastify";
 import GoogleVoiceModal from "../common/GoogleVoiceModal.jsx";
 import {
   getSavedQuotationClients,
@@ -46,28 +46,25 @@ export default function QuotationClientAutocomplete({
     setSavedClients(getSavedQuotationClients());
   }, []);
 
-  // Direct Inline Voice Dictation (Google Search & YouTube Model)
-  const toggleDirectVoice = (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-
-    if (isDirectListeningRef.current) {
-      isDirectListeningRef.current = false;
-      setIsDirectListening(false);
-      if (directRecRef.current) {
-        try {
-          directRecRef.current.onend = null;
-          directRecRef.current.onerror = null;
-          directRecRef.current.stop();
-        } catch {
-          // ignore
-        }
-        directRecRef.current = null;
+  const stopDirectVoiceSession = () => {
+    isDirectListeningRef.current = false;
+    setIsDirectListening(false);
+    if (directRecRef.current) {
+      try {
+        directRecRef.current.onstart = null;
+        directRecRef.current.onresult = null;
+        directRecRef.current.onerror = null;
+        directRecRef.current.onend = null;
+        directRecRef.current.stop();
+      } catch {
+        // ignore
       }
-      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped", autoClose: 1500 });
-      return;
+      directRecRef.current = null;
     }
+  };
 
+  const startDirectVoiceSession = () => {
+    if (typeof window === "undefined") return;
     const SpeechRec =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -76,20 +73,15 @@ export default function QuotationClientAutocomplete({
       return;
     }
 
-    try {
-      if (directRecRef.current) {
-        try {
-          directRecRef.current.abort();
-        } catch {
-          // ignore
-        }
-      }
+    stopDirectVoiceSession();
 
+    try {
       const recognition = new SpeechRec();
       directRecRef.current = recognition;
       recognition.lang = voiceLang || "en-IN";
       recognition.interimResults = true;
-      recognition.continuous = false; // Fast single-session streaming with auto-restart on pause
+      recognition.continuous = true; // Continuous listening across silence & pauses
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         isDirectListeningRef.current = true;
@@ -104,22 +96,32 @@ export default function QuotationClientAutocomplete({
       recognition.onresult = (event) => {
         if (!event || !event.results) return;
 
-        const liveText = Array.from(event.results)
-          .map((r) => (r && r[0] ? r[0].transcript : ""))
-          .join("");
+        let liveText = "";
+        let hasFinal = false;
+
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res && res[0]) {
+            const chunk = (res[0].transcript || "").trim();
+            if (chunk) {
+              liveText += (liveText ? " " : "") + chunk;
+            }
+            if (res.isFinal) {
+              hasFinal = true;
+            }
+          }
+        }
 
         const clean = liveText.trim().replace(/[.,!?;]+$/, "");
         if (clean) {
           onChange?.(clean);
           setIsOpen(true);
-          toast.success(`🗣️ Suna: "${clean}"`, { toastId: "live-heard", autoClose: 1500 });
 
-          const last = event.results[event.results.length - 1];
-          if (last?.isFinal) {
+          if (hasFinal) {
             const cleanLower = clean.toLowerCase();
             const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
             const match = allClientsPool.find((c) => {
-              const compLower = c.companyName.toLowerCase();
+              const compLower = (c.companyName || "").toLowerCase();
               if (
                 compLower === cleanLower ||
                 compLower.includes(cleanLower) ||
@@ -144,7 +146,7 @@ export default function QuotationClientAutocomplete({
       recognition.onerror = (event) => {
         const err = event?.error || "unknown";
         if (err === "no-speech") {
-          // Normal pause, keep listening alive
+          // Normal pause in continuous mode
           return;
         }
         if (err === "aborted") return;
@@ -156,27 +158,17 @@ export default function QuotationClientAutocomplete({
           toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
         } else if (err === "network") {
           toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "voice-net-retry", autoClose: 2500 });
-        } else {
-          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "voice-err-notice", autoClose: 3000 });
         }
       };
 
       recognition.onend = () => {
-        // Auto-restart if user is still dictating so pauses don't abort
+        // Auto-restart with a FRESH INSTANCE so Chrome doesn't throw InvalidStateError
         if (isDirectListeningRef.current) {
-          try {
-            recognition.start();
-          } catch {
-            setTimeout(() => {
-              if (isDirectListeningRef.current) {
-                try {
-                  recognition.start();
-                } catch {
-                  // ignore
-                }
-              }
-            }, 100);
-          }
+          setTimeout(() => {
+            if (isDirectListeningRef.current) {
+              startDirectVoiceSession();
+            }
+          }, 150);
         } else {
           setIsDirectListening(false);
           if (inputRef.current) {
@@ -194,36 +186,18 @@ export default function QuotationClientAutocomplete({
     }
   };
 
-  // Voice Input Hook
-  const voice = useVoiceInput({
-    lang: voiceLang,
-    continuous: true,
-    interimResults: true,
-    onResult: (spokenText) => {
-      if (!spokenText) return;
-      const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
-      onChange?.(clean);
-      setIsOpen(true);
-    },
-    onFinal: (finalText) => {
-      if (!finalText) return;
-      const clean = finalText.trim().replace(/[.,!?;]+$/, "");
-      onChange?.(clean);
+  // Direct Inline Voice Dictation (Google Search & YouTube Model)
+  const toggleDirectVoice = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
 
-      // Check if the spoken text matches an existing client
-      const cleanLower = clean.toLowerCase();
-      const match = allClientsPool.find(
-        (c) =>
-          c.companyName.toLowerCase() === cleanLower ||
-          c.companyName.toLowerCase().includes(cleanLower) ||
-          cleanLower.includes(c.companyName.toLowerCase())
-      );
-      if (match) {
-        onSelectClient?.(match);
-        setIsOpen(false);
-      }
-    },
-  });
+    if (isDirectListeningRef.current) {
+      stopDirectVoiceSession();
+      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped", autoClose: 1500 });
+    } else {
+      startDirectVoiceSession();
+    }
+  };
 
   const handleVoiceModalApply = (spokenText) => {
     if (!spokenText) return;
@@ -450,14 +424,31 @@ export default function QuotationClientAutocomplete({
           >
             <FaMicrophone className="text-xs" />
           </button>
+
+          {/* Open Google Voice Dialog Modal */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsVoiceModalOpen(true);
+            }}
+            disabled={disabled}
+            className="p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700"
+            title="Open Google/YouTube Voice Assistant Dialog"
+          >
+            <FaExpand className="text-[10px]" />
+          </button>
         </div>
       </div>
 
       {/* 1-Tap Quick Fill Client Pills */}
       {allClientsPool.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <span className="text-[9px] font-bold text-slate-500">Quick 1-Tap:</span>
-          {allClientsPool.slice(0, 4).map((c, idx) => (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
+          <span className="text-[9.5px] font-bold text-slate-600 flex items-center gap-1">
+            <FaStar className="text-amber-500 text-[10px]" /> 1-Tap Quick Fill:
+          </span>
+          {allClientsPool.slice(0, 5).map((c, idx) => (
             <button
               key={idx}
               type="button"
@@ -469,12 +460,12 @@ export default function QuotationClientAutocomplete({
                 setIsOpen(false);
                 toast.success(`✅ Filled: ${c.companyName}`);
               }}
-              className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
+              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white hover:bg-blue-50 text-blue-900 border border-blue-200 hover:border-blue-400 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
               title={`1-Click auto-fill ${c.companyName}`}
             >
-              <span>⭐</span>
-              <span className="max-w-[130px] truncate">
-                {c.companyName.split(" ")[0]} {c.companyName.split(" ")[1] || ""}
+              <FaBuilding className="text-blue-600 text-[8.5px] shrink-0" />
+              <span className="max-w-[140px] truncate">
+                {c.companyName}
               </span>
               <span className="text-blue-500 font-bold">↵</span>
             </button>

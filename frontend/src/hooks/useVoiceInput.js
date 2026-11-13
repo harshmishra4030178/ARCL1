@@ -12,7 +12,7 @@ let activeGlobalRecognition = null;
  */
 export default function useVoiceInput({
   lang = "en-IN",
-  continuous = false,
+  continuous = true,
   interimResults = true,
   onResult,
   onFinal,
