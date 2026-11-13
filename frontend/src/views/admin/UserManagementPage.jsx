@@ -50,6 +50,7 @@ import {
   FaGlobe,
   FaBuilding,
   FaCompass,
+  FaPlus,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
