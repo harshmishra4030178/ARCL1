@@ -1,0 +1,348 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  FaBuilding,
+  FaMicrophone,
+  FaMicrophoneSlash,
+  FaCheck,
+  FaMapMarkerAlt,
+  FaIdCard,
+  FaTrashAlt,
+  FaTimes,
+  FaStar,
+} from "react-icons/fa";
+import useVoiceInput from "../../hooks/useVoiceInput.js";
+import {
+  getSavedQuotationClients,
+  deleteSavedQuotationClient,
+} from "../../utils/quotationStorage.js";
+
+export default function QuotationClientAutocomplete({
+  value = "",
+  onChange,
+  onSelectClient,
+  recordsClients = [],
+  placeholder = "Search or type Client Company Name...",
+  className = "",
+  disabled = false,
+  required = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [savedClients, setSavedClients] = useState([]);
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+
+  // Load saved clients from localStorage on mount and when modal opens
+  useEffect(() => {
+    setSavedClients(getSavedQuotationClients());
+  }, []);
+
+  // Voice Input Hook
+  const voice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (!spokenText) return;
+      const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
+      onChange?.(clean);
+      setIsOpen(true);
+    },
+    onFinal: (finalText) => {
+      if (!finalText) return;
+      const clean = finalText.trim().replace(/[.,!?;]+$/, "");
+      onChange?.(clean);
+
+      // Check if the spoken text matches an existing client
+      const cleanLower = clean.toLowerCase();
+      const match = allClientsPool.find(
+        (c) =>
+          c.companyName.toLowerCase() === cleanLower ||
+          c.companyName.toLowerCase().includes(cleanLower) ||
+          cleanLower.includes(c.companyName.toLowerCase())
+      );
+      if (match) {
+        onSelectClient?.(match);
+        setIsOpen(false);
+      }
+    },
+  });
+
+  // Combine savedClients + recordsClients + seed into a unified pool without duplicates
+  const allClientsPool = useMemo(() => {
+    const map = new Map();
+
+    // 1. First add from savedClients (includes seeds and user saved)
+    savedClients.forEach((c) => {
+      if (c && c.companyName) {
+        map.set(c.companyName.trim().toLowerCase(), {
+          ...c,
+          badge: c.source === "saved" ? "⭐ Saved" : "📁 ARCL Client",
+        });
+      }
+    });
+
+    // 2. Add from recordsClients passed from DB records
+    if (Array.isArray(recordsClients)) {
+      recordsClients.forEach((rc) => {
+        if (!rc) return;
+        const name = typeof rc === "string" ? rc : rc.companyName || rc.clientCompany;
+        if (!name) return;
+        const key = name.trim().toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            companyName: name.trim(),
+            gstin: rc.gstin || rc.clientGstin || "",
+            address: rc.address || rc.clientAddress || "",
+            cityStatePin: rc.cityStatePin || rc.placeOfSupply || "",
+            phone: rc.phone || rc.clientPhone || "",
+            email: rc.email || rc.clientEmail || "",
+            badge: "📋 Past Record",
+          });
+        }
+      });
+    }
+
+    return Array.from(map.values());
+  }, [savedClients, recordsClients]);
+
+  // Filter suggestions based on typed query (even 1 letter)
+  const filteredSuggestions = useMemo(() => {
+    const q = String(value || "").trim().toLowerCase();
+    if (!q) {
+      // If empty but open, return recent top 6 clients
+      return allClientsPool.slice(0, 6);
+    }
+
+    const exact = [];
+    const startsWith = [];
+    const wordStarts = [];
+    const contains = [];
+
+    allClientsPool.forEach((item) => {
+      const name = item.companyName.toLowerCase();
+      if (name === q) {
+        exact.push(item);
+      } else if (name.startsWith(q)) {
+        startsWith.push(item);
+      } else if (name.split(/\s+/).some((w) => w.startsWith(q))) {
+        wordStarts.push(item);
+      } else if (name.includes(q)) {
+        contains.push(item);
+      }
+    });
+
+    return [...exact, ...startsWith, ...wordStarts, ...contains].slice(0, 10);
+  }, [value, allClientsPool]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (client) => {
+    onChange?.(client.companyName);
+    onSelectClient?.(client);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleDeleteSaved = (e, companyName) => {
+    e.stopPropagation();
+    deleteSavedQuotationClient(companyName);
+    setSavedClients((prev) =>
+      prev.filter((c) => c.companyName.toLowerCase() !== companyName.toLowerCase())
+    );
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev < filteredSuggestions.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev > 0 ? prev - 1 : filteredSuggestions.length - 1
+      );
+    } else if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < filteredSuggestions.length) {
+        e.preventDefault();
+        handleSelect(filteredSuggestions[highlightedIndex]);
+      }
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div className="relative flex items-center">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange?.(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          required={required}
+          placeholder={placeholder}
+          className={`w-full pr-16 pl-3 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition ${className}`}
+          style={{
+            backgroundColor: "#eff6ff",
+            color: "#1e3a8a",
+            borderColor: isOpen ? "#3b82f6" : "#bfdbfe",
+          }}
+        />
+
+        {/* Action Buttons: Clear & Voice Dictation */}
+        <div className="absolute right-1.5 flex items-center gap-1">
+          {value && !disabled && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange?.("");
+                inputRef.current?.focus();
+              }}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+              title="Clear input"
+            >
+              <FaTimes className="text-[10px]" />
+            </button>
+          )}
+
+          {/* Voice Microphone Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (voice.isListening) {
+                voice.stopListening();
+              } else {
+                voice.startListening();
+              }
+            }}
+            disabled={disabled}
+            className={`p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+              voice.isListening
+                ? "bg-rose-600 text-white animate-pulse shadow-md"
+                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+            }`}
+            title={
+              voice.isListening
+                ? "Listening... Click to stop"
+                : "Speak to fill Client Company Name (Voice Typing)"
+            }
+          >
+            {voice.isListening ? (
+              <FaMicrophone className="text-xs" />
+            ) : (
+              <FaMicrophone className="text-xs" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Voice Status Pill */}
+      {voice.isListening && (
+        <div className="absolute z-30 left-0 -top-7 px-2.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full shadow-md flex items-center gap-1 animate-pulse">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+          Listening... Speak Client Company Name
+        </div>
+      )}
+
+      {/* Auto Suggestions Dropdown (Shows on 1 letter typed or focus) */}
+      {isOpen && filteredSuggestions.length > 0 && (
+        <div
+          ref={listRef}
+          className="absolute z-50 left-0 right-0 mt-1 bg-white border border-blue-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-slate-100 animate-fadeIn"
+          style={{ minWidth: "280px" }}
+        >
+          <div className="p-1.5 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <FaBuilding className="text-blue-600" /> Auto Suggestions ({filteredSuggestions.length})
+            </span>
+            <span className="text-[9px] text-slate-400">Click to auto-fill address &amp; GSTIN</span>
+          </div>
+
+          {filteredSuggestions.map((client, idx) => {
+            const isHighlighted = idx === highlightedIndex;
+            return (
+              <div
+                key={idx}
+                onMouseDown={() => handleSelect(client)}
+                onMouseEnter={() => setHighlightedIndex(idx)}
+                className={`p-2.5 transition cursor-pointer flex items-start justify-between gap-2 ${
+                  isHighlighted ? "bg-blue-50 text-blue-900" : "hover:bg-slate-50 text-slate-800"
+                }`}
+              >
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-xs text-slate-900">
+                      {client.companyName}
+                    </span>
+                    {client.badge && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        {client.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* GSTIN & Address preview */}
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium">
+                    {client.gstin && (
+                      <span className="font-mono text-emerald-700 font-bold flex items-center gap-0.5">
+                        <FaIdCard className="text-[9px]" /> {client.gstin}
+                      </span>
+                    )}
+                    {client.cityStatePin && (
+                      <span className="truncate flex items-center gap-0.5">
+                        <FaMapMarkerAlt className="text-[9px] text-rose-500" /> {client.cityStatePin}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                  {client.source === "saved" && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSaved(e, client.companyName)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                      title="Remove from saved suggestions"
+                    >
+                      <FaTrashAlt className="text-[10px]" />
+                    </button>
+                  )}
+                  <span className="p-1 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
+                    Select ↵
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

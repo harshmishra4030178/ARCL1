@@ -141,6 +141,9 @@ import {
 import { getProducts } from "../../api/productApi.js";
 import { getEquipmentTypes } from "../../api/equipmentTypeApi.js";
 import EquipmentAutocompleteInput from "../../components/admin/calibration/EquipmentAutocompleteInput.jsx";
+import QuotationClientAutocomplete from "../../components/calibration/QuotationClientAutocomplete.jsx";
+import QuotationItemAutocomplete from "../../components/calibration/QuotationItemAutocomplete.jsx";
+import { saveQuotationClient, saveQuotationItems } from "../../utils/quotationStorage.js";
 import {
   buildUnifiedEquipmentSuggestions,
   saveCustomEquipmentToStorage,
@@ -4902,6 +4905,86 @@ export default function CalibrationPageView() {
     toast.info("Item row removed.");
   };
 
+  // Quotation Voice Dictation Hooks
+  const quotationAddressVoice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (spokenText) {
+        setQuotationForm((prev) => ({
+          ...prev,
+          billTo: { ...(prev.billTo || {}), address: spokenText },
+        }));
+      }
+    },
+  });
+
+  const quotationSiteVoice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (spokenText) {
+        setQuotationForm((prev) => ({
+          ...prev,
+          billTo: { ...(prev.billTo || {}), cityStatePin: spokenText },
+        }));
+      }
+    },
+  });
+
+  const quotationDcVoice = useVoiceInput({
+    lang: "en-IN",
+    onResult: (spokenText) => {
+      if (spokenText) {
+        setQuotationForm((prev) => ({
+          ...prev,
+          dcNo: spokenText.trim().replace(/\s+/g, "-").toUpperCase(),
+        }));
+      }
+    },
+  });
+
+  const handleSelectQuotationClient = (client) => {
+    if (!client) return;
+    setQuotationForm((prev) => {
+      const prevBillTo = prev.billTo || {};
+      const gstin = client.gstin || prevBillTo.gstin || "";
+      let newPlaceOfSupply = prev.placeOfSupply;
+      if (gstin && gstin.length >= 2) {
+        const stateCode = gstin.slice(0, 2);
+        const stateMap = {
+          "27": "27-MAHARASHTRA",
+          "24": "24-GUJARAT",
+          "07": "07-DELHI",
+          "29": "29-KARNATAKA",
+          "33": "33-TAMIL NADU",
+          "09": "09-UTTAR PRADESH",
+          "19": "19-WEST BENGAL",
+          "06": "06-HARYANA",
+          "08": "08-RAJASTHAN",
+          "23": "23-MADHYA PRADESH",
+          "10": "10-BIHAR",
+          "21": "21-ODISHA",
+          "36": "36-TELANGANA",
+          "37": "37-ANDHRA PRADESH",
+        };
+        if (stateMap[stateCode]) newPlaceOfSupply = stateMap[stateCode];
+      }
+      return {
+        ...prev,
+        placeOfSupply: newPlaceOfSupply,
+        billTo: {
+          ...prevBillTo,
+          companyName: client.companyName || prevBillTo.companyName || "",
+          gstin: client.gstin || prevBillTo.gstin || "",
+          address: client.address || prevBillTo.address || "",
+          cityStatePin: client.cityStatePin || prevBillTo.cityStatePin || "Navi Mumbai, MAHARASHTRA",
+          phone: client.phone || prevBillTo.phone || "",
+          email: client.email || prevBillTo.email || "",
+        },
+      };
+    });
+    toast.success(`Client auto-selected: ${client.companyName} ✨`);
+  };
+
   // Live Computed Quotation Totals
   const quotationTotals = useMemo(() => {
     let taxable = 0;
@@ -4950,6 +5033,21 @@ export default function CalibrationPageView() {
       const savedRecordId = savedRecord?._id;
       if (savedRecordId) {
         setQuotationRecordId(savedRecordId);
+      }
+
+      // Automatically persist client & items so they are permanently remembered in future auto-suggestions
+      if (quotationForm.billTo?.companyName) {
+        saveQuotationClient({
+          companyName: quotationForm.billTo.companyName,
+          gstin: quotationForm.billTo.gstin,
+          address: quotationForm.billTo.address,
+          cityStatePin: quotationForm.billTo.cityStatePin,
+          phone: quotationForm.billTo.phone,
+          email: quotationForm.billTo.email,
+        });
+      }
+      if (Array.isArray(itemsToSave) && itemsToSave.length > 0) {
+        saveQuotationItems(itemsToSave);
       }
 
       const primaryNewName = itemsToSave[0]?.name ? itemsToSave[0].name.replace(/\s*-\s*Calibration$/i, "").trim() : "";
@@ -23047,6 +23145,12 @@ export default function CalibrationPageView() {
                     <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-[10px] font-mono font-bold">
                       Exact 1:1 ARCL Format
                     </span>
+                    <span className="px-2.5 py-0.5 bg-purple-500/20 text-purple-200 border border-purple-400/40 rounded-full text-[10px] font-mono font-bold flex items-center gap-1">
+                      <FaMicrophone className="text-[9px]" /> Voice Dictation
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-blue-500/20 text-cyan-200 border border-cyan-400/40 rounded-full text-[10px] font-mono font-bold flex items-center gap-1">
+                      ⚡ 1-Letter Auto-Suggest
+                    </span>
                   </div>
                   <p className="text-xs text-blue-200">
                     {quotationRecordId
@@ -23154,17 +23258,24 @@ export default function CalibrationPageView() {
                     </div>
 
                     <div className="space-y-1.5 pt-1">
-                      <p className="font-black text-black text-[11px]">Quotation To (Client Details):</p>
-                      <input
-                        type="text"
-                        style={{ backgroundColor: "#eff6ff", color: "#1e3a8a", borderColor: "#bfdbfe" }}
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-black text-[11px] flex items-center gap-1">
+                          <FaBuilding className="text-blue-600" /> Quotation To (Client Details):
+                        </p>
+                        <span className="text-[9.5px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded-full">
+                          🎙️ Voice &amp; 1-Letter Auto-Suggest
+                        </span>
+                      </div>
+                      <QuotationClientAutocomplete
                         value={quotationForm.billTo?.companyName || ""}
-                        onChange={(e) => setQuotationForm({
-                          ...quotationForm,
-                          billTo: { ...(quotationForm.billTo || {}), companyName: e.target.value }
-                        })}
-                        className="w-full font-bold border rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                        placeholder="Client Company Name"
+                        onChange={(val) =>
+                          setQuotationForm((prev) => ({
+                            ...prev,
+                            billTo: { ...(prev.billTo || {}), companyName: val },
+                          }))
+                        }
+                        onSelectClient={handleSelectQuotationClient}
+                        recordsClients={records}
                       />
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-800 text-[10px]">GSTIN:</span>
@@ -23201,16 +23312,37 @@ export default function CalibrationPageView() {
                           Fetch
                         </button>
                       </div>
-                      <p className="font-bold text-gray-800 text-[10px]">Billing Address:</p>
+                      <div className="flex items-center justify-between pt-0.5">
+                        <p className="font-bold text-gray-800 text-[10px]">Billing Address:</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (quotationAddressVoice.isListening) {
+                              quotationAddressVoice.stopListening();
+                            } else {
+                              quotationAddressVoice.startListening();
+                            }
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold flex items-center gap-1 cursor-pointer transition ${
+                            quotationAddressVoice.isListening
+                              ? "bg-rose-600 text-white animate-pulse"
+                              : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          }`}
+                          title="Speak to fill billing address (Voice Dictation)"
+                        >
+                          <FaMicrophone className="text-[9px]" /> {quotationAddressVoice.isListening ? "Listening..." : "Voice"}
+                        </button>
+                      </div>
                       <textarea
                         rows={2}
-                        style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#d1d5db" }}
+                        style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: quotationAddressVoice.isListening ? "#ef4444" : "#d1d5db" }}
                         value={quotationForm.billTo?.address || ""}
                         onChange={(e) => setQuotationForm({
                           ...quotationForm,
                           billTo: { ...(quotationForm.billTo || {}), address: e.target.value }
                         })}
-                        className="w-full text-[10px] text-gray-900 border rounded p-1.5 focus:outline-none"
+                        placeholder="Billing address..."
+                        className="w-full text-[10px] text-gray-900 border rounded p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     </div>
                   </div>
@@ -23259,10 +23391,34 @@ export default function CalibrationPageView() {
                         />
                       </div>
                       <div className="col-span-2">
-                        <span className="font-bold text-gray-700 text-[10px]">DC / Challan Ref No.:</span>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-gray-700 text-[10px]">DC / Challan Ref No.:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (quotationDcVoice.isListening) {
+                                quotationDcVoice.stopListening();
+                              } else {
+                                quotationDcVoice.startListening();
+                              }
+                            }}
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-bold flex items-center gap-1 cursor-pointer transition ${
+                              quotationDcVoice.isListening
+                                ? "bg-rose-600 text-white animate-pulse"
+                                : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                            }`}
+                            title="Speak DC reference number (e.g. DC 2026 001)"
+                          >
+                            <FaMicrophone className="text-[8.5px]" /> {quotationDcVoice.isListening ? "Listening..." : "Voice"}
+                          </button>
+                        </div>
                         <input
                           type="text"
-                          style={{ backgroundColor: "#ffffff", color: "#0f172a", borderColor: "#cbd5e1" }}
+                          style={{
+                            backgroundColor: "#ffffff",
+                            color: "#0f172a",
+                            borderColor: quotationDcVoice.isListening ? "#ef4444" : "#cbd5e1",
+                          }}
                           value={quotationForm.dcNo || ""}
                           onChange={(e) => setQuotationForm({ ...quotationForm, dcNo: e.target.value })}
                           placeholder="e.g. DC-2026-001"
@@ -23272,16 +23428,41 @@ export default function CalibrationPageView() {
                     </div>
 
                     <div className="space-y-1">
-                      <p className="font-bold text-gray-800 text-[10px]">Site / Delivery Location:</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-gray-800 text-[10px]">Site / Delivery Location:</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (quotationSiteVoice.isListening) {
+                              quotationSiteVoice.stopListening();
+                            } else {
+                              quotationSiteVoice.startListening();
+                            }
+                          }}
+                          className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold flex items-center gap-1 cursor-pointer transition ${
+                            quotationSiteVoice.isListening
+                              ? "bg-rose-600 text-white animate-pulse"
+                              : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          }`}
+                          title="Speak site / delivery location (Voice Dictation)"
+                        >
+                          <FaMicrophone className="text-[9px]" /> {quotationSiteVoice.isListening ? "Listening..." : "Voice"}
+                        </button>
+                      </div>
                       <textarea
                         rows={2}
-                        style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#d1d5db" }}
+                        style={{
+                          backgroundColor: "#ffffff",
+                          color: "#111827",
+                          borderColor: quotationSiteVoice.isListening ? "#ef4444" : "#d1d5db",
+                        }}
                         value={quotationForm.billTo?.cityStatePin || "Thane, MAHARASHTRA, 421503"}
                         onChange={(e) => setQuotationForm({
                           ...quotationForm,
                           billTo: { ...(quotationForm.billTo || {}), cityStatePin: e.target.value }
                         })}
-                        className="w-full text-[10px] text-gray-900 border rounded p-1.5 focus:outline-none"
+                        placeholder="Site location / City, State, Pincode..."
+                        className="w-full text-[10px] text-gray-900 border rounded p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     </div>
                   </div>
@@ -23335,12 +23516,16 @@ export default function CalibrationPageView() {
                         >
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center font-bold text-gray-800">{it.itemNo || idx + 1}</td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r space-y-1">
-                            <input
-                              type="text"
-                              style={{ backgroundColor: "#ffffff", color: "#0f172a", borderColor: "#e2e8f0" }}
+                            <QuotationItemAutocomplete
                               value={it.name}
-                              onChange={(e) => handleQuotationItemChange(idx, 'name', e.target.value)}
-                              className="w-full font-bold border rounded px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:outline-none"
+                              onChange={(val) => handleQuotationItemChange(idx, 'name', val)}
+                              onSelectItem={(sugg) => {
+                                handleQuotationItemChange(idx, 'name', sugg.name);
+                                if (sugg.subText) handleQuotationItemChange(idx, 'subText', sugg.subText);
+                                if (sugg.rate) handleQuotationItemChange(idx, 'rate', sugg.rate);
+                                if (sugg.hsnSac) handleQuotationItemChange(idx, 'hsnSac', sugg.hsnSac);
+                              }}
+                              suggestions={unifiedEquipmentSuggestions}
                             />
                             <input
                               type="text"
@@ -23348,7 +23533,7 @@ export default function CalibrationPageView() {
                               value={it.subText || ""}
                               onChange={(e) => handleQuotationItemChange(idx, 'subText', e.target.value)}
                               className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
-                              placeholder="Subtitle"
+                              placeholder="Scope Subtitle (e.g. NABL Thirdparty Report)"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
