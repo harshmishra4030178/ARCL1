@@ -397,6 +397,7 @@ export default function QuotationClientAutocomplete({
         initialText={value}
         placeholder="Bolna shuru karein (e.g. Ahluwalia Contracts, Larsen & Toubro)..."
         defaultLang={voiceLang}
+        quickSuggestions={allClientsPool}
       />
     </div>
   );

@@ -335,6 +335,7 @@ export default function QuotationItemAutocomplete({
         initialText={value}
         placeholder="Bolna shuru karein (e.g. Compression Testing Machine 2000kN, Digital Micrometer)..."
         defaultLang={voiceLang}
+        quickSuggestions={allItemsPool}
       />
     </div>
   );

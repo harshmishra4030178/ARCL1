@@ -6,19 +6,22 @@ import {
   FaTimes,
   FaCheck,
   FaRedo,
-  FaVolumeUp,
+  FaBuilding,
+  FaTools,
   FaExclamationTriangle,
+  FaInfoCircle,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 /**
  * GoogleVoiceModal - YouTube & Google Style Floating Voice Dictation Dialog
  * Features:
- * - Real-time Audio Level VU Meter (detects if microphone is physically picking up sound)
- * - Pure continuous low-latency speech recognition (en-IN and hi-IN)
- * - Real-time word-by-word streaming into the display
- * - Editable fallback so users can refine words on the fly
- * - 1-Click Apply & Fill with smart client/item auto-matching
+ * - 100% Native Web Speech API with full lifecycle events (audiostart, soundstart, speechstart, result)
+ * - Zero audio-locking conflicts (no simultaneous getUserMedia)
+ * - Real-time word-by-word streaming into display
+ * - Bilingual tabs (English en-IN & Hindi hi-IN)
+ * - 1-Tap Quick Select Chips for instant filling without waiting
+ * - Live diagnostic indicator so user sees exactly what Chrome detects
  */
 export default function GoogleVoiceModal({
   isOpen = false,
@@ -29,104 +32,36 @@ export default function GoogleVoiceModal({
   initialText = "",
   placeholder = "Bolna shuru karein (e.g. Ahluwalia Contracts, CTM 2000kN)...",
   defaultLang = "en-IN",
+  quickSuggestions = [],
 }) {
   const [lang, setLang] = useState(defaultLang);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState(initialText);
   const [isFinalized, setIsFinalized] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Listening... Speak now");
-  const [audioLevel, setAudioLevel] = useState(0); // 0 to 100 volume meter
+  const [statusMessage, setStatusMessage] = useState("Microphone connecting...");
+  const [soundDetected, setSoundDetected] = useState(false);
+  const [speechDetected, setSpeechDetected] = useState(false);
+  const [lastError, setLastError] = useState("");
 
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const animFrameRef = useRef(null);
 
   // Sync initial text when modal opens
   useEffect(() => {
     if (isOpen) {
       setTranscript(initialText || "");
       setIsFinalized(false);
+      setLastError("");
+      setSoundDetected(false);
+      setSpeechDetected(false);
       startVoiceSession(lang);
-      startAudioMeter();
     } else {
       stopVoiceSession();
-      stopAudioMeter();
     }
     return () => {
       stopVoiceSession();
-      stopAudioMeter();
     };
   }, [isOpen]);
-
-  // Audio Level Meter (measures real physical sound from the microphone)
-  const startAudioMeter = async () => {
-    try {
-      if (typeof window === "undefined" || !navigator?.mediaDevices?.getUserMedia)
-        return;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const AudioContextClass =
-        window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const audioCtx = new AudioContextClass();
-      audioContextRef.current = audioCtx;
-
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      analyserRef.current = analyser;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      const checkLevel = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length;
-        const scaled = Math.min(100, Math.round((avg / 64) * 100));
-        setAudioLevel(scaled);
-        animFrameRef.current = requestAnimationFrame(checkLevel);
-      };
-
-      animFrameRef.current = requestAnimationFrame(checkLevel);
-    } catch (err) {
-      console.warn("Audio meter getUserMedia notice:", err);
-    }
-  };
-
-  const stopAudioMeter = () => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      try {
-        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      } catch {
-        // ignore
-      }
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close();
-      } catch {
-        // ignore
-      }
-      audioContextRef.current = null;
-    }
-    analyserRef.current = null;
-    setAudioLevel(0);
-  };
 
   const stopVoiceSession = useCallback(() => {
     isListeningRef.current = false;
@@ -141,6 +76,8 @@ export default function GoogleVoiceModal({
       recognitionRef.current = null;
     }
     setIsListening(false);
+    setSoundDetected(false);
+    setSpeechDetected(false);
   }, []);
 
   const startVoiceSession = useCallback(
@@ -162,18 +99,42 @@ export default function GoogleVoiceModal({
         recognitionRef.current = recognition;
         recognition.lang = useLang;
         recognition.interimResults = true;
-        recognition.continuous = true; // Keep listening so natural pauses don't cut off
+        recognition.continuous = true;
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {
           isListeningRef.current = true;
           setIsListening(true);
           setIsFinalized(false);
+          setLastError("");
           setStatusMessage(
             useLang.startsWith("hi")
-              ? "🎙️ सुन रहे हैं... बोलना शुरू करें"
-              : "🎙️ Listening... Speak clearly now"
+              ? "🎙️ Mic On: हिन्दी में बोलना शुरू करें..."
+              : "🎙️ Mic On: Speak clearly in English..."
           );
+        };
+
+        recognition.onaudiostart = () => {
+          setStatusMessage("🎙️ Mic Connected & Capturing Audio...");
+        };
+
+        recognition.onsoundstart = () => {
+          setSoundDetected(true);
+          setStatusMessage("🔊 Sound Detected! Aawaz aa rahi hai...");
+        };
+
+        recognition.onspeechstart = () => {
+          setSpeechDetected(true);
+          setStatusMessage("🗣️ Human Speech Detected! Transcribing words...");
+        };
+
+        recognition.onspeechend = () => {
+          setStatusMessage("⏳ Speech paused. Finalizing words...");
+        };
+
+        recognition.onsoundend = () => {
+          setSoundDetected(false);
+          setSpeechDetected(false);
         };
 
         recognition.onresult = (event) => {
@@ -200,19 +161,26 @@ export default function GoogleVoiceModal({
             setTranscript(cleaned);
             if (finalFound) {
               setIsFinalized(true);
-              setStatusMessage("✅ Suna gaya! 'Apply & Fill' click karein");
+              setStatusMessage(`✅ Suna gaya: "${cleaned}"`);
             } else {
-              setStatusMessage("🎙️ Hearing you...");
+              setStatusMessage(`🎙️ Sun rahe hain: "${cleaned}"...`);
             }
           }
+        };
+
+        recognition.onnomatch = () => {
+          setStatusMessage("⚠️ Shabd samajh nahi aaye. Thoda aur saaf ya paas se bolein.");
         };
 
         recognition.onerror = (event) => {
           const err = event?.error || "unknown";
           if (err === "aborted") return;
 
+          setLastError(err);
+
           if (err === "no-speech") {
             // Keep listening in continuous mode
+            setStatusMessage("🎙️ Listening... Bolna shuru karein");
             return;
           }
 
@@ -225,7 +193,11 @@ export default function GoogleVoiceModal({
               { autoClose: 7000 }
             );
           } else if (err === "network") {
-            setStatusMessage("⚠️ Speech network reconnecting...");
+            setStatusMessage("⚠️ Google Speech Network timeout / proxy issue");
+          } else if (err === "audio-capture") {
+            setStatusMessage("❌ Koi microphone nahi mila. Check audio cable / device.");
+          } else {
+            setStatusMessage(`Speech note: ${err}`);
           }
         };
 
@@ -250,19 +222,20 @@ export default function GoogleVoiceModal({
         setIsListening(false);
         isListeningRef.current = false;
         setStatusMessage("Mic start failed. Check browser permissions.");
+        setLastError(err.message || "Failed to start");
       }
     },
     [stopVoiceSession]
   );
 
-  const handleApply = () => {
-    const clean = (transcript || "").trim().replace(/[.,!?;]+$/, "");
+  const handleApply = (customText = null) => {
+    const textToApply = typeof customText === "string" ? customText : transcript;
+    const clean = (textToApply || "").trim().replace(/[.,!?;]+$/, "");
     if (clean) {
       onApply?.(clean);
       toast.success(`✅ "${clean}" filled successfully!`, { autoClose: 2000 });
     }
     stopVoiceSession();
-    stopAudioMeter();
     onClose?.();
   };
 
@@ -281,11 +254,11 @@ export default function GoogleVoiceModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-3xl shadow-2xl p-5 sm:p-7 max-w-md w-full flex flex-col items-center text-center border border-slate-200 animate-scaleUp"
+        className="relative bg-white rounded-3xl shadow-2xl p-5 sm:p-6 max-w-md w-full flex flex-col items-center text-center border border-slate-200 animate-scaleUp"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -311,11 +284,11 @@ export default function GoogleVoiceModal({
           {title}
         </h3>
         <p className="text-[11px] font-bold text-blue-700 bg-blue-50 px-3 py-0.5 rounded-full border border-blue-200 mt-1 mb-3">
-          Field: <span className="text-slate-900 font-extrabold">{fieldName}</span>
+          Target: <span className="text-slate-900 font-extrabold">{fieldName}</span>
         </p>
 
-        {/* Prominent Bilingual Language Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl mb-4 border border-slate-200">
+        {/* Bilingual Language Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl mb-3 border border-slate-200">
           <button
             type="button"
             onClick={() => handleSelectLang("en-IN")}
@@ -340,26 +313,13 @@ export default function GoogleVoiceModal({
           </button>
         </div>
 
-        {/* Central Pulsating YouTube / Google Microphone Circle with Dynamic Sound Wave Rings */}
+        {/* Central Pulsating YouTube / Google Microphone Circle */}
         <div className="relative my-2 flex items-center justify-center">
-          {/* Audio reactive pulsing ripple based on real volume */}
           {isListening && (
-            <div
-              className="absolute rounded-full bg-rose-500/25 transition-all duration-75"
-              style={{
-                width: `${100 + audioLevel * 0.8}px`,
-                height: `${100 + audioLevel * 0.8}px`,
-              }}
-            />
+            <div className="absolute w-28 h-28 rounded-full bg-rose-500/20 animate-ping" />
           )}
-          {isListening && audioLevel > 15 && (
-            <div
-              className="absolute rounded-full bg-blue-500/20 transition-all duration-75"
-              style={{
-                width: `${130 + audioLevel * 0.9}px`,
-                height: `${130 + audioLevel * 0.9}px`,
-              }}
-            />
+          {isListening && soundDetected && (
+            <div className="absolute w-36 h-36 rounded-full bg-emerald-500/25 animate-pulse" />
           )}
 
           {/* Core Mic Button */}
@@ -368,66 +328,89 @@ export default function GoogleVoiceModal({
             onClick={isListening ? stopVoiceSession : handleRestart}
             className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl shadow-xl transition transform active:scale-95 cursor-pointer ${
               isListening
-                ? "bg-gradient-to-tr from-rose-600 to-red-500 ring-4 ring-rose-200 animate-pulse"
+                ? soundDetected
+                  ? "bg-gradient-to-tr from-emerald-600 to-teal-500 ring-4 ring-emerald-200 animate-pulse"
+                  : "bg-gradient-to-tr from-rose-600 to-red-500 ring-4 ring-rose-200 animate-pulse"
                 : "bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 ring-4 ring-blue-100"
             }`}
-            title={isListening ? "Listening... Tap to stop" : "Tap to speak"}
+            title={isListening ? "Listening... Tap to pause" : "Tap to speak"}
           >
             <FaMicrophone />
           </button>
         </div>
 
-        {/* Live Audio Level VU Meter (Confirms microphone is physically receiving sound) */}
-        <div className="flex items-center gap-1 my-2 h-6 px-3 bg-slate-50 border border-slate-200 rounded-full">
-          <FaVolumeUp className={`text-[10px] ${audioLevel > 5 ? "text-emerald-600" : "text-slate-400"}`} />
-          <div className="flex items-center gap-1 h-3.5 px-1">
-            {[1, 2, 3, 4, 5, 6, 7].map((barIdx) => {
-              const active = audioLevel >= barIdx * 8;
-              return (
-                <span
-                  key={barIdx}
-                  className={`w-1 rounded-full transition-all duration-75 ${
-                    active ? "bg-emerald-500 h-3" : "bg-slate-300 h-1.5"
-                  }`}
-                />
-              );
-            })}
-          </div>
-          <span className="text-[10px] font-bold text-slate-500 ml-1">
-            {audioLevel > 5 ? (
-              <span className="text-emerald-600 font-bold">Sound Detected</span>
-            ) : (
-              <span>Speak into Mic</span>
-            )}
-          </span>
+        {/* Live Status Diagnostics Badge */}
+        <div className="flex items-center gap-1.5 my-1.5 px-3 py-1 rounded-full text-xs font-bold border transition bg-slate-50 border-slate-200 text-slate-700">
+          {soundDetected ? (
+            <span className="flex items-center gap-1 text-emerald-600">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              🔊 Sound Detected
+            </span>
+          ) : isListening ? (
+            <span className="flex items-center gap-1 text-rose-600">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              🎙️ Listening... Speak now
+            </span>
+          ) : (
+            <span className="text-slate-500">Tap mic to speak</span>
+          )}
         </div>
 
-        {/* Live Status Message */}
-        <p className="text-xs font-bold text-slate-700 mt-1 mb-2 flex items-center gap-1.5">
-          {isListening && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
+        <p className="text-[11px] font-medium text-slate-500 mb-2 truncate max-w-full">
           {statusMessage}
         </p>
 
         {/* Live Real-Time Editable Transcription Box */}
-        <div className="w-full mt-1 relative">
+        <div className="w-full relative">
           <textarea
-            rows={3}
+            rows={2}
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             placeholder={placeholder}
-            className="w-full p-3 bg-slate-50 border-2 border-blue-200 focus:border-blue-500 rounded-2xl text-center text-base sm:text-lg font-black text-slate-900 focus:outline-none resize-none transition shadow-inner placeholder:text-slate-400 placeholder:text-xs placeholder:font-normal"
+            className="w-full p-2.5 bg-slate-50 border-2 border-blue-200 focus:border-blue-500 rounded-xl text-center text-sm sm:text-base font-black text-slate-900 focus:outline-none resize-none transition shadow-inner placeholder:text-slate-400 placeholder:text-xs placeholder:font-normal"
           />
-          <div className="text-[9px] text-slate-400 text-right pr-2">
-            Tip: You can also edit/refine text here directly
-          </div>
         </div>
 
-        {/* Warning if no sound after 4 seconds */}
-        {isListening && audioLevel === 0 && !transcript && (
-          <div className="w-full mt-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800 flex items-start gap-1.5 text-left">
-            <FaExclamationTriangle className="text-amber-500 shrink-0 mt-0.5" />
+        {/* 1-Tap Quick Select Chips (Fastest Method: 1 Click Auto-Fills Everything) */}
+        {Array.isArray(quickSuggestions) && quickSuggestions.length > 0 && (
+          <div className="w-full mt-3 text-left">
+            <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1">
+                <FaInfoCircle className="text-blue-500 text-[10px]" /> Quick 1-Tap Select (No typing needed):
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200">
+              {quickSuggestions.slice(0, 6).map((item, idx) => {
+                const label = item?.companyName || item?.name || (typeof item === "string" ? item : "");
+                if (!label) return null;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleApply(label)}
+                    className="px-2 py-1 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg text-[10px] font-bold text-slate-800 transition flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                    title={`Click to auto-fill: ${label}`}
+                  >
+                    {item?.companyName ? (
+                      <FaBuilding className="text-blue-600 text-[9px] shrink-0" />
+                    ) : (
+                      <FaTools className="text-emerald-600 text-[9px] shrink-0" />
+                    )}
+                    <span className="truncate max-w-[170px]">{label}</span>
+                    <span className="text-blue-600 ml-0.5">↵</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Warning if error occurred */}
+        {lastError && (
+          <div className="w-full mt-2 p-2 bg-rose-50 border border-rose-200 rounded-xl text-[10px] text-rose-800 flex items-start gap-1.5 text-left">
+            <FaExclamationTriangle className="text-rose-500 shrink-0 mt-0.5" />
             <span>
-              <strong>Mic Notice:</strong> Agar aawaz capture nahi ho rahi, to Windows Settings me Default Microphone check karein ya URL bar ke paas Lock 🔒 icon se mic allow karein.
+              <strong>Notice:</strong> Browser speech notice: <code>{lastError}</code>. Agar Brave browser me hain to <code>brave://settings/system</code> me Google Speech ON karein ya Google Chrome use karein.
             </span>
           </div>
         )}
@@ -437,7 +420,7 @@ export default function GoogleVoiceModal({
           <button
             type="button"
             onClick={handleRestart}
-            className="flex-1 py-2.5 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+            className="flex-1 py-2 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
             title="Clear and speak again"
           >
             <FaRedo className="text-[10px]" /> Re-Speak
@@ -445,9 +428,9 @@ export default function GoogleVoiceModal({
 
           <button
             type="button"
-            onClick={handleApply}
+            onClick={() => handleApply()}
             disabled={!transcript.trim()}
-            className="flex-[2] py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+            className="flex-[2] py-2 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95"
           >
             <FaCheck /> Apply &amp; Fill
           </button>
