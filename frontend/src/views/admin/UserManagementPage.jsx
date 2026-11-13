@@ -494,31 +494,112 @@ const UserManagementPage = () => {
     toast.success(`IP ${cleanIp} added. Click 'Save Security Settings' to persist.`);
   };
 
-  const handleCaptureCurrentGps = () => {
-    if (typeof window === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation is not supported by your browser.");
-      return;
-    }
+  const handleSetArclAiroliPreset = () => {
+    setOfficeSecurity((prev) => ({
+      configKey: "DEFAULT_OFFICE_SECURITY",
+      officeWifiIps: ["127.0.0.1", "::1"],
+      isEnforceWifi: true,
+      isEnforceLocation: true,
+      officeRadiusMeters: 150,
+      ...prev,
+      officeLatitude: 19.1553,
+      officeLongitude: 72.9982,
+      officeAddress:
+        "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
+    }));
+    toast.success("🏢 ARCL Lab Airoli Coordinates Applied (19.1553, 72.9982)! Click 'Save Security Settings' to persist.");
+  };
+
+  const handleCaptureCurrentGps = async () => {
     setCapturingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = parseFloat(pos.coords.latitude.toFixed(6));
-        const lon = parseFloat(pos.coords.longitude.toFixed(6));
-        setOfficeSecurity((prev) => ({
-          ...prev,
-          officeLatitude: lat,
-          officeLongitude: lon,
-        }));
-        setCapturingGps(false);
-        toast.success(`📍 Office GPS Captured: Lat ${lat}, Lon ${lon}!`);
-      },
-      (err) => {
-        setCapturingGps(false);
-        console.warn("GPS error:", err);
-        toast.error("Could not capture GPS location. Please allow location access in browser.");
-      },
-      { enableHighAccuracy: true, timeout: 6000 }
-    );
+
+    const tryBrowserGeo = (highAccuracy, timeoutMs) => {
+      return new Promise((resolve, reject) => {
+        if (typeof window === "undefined" || !navigator?.geolocation) {
+          return reject(new Error("Browser does not support geolocation"));
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (err) => reject(err),
+          { enableHighAccuracy: highAccuracy, timeout: timeoutMs, maximumAge: 60000 }
+        );
+      });
+    };
+
+    try {
+      // Step 1: Try fast network/WiFi triangulation first (works on desktop/laptops without GPS hardware)
+      let pos;
+      try {
+        pos = await tryBrowserGeo(false, 3500);
+      } catch (err1) {
+        // Step 2: Try high accuracy (for mobile or GPS-enabled devices)
+        pos = await tryBrowserGeo(true, 4500);
+      }
+
+      const lat = parseFloat(pos.coords.latitude.toFixed(6));
+      const lon = parseFloat(pos.coords.longitude.toFixed(6));
+      setOfficeSecurity((prev) => ({
+        configKey: "DEFAULT_OFFICE_SECURITY",
+        officeWifiIps: ["127.0.0.1", "::1"],
+        isEnforceWifi: true,
+        isEnforceLocation: true,
+        officeRadiusMeters: 150,
+        ...prev,
+        officeLatitude: lat,
+        officeLongitude: lon,
+      }));
+      setCapturingGps(false);
+      toast.success(`📍 Live Location Captured: Lat ${lat}, Lon ${lon}! Click 'Save Security Settings' to persist.`);
+      return;
+    } catch (browserErr) {
+      console.warn("Browser GPS unavailable, checking fallback...", browserErr);
+
+      // Step 3: Fallback to IP-based Geolocation in browser
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.latitude && data.longitude) {
+            const lat = parseFloat(Number(data.latitude).toFixed(6));
+            const lon = parseFloat(Number(data.longitude).toFixed(6));
+            setOfficeSecurity((prev) => ({
+              configKey: "DEFAULT_OFFICE_SECURITY",
+              officeWifiIps: ["127.0.0.1", "::1"],
+              isEnforceWifi: true,
+              isEnforceLocation: true,
+              officeRadiusMeters: 150,
+              ...prev,
+              officeLatitude: lat,
+              officeLongitude: lon,
+            }));
+            setCapturingGps(false);
+            toast.success(`📍 Network Location Detected: Lat ${lat}, Lon ${lon} (${data.city || "Mumbai"})!`);
+            return;
+          }
+        }
+      } catch (ipErr) {
+        console.warn("IP geolocation fallback note:", ipErr);
+      }
+
+      // Step 4: If blocked by browser permissions, auto-fill ARCL Airoli Lab coordinates so user is never stuck
+      setCapturingGps(false);
+      setOfficeSecurity((prev) => ({
+        configKey: "DEFAULT_OFFICE_SECURITY",
+        officeWifiIps: ["127.0.0.1", "::1"],
+        isEnforceWifi: true,
+        isEnforceLocation: true,
+        officeRadiusMeters: 150,
+        ...prev,
+        officeLatitude: 19.1553,
+        officeLongitude: 72.9982,
+        officeAddress:
+          "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
+      }));
+
+      toast.info(
+        "Browser me location blocked hone par ARCL Airoli Lab coordinates (19.1553, 72.9982) auto-fill kar diye gaye hain! Click 'Save Security Settings' to persist."
+      );
+    }
   };
 
   const handleUpdateAccessScope = async (userId, newScope) => {
@@ -1967,22 +2048,48 @@ const UserManagementPage = () => {
                   />
                 </div>
 
-                {/* Latitude & Longitude with 1-Click GPS Capture */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
+                {/* Latitude & Longitude with 1-Click GPS Capture & ARCL Preset */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
                       GPS Coordinates (Lat / Lon):
                     </label>
-                    <button
-                      type="button"
-                      disabled={capturingGps}
-                      onClick={handleCaptureCurrentGps}
-                      className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      title="Capture your exact current physical GPS coordinates"
-                    >
-                      <FaCompass className={`text-xs ${capturingGps ? "animate-spin" : ""}`} />
-                      <span>{capturingGps ? "Locating..." : "📍 Capture Live GPS"}</span>
-                    </button>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSetArclAiroliPreset}
+                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Directly fill ARCL Airoli Lab coordinates (19.1553, 72.9982)"
+                      >
+                        <FaBuilding className="text-[10px]" />
+                        <span>🏢 Set ARCL Airoli Lab</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={capturingGps}
+                        onClick={handleCaptureCurrentGps}
+                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
+                        title="Auto-capture current location"
+                      >
+                        <FaCompass className={`text-xs ${capturingGps ? "animate-spin" : ""}`} />
+                        <span>{capturingGps ? "Locating..." : "📍 Capture Live GPS"}</span>
+                      </button>
+
+                      {officeSecurity?.officeLatitude && officeSecurity?.officeLongitude && (
+                        <a
+                          href={`https://www.google.com/maps?q=${officeSecurity.officeLatitude},${officeSecurity.officeLongitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
+                          title="Open coordinates in Google Maps"
+                        >
+                          <FaMapMarkerAlt className="text-[10px]" />
+                          <span>Maps ↗</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1995,7 +2102,7 @@ const UserManagementPage = () => {
                         onChange={(e) =>
                           setOfficeSecurity((prev) => ({
                             ...prev,
-                            officeLatitude: parseFloat(e.target.value),
+                            officeLatitude: parseFloat(e.target.value) || 0,
                           }))
                         }
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono outline-none focus:border-amber-400"
@@ -2010,13 +2117,17 @@ const UserManagementPage = () => {
                         onChange={(e) =>
                           setOfficeSecurity((prev) => ({
                             ...prev,
-                            officeLongitude: parseFloat(e.target.value),
+                            officeLongitude: parseFloat(e.target.value) || 0,
                           }))
                         }
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono outline-none focus:border-amber-400"
                       />
                     </div>
                   </div>
+
+                  <p className="text-[10px] text-slate-400 italic">
+                    💡 <strong>Tip:</strong> Aap <strong>'Capture Live GPS'</strong> daba sakte hain, ya seedhe <strong>'🏢 Set ARCL Airoli Lab'</strong> par click karke laboratory ke official coordinates set kar sakte hain.
+                  </p>
                 </div>
 
                 {/* Perimeter Radius Slider */}

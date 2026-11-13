@@ -26,24 +26,45 @@ import {
 } from "react-icons/fa";
 
 const captureGeoCoordinates = () => {
-  return new Promise((resolve) => {
-    if (typeof window === "undefined" || !navigator.geolocation) {
-      resolve({ latitude: null, longitude: null });
-      return;
+  return new Promise(async (resolve) => {
+    if (typeof window === "undefined" || !navigator?.geolocation) {
+      return resolve({ latitude: null, longitude: null });
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-      },
-      (err) => {
-        console.warn("Geolocation lookup note:", err?.message);
-        resolve({ latitude: null, longitude: null });
-      },
-      { timeout: 4500, maximumAge: 30000, enableHighAccuracy: true }
-    );
+
+    const tryGet = (highAcc, to) =>
+      new Promise((res, rej) => {
+        navigator.geolocation.getCurrentPosition(
+          (p) => res(p),
+          (e) => rej(e),
+          { enableHighAccuracy: highAcc, timeout: to, maximumAge: 60000 }
+        );
+      });
+
+    try {
+      let pos;
+      try {
+        pos = await tryGet(false, 3000);
+      } catch {
+        pos = await tryGet(true, 4000);
+      }
+      return resolve({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
+    } catch (err) {
+      console.warn("Browser GPS lookup note:", err?.message);
+      // Fallback to IP location
+      try {
+        const ipData = await fetch("https://ipapi.co/json/").then((r) => r.json());
+        if (ipData && ipData.latitude && ipData.longitude) {
+          return resolve({
+            latitude: Number(ipData.latitude),
+            longitude: Number(ipData.longitude),
+          });
+        }
+      } catch {}
+      return resolve({ latitude: null, longitude: null });
+    }
   });
 };
 
