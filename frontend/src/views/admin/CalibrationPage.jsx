@@ -10,9 +10,11 @@ import EnvelopeSheetPreview from "../../components/calibration/EnvelopeSheetPrev
 import { buildCustomerQrVerifyUrl, computeCustomerQrSignature, normalizeCustomerKey } from "../../utils/customerQr.js";
 import {
   DEFAULT_ENVELOPE_CONFIG,
+  ENVELOPE_PRESETS,
   downloadEnvelopePdf,
   generateCustomerEnvelopeQrPng,
   getEnvelopePdfBlobUrl,
+  printEnvelopeHtmlDirectly,
 } from "../../utils/envelopePdfGenerator.js";
 import {
   FaCertificate,
@@ -48,6 +50,7 @@ import {
   FaTrashAlt,
   FaTrash,
   FaEllipsisV,
+  FaRulerCombined,
   FaExclamationTriangle,
   FaShieldAlt,
   FaWhatsapp,
@@ -1513,6 +1516,26 @@ export default function CalibrationPageView() {
   const [isExportingCustomerEnvelope, setIsExportingCustomerEnvelope] = useState(false);
   const customerEnvelopeQrInputRef = useRef(null);
   const obsAssistantSectionRef = useRef(null);
+
+  // Auto direct-print handler when triggered from table row
+  useEffect(() => {
+    if (customerEnvelopeModal?.autoDirectPrint) {
+      const timer = setTimeout(async () => {
+        try {
+          await printEnvelopeHtmlDirectly({
+            elementId: "arcl-customer-envelope-modal-preview",
+            widthMm: customerEnvelopeModal.widthMm || 280,
+            heightMm: customerEnvelopeModal.heightMm || 124,
+          });
+        } catch (e) {
+          console.warn("Direct print triggered error or cancelled:", e);
+        } finally {
+          setCustomerEnvelopeModal((prev) => (prev ? { ...prev, autoDirectPrint: false } : null));
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [customerEnvelopeModal?.autoDirectPrint]);
 
   // Custom Categories & PDF Compression States
   const DEFAULT_OBS_CATEGORIES = [
@@ -9785,22 +9808,17 @@ export default function CalibrationPageView() {
     try {
       setIsExportingCustomerEnvelope(true);
       const envData = await resolveCustomerEnvelopePayload(target);
-      const blobUrl = await getEnvelopePdfBlobUrl({
-        config: DEFAULT_ENVELOPE_CONFIG,
-        recipient: envData.recipient,
-        qrImage: envData.qrImage,
+      setCustomerEnvelopeModal({
+        ...envData,
+        widthMm: 280,
+        heightMm: 124,
+        presetId: "custom_arcl",
+        autoDirectPrint: true,
       });
-      await handlePrintPdf(blobUrl);
-      setTimeout(() => {
-        try {
-          URL.revokeObjectURL(blobUrl);
-        } catch (cleanupErr) {
-          console.warn("Envelope print blob cleanup skipped:", cleanupErr?.message);
-        }
-      }, 120000);
+      toast.info("Opening Direct Print dialog...", { autoClose: 1400 });
     } catch (err) {
       console.error("Customer envelope print failed:", err);
-      toast.error("Failed to prepare 280 × 124 mm envelope for printing.");
+      toast.error("Failed to prepare envelope for printing.");
     } finally {
       setIsExportingCustomerEnvelope(false);
     }
@@ -9809,7 +9827,13 @@ export default function CalibrationPageView() {
   const handleOpenCustomerEnvelopeModal = async (target) => {
     try {
       const envData = await resolveCustomerEnvelopePayload(target);
-      setCustomerEnvelopeModal(envData);
+      setCustomerEnvelopeModal({
+        ...envData,
+        widthMm: 280,
+        heightMm: 124,
+        presetId: "custom_arcl",
+        autoDirectPrint: false,
+      });
     } catch {
       toast.error("Failed to prepare customer envelope preview.");
     }
@@ -27063,7 +27087,7 @@ export default function CalibrationPageView() {
             <div className="px-5 py-4 bg-gradient-to-r from-[#021C57] via-[#0B2A72] to-slate-900 text-white flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-black uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
-                  <FaFilePdf /> Customer Envelope • Exact 28.0 × 12.4 cm (280 × 124 mm) Landscape
+                  <FaFilePdf /> Customer Envelope • {customerEnvelopeModal.widthMm || 280} × {customerEnvelopeModal.heightMm || 124} mm Landscape
                 </div>
                 <h3 className="font-black text-sm sm:text-base truncate mt-0.5">
                   {customerEnvelopeModal.clientCompany}
@@ -27080,21 +27104,116 @@ export default function CalibrationPageView() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50">
-              {/* Scaled 280 x 124 mm Live Preview */}
+              {/* Envelope Size & Dimensions Selector Toolbar */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-black text-[#021C57] flex items-center gap-1.5">
+                    <FaRulerCombined className="text-blue-600" /> Envelope Size:
+                  </span>
+                  <select
+                    value={customerEnvelopeModal.presetId || "custom_arcl"}
+                    onChange={(e) => {
+                      const selId = e.target.value;
+                      const preset = ENVELOPE_PRESETS.find((p) => p.id === selId);
+                      if (preset && preset.id !== "custom") {
+                        setCustomerEnvelopeModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                presetId: selId,
+                                widthMm: preset.widthMm,
+                                heightMm: preset.heightMm,
+                              }
+                            : null
+                        );
+                      } else {
+                        setCustomerEnvelopeModal((prev) =>
+                          prev ? { ...prev, presetId: "custom" } : null
+                        );
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold text-slate-800 bg-white focus:outline-none focus:border-[#021C57] cursor-pointer shadow-2xs"
+                  >
+                    {ENVELOPE_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 font-semibold">Width:</span>
+                    <input
+                      type="number"
+                      min={100}
+                      max={400}
+                      value={customerEnvelopeModal.widthMm || 280}
+                      onChange={(e) => {
+                        const val = Math.max(80, Math.min(450, Number(e.target.value) || 280));
+                        setCustomerEnvelopeModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                presetId: "custom",
+                                widthMm: val,
+                              }
+                            : null
+                        );
+                      }}
+                      className="w-16 px-2 py-1 rounded border border-slate-300 text-center font-bold text-[#021C57]"
+                    />
+                    <span className="text-slate-500 text-[11px]">mm</span>
+                  </div>
+                  <span className="text-slate-400">×</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 font-semibold">Height:</span>
+                    <input
+                      type="number"
+                      min={70}
+                      max={300}
+                      value={customerEnvelopeModal.heightMm || 124}
+                      onChange={(e) => {
+                        const val = Math.max(60, Math.min(350, Number(e.target.value) || 124));
+                        setCustomerEnvelopeModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                presetId: "custom",
+                                heightMm: val,
+                              }
+                            : null
+                        );
+                      }}
+                      className="w-16 px-2 py-1 rounded border border-slate-300 text-center font-bold text-[#021C57]"
+                    />
+                    <span className="text-slate-500 text-[11px]">mm</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-mono">
+                    {((customerEnvelopeModal.widthMm || 280) / 10).toFixed(1)} × {((customerEnvelopeModal.heightMm || 124) / 10).toFixed(1)} cm
+                  </span>
+                </div>
+              </div>
+
+              {/* Scaled Dynamic-Size Live Preview */}
               <div className="bg-slate-200/70 rounded-2xl border border-slate-300 p-3 sm:p-4 flex justify-center overflow-x-auto">
                 <div
                   style={{
-                    width: `${280 * (96 / 25.4) * 0.76}px`,
-                    height: `${124 * (96 / 25.4) * 0.76}px`,
+                    width: `${(customerEnvelopeModal.widthMm || 280) * (96 / 25.4) * 0.72}px`,
+                    height: `${(customerEnvelopeModal.heightMm || 124) * (96 / 25.4) * 0.72}px`,
                     position: "relative",
                     flexShrink: 0,
+                    transition: "width 0.2s, height 0.2s",
                   }}
                 >
                   <EnvelopeSheetPreview
                     config={DEFAULT_ENVELOPE_CONFIG}
                     recipient={customerEnvelopeModal.recipient}
                     qrImage={customerEnvelopeModal.qrImage}
-                    scale={0.76}
+                    widthMm={customerEnvelopeModal.widthMm || 280}
+                    heightMm={customerEnvelopeModal.heightMm || 124}
+                    scale={0.72}
                     elementId="arcl-customer-envelope-modal-preview"
                   />
                 </div>
@@ -27162,7 +27281,7 @@ export default function CalibrationPageView() {
                 <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col justify-between gap-2">
                   <div className="space-y-1">
                     <div className="text-[11px] font-black text-[#021C57] flex items-center gap-1">
-                      <FaQrcode className="text-blue-600" /> Customer Envelope QR (3.2×3.2cm)
+                      <FaQrcode className="text-blue-600" /> Customer Envelope QR
                     </div>
                     <p className="text-[10.5px] text-slate-600">
                       Authorized Certificates Linked:{" "}
@@ -27208,7 +27327,7 @@ export default function CalibrationPageView() {
 
             <div className="px-5 py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-slate-500 font-mono">
-                Size: <strong>280 × 124 mm</strong> (100% Actual Size) • ID: <strong>{customerEnvelopeModal.signature}</strong>
+                Size: <strong>{customerEnvelopeModal.widthMm || 280} × {customerEnvelopeModal.heightMm || 124} mm</strong> ({((customerEnvelopeModal.widthMm || 280) / 10).toFixed(1)} × {((customerEnvelopeModal.heightMm || 124) / 10).toFixed(1)} cm) • ID: <strong>{customerEnvelopeModal.signature}</strong>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -27234,16 +27353,20 @@ export default function CalibrationPageView() {
                   onClick={async () => {
                     try {
                       setIsExportingCustomerEnvelope(true);
+                      const w = customerEnvelopeModal.widthMm || 280;
+                      const h = customerEnvelopeModal.heightMm || 124;
                       const safeName = customerEnvelopeModal.clientCompany.replace(/[^a-zA-Z0-9]+/g, "_");
                       await downloadEnvelopePdf(
                         {
                           config: DEFAULT_ENVELOPE_CONFIG,
                           recipient: customerEnvelopeModal.recipient,
                           qrImage: customerEnvelopeModal.qrImage,
+                          widthMm: w,
+                          heightMm: h,
                         },
-                        `ARCL_Envelope_${safeName}_280x124mm.pdf`
+                        `ARCL_Envelope_${safeName}_${w}x${h}mm.pdf`
                       );
-                      toast.success("Customer 280 × 124 mm Envelope PDF downloaded!");
+                      toast.success(`Customer Envelope PDF (${w} × ${h} mm) downloaded!`);
                     } catch {
                       toast.error("Failed to download envelope PDF.");
                     } finally {
@@ -27252,7 +27375,7 @@ export default function CalibrationPageView() {
                   }}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <FaDownload /> Download PDF (280×124mm)
+                  <FaDownload /> Download PDF ({customerEnvelopeModal.widthMm || 280}×{customerEnvelopeModal.heightMm || 124}mm)
                 </button>
                 <button
                   type="button"
@@ -27260,28 +27383,25 @@ export default function CalibrationPageView() {
                   onClick={async () => {
                     try {
                       setIsExportingCustomerEnvelope(true);
-                      const blobUrl = await getEnvelopePdfBlobUrl({
-                        config: DEFAULT_ENVELOPE_CONFIG,
-                        recipient: customerEnvelopeModal.recipient,
-                        qrImage: customerEnvelopeModal.qrImage,
+                      const w = customerEnvelopeModal.widthMm || 280;
+                      const h = customerEnvelopeModal.heightMm || 124;
+                      await printEnvelopeHtmlDirectly({
+                        elementId: "arcl-customer-envelope-modal-preview",
+                        widthMm: w,
+                        heightMm: h,
                       });
-                      await handlePrintPdf(blobUrl);
-                      setTimeout(() => {
-                        try {
-                          URL.revokeObjectURL(blobUrl);
-                        } catch (cleanupErr) {
-                          console.warn("Modal envelope blob cleanup skipped:", cleanupErr?.message);
-                        }
-                      }, 120000);
-                    } catch {
-                      toast.error("Failed to print envelope.");
+                      toast.success(`Direct print dialog opened (${w} × ${h} mm)!`);
+                    } catch (printErr) {
+                      console.error("Direct print failed:", printErr);
+                      toast.error("Direct print failed. Opening fallback...");
+                      window.print();
                     } finally {
                       setIsExportingCustomerEnvelope(false);
                     }
                   }}
                   className="px-4 py-2 bg-[#021C57] hover:bg-blue-900 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md"
                 >
-                  <FaPrint /> Direct Print (280×124mm)
+                  <FaPrint /> Direct Print ({customerEnvelopeModal.widthMm || 280}×{customerEnvelopeModal.heightMm || 124}mm)
                 </button>
               </div>
             </div>

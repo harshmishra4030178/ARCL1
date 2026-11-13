@@ -10,7 +10,30 @@ export default function EnvelopeSheetPreview({
   scale = 1,
   showRulerGuides = false,
   elementId = "arcl-envelope-print-sheet",
+  widthMm = 280,
+  heightMm = 124,
 }) {
+  const actualW = Number(widthMm || config?.widthMm || 280);
+  const actualH = Number(heightMm || config?.heightMm || 124);
+  const scaleRatio = Math.min(1.25, Math.max(0.72, actualW / 280));
+  const qrSizeMm = Math.min(32, Math.max(20, actualH * 0.25));
+  const marginX = Math.min(12, actualW * 0.05);
+  const headerBottomY = Math.min(27.5, actualH * 0.23);
+
+  const qrX = actualW - marginX - qrSizeMm;
+  const qrY = Math.max(headerBottomY + 6, (actualH - qrSizeMm) / 2 - 4);
+  const toX = 18;
+  const toMaxW = Math.max(70, qrX - toX - 10);
+
+  const wmW = Math.min(138, actualW * 0.52);
+  const wmH = wmW * (79 / 138);
+  const wmX = (actualW - wmW) / 2;
+  const wmY = Math.max(26, (actualH - wmH) / 2 - 3);
+
+  const footerH = Math.min(8.2, Math.max(6.2, actualH * 0.068));
+  const footerBottomMm = 10.2;
+  const thankBottomMm = 3.6;
+
   const recCompany = String(recipient?.companyName || "").trim();
   const recContact = String(recipient?.contactPerson || "").trim();
   const recAddress = String(recipient?.address || "").trim();
@@ -21,8 +44,8 @@ export default function EnvelopeSheetPreview({
     <div
       id={elementId}
       style={{
-        width: "280mm",
-        height: "124mm",
+        width: `${actualW}mm`,
+        height: `${actualH}mm`,
         transform: `scale(${scale})`,
         transformOrigin: "top left",
         backgroundColor: "#ffffff",
@@ -60,22 +83,22 @@ export default function EnvelopeSheetPreview({
         style={{
           position: "absolute",
           top: "4.8mm",
-          left: "12mm",
-          right: "12mm",
-          height: "21.5mm",
+          left: `${marginX}mm`,
+          right: `${marginX}mm`,
+          height: `${headerBottomY - 5.0}mm`,
           display: "flex",
           alignItems: "center",
-          gap: "4.5mm",
+          gap: "4.0mm",
           zIndex: 2,
         }}
       >
         <div
           style={{
-            height: "20.8mm",
-            width: "29mm",
-            padding: "1.2mm 2.2mm",
+            height: `${Math.min(20.8, 20.8 * scaleRatio)}mm`,
+            width: `${Math.min(29, 29 * scaleRatio)}mm`,
+            padding: "1.2mm 2.0mm",
             backgroundColor: "#ffffff",
-            borderRadius: "2.2mm",
+            borderRadius: "2.0mm",
             border: "0.35mm solid #CBD5E1",
             display: "flex",
             alignItems: "center",
@@ -92,9 +115,9 @@ export default function EnvelopeSheetPreview({
             }}
             alt="ARCL Instruments Logo"
             style={{
-              height: "17.5mm",
+              height: `${Math.min(17.5, 17.5 * scaleRatio)}mm`,
               width: "auto",
-              maxWidth: "26mm",
+              maxWidth: `${Math.min(26, 26 * scaleRatio)}mm`,
               objectFit: "contain",
             }}
           />
@@ -102,11 +125,14 @@ export default function EnvelopeSheetPreview({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
-              fontSize: "20.5pt",
+              fontSize: `${Math.max(14, 20.5 * scaleRatio)}pt`,
               fontWeight: 900,
               color: "#021C57",
               letterSpacing: "0.015em",
               lineHeight: 1.12,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {config.headerCompanyName || "ARCL INSTRUMENTS PRIVATE LIMITED"}
@@ -114,12 +140,15 @@ export default function EnvelopeSheetPreview({
           {config.showHeaderSubtitle !== false && (
             <div
               style={{
-                fontSize: "9.8pt",
+                fontSize: `${Math.max(7.5, 9.8 * scaleRatio)}pt`,
                 fontWeight: 800,
                 color: "#047857",
                 marginTop: "0.6mm",
                 letterSpacing: "0.012em",
                 lineHeight: 1.15,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
               {config.headerSubtitle ||
@@ -128,12 +157,15 @@ export default function EnvelopeSheetPreview({
           )}
           <div
             style={{
-              fontSize: "8.6pt",
+              fontSize: `${Math.max(6.8, 8.6 * scaleRatio)}pt`,
               fontWeight: 500,
               color: "#334155",
               marginTop: "0.6mm",
               letterSpacing: "0.006em",
               lineHeight: 1.15,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {config.headerAddress ||
@@ -146,7 +178,7 @@ export default function EnvelopeSheetPreview({
               alignItems: "center",
               gap: "2.4mm",
               marginTop: "0.8mm",
-              fontSize: "8.0pt",
+              fontSize: `${Math.max(6.5, 8.0 * scaleRatio)}pt`,
               lineHeight: 1.15,
             }}
           >
@@ -184,9 +216,9 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "26.8mm",
-          left: "12mm",
-          right: "12mm",
+          top: `${headerBottomY}mm`,
+          left: `${marginX}mm`,
+          right: `${marginX}mm`,
           height: "0.45mm",
           backgroundColor: "#021C57",
         }}
@@ -194,9 +226,9 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "27.6mm",
-          left: "12mm",
-          right: "12mm",
+          top: `${headerBottomY + 0.8}mm`,
+          left: `${marginX}mm`,
+          right: `${marginX}mm`,
           height: "0.35mm",
           backgroundColor: "#F58220",
         }}
@@ -206,10 +238,10 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "27mm",
-          left: "71mm",
-          width: "138mm",
-          height: "79mm",
+          top: `${wmY}mm`,
+          left: `${wmX}mm`,
+          width: `${wmW}mm`,
+          height: `${wmH}mm`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -232,17 +264,17 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "32.5mm",
-          left: "18mm",
-          width: "205mm",
-          height: "65mm",
+          top: `${headerBottomY + 5.5}mm`,
+          left: `${toX}mm`,
+          width: `${toMaxW}mm`,
+          height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
           outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
           zIndex: 2,
         }}
       >
         <div
           style={{
-            fontSize: "10pt",
+            fontSize: `${Math.max(8.5, 10.0 * scaleRatio)}pt`,
             fontWeight: 800,
             color: "#1D4ED8",
             letterSpacing: "0.1em",
@@ -257,7 +289,7 @@ export default function EnvelopeSheetPreview({
             {recCompany && (
               <div
                 style={{
-                  fontSize: "13pt",
+                  fontSize: `${Math.max(10.5, 13.0 * scaleRatio)}pt`,
                   fontWeight: 800,
                   color: "#021C57",
                   marginBottom: "1.8mm",
@@ -269,7 +301,7 @@ export default function EnvelopeSheetPreview({
             {recContact && recContact.toLowerCase() !== recCompany.toLowerCase() && (
               <div
                 style={{
-                  fontSize: "10pt",
+                  fontSize: `${Math.max(8.5, 10.0 * scaleRatio)}pt`,
                   fontWeight: 700,
                   color: "#334155",
                   marginBottom: "1.6mm",
@@ -281,7 +313,7 @@ export default function EnvelopeSheetPreview({
             {recAddress && (
               <div
                 style={{
-                  fontSize: "10.2pt",
+                  fontSize: `${Math.max(8.5, 10.2 * scaleRatio)}pt`,
                   color: "#1E293B",
                   marginBottom: "2.4mm",
                   whiteSpace: "pre-line",
@@ -292,7 +324,7 @@ export default function EnvelopeSheetPreview({
               </div>
             )}
             {recPhone && (
-              <div style={{ fontSize: "9.8pt" }}>
+              <div style={{ fontSize: `${Math.max(8.0, 9.8 * scaleRatio)}pt` }}>
                 <span style={{ fontWeight: 700, color: "#021C57" }}>Phone: </span>
                 <span>{recPhone}</span>
               </div>
@@ -301,38 +333,39 @@ export default function EnvelopeSheetPreview({
         )}
       </div>
 
-      {/* RIGHT COLUMN: DEDICATED 32mm x 32mm QR CODE AREA */}
+      {/* RIGHT COLUMN: DEDICATED QR CODE AREA */}
       {showRulerGuides && (
         <div
           className="arcl-no-print"
           style={{
             position: "absolute",
-            top: "43.5mm",
-            right: "12mm",
-            width: "32mm",
+            top: `${qrY - 4.0}mm`,
+            left: `${qrX}mm`,
+            width: `${qrSizeMm}mm`,
             textAlign: "center",
             fontSize: "6.5pt",
             color: "#64748B",
             fontFamily: "monospace",
           }}
         >
-          3.2 × 3.2 cm QR
+          {(qrSizeMm / 10).toFixed(1)} × {(qrSizeMm / 10).toFixed(1)} cm QR
         </div>
       )}
 
       <div
         style={{
           position: "absolute",
-          top: "47.5mm",
-          right: "12mm",
-          width: "32mm",
-          height: "32mm",
+          top: `${qrY}mm`,
+          left: `${qrX}mm`,
+          width: `${qrSizeMm}mm`,
+          height: `${qrSizeMm}mm`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#ffffff",
           border: qrImage?.dataUrl ? "none" : "0.35mm dotted #94A3B8",
           boxSizing: "border-box",
+          zIndex: 2,
         }}
       >
         {qrImage?.dataUrl ? (
@@ -355,19 +388,20 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "82.5mm",
-          right: "8mm",
-          width: "40mm",
+          top: `${qrY + qrSizeMm + 3.0}mm`,
+          left: `${qrX - 4.0}mm`,
+          width: `${qrSizeMm + 8.0}mm`,
           textAlign: "center",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           pointerEvents: "none",
+          zIndex: 2,
         }}
       >
         <div
           style={{
-            fontSize: "7.2pt",
+            fontSize: `${Math.max(5.8, 7.2 * scaleRatio)}pt`,
             fontWeight: 800,
             color: "#021C57",
             letterSpacing: "0.05em",
@@ -379,7 +413,7 @@ export default function EnvelopeSheetPreview({
         </div>
         <div
           style={{
-            fontSize: "6.2pt",
+            fontSize: `${Math.max(5.0, 6.2 * scaleRatio)}pt`,
             fontWeight: 700,
             color: "#1D4ED8",
             letterSpacing: "0.03em",
@@ -392,7 +426,7 @@ export default function EnvelopeSheetPreview({
         </div>
         <div
           style={{
-            fontSize: "5.2pt",
+            fontSize: `${Math.max(4.5, 5.2 * scaleRatio)}pt`,
             fontWeight: 600,
             color: "#475569",
             marginTop: "0.5mm",
@@ -404,7 +438,7 @@ export default function EnvelopeSheetPreview({
         </div>
         <div
           style={{
-            fontSize: "4.8pt",
+            fontSize: `${Math.max(4.0, 4.8 * scaleRatio)}pt`,
             fontWeight: 500,
             color: "#64748B",
             marginTop: "0.3mm",
@@ -415,14 +449,14 @@ export default function EnvelopeSheetPreview({
         </div>
       </div>
 
-      {/* FOOTER SERVICES SECTION (Matching User Image 2) */}
+      {/* FOOTER SERVICES SECTION */}
       <div
         style={{
           position: "absolute",
-          bottom: "14.5mm",
-          left: "12mm",
-          right: "12mm",
-          height: "8.8mm",
+          bottom: `${footerBottomMm}mm`,
+          left: `${marginX}mm`,
+          right: `${marginX}mm`,
+          height: `${footerH}mm`,
           border: "0.65mm solid #F58220",
           borderRadius: "1.8mm",
           display: "flex",
@@ -430,6 +464,7 @@ export default function EnvelopeSheetPreview({
           justifyContent: "space-between",
           backgroundColor: "#ffffff",
           boxSizing: "border-box",
+          zIndex: 2,
         }}
       >
         {(Array.isArray(config.footerServices) && config.footerServices.length > 0
@@ -441,7 +476,7 @@ export default function EnvelopeSheetPreview({
               style={{
                 flex: 1,
                 textAlign: "center",
-                fontSize: "9.0pt",
+                fontSize: `${Math.max(6.8, 9.0 * scaleRatio)}pt`,
                 fontWeight: 800,
                 color: "#021C57",
                 letterSpacing: "0.02em",
@@ -453,7 +488,7 @@ export default function EnvelopeSheetPreview({
               <div
                 style={{
                   width: "0.55mm",
-                  height: "5.5mm",
+                  height: `${footerH * 0.65}mm`,
                   backgroundColor: "#F58220",
                   flexShrink: 0,
                 }}
@@ -463,24 +498,25 @@ export default function EnvelopeSheetPreview({
         ))}
       </div>
 
-      {/* Thank You & Customer Courtesy Strip (Below Services Box - User Marked Area) */}
+      {/* Thank You & Customer Courtesy Strip */}
       <div
         style={{
           position: "absolute",
-          bottom: "4.5mm",
-          left: "12mm",
-          right: "12mm",
+          bottom: `${thankBottomMm}mm`,
+          left: `${marginX}mm`,
+          right: `${marginX}mm`,
           textAlign: "center",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "0.5mm",
+          gap: "0.4mm",
           pointerEvents: "none",
+          zIndex: 2,
         }}
       >
         <div
           style={{
-            fontSize: "6.9pt",
+            fontSize: `${Math.max(5.5, 6.9 * scaleRatio)}pt`,
             fontWeight: 800,
             color: "#021C57",
             letterSpacing: "0.02em",
@@ -492,7 +528,7 @@ export default function EnvelopeSheetPreview({
         </div>
         <div
           style={{
-            fontSize: "5.8pt",
+            fontSize: `${Math.max(4.6, 5.8 * scaleRatio)}pt`,
             fontWeight: 500,
             color: "#475569",
             letterSpacing: "0.01em",

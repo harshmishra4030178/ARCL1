@@ -16,8 +16,10 @@ import {
 } from "react-icons/fa";
 import {
   DEFAULT_ENVELOPE_CONFIG,
+  ENVELOPE_PRESETS,
   ENVELOPE_SPECS,
   downloadEnvelopePdf,
+  printEnvelopeHtmlDirectly,
 } from "../../utils/envelopePdfGenerator.js";
 import EnvelopeSheetPreview from "../../components/calibration/EnvelopeSheetPreview.jsx";
 
@@ -25,6 +27,9 @@ const MM_TO_PX = 96 / 25.4;
 
 export default function EnvelopeDesignerPage() {
   const [config, setConfig] = useState({ ...DEFAULT_ENVELOPE_CONFIG });
+  const [selectedPresetId, setSelectedPresetId] = useState("custom_arcl");
+  const [widthMm, setWidthMm] = useState(280);
+  const [heightMm, setHeightMm] = useState(124);
   const [qrImage, setQrImage] = useState(null); // { dataUrl, width, height, fileName, fileSizeKb }
   const [showRulerGuides, setShowRulerGuides] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -33,8 +38,8 @@ export default function EnvelopeDesignerPage() {
   const fileInputRef = useRef(null);
   const previewContainerRef = useRef(null);
 
-  const envelopeWidthPx = useMemo(() => ENVELOPE_SPECS.widthMm * MM_TO_PX, []);
-  const envelopeHeightPx = useMemo(() => ENVELOPE_SPECS.heightMm * MM_TO_PX, []);
+  const envelopeWidthPx = useMemo(() => widthMm * MM_TO_PX, [widthMm]);
+  const envelopeHeightPx = useMemo(() => heightMm * MM_TO_PX, [heightMm]);
 
   useEffect(() => {
     const el = previewContainerRef.current;
@@ -52,7 +57,18 @@ export default function EnvelopeDesignerPage() {
     return () => ro.disconnect();
   }, [envelopeWidthPx]);
 
+  const handlePresetChange = (presetId) => {
+    setSelectedPresetId(presetId);
+    const preset = ENVELOPE_PRESETS.find((p) => p.id === presetId);
+    if (preset && preset.id !== "custom") {
+      setWidthMm(preset.widthMm);
+      setHeightMm(preset.heightMm);
+    }
+  };
+
   const handleFieldChange = (field, value) => {
+    setConfig((prev) => ({ ...prev, [field]: value }));
+  };
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -98,6 +114,9 @@ export default function EnvelopeDesignerPage() {
 
   const handleResetDesign = () => {
     setConfig({ ...DEFAULT_ENVELOPE_CONFIG });
+    setSelectedPresetId("custom_arcl");
+    setWidthMm(280);
+    setHeightMm(124);
     setQrImage(null);
     setShowRulerGuides(false);
     toast.success("Envelope design reset to official ARCL defaults.");
@@ -106,8 +125,11 @@ export default function EnvelopeDesignerPage() {
   const handleDownloadPdf = async () => {
     try {
       setIsExporting(true);
-      await downloadEnvelopePdf({ config, qrImage });
-      toast.success("Print-ready 280 × 124 mm PDF downloaded!");
+      await downloadEnvelopePdf(
+        { config, qrImage, widthMm, heightMm },
+        `ARCL_Instruments_Envelope_${widthMm}x${heightMm}mm.pdf`
+      );
+      toast.success(`Print-ready Envelope PDF (${widthMm} × ${heightMm} mm) downloaded!`);
     } catch (err) {
       console.error("Envelope PDF export failed:", err);
       toast.error("Failed to generate PDF.");
@@ -116,25 +138,36 @@ export default function EnvelopeDesignerPage() {
     }
   };
 
-  const handlePrintEnvelope = () => {
-    window.print();
+  const handlePrintEnvelope = async () => {
+    try {
+      await printEnvelopeHtmlDirectly({
+        elementId: "arcl-envelope-print-sheet",
+        widthMm,
+        heightMm,
+      });
+      toast.success(`Direct print dialog opened (${widthMm} × ${heightMm} mm)!`);
+    } catch (err) {
+      console.error("Direct print failed:", err);
+      toast.error("Opening fallback browser print...");
+      window.print();
+    }
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      {/* Dedicated Exact 280mm x 124mm Print Stylesheet */}
+      {/* Dedicated Dynamic Print Stylesheet */}
       <style jsx global>{`
         @media print {
           @page {
-            size: 280mm 124mm;
+            size: ${widthMm}mm ${heightMm}mm;
             margin: 0mm;
           }
           html,
           body {
             margin: 0 !important;
             padding: 0 !important;
-            width: 280mm !important;
-            height: 124mm !important;
+            width: ${widthMm}mm !important;
+            height: ${heightMm}mm !important;
             overflow: visible !important;
             background: #ffffff !important;
             -webkit-print-color-adjust: exact !important;
@@ -151,8 +184,8 @@ export default function EnvelopeDesignerPage() {
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            width: 280mm !important;
-            height: 124mm !important;
+            width: ${widthMm}mm !important;
+            height: ${heightMm}mm !important;
             margin: 0 !important;
             transform: none !important;
             box-shadow: none !important;
@@ -223,7 +256,7 @@ export default function EnvelopeDesignerPage() {
             disabled={isExporting}
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-black shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-60"
           >
-            <FaDownload /> {isExporting ? "Exporting..." : "Download PDF"}
+            <FaDownload /> {isExporting ? "Exporting..." : `Download PDF (${widthMm}×${heightMm}mm)`}
           </button>
 
           <button
@@ -231,7 +264,7 @@ export default function EnvelopeDesignerPage() {
             onClick={handlePrintEnvelope}
             className="px-4 py-2.5 bg-white text-[#021C57] hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-black shadow-lg transition flex items-center gap-2 cursor-pointer"
           >
-            <FaPrint /> Print (100%)
+            <FaPrint /> Direct Print ({widthMm}×${heightMm}mm)
           </button>
 
           <button
@@ -239,7 +272,7 @@ export default function EnvelopeDesignerPage() {
             onClick={handleResetDesign}
             className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer"
           >
-            <FaRedo /> Reset Design
+            <FaRedo /> Reset
           </button>
         </div>
       </div>
@@ -252,11 +285,11 @@ export default function EnvelopeDesignerPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-black text-[#021C57] uppercase tracking-wide">
-                  Live Print-Ready Preview (Exact 280 × 124 mm Ratio)
+                  Live Print-Ready Preview ({widthMm} × {heightMm} mm)
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Preview scale: {(previewScale * 100).toFixed(0)}% on screen • Prints &amp; exports at exact{" "}
-                  <strong>100% actual size (28.0 × 12.4 cm)</strong>
+                  Preview scale: {(previewScale * 100).toFixed(0)}% on screen • Direct prints &amp; exports at exact{" "}
+                  <strong>100% actual size ({(widthMm / 10).toFixed(1)} × {(heightMm / 10).toFixed(1)} cm)</strong>
                 </p>
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
@@ -280,12 +313,15 @@ export default function EnvelopeDesignerPage() {
                   width: `${envelopeWidthPx * previewScale}px`,
                   height: `${envelopeHeightPx * previewScale}px`,
                   position: "relative",
+                  transition: "width 0.2s, height 0.2s",
                 }}
               >
                 <EnvelopeSheetPreview
                   config={config}
                   recipient={null}
                   qrImage={qrImage}
+                  widthMm={widthMm}
+                  heightMm={heightMm}
                   scale={previewScale}
                   showRulerGuides={showRulerGuides}
                 />
@@ -294,17 +330,73 @@ export default function EnvelopeDesignerPage() {
 
             <div className="text-[11px] text-slate-600 bg-blue-50/70 border border-blue-200 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
               <span>
-                <strong>Print Tip (100% Scale):</strong> Print dialog me Paper Size{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded border border-blue-200">280 × 124 mm</code> aur Scale{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded border border-blue-200">100% / Actual Size</code> select karein, ya{" "}
-                <strong>Download PDF</strong> se directly print karein.
+                <strong>Direct Native Print:</strong> <strong>Direct Print</strong> button browser ke print dialog ko seedha physical printer ke sath open karta hai (Adobe Reader ki zaroorat nahi hai aur koi PDF download nahi karni padti).
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right Control Panel: QR Upload + Editable Header/FROM Details */}
+        {/* Right Control Panel: Size Selector + QR Upload + Editable Details */}
         <div className="arcl-no-print xl:col-span-4 space-y-4">
+          {/* Envelope Size & Presets Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-[#021C57] flex items-center gap-2">
+                <FaRulerCombined className="text-blue-600" /> Envelope Size &amp; Paper
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                {(widthMm / 10).toFixed(1)} × {(heightMm / 10).toFixed(1)} cm
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Standard Size Preset</label>
+                <select
+                  value={selectedPresetId}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white focus:outline-none focus:border-[#021C57] cursor-pointer"
+                >
+                  {ENVELOPE_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Width (mm)</label>
+                  <input
+                    type="number"
+                    min={80}
+                    max={450}
+                    value={widthMm}
+                    onChange={(e) => {
+                      setSelectedPresetId("custom");
+                      setWidthMm(Math.max(80, Math.min(450, Number(e.target.value) || 280)));
+                    }}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-[#021C57] focus:outline-none focus:border-[#021C57]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Height (mm)</label>
+                  <input
+                    type="number"
+                    min={60}
+                    max={350}
+                    value={heightMm}
+                    onChange={(e) => {
+                      setSelectedPresetId("custom");
+                      setHeightMm(Math.max(60, Math.min(350, Number(e.target.value) || 124)));
+                    }}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-[#021C57] focus:outline-none focus:border-[#021C57]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
           {/* QR Code Manager Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center justify-between">

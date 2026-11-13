@@ -11,6 +11,72 @@ export const ENVELOPE_SPECS = {
   orientation: "landscape",
 };
 
+export const ENVELOPE_PRESETS = [
+  {
+    id: "custom_arcl",
+    label: "ARCL Standard (280 × 124 mm)",
+    widthMm: 280,
+    heightMm: 124,
+    widthCm: 28.0,
+    heightCm: 12.4,
+    description: "Official ARCL Custom Envelope",
+  },
+  {
+    id: "dl",
+    label: "DL Commercial (220 × 110 mm)",
+    widthMm: 220,
+    heightMm: 110,
+    widthCm: 22.0,
+    heightCm: 11.0,
+    description: "Standard Business Envelope (1/3 A4)",
+  },
+  {
+    id: "c5",
+    label: "C5 Medium (229 × 162 mm)",
+    widthMm: 229,
+    heightMm: 162,
+    widthCm: 22.9,
+    heightCm: 16.2,
+    description: "Fits folded A4 (A5 size)",
+  },
+  {
+    id: "c4",
+    label: "C4 Large (324 × 229 mm)",
+    widthMm: 324,
+    heightMm: 229,
+    widthCm: 32.4,
+    heightCm: 22.9,
+    description: "Full A4 Unfolded Sheets",
+  },
+  {
+    id: "c6_5",
+    label: "C6/C5 Standard (229 × 114 mm)",
+    widthMm: 229,
+    heightMm: 114,
+    widthCm: 22.9,
+    heightCm: 11.4,
+    description: "General Mailing Envelope",
+  },
+  {
+    id: "no10",
+    label: "#10 Business (241 × 105 mm)",
+    widthMm: 241,
+    heightMm: 105,
+    widthCm: 24.1,
+    heightCm: 10.5,
+    description: "Standard #10 Commercial Envelope",
+  },
+  {
+    id: "custom",
+    label: "Custom Dimensions (Specify W × H)",
+    widthMm: 280,
+    heightMm: 124,
+    widthCm: 28.0,
+    heightCm: 12.4,
+    description: "Enter any width & height in mm",
+  },
+];
+
 export const DEFAULT_ENVELOPE_CONFIG = {
   headerCompanyName: "ARCL INSTRUMENTS PRIVATE LIMITED",
   headerSubtitle: "NABL Accredited Calibration Laboratory (CC-4313) • ISO/IEC 17025:2017",
@@ -125,6 +191,9 @@ export const buildEnvelopePdfDocument = async ({
   config = DEFAULT_ENVELOPE_CONFIG,
   recipient = null,
   qrImage = null,
+  envelopeSize = null,
+  widthMm: paramWidthMm = null,
+  heightMm: paramHeightMm = null,
   logoSrc = "/assets/LOGO.png",
   fallbackLogoSrc = "/assets/cert_assets/arcl_logo.png",
   watermarkSrc = "/assets/cert_assets/arcl_watermark.png",
@@ -132,17 +201,30 @@ export const buildEnvelopePdfDocument = async ({
   iconMailSrc = "/assets/cert_assets/icon_mail.png",
   iconWebSrc = "/assets/cert_assets/icon_web.png",
 } = {}) => {
-  const { widthMm, heightMm, qrSizeMm } = ENVELOPE_SPECS;
+  const widthMm = Number(
+    paramWidthMm ||
+      envelopeSize?.widthMm ||
+      config?.widthMm ||
+      ENVELOPE_SPECS.widthMm
+  );
+  const heightMm = Number(
+    paramHeightMm ||
+      envelopeSize?.heightMm ||
+      config?.heightMm ||
+      ENVELOPE_SPECS.heightMm
+  );
+  const scaleRatio = Math.min(1.25, Math.max(0.72, widthMm / 280));
+  const qrSizeMm = Math.min(32, Math.max(20, heightMm * 0.25));
 
   const doc = new jsPDF({
-    orientation: "landscape",
+    orientation: widthMm >= heightMm ? "landscape" : "portrait",
     unit: "mm",
     format: [widthMm, heightMm],
     compress: true,
     putOnlyUsedFonts: true,
   });
 
-  // White background across full 280 x 124 mm canvas
+  // White background across full canvas
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, widthMm, heightMm, "F");
 
@@ -161,10 +243,10 @@ export const buildEnvelopePdfDocument = async ({
 
   // 1. FAINT BACKGROUND WATERMARK (Centered behind TO writing area)
   if (watermarkImg?.dataUrl) {
-    const wmW = 138;
-    const wmH = 79;
-    const wmX = (widthMm - wmW) / 2; // 71 mm
-    const wmY = 27; // Centered vertically in body area (27 to 105 mm)
+    const wmW = Math.min(138, widthMm * 0.52);
+    const wmH = wmW * (79 / 138);
+    const wmX = (widthMm - wmW) / 2;
+    const wmY = Math.max(26, (heightMm - wmH) / 2 - 3);
     doc.addImage(watermarkImg.dataUrl, "PNG", wmX, wmY, wmW, wmH, undefined, "FAST");
   }
 
@@ -175,19 +257,19 @@ export const buildEnvelopePdfDocument = async ({
   doc.rect(0, 3.2, widthMm, 0.9, "F");
 
   // Header Logo + 4-Line Company Header (Matching User Request)
-  const marginX = 12;
-  const headerBottomY = 26.8;
+  const marginX = Math.min(12, widthMm * 0.05);
+  const headerBottomY = Math.min(27.5, heightMm * 0.23);
 
   const logoCardX = marginX;
   const logoCardY = 4.8;
-  const logoCardW = 29;
-  const logoCardH = 20.8;
+  const logoCardW = Math.min(29, 29 * scaleRatio);
+  const logoCardH = Math.min(20.8, 20.8 * scaleRatio);
 
   // Logo Card with subtle rounded border (matching Image 1 badge)
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.35);
   if (typeof doc.roundedRect === "function") {
-    doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.2, 2.2, "S");
+    doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.0, 2.0, "S");
   } else {
     doc.rect(logoCardX, logoCardY, logoCardW, logoCardH, "S");
   }
@@ -196,37 +278,37 @@ export const buildEnvelopePdfDocument = async ({
     const logoBox = computeAspectFitBox(
       logoImg.width,
       logoImg.height,
-      logoCardX + 1.4,
-      logoCardY + 1.2,
-      logoCardW - 2.8,
-      logoCardH - 2.4
+      logoCardX + 1.2,
+      logoCardY + 1.0,
+      logoCardW - 2.4,
+      logoCardH - 2.0
     );
     doc.addImage(logoImg.dataUrl, "PNG", logoBox.x, logoBox.y, logoBox.width, logoBox.height, undefined, "FAST");
   }
 
-  const textStartX = logoCardX + logoCardW + 4.5;
+  const textStartX = logoCardX + logoCardW + 4.0;
   const headerName = String(config.headerCompanyName || DEFAULT_ENVELOPE_CONFIG.headerCompanyName).trim();
   const headerSub = String(config.headerSubtitle || DEFAULT_ENVELOPE_CONFIG.headerSubtitle).trim();
   const headerAddr = String(config.headerAddress || DEFAULT_ENVELOPE_CONFIG.headerAddress).trim();
 
-  // Line 1: Full Company Name - Enlarged across header (Bold Navy #021C57)
+  // Line 1: Full Company Name - Scaled proportionately
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20.5);
+  doc.setFontSize(Math.round(20.5 * scaleRatio * 10) / 10);
   doc.setTextColor(2, 28, 87);
   doc.text(headerName, textStartX, 10.2);
 
   // Line 2: NABL Accreditation Laboratory & Standard (Bold Emerald Green #047857)
   if (config.showHeaderSubtitle !== false && headerSub) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.8);
+    doc.setFontSize(Math.round(9.8 * scaleRatio * 10) / 10);
     doc.setTextColor(4, 120, 87);
     doc.text(headerSub, textStartX, 14.8);
   }
 
-  // Line 3: Official Address & GSTIN - Enlarged font size (Slate #334155)
+  // Line 3: Official Address & GSTIN - Scaled font size (Slate #334155)
   if (headerAddr) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.6);
+    doc.setFontSize(Math.round(8.6 * scaleRatio * 10) / 10);
     doc.setTextColor(51, 65, 85);
     doc.text(headerAddr, textStartX, 19.0);
   }
@@ -235,9 +317,10 @@ export const buildEnvelopePdfDocument = async ({
   const phoneVal = String(config.phone || DEFAULT_ENVELOPE_CONFIG.phone).trim();
   const emailVal = String(config.email || config.emailPrimary || DEFAULT_ENVELOPE_CONFIG.email).trim();
   const websiteVal = String(config.website || DEFAULT_ENVELOPE_CONFIG.website).trim();
-  const iconY = 21.2;
-  const line4Y = 23.5;
+  const iconY = 21.0;
+  const line4Y = 23.3;
   let curContactX = textStartX;
+  const contactFontSize = Math.round(8.0 * scaleRatio * 10) / 10;
 
   if (phoneVal) {
     if (phIconImg?.dataUrl) {
@@ -245,43 +328,43 @@ export const buildEnvelopePdfDocument = async ({
       curContactX += 3.6;
     }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.0);
+    doc.setFontSize(contactFontSize);
     doc.setTextColor(2, 28, 87);
     doc.text(phoneVal, curContactX, line4Y);
-    curContactX += doc.getTextWidth(phoneVal) + 4.2;
+    curContactX += doc.getTextWidth(phoneVal) + 4.0;
   }
 
   if (emailVal) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.0);
+    doc.setFontSize(contactFontSize);
     doc.setTextColor(245, 130, 32);
     doc.text("|", curContactX, line4Y);
-    curContactX += 4.2;
+    curContactX += 4.0;
 
     if (mailIconImg?.dataUrl) {
       doc.addImage(mailIconImg.dataUrl, "PNG", curContactX, iconY, 2.8, 2.8);
       curContactX += 3.6;
     }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.0);
+    doc.setFontSize(contactFontSize);
     doc.setTextColor(2, 28, 87);
     doc.text(emailVal, curContactX, line4Y);
-    curContactX += doc.getTextWidth(emailVal) + 4.2;
+    curContactX += doc.getTextWidth(emailVal) + 4.0;
   }
 
   if (websiteVal) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.0);
+    doc.setFontSize(contactFontSize);
     doc.setTextColor(245, 130, 32);
     doc.text("|", curContactX, line4Y);
-    curContactX += 4.2;
+    curContactX += 4.0;
 
     if (webIconImg?.dataUrl) {
       doc.addImage(webIconImg.dataUrl, "PNG", curContactX, iconY, 2.8, 2.8);
       curContactX += 3.6;
     }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.0);
+    doc.setFontSize(contactFontSize);
     doc.setTextColor(29, 78, 216);
     doc.text(websiteVal, curContactX, line4Y);
   }
@@ -295,18 +378,24 @@ export const buildEnvelopePdfDocument = async ({
   doc.line(marginX, headerBottomY + 0.8, widthMm - marginX, headerBottomY + 0.8);
 
   // Body layout coordinates (mm)
-  const bodyTopY = 32.5;
+  const bodyTopY = headerBottomY + 5.5;
+
+  // ==========================================
+  // RIGHT ZONE: QR CODE AREA
+  // ==========================================
+  const qrX = widthMm - marginX - qrSizeMm;
+  const qrY = Math.max(headerBottomY + 6, (heightMm - qrSizeMm) / 2 - 4);
 
   // ==========================================
   // CENTER/LEFT ZONE: TO SECTION (ONLY SECTION IN BODY - FROM REMOVED)
   // Kept completely blank for handwritten address when no recipient is passed
   // ==========================================
   const toX = 18;
-  const toMaxW = 205;
+  const toMaxW = Math.max(70, qrX - toX - 10);
   let toY = bodyTopY + 3.0;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.0);
+  doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
   doc.setTextColor(29, 78, 216);
   doc.text("TO", toX, toY);
 
@@ -319,7 +408,7 @@ export const buildEnvelopePdfDocument = async ({
     toY += 7.0;
     if (recCompany) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(13.0);
+      doc.setFontSize(Math.max(10.5, 13.0 * scaleRatio));
       doc.setTextColor(2, 28, 87);
       const compLines = doc.splitTextToSize(recCompany, toMaxW);
       doc.text(compLines, toX, toY, { lineHeightFactor: 1.25 });
@@ -327,14 +416,14 @@ export const buildEnvelopePdfDocument = async ({
     }
     if (recContact && recContact.toLowerCase() !== recCompany.toLowerCase()) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.0);
+      doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
       doc.setTextColor(51, 65, 85);
       doc.text(`Attn: ${recContact}`, toX, toY);
       toY += 5.5;
     }
     if (recAddress) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10.2);
+      doc.setFontSize(Math.max(8.5, 10.2 * scaleRatio));
       doc.setTextColor(30, 41, 59);
       const recAddrLines = doc.splitTextToSize(recAddress, toMaxW);
       doc.text(recAddrLines, toX, toY, { lineHeightFactor: 1.4 });
@@ -342,7 +431,7 @@ export const buildEnvelopePdfDocument = async ({
     }
     if (recPhone) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.8);
+      doc.setFontSize(Math.max(8.0, 9.8 * scaleRatio));
       doc.setTextColor(2, 28, 87);
       doc.text("Phone:", toX, toY);
       doc.setFont("helvetica", "normal");
@@ -351,12 +440,7 @@ export const buildEnvelopePdfDocument = async ({
     }
   }
 
-  // ==========================================
-  // RIGHT ZONE: QR CODE AREA (32 mm x 32 mm)
-  // ==========================================
-  const qrX = widthMm - marginX - qrSizeMm; // 236 mm
-  const qrY = 47.5;
-
+  // Draw QR Image / Box
   if (qrImage?.dataUrl) {
     const qrFit = computeAspectFitBox(
       qrImage.width,
@@ -389,98 +473,92 @@ export const buildEnvelopePdfDocument = async ({
   }
 
   // DESCRIPTIVE CAPTION UNDER QR CODE (What the QR is for)
-  const qrCenterX = qrX + qrSizeMm / 2; // 252 mm
-  let curQrTextY = qrY + qrSizeMm + 3.2; // 82.7 mm
+  const qrCenterX = qrX + qrSizeMm / 2;
+  let curQrTextY = qrY + qrSizeMm + 3.0;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
+  doc.setFontSize(Math.max(6.0, 7.5 * scaleRatio));
   doc.setTextColor(2, 28, 87);
   doc.text("SCAN TO VERIFY", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 3.4;
+  curQrTextY += 3.2;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.3);
+  doc.setFontSize(Math.max(5.2, 6.3 * scaleRatio));
   doc.setTextColor(29, 78, 216);
   doc.text("CALIBRATION CERTIFICATES", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 3.0;
+  curQrTextY += 2.8;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.4);
+  doc.setFontSize(Math.max(4.6, 5.4 * scaleRatio));
   doc.setTextColor(71, 85, 105);
   doc.text("NABL CC-4313  \u2022  ISO/IEC 17025", qrCenterX, curQrTextY, { align: "center" });
 
-  curQrTextY += 2.6;
-  doc.setFontSize(4.8);
+  curQrTextY += 2.5;
+  doc.setFontSize(Math.max(4.2, 4.8 * scaleRatio));
   doc.setTextColor(100, 116, 139);
   doc.text("ARCL Instruments Pvt. Ltd.", qrCenterX, curQrTextY, { align: "center" });
 
   // ==========================================
-  // FOOTER SERVICES SECTION (Matching User Image 2)
-  // Calibration | Service | Sales | Spares | Manufacturing
+  // FOOTER SERVICES SECTION (Matching User Request)
+  // Calibration | Manufacturing | Sales | Service | Spares
   // ==========================================
-  const footerBoxX = marginX; // 12 mm
-  const footerBoxY = 100.5; // 100.5 mm
-  const footerBoxW = widthMm - marginX * 2; // 256 mm
-  const footerBoxH = 8.8; // 8.8 mm
+  const footerServices = Array.isArray(config.footerServices) && config.footerServices.length > 0
+    ? config.footerServices
+    : ["Calibration", "Manufacturing", "Sales", "Service", "Spares"];
 
-  // Orange framed box with rounded corners
-  doc.setDrawColor(245, 130, 32); // #F58220 Image 2 orange
+  const footerH = Math.min(8.2, Math.max(6.2, heightMm * 0.068));
+  const footerY = heightMm - 10.2 - footerH;
+  const footerW = widthMm - 2 * marginX;
+
+  doc.setDrawColor(245, 130, 32);
   doc.setLineWidth(0.65);
   if (typeof doc.roundedRect === "function") {
-    doc.roundedRect(footerBoxX, footerBoxY, footerBoxW, footerBoxH, 1.8, 1.8, "S");
+    doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "S");
   } else {
-    doc.rect(footerBoxX, footerBoxY, footerBoxW, footerBoxH, "S");
+    doc.rect(marginX, footerY, footerW, footerH, "S");
   }
 
-  // Render 5 services with orange vertical pipe dividers
-  const services = Array.isArray(config.footerServices) && config.footerServices.length > 0
-    ? config.footerServices
-    : ["Calibration", "Service", "Sales", "Spares", "Manufacturing"];
+  const slotW = footerW / footerServices.length;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(Math.max(6.8, 8.8 * scaleRatio));
+  doc.setTextColor(2, 28, 87);
 
-  const totalSlots = services.length;
-  const slotW = footerBoxW / totalSlots;
-  const textBaselineY = footerBoxY + 5.8;
+  footerServices.forEach((svc, i) => {
+    const slotCenterX = marginX + i * slotW + slotW / 2;
+    doc.text(String(svc), slotCenterX, footerY + footerH * 0.68, { align: "center" });
 
-  services.forEach((serviceName, idx) => {
-    const slotCenterX = footerBoxX + slotW * idx + slotW / 2;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.0);
-    doc.setTextColor(2, 28, 87); // #021C57 Navy
-    doc.text(String(serviceName).trim(), slotCenterX, textBaselineY, { align: "center" });
-
-    // Draw vertical orange divider pipe between items
-    if (idx < totalSlots - 1) {
-      const dividerX = footerBoxX + slotW * (idx + 1);
+    if (i < footerServices.length - 1) {
+      const divX = marginX + (i + 1) * slotW;
       doc.setDrawColor(245, 130, 32);
       doc.setLineWidth(0.55);
-      doc.line(dividerX, footerBoxY + 1.6, dividerX, footerBoxY + footerBoxH - 1.6);
+      doc.line(divX, footerY + 1.2, divX, footerY + footerH - 1.2);
     }
   });
 
-  // ==========================================
-  // CUSTOMER COURTESY & THANK YOU SECTION (Marked Area)
-  // ==========================================
+  // Customer Courtesy & Thank You Note (Clearly positioned below services box)
+  const centerPageX = widthMm / 2;
   const thankTitle = String(
     config.footerThankYouTitle || DEFAULT_ENVELOPE_CONFIG.footerThankYouTitle
   ).trim();
   const thankSub = String(
     config.footerThankYouSubtitle || DEFAULT_ENVELOPE_CONFIG.footerThankYouSubtitle
   ).trim();
-  const centerPageX = widthMm / 2; // 140 mm
+
+  const thankY1 = heightMm - 7.2;
+  const thankY2 = heightMm - 4.4;
 
   if (thankTitle) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.1);
-    doc.setTextColor(2, 28, 87); // #021C57 Navy
-    doc.text(thankTitle, centerPageX, 113.8, { align: "center" });
+    doc.setFontSize(Math.max(5.2, 6.6 * scaleRatio));
+    doc.setTextColor(2, 28, 87);
+    doc.text(thankTitle, centerPageX, thankY1, { align: "center" });
   }
 
   if (thankSub) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.9);
-    doc.setTextColor(71, 85, 105); // #475569 Slate
-    doc.text(thankSub, centerPageX, 117.4, { align: "center" });
+    doc.setFontSize(Math.max(4.5, 5.5 * scaleRatio));
+    doc.setTextColor(71, 85, 105);
+    doc.text(thankSub, centerPageX, thankY2, { align: "center" });
   }
 
   // Bottom framing bar (Accent Orange + Corporate Navy)
@@ -492,9 +570,12 @@ export const buildEnvelopePdfDocument = async ({
   return doc;
 };
 
-export const downloadEnvelopePdf = async (opts = {}, fileName = "ARCL_Instruments_Envelope_280x124mm.pdf") => {
+export const downloadEnvelopePdf = async (opts = {}, fileName = null) => {
   const doc = await buildEnvelopePdfDocument(opts);
-  doc.save(fileName);
+  const w = opts.widthMm || opts.envelopeSize?.widthMm || 280;
+  const h = opts.heightMm || opts.envelopeSize?.heightMm || 124;
+  const outName = fileName || `ARCL_Instruments_Envelope_${w}x${h}mm.pdf`;
+  doc.save(outName);
   return doc;
 };
 
@@ -502,4 +583,117 @@ export const getEnvelopePdfBlobUrl = async (opts = {}) => {
   const doc = await buildEnvelopePdfDocument(opts);
   const blob = doc.output("blob");
   return URL.createObjectURL(blob);
+};
+
+/**
+ * Direct 100% Native Print to Printer via Hidden DOM Iframe.
+ * Bypasses PDF downloads, file saving dialogs, and Adobe Acrobat completely!
+ */
+export const printEnvelopeHtmlDirectly = async ({
+  elementId = "arcl-envelope-print-sheet",
+  widthMm = 280,
+  heightMm = 124,
+} = {}) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const sourceEl = document.getElementById(elementId);
+      if (!sourceEl) {
+        throw new Error(`Envelope preview element #${elementId} not found in DOM`);
+      }
+
+      const existingFrame = document.getElementById("arcl-direct-envelope-print-frame");
+      if (existingFrame) {
+        existingFrame.remove();
+      }
+
+      const iframe = document.createElement("iframe");
+      iframe.id = "arcl-direct-envelope-print-frame";
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+
+      const printDoc = iframe.contentWindow.document;
+      printDoc.open();
+      printDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>ARCL Instruments Envelope Print (${widthMm} × ${heightMm} mm)</title>
+            <style>
+              @page {
+                size: ${widthMm}mm ${heightMm}mm;
+                margin: 0mm !important;
+              }
+              * {
+                box-sizing: border-box;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: ${widthMm}mm !important;
+                height: ${heightMm}mm !important;
+                background: #ffffff !important;
+                overflow: hidden !important;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              }
+              #${elementId} {
+                width: ${widthMm}mm !important;
+                height: ${heightMm}mm !important;
+                transform: none !important;
+                box-shadow: none !important;
+                border: none !important;
+                position: relative !important;
+                overflow: hidden !important;
+              }
+              .arcl-no-print {
+                display: none !important;
+              }
+            </style>
+          </head>
+          <body>
+            ${sourceEl.outerHTML}
+          </body>
+        </html>
+      `);
+      printDoc.close();
+
+      const imgs = Array.from(printDoc.getElementsByTagName("img"));
+      const imgLoads = imgs.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((res) => {
+          img.onload = () => res();
+          img.onerror = () => res();
+        });
+      });
+
+      Promise.all(imgLoads).then(() => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            resolve(true);
+          } catch (err) {
+            console.error("Direct print iframe failed:", err);
+            reject(err);
+          } finally {
+            setTimeout(() => {
+              try {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+              } catch {}
+            }, 60000);
+          }
+        }, 150);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
 };
