@@ -41,6 +41,8 @@ export const updateOfficeSecuritySettings = asyncHandler(async (req, res) => {
     officeRadiusMeters,
     isEnforceLocation,
     officeAddress,
+    enforceTarget,
+    enforceOnSuperAdmin,
   } = req.body;
 
   const config = await getOrCreateOfficeSecurityConfig();
@@ -79,6 +81,14 @@ export const updateOfficeSecuritySettings = asyncHandler(async (req, res) => {
 
   if (officeAddress !== undefined) {
     config.officeAddress = String(officeAddress).trim();
+  }
+
+  if (enforceTarget === "ALL_USERS" || enforceTarget === "OFFICE_ONLY_USERS") {
+    config.enforceTarget = enforceTarget;
+  }
+
+  if (typeof enforceOnSuperAdmin === "boolean") {
+    config.enforceOnSuperAdmin = enforceOnSuperAdmin;
   }
 
   if (req.user?._id) {

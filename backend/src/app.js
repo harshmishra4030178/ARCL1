@@ -45,6 +45,9 @@ import gstRoutes from "./routes/gstRoutes.js";
 
 const app = express();
 
+// Trust reverse proxies (Render, Vercel, Cloudflare, Nginx) for accurate client IP
+app.set("trust proxy", true);
+
 // Global Middlewares
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));

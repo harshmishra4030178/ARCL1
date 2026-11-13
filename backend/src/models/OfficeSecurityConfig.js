@@ -18,28 +18,42 @@ const officeSecurityConfigSchema = new mongoose.Schema(
       default: true,
     },
     // Office GPS Geofence coordinates
-    // Default: ARCL Instruments & Calibration Laboratory (Airoli, Navi Mumbai)
+    // Default: ARCL Instruments & Calibration Laboratory (Siddhivinayak Park CHS, Nilaje, Dombivli)
     officeLatitude: {
       type: Number,
-      default: 19.1553,
+      default: 19.166533,
     },
     officeLongitude: {
       type: Number,
-      default: 72.9982,
+      default: 73.082750,
     },
     // Allowed radius in meters from office coordinates
     officeRadiusMeters: {
       type: Number,
       default: 150, // 150m covers the laboratory premises & immediate vicinity
     },
-    // Toggle GPS Geofence enforcement for OFFICE_ONLY users
+    // Toggle GPS Geofence enforcement for users
     isEnforceLocation: {
       type: Boolean,
       default: true,
     },
     officeAddress: {
       type: String,
-      default: "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
+      default:
+        "Shop No. 6, Siddhivinayak Park CHS, Nilaje, Kalyan-Dombivli, Maharashtra, 421204",
+    },
+    // Policy Enforcement Target:
+    // 'ALL_USERS'         -> Apply to all logins (Strict: WiFi + GPS required for everyone unless exempted with Anywhere scope)
+    // 'OFFICE_ONLY_USERS' -> Apply only to users set to OFFICE_ONLY in user table
+    enforceTarget: {
+      type: String,
+      enum: ["ALL_USERS", "OFFICE_ONLY_USERS"],
+      default: "ALL_USERS",
+    },
+    // Whether SuperAdmin is also verified strictly when accessing from Office
+    enforceOnSuperAdmin: {
+      type: Boolean,
+      default: true,
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,

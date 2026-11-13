@@ -8,6 +8,7 @@ export const getCleanClientIp = (req) => {
   const forwarded = req.headers["x-forwarded-for"];
   const realIp = req.headers["x-real-ip"];
   const cfIp = req.headers["cf-connecting-ip"];
+  const reqIp = req.ip;
   const socketIp = req.socket?.remoteAddress;
 
   let raw = "";
@@ -18,6 +19,8 @@ export const getCleanClientIp = (req) => {
     raw = forwarded.split(",")[0].trim();
   } else if (realIp) {
     raw = realIp;
+  } else if (reqIp) {
+    raw = reqIp;
   } else if (socketIp) {
     raw = socketIp;
   }
@@ -67,7 +70,7 @@ export const getHaversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
 };
 
 /**
- * Check if client IP is present in whitelist or matches localhost
+ * Check if client IP is present in whitelist, matches wildcard, or matches localhost
  */
 export const isIpInWhitelist = (clientIp, allowedIps = []) => {
   if (!clientIp) return false;
@@ -82,7 +85,15 @@ export const isIpInWhitelist = (clientIp, allowedIps = []) => {
   return allowedIps.some((allowed) => {
     if (!allowed) return false;
     const cleanAllowed = allowed.replace(/^::ffff:/i, "").trim();
-    return cleanAllowed === normalizedClient;
+    if (cleanAllowed === normalizedClient) return true;
+
+    // Wildcard matching, e.g. "103.21.12.*" or "103.21.12."
+    if (cleanAllowed.endsWith("*")) {
+      const prefix = cleanAllowed.slice(0, -1);
+      if (normalizedClient.startsWith(prefix)) return true;
+    }
+
+    return false;
   });
 };
 
@@ -99,13 +110,29 @@ export const getOrCreateOfficeSecurityConfig = async () => {
       configKey: "DEFAULT_OFFICE_SECURITY",
       officeWifiIps: ["127.0.0.1", "::1"],
       isEnforceWifi: true,
-      officeLatitude: 19.1553,
-      officeLongitude: 72.9982,
+      officeLatitude: 19.166533,
+      officeLongitude: 73.082750,
       officeRadiusMeters: 150,
       isEnforceLocation: true,
       officeAddress:
-        "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
+        "Shop No. 6, Siddhivinayak Park CHS, Nilaje, Kalyan-Dombivli, Maharashtra, 421204",
+      enforceTarget: "ALL_USERS",
+      enforceOnSuperAdmin: true,
     });
+  } else {
+    // Migration: ensure new fields are populated if missing
+    let needsSave = false;
+    if (config.enforceTarget === undefined || config.enforceTarget === null) {
+      config.enforceTarget = "ALL_USERS";
+      needsSave = true;
+    }
+    if (config.enforceOnSuperAdmin === undefined || config.enforceOnSuperAdmin === null) {
+      config.enforceOnSuperAdmin = true;
+      needsSave = true;
+    }
+    if (needsSave) {
+      await config.save();
+    }
   }
 
   return config;
@@ -113,9 +140,11 @@ export const getOrCreateOfficeSecurityConfig = async () => {
 
 /**
  * Validate login restrictions for a given user.
- * - Superadmin always bypasses restrictions.
- * - accessScope === 'ANYWHERE' bypasses restrictions.
- * - accessScope === 'OFFICE_ONLY' validates WiFi IP and GPS coordinates against OfficeSecurityConfig.
+ * "DONO CHEEJ MILE TBHI LOGIN HO: ADRES AUR IP"
+ * - Both Office WiFi IP AND Registered Office GPS Location must strictly match.
+ * - If either fails, access is rejected with a specific explanation.
+ * - SuperAdmin is verified if enforceOnSuperAdmin is true OR if scope is OFFICE_ONLY.
+ * - Anywhere scope grants explicit remote work bypass.
  */
 export const verifyOfficeSecurityAccess = async ({
   user,
@@ -123,69 +152,134 @@ export const verifyOfficeSecurityAccess = async ({
   latitude,
   longitude,
 }) => {
-  // 1. Superadmin role has absolute emergency bypass
-  if (user?.role === "superadmin") {
+  const config = await getOrCreateOfficeSecurityConfig();
+
+  // If both WiFi and Geofence enforcement are toggled off by Admin, allow login
+  if (!config.isEnforceWifi && !config.isEnforceLocation) {
+    return { allowed: true, reason: "ENFORCEMENT_DISABLED" };
+  }
+
+  const isSuperAdmin = user?.role === "superadmin";
+  const userAccessScope =
+    user?.accessScope || (config.enforceTarget === "ALL_USERS" ? "OFFICE_ONLY" : "ANYWHERE");
+
+  // Check bypass permissions:
+  // 1. If user is SuperAdmin and enforceOnSuperAdmin is disabled AND not set to OFFICE_ONLY:
+  if (isSuperAdmin && !config.enforceOnSuperAdmin && user?.accessScope !== "OFFICE_ONLY") {
     return { allowed: true, reason: "SUPERADMIN_BYPASS" };
   }
 
-  // 2. Anywhere access scope bypasses office restrictions
-  const accessScope = user?.accessScope || "ANYWHERE";
-  if (accessScope === "ANYWHERE") {
+  // 2. If user explicitly has ANYWHERE scope (e.g. granted remote work):
+  if (user?.accessScope === "ANYWHERE" && (!isSuperAdmin || !config.enforceOnSuperAdmin)) {
     return { allowed: true, reason: "ANYWHERE_ACCESS" };
   }
 
-  // 3. User is designated as OFFICE_ONLY -> load active security policy
-  const config = await getOrCreateOfficeSecurityConfig();
+  // 3. If policy is selective (OFFICE_ONLY_USERS only) and user is NOT set to OFFICE_ONLY:
+  if (
+    config.enforceTarget === "OFFICE_ONLY_USERS" &&
+    userAccessScope !== "OFFICE_ONLY" &&
+    !isSuperAdmin
+  ) {
+    return { allowed: true, reason: "NOT_RESTRICTED" };
+  }
 
-  // WiFi Network Check
+  // ============================================================
+  // STRICT VALIDATION: "DONO CHEEJ MILE TBHI LOGIN HO"
+  // 1) WiFi IP Check
+  // 2) GPS Coordinates & Registered Office Geofence Check
+  // ============================================================
+
+  // --- Condition 1: Office WiFi Network Check ---
+  let wifiPassed = true;
+  let wifiDetail = "";
   if (config.isEnforceWifi) {
     const isWifiOk = isIpInWhitelist(clientIp, config.officeWifiIps);
     if (!isWifiOk) {
-      return {
-        allowed: false,
-        reason: "WIFI_UNAUTHORIZED",
-        clientIp,
-        message:
-          `Access Denied: Aap Company Office ke authorized WiFi network se connected nahi hain. ` +
-          `(Detected IP: ${clientIp}). Yeh account sirf Office WiFi par login ke liye authorized hai.`,
-      };
+      wifiPassed = false;
+      wifiDetail = `Aapka Network IP (${clientIp}) Authorized Office WiFi Whitelist me darj nahi hai.`;
     }
   }
 
-  // GPS Geofence Check
+  // --- Condition 2: Registered Office Address & GPS Geofence Check ---
+  let locationPassed = true;
+  let locationDetail = "";
+  let currentDistanceMeters = null;
+
   if (config.isEnforceLocation) {
     const numLat = parseFloat(latitude);
     const numLon = parseFloat(longitude);
 
-    if (isNaN(numLat) || isNaN(numLon)) {
-      return {
-        allowed: false,
-        reason: "LOCATION_REQUIRED",
-        message:
-          "Access Denied: GPS Location access anivarya hai. Kripya browser me location permission allow karein aur company office premises ke andar se login karein.",
-      };
-    }
+    if (
+      latitude === null ||
+      latitude === undefined ||
+      longitude === null ||
+      longitude === undefined ||
+      isNaN(numLat) ||
+      isNaN(numLon)
+    ) {
+      locationPassed = false;
+      locationDetail = `Browser se live GPS coordinates prapt nahi huye. Kripya browser me location permission allow karein.`;
+    } else {
+      currentDistanceMeters = getHaversineDistanceMeters(
+        numLat,
+        numLon,
+        config.officeLatitude,
+        config.officeLongitude
+      );
 
-    const distanceMeters = getHaversineDistanceMeters(
-      numLat,
-      numLon,
-      config.officeLatitude,
-      config.officeLongitude
-    );
-
-    if (distanceMeters > config.officeRadiusMeters) {
-      const roundedDistance = Math.round(distanceMeters);
-      return {
-        allowed: false,
-        reason: "GEOFENCE_EXCEEDED",
-        distanceMeters: roundedDistance,
-        allowedRadius: config.officeRadiusMeters,
-        message:
-          `Access Denied: Aap Company Office location ke daayre se bahar hain (${roundedDistance}m door, anumati sirf ${config.officeRadiusMeters}m tak hai). ` +
-          `Yeh account sirf Office premises ke andar login ke liye authorized hai.`,
-      };
+      if (currentDistanceMeters > config.officeRadiusMeters) {
+        locationPassed = false;
+        const roundedDist = Math.round(currentDistanceMeters);
+        locationDetail = `Aap registered office location se ${roundedDist}m door hain (Anumat daayra: sirf ${config.officeRadiusMeters}m).`;
+      }
     }
   }
 
-  return { allowed: true, reason: "OFFICE_VERIFIED" };
+  // --- ENFORCE COMBINED CONDITIONS (BOTH MUST PASS) ---
+  if (!wifiPassed && !locationPassed) {
+    return {
+      allowed: false,
+      reason: "BOTH_FAILED",
+      clientIp,
+      distanceMeters: currentDistanceMeters ? Math.round(currentDistanceMeters) : null,
+      allowedRadius: config.officeRadiusMeters,
+      message:
+        `🚫 Access Denied: Office WiFi aur Office Address (GPS) dono match nahi huye!\n` +
+        `• WiFi Check: ${wifiDetail}\n` +
+        `• Location Check: ${locationDetail}\n` +
+        `Suraksha niyam: Login ke liye dono cheezein (Office WiFi + Office Geofence) ek sath match hona anivarya hai.`,
+    };
+  }
+
+  if (!wifiPassed) {
+    return {
+      allowed: false,
+      reason: "WIFI_UNAUTHORIZED",
+      clientIp,
+      message:
+        `🚫 Access Denied: Office WiFi match nahi hua!\n` +
+        `• Detected IP: ${clientIp}\n` +
+        `• ${wifiDetail}\n` +
+        `Kripya Company Office ke Authorized WiFi network se connect karke login karein.`,
+    };
+  }
+
+  if (!locationPassed) {
+    return {
+      allowed: false,
+      reason: "LOCATION_FAILED",
+      distanceMeters: currentDistanceMeters ? Math.round(currentDistanceMeters) : null,
+      allowedRadius: config.officeRadiusMeters,
+      message:
+        `🚫 Access Denied: Office Address / GPS Geofence match nahi hua!\n` +
+        `• ${locationDetail}\n` +
+        `Kripya Company Office premises (${config.officeAddress || "Office"}) ke andar se login karein.`,
+    };
+  }
+
+  return {
+    allowed: true,
+    reason: "OFFICE_VERIFIED",
+    message: "Office WiFi aur Registered Address dono successfully verify ho gaye.",
+  };
 };

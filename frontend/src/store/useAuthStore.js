@@ -73,11 +73,11 @@ export const useAuthStore = create((set, get) => ({
   // =========================
   // LOGIN WITH EMAIL & PASSWORD (SUPER ADMIN)
   // =========================
-  loginWithPassword: async ({ email, password }) => {
+  loginWithPassword: async ({ email, password, latitude, longitude }) => {
     try {
       set({ loading: true, error: null });
 
-      const res = await loginWithPasswordApi({ email, password });
+      const res = await loginWithPasswordApi({ email, password, latitude, longitude });
       const data = res.data;
 
       if (data.success && data.token) {

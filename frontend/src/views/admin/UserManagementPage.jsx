@@ -483,25 +483,33 @@ const UserManagementPage = () => {
     }
   };
 
-  const handleAddManualIp = () => {
+  const handleAddManualIp = async () => {
     if (!manualIpInput || !manualIpInput.trim()) {
       toast.warn("Please enter a valid IP address");
       return;
     }
     const cleanIp = manualIpInput.trim();
-    setOfficeSecurity((prev) => {
-      const current = prev?.officeWifiIps || [];
-      if (current.includes(cleanIp)) {
-        toast.info("IP is already in the list");
-        return prev;
-      }
-      return {
-        ...prev,
-        officeWifiIps: [...current, cleanIp],
-      };
-    });
+    const current = officeSecurity?.officeWifiIps || [];
+    if (current.includes(cleanIp)) {
+      toast.info("IP is already in the list");
+      return;
+    }
+    const updatedIps = [...current, cleanIp];
+    const updated = {
+      ...(officeSecurity || {}),
+      officeWifiIps: updatedIps,
+    };
+    setOfficeSecurity(updated);
     setManualIpInput("");
-    toast.success(`IP ${cleanIp} added. Click 'Save Security Settings' to persist.`);
+    try {
+      const res = await updateOfficeSecuritySettingsApi(updated);
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        toast.success(`IP ${cleanIp} added & saved to whitelist! 📶`);
+      }
+    } catch (e) {
+      toast.success(`IP ${cleanIp} added. Click 'Save Security Settings' to persist.`);
+    }
   };
 
   const handleSetArclAiroliPreset = () => {
@@ -1852,6 +1860,90 @@ const UserManagementPage = () => {
 
         {showSecurityCard && (
           <div className="mt-5 space-y-6 animate-fade-in">
+            {/* STRICT TWO-FACTOR SECURITY BANNER */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/90 via-slate-900 to-indigo-950/90 border border-blue-500/40 shadow-md flex items-start sm:items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 shrink-0 text-lg border border-blue-400/30">
+                <FaShieldAlt />
+              </div>
+              <div className="text-xs leading-relaxed text-slate-200">
+                <div className="font-extrabold text-amber-300 text-sm flex items-center gap-2">
+                  <span>🛡️ MANDATORY TWO-FACTOR CHECK: DONO CHEEZEIN MILE TABHI LOGIN HO!</span>
+                </div>
+                <div className="mt-1 text-slate-300">
+                  Suraksha Niyam: Login ke liye <strong>Authorized Office WiFi (IP)</strong> AUR <strong>Registered Office Geofence (Address)</strong>{" "}
+                  <span className="text-emerald-400 font-bold underline">DONO CHEEZEIN EK SATH MATCH HONA ANIVARYA HAIN</span>.{" "}
+                  Agar kisi ka IP match nahi hota ya wo office premises ke daayre ke bahar hai, toh uska login turant reject kar diya jayega.
+                </div>
+              </div>
+            </div>
+
+            {/* ENFORCEMENT TARGET & SUPER ADMIN TOGGLE */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-950/80 border border-blue-900/40">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">
+                  ⚙️ Restriction Policy Target (Kinke Upar Lagu Hoga):
+                </label>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-white pt-1">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="enforceTarget"
+                      value="ALL_USERS"
+                      checked={officeSecurity?.enforceTarget !== "OFFICE_ONLY_USERS"}
+                      onChange={() =>
+                        setOfficeSecurity((prev) => ({
+                          ...prev,
+                          enforceTarget: "ALL_USERS",
+                        }))
+                      }
+                      className="text-amber-500 focus:ring-amber-400 cursor-pointer"
+                    />
+                    <span className="font-bold text-amber-300">All Logins (Strict: Everyone)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="enforceTarget"
+                      value="OFFICE_ONLY_USERS"
+                      checked={officeSecurity?.enforceTarget === "OFFICE_ONLY_USERS"}
+                      onChange={() =>
+                        setOfficeSecurity((prev) => ({
+                          ...prev,
+                          enforceTarget: "OFFICE_ONLY_USERS",
+                        }))
+                      }
+                      className="text-amber-500 focus:ring-amber-400 cursor-pointer"
+                    />
+                    <span className="text-slate-300">Only Staff with 'Office Only' Scope</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 sm:border-l sm:border-slate-800 sm:pl-4">
+                <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">
+                  👑 Super Admin (Abhinav) Strict Verification:
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={officeSecurity?.enforceOnSuperAdmin ?? true}
+                    onChange={(e) =>
+                      setOfficeSecurity((prev) => ({
+                        ...prev,
+                        enforceOnSuperAdmin: e.target.checked,
+                      }))
+                    }
+                    className="rounded text-amber-500 focus:ring-amber-400 cursor-pointer w-4 h-4"
+                  />
+                  <span className="text-xs text-slate-200 font-semibold">
+                    {officeSecurity?.enforceOnSuperAdmin ?? true
+                      ? "🔒 Super Admin par bhi WiFi & Geofence check lagu hai (Strict)"
+                      : "🔓 Super Admin emergency remote bypass enabled"}
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               
               {/* LEFT COLUMN: OFFICE WIFI IP WHITELIST */}
@@ -2360,53 +2452,43 @@ const UserManagementPage = () => {
 
                       {/* LOGIN ACCESS SCOPE (OFFICE ONLY vs ANYWHERE) */}
                       <td className="p-4">
-                        {isPrimarySuperAdmin(user) ? (
-                          <span
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold shadow-2xs"
-                            title="SuperAdmin account has permanent unrestricted Anywhere access"
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={updatingId === user._id}
+                            onClick={() =>
+                              handleUpdateAccessScope(
+                                user._id,
+                                user.accessScope === "OFFICE_ONLY"
+                                  ? "ANYWHERE"
+                                  : "OFFICE_ONLY"
+                              )
+                            }
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 shadow-2xs ${
+                              user.accessScope === "OFFICE_ONLY"
+                                ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-300"
+                                : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                            }`}
+                            title={
+                              user.accessScope === "OFFICE_ONLY"
+                                ? "Click to switch to Anywhere Access (Home/Mobile/Field allowed)"
+                                : "Click to restrict to Office WiFi & GPS only"
+                            }
                           >
-                            <FaGlobe className="text-amber-600 text-xs" />
-                            <span>🌍 Anywhere</span>
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={updatingId === user._id}
-                              onClick={() =>
-                                handleUpdateAccessScope(
-                                  user._id,
-                                  user.accessScope === "OFFICE_ONLY"
-                                    ? "ANYWHERE"
-                                    : "OFFICE_ONLY"
-                                )
-                              }
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 shadow-2xs ${
-                                user.accessScope === "OFFICE_ONLY"
-                                  ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-300"
-                                  : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
-                              }`}
-                              title={
-                                user.accessScope === "OFFICE_ONLY"
-                                  ? "Click to switch to Anywhere Access (Home/Mobile/Field allowed)"
-                                  : "Click to restrict to Office WiFi & GPS only"
-                              }
-                            >
-                              {user.accessScope === "OFFICE_ONLY" ? (
-                                <>
-                                  <FaBuilding className="text-indigo-600 text-xs" />
-                                  <span>🏢 Office Only</span>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                                </>
-                              ) : (
-                                <>
-                                  <FaGlobe className="text-emerald-600 text-xs" />
-                                  <span>🌍 Anywhere</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
+                            {user.accessScope === "OFFICE_ONLY" ? (
+                              <>
+                                <FaBuilding className="text-indigo-600 text-xs" />
+                                <span>🏢 Office Only</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                              </>
+                            ) : (
+                              <>
+                                <FaGlobe className="text-emerald-600 text-xs" />
+                                <span>🌍 Anywhere</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}

@@ -43,11 +43,11 @@ const captureGeoCoordinates = () => {
     try {
       let pos;
       try {
-        // High accuracy satellite GPS lookup first (fresh fix, no cache)
-        pos = await tryGet(true, 5000);
+        // High accuracy satellite / WiFi positioning lookup (up to 8s)
+        pos = await tryGet(true, 8000);
       } catch {
-        // Fallback to standard network/WiFi triangulation
-        pos = await tryGet(false, 3000);
+        // Fallback to standard network lookup (up to 5s)
+        pos = await tryGet(false, 5000);
       }
       return resolve({
         latitude: pos.coords.latitude,
@@ -55,16 +55,7 @@ const captureGeoCoordinates = () => {
       });
     } catch (err) {
       console.warn("Browser GPS lookup note:", err?.message);
-      // Fallback to IP location
-      try {
-        const ipData = await fetch("https://ipwho.is/").then((r) => r.json());
-        if (ipData && ipData.success && ipData.latitude && ipData.longitude) {
-          return resolve({
-            latitude: Number(ipData.latitude),
-            longitude: Number(ipData.longitude),
-          });
-        }
-      } catch {}
+      // Return null so backend can instruct user to allow location access
       return resolve({ latitude: null, longitude: null });
     }
   });
@@ -410,14 +401,26 @@ const AdminLogin = () => {
       toast.success("Super Administrator Authenticated Successfully! 👑");
       navigate(redirectPath, { replace: true });
     } catch (err) {
-      const nextFailed = failedAttempts + 1;
-      setFailedAttempts(nextFailed);
-      
-      if (nextFailed >= 3) {
-        setLockoutSeconds(45);
-        toast.error("⚠️ Multiple failed attempts. Rate limiter activated for 45s.");
+      const msg = err.message || "Login failed. Please check credentials.";
+      if (
+        msg.includes("WiFi") ||
+        msg.includes("Office") ||
+        msg.includes("location") ||
+        msg.includes("daayre") ||
+        msg.includes("Access Denied") ||
+        msg.includes("Authorized")
+      ) {
+        setAccessDeniedNotice(msg);
       } else {
-        toast.error(err.message || "Login failed. Please check credentials.");
+        const nextFailed = failedAttempts + 1;
+        setFailedAttempts(nextFailed);
+
+        if (nextFailed >= 3) {
+          setLockoutSeconds(45);
+          toast.error("⚠️ Multiple failed attempts. Rate limiter activated for 45s.");
+        } else {
+          toast.error(msg);
+        }
       }
     } finally {
       setLoading(false);
@@ -571,7 +574,7 @@ const AdminLogin = () => {
                 </>
               )}
             </div>
-            <p className="text-[11px] font-semibold text-rose-900">{accessDeniedNotice}</p>
+            <p className="text-[11px] font-semibold text-rose-900 whitespace-pre-line leading-relaxed">{accessDeniedNotice}</p>
             {(accessDeniedNotice.includes("WiFi") ||
               accessDeniedNotice.includes("location") ||
               accessDeniedNotice.includes("daayre") ||
