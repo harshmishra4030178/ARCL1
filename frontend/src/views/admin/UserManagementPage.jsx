@@ -51,6 +51,7 @@ import {
   FaBuilding,
   FaCompass,
   FaPlus,
+  FaSave,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -529,21 +530,38 @@ const UserManagementPage = () => {
     setShowLocationModal(true);
   };
 
-  const handleConfirmOfficeLocation = ({ latitude, longitude, radiusMeters, address }) => {
-    setOfficeSecurity((prev) => ({
+  const handleConfirmOfficeLocation = async ({ latitude, longitude, radiusMeters, address }) => {
+    const updated = {
       configKey: "DEFAULT_OFFICE_SECURITY",
       officeWifiIps: ["127.0.0.1", "::1"],
       isEnforceWifi: true,
       isEnforceLocation: true,
-      ...prev,
+      ...(officeSecurity || {}),
       officeLatitude: latitude,
       officeLongitude: longitude,
-      officeRadiusMeters: radiusMeters || prev?.officeRadiusMeters || 150,
-      officeAddress: address || prev?.officeAddress || "",
-    }));
-    toast.success(
-      `🏢 Office Location Updated:\n${address}\n(Lat: ${latitude}, Lon: ${longitude})\nClick 'Save Security Settings' to persist! 💾`
-    );
+      officeRadiusMeters: radiusMeters || officeSecurity?.officeRadiusMeters || 150,
+      officeAddress: address || officeSecurity?.officeAddress || "",
+    };
+
+    setOfficeSecurity(updated);
+
+    // Auto-save immediately to database so the user never has to search where to save!
+    try {
+      setSavingSecurity(true);
+      const res = await updateOfficeSecuritySettingsApi(updated);
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        setDetectedIp(res.data.data.detectedIp);
+        toast.success(
+          `🏢 Office Location & Address Database Me Save Ho Gaya! ✅\n${address}\n(Lat: ${latitude}, Lon: ${longitude})`
+        );
+      }
+    } catch (err) {
+      console.error("Auto-save security error:", err);
+      toast.info("Location applied! Click 'Save Security Settings' to persist.");
+    } finally {
+      setSavingSecurity(false);
+    }
   };
 
     const handleUpdateAccessScope = async (userId, newScope) => {
@@ -1974,10 +1992,17 @@ const UserManagementPage = () => {
                 </div>
 
                 {/* Office Address */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                    Office / Laboratory Address:
-                  </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <FaBuilding /> 📍 Registered Office / Laboratory Address:
+                    </label>
+                    {officeSecurity?.officeAddress && (
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-500/50 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                        <FaCheck className="text-[9px]" /> Active in Database
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={officeSecurity?.officeAddress || ""}
@@ -1987,8 +2012,8 @@ const UserManagementPage = () => {
                         officeAddress: e.target.value,
                       }))
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
-                    placeholder="Company laboratory / office address..."
+                    className="w-full bg-slate-950 border-2 border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-white outline-none shadow-inner"
+                    placeholder="Yahan company laboratory / office address dikhega..."
                   />
                 </div>
 
@@ -2003,7 +2028,7 @@ const UserManagementPage = () => {
                       <button
                         type="button"
                         onClick={handleSetArclAiroliPreset}
-                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/50 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1 shadow-2xs"
                         title="Directly fill ARCL Airoli Lab coordinates (19.1553, 72.9982)"
                       >
                         <FaBuilding className="text-[10px]" />
@@ -2013,21 +2038,33 @@ const UserManagementPage = () => {
                       <button
                         type="button"
                         onClick={handleCaptureCurrentGps}
-                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        className="text-[11px] font-bold text-amber-300 hover:text-amber-200 bg-amber-950/70 hover:bg-amber-900 border border-amber-700/50 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                         title="Acquire Live GPS Satellite Location on interactive Map (Blinkit / Zepto style)"
                       >
-                        <FaCompass className="text-xs" />
+                        <FaCompass className="text-xs text-amber-400" />
                         <span>📍 Capture Live GPS</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={handleOpenLocationMapModal}
-                        className="text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-950/60 hover:bg-sky-900/60 border border-sky-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        className="text-[11px] font-bold text-sky-300 hover:text-sky-200 bg-sky-950/70 hover:bg-sky-900 border border-sky-700/50 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                         title="Search building, pick location or drag pin on Map"
                       >
-                        <FaMapMarkerAlt className="text-[10px]" />
+                        <FaMapMarkerAlt className="text-[10px] text-sky-400" />
                         <span>🗺️ Pick / View on Map</span>
+                      </button>
+
+                      {/* Prominent Direct Save Button right beside location inputs! */}
+                      <button
+                        type="button"
+                        disabled={savingSecurity}
+                        onClick={handleSaveOfficeSecurity}
+                        className="text-[11px] font-black text-slate-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-60"
+                        title="Save office security settings to database"
+                      >
+                        <FaSave className="text-xs" />
+                        <span>{savingSecurity ? "Saving..." : "💾 Save Security Settings"}</span>
                       </button>
 
                       {officeSecurity?.officeLatitude && officeSecurity?.officeLongitude && (
@@ -2035,7 +2072,7 @@ const UserManagementPage = () => {
                           href={`https://www.google.com/maps?q=${officeSecurity.officeLatitude},${officeSecurity.officeLongitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
+                          className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-700/50 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
                           title="Open coordinates in Google Maps"
                         >
                           <FaGlobe className="text-[10px]" />
