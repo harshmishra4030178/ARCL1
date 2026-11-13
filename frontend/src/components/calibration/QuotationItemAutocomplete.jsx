@@ -66,7 +66,7 @@ export default function QuotationItemAutocomplete({
       if (it && it.name) {
         map.set(it.name.trim().toLowerCase(), {
           name: it.name.trim(),
-          subText: it.subText || "NABL Traceable Report",
+          subText: it.subText || "NABL Certificate",
           rate: Number(it.rate) || 500,
           hsnSac: it.hsnSac || "998346",
           badge: "⭐ Saved",
@@ -84,7 +84,7 @@ export default function QuotationItemAutocomplete({
         if (!map.has(key)) {
           map.set(key, {
             name: name.trim(),
-            subText: it.subText || it.discipline || "NABL Traceable Report",
+            subText: it.subText || "NABL Certificate",
             rate: Number(it.rate) || 500,
             hsnSac: it.hsnSac || "998346",
             badge: it.badge || "Standard",

@@ -761,101 +761,101 @@ function ScientificCalculators() {
 const defaultInitialCalibrationRecords = [];
 
 export const defaultStandard37Items = [
-  { itemNo: 1, name: "Rebound Hammer - Calibration", subText: "Non-NABL Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 2, name: "Rebar Scanner - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 3, name: "Le-Chatelier Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 200, qty: 6, qtyUnit: "NOS", amount: 1200 },
-  { itemNo: 4, name: "Brass Test Sieve- Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 20, qtyUnit: "NOS", amount: 6000 },
-  { itemNo: 5, name: "GI Test Sieve - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 10, qtyUnit: "NOS", amount: 3000 },
-  { itemNo: 6, name: "ACT Machine - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 7, name: "Crushing Value - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 8, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Thirdparty Report", hsnSac: "998346", rate: 200, qty: 12, qtyUnit: "NOS", amount: 2400 },
-  { itemNo: 9, name: "Bulk Density Cylinder - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 3, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 10, name: "Dial Gauge 25mm - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 11, name: "Weigh Balance 600g - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 12, name: "weighing Balance (5kg)-Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 13, name: "Weigh Balance (upto 100kg) - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 900, qty: 1, qtyUnit: "NOS", amount: 900 },
-  { itemNo: 14, name: "Compression Testing Machine 2000kN - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 4500, qty: 1, qtyUnit: "NOS", amount: 4500 },
-  { itemNo: 15, name: "Stop Watch - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
-  { itemNo: 16, name: "Humidity Chamber - Calibration", subText: "NABL Thirdparty Report", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
-  { itemNo: 17, name: "Hygrometer - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 18, name: "Vernier Caliper - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 19, name: "Buoyancy Balance - Calibration", subText: "NABL Third Party Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 20, name: "Weigh Balance 30kg - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 21, name: "Elongation Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 22, name: "Flakiness Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 23, name: "Impact Value - Calibration", subText: "Nabl Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 24, name: "Measuring Cylinder - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 6, qtyUnit: "NOS", amount: 2400 },
-  { itemNo: 25, name: "Measuring Tape - Calibration", subText: "Nabl Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 26, name: "Pycnometer - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 1, qtyUnit: "NOS", amount: 400 },
-  { itemNo: 27, name: "Hot Air Oven - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 28, name: "Vicat Apparatus - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 29, name: "Mortar Vibrating Machine - Calibration", subText: "Nabl ThirdParty Report(rpm)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 30, name: "Water Bath - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 31, name: "Core Cutter Dolly - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 32, name: "Sand Pouring Cylinder - Calibration", subText: "NABL Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 33, name: "Liquid Limit - Calibration", subText: "Non-NABL Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 34, name: "Plastic Limit - Calibration", subText: "Non-NABL Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 35, name: "Proctor Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 2, qtyUnit: "NOS", amount: 800 },
-  { itemNo: 36, name: "Flow Table - Calibration", subText: "Nabl Traceable Report", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
-  { itemNo: 37, name: "Mortar Mixer - Calibration", subText: "NABL Thirdparty Report(RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 1, name: "Rebound Hammer - Calibration", subText: "Non-NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 2, name: "Rebar Scanner - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 3, name: "Le-Chatelier Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 200, qty: 6, qtyUnit: "NOS", amount: 1200 },
+  { itemNo: 4, name: "Brass Test Sieve- Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 20, qtyUnit: "NOS", amount: 6000 },
+  { itemNo: 5, name: "GI Test Sieve - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 10, qtyUnit: "NOS", amount: 3000 },
+  { itemNo: 6, name: "ACT Machine - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 7, name: "Crushing Value - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 8, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Certificate", hsnSac: "998346", rate: 200, qty: 12, qtyUnit: "NOS", amount: 2400 },
+  { itemNo: 9, name: "Bulk Density Cylinder - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 3, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 10, name: "Dial Gauge 25mm - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 11, name: "Weigh Balance 600g - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 12, name: "weighing Balance (5kg)-Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 13, name: "Weigh Balance (upto 100kg) - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 900, qty: 1, qtyUnit: "NOS", amount: 900 },
+  { itemNo: 14, name: "Compression Testing Machine 2000kN - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 4500, qty: 1, qtyUnit: "NOS", amount: 4500 },
+  { itemNo: 15, name: "Stop Watch - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
+  { itemNo: 16, name: "Humidity Chamber - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
+  { itemNo: 17, name: "Hygrometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 18, name: "Vernier Caliper - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 19, name: "Buoyancy Balance - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 20, name: "Weigh Balance 30kg - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 21, name: "Elongation Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 22, name: "Flakiness Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 23, name: "Impact Value - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 24, name: "Measuring Cylinder - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 6, qtyUnit: "NOS", amount: 2400 },
+  { itemNo: 25, name: "Measuring Tape - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 26, name: "Pycnometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 1, qtyUnit: "NOS", amount: 400 },
+  { itemNo: 27, name: "Hot Air Oven - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 28, name: "Vicat Apparatus - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 29, name: "Mortar Vibrating Machine - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 30, name: "Water Bath - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 31, name: "Core Cutter Dolly - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 32, name: "Sand Pouring Cylinder - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 33, name: "Liquid Limit - Calibration", subText: "Non-NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 34, name: "Plastic Limit - Calibration", subText: "Non-NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 35, name: "Proctor Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 2, qtyUnit: "NOS", amount: 800 },
+  { itemNo: 36, name: "Flow Table - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
+  { itemNo: 37, name: "Mortar Mixer - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
 ];
 
 export const defaultTaxInvoice26Items = [
-  { itemNo: 1, name: "Le-Chatelier Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 6, qtyUnit: "NOS", rate: 200, per: "NOS", amount: 1200 },
-  { itemNo: 2, name: "Brass Test Sieve- Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 20, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 6000 },
-  { itemNo: 3, name: "GI Test Sieve - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 10, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 3000 },
-  { itemNo: 4, name: "ACT Machine - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
-  { itemNo: 5, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Thirdparty Report", hsnSac: "998346", taxRate: "18%", qty: 12, qtyUnit: "NOS", rate: 200, per: "NOS", amount: 2400 },
-  { itemNo: 6, name: "Dial Gauge 25mm - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
-  { itemNo: 7, name: "Weigh Balance 600g - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
-  { itemNo: 8, name: "weighing Balance (5kg)-Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
-  { itemNo: 9, name: "Weigh Balance (upto 100kg) - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 900, per: "NOS", amount: 900 },
-  { itemNo: 10, name: "Compression Testing Machine 2000kN - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 5000, per: "NOS", amount: 5000 },
-  { itemNo: 11, name: "Stop Watch - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 950, per: "NOS", amount: 950 },
-  { itemNo: 12, name: "Humidity Chamber - Calibration", subText: "NABL Thirdparty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 950, per: "NOS", amount: 950 },
-  { itemNo: 13, name: "Hygrometer - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
-  { itemNo: 14, name: "Vernier Caliper - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
-  { itemNo: 15, name: "Buoyancy Balance - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
-  { itemNo: 16, name: "Weigh Balance 30kg - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
-  { itemNo: 17, name: "Elongation Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
-  { itemNo: 18, name: "Flakiness Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
-  { itemNo: 19, name: "Measuring Cylinder - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 6, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 2400 },
-  { itemNo: 20, name: "Measuring Tape - Calibration", subText: "Nabl Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
-  { itemNo: 21, name: "Pycnometer - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 400 },
-  { itemNo: 22, name: "Hot Air Oven - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
-  { itemNo: 23, name: "Mortar Vibrating Machine - Calibration", subText: "Nabl ThirdParty Report(rpm)", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
-  { itemNo: 24, name: "Water Bath - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
-  { itemNo: 25, name: "Proctor Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", taxRate: "18%", qty: 2, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 800 },
-  { itemNo: 26, name: "Mortar Mixer - Calibration", subText: "NABL Thirdparty Report(RPM)", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 1, name: "Le-Chatelier Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 6, qtyUnit: "NOS", rate: 200, per: "NOS", amount: 1200 },
+  { itemNo: 2, name: "Brass Test Sieve- Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 20, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 6000 },
+  { itemNo: 3, name: "GI Test Sieve - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 10, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 3000 },
+  { itemNo: 4, name: "ACT Machine - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
+  { itemNo: 5, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 12, qtyUnit: "NOS", rate: 200, per: "NOS", amount: 2400 },
+  { itemNo: 6, name: "Dial Gauge 25mm - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
+  { itemNo: 7, name: "Weigh Balance 600g - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 8, name: "weighing Balance (5kg)-Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 9, name: "Weigh Balance (upto 100kg) - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 900, per: "NOS", amount: 900 },
+  { itemNo: 10, name: "Compression Testing Machine 2000kN - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 5000, per: "NOS", amount: 5000 },
+  { itemNo: 11, name: "Stop Watch - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 950, per: "NOS", amount: 950 },
+  { itemNo: 12, name: "Humidity Chamber - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 950, per: "NOS", amount: 950 },
+  { itemNo: 13, name: "Hygrometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
+  { itemNo: 14, name: "Vernier Caliper - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
+  { itemNo: 15, name: "Buoyancy Balance - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 16, name: "Weigh Balance 30kg - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 17, name: "Elongation Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
+  { itemNo: 18, name: "Flakiness Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
+  { itemNo: 19, name: "Measuring Cylinder - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 6, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 2400 },
+  { itemNo: 20, name: "Measuring Tape - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 300, per: "NOS", amount: 300 },
+  { itemNo: 21, name: "Pycnometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 400 },
+  { itemNo: 22, name: "Hot Air Oven - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
+  { itemNo: 23, name: "Mortar Vibrating Machine - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
+  { itemNo: 24, name: "Water Bath - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 500, per: "NOS", amount: 500 },
+  { itemNo: 25, name: "Proctor Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", taxRate: "18%", qty: 2, qtyUnit: "NOS", rate: 400, per: "NOS", amount: 800 },
+  { itemNo: 26, name: "Mortar Mixer - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", taxRate: "18%", qty: 1, qtyUnit: "NOS", rate: 700, per: "NOS", amount: 700 },
 ];
 
 export const defaultProforma26Items = [
-  { itemNo: 1, name: "Le-Chatelier Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 200, qty: 6, qtyUnit: "NOS", amount: 1200 },
-  { itemNo: 2, name: "Brass Test Sieve- Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 20, qtyUnit: "NOS", amount: 6000 },
-  { itemNo: 3, name: "GI Test Sieve - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 10, qtyUnit: "NOS", amount: 3000 },
-  { itemNo: 4, name: "ACT Machine - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 5, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Thirdparty Report", hsnSac: "998346", rate: 200, qty: 12, qtyUnit: "NOS", amount: 2400 },
-  { itemNo: 6, name: "Dial Gauge 25mm - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 7, name: "Weigh Balance 600g - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 8, name: "weighing Balance (5kg)-Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 9, name: "Weigh Balance (upto 100kg) - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 900, qty: 1, qtyUnit: "NOS", amount: 900 },
-  { itemNo: 10, name: "Compression Testing Machine 2000kN - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 5000, qty: 1, qtyUnit: "NOS", amount: 5000 },
-  { itemNo: 11, name: "Stop Watch - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
-  { itemNo: 12, name: "Humidity Chamber - Calibration", subText: "NABL Thirdparty Report", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
-  { itemNo: 13, name: "Hygrometer - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 14, name: "Vernier Caliper - Calibration", subText: "", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 15, name: "Buoyancy Balance - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 16, name: "Weigh Balance 30kg - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 17, name: "Elongation Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 18, name: "Flakiness Gauge - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 19, name: "Measuring Cylinder - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 6, qtyUnit: "NOS", amount: 2400 },
-  { itemNo: 20, name: "Measuring Tape - Calibration", subText: "Nabl Report", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
-  { itemNo: 21, name: "Pycnometer - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 1, qtyUnit: "NOS", amount: 400 },
-  { itemNo: 22, name: "Hot Air Oven - Calibration", subText: "Nabl ThirdParty Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 23, name: "Mortar Vibrating Machine - Calibration", subText: "Nabl ThirdParty Report(rpm)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
-  { itemNo: 24, name: "Water Bath - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
-  { itemNo: 25, name: "Proctor Mould - Calibration", subText: "NABL Third party Report", hsnSac: "998346", rate: 400, qty: 2, qtyUnit: "NOS", amount: 800 },
-  { itemNo: 26, name: "Mortar Mixer - Calibration", subText: "NABL Thirdparty Report(RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 1, name: "Le-Chatelier Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 200, qty: 6, qtyUnit: "NOS", amount: 1200 },
+  { itemNo: 2, name: "Brass Test Sieve- Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 20, qtyUnit: "NOS", amount: 6000 },
+  { itemNo: 3, name: "GI Test Sieve - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 10, qtyUnit: "NOS", amount: 3000 },
+  { itemNo: 4, name: "ACT Machine - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 5, name: "Cube Mould 70.6mm - Calibration", subText: "50mm-6, 70.6mm-6\nNABL Certificate", hsnSac: "998346", rate: 200, qty: 12, qtyUnit: "NOS", amount: 2400 },
+  { itemNo: 6, name: "Dial Gauge 25mm - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 7, name: "Weigh Balance 600g - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 8, name: "weighing Balance (5kg)-Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 9, name: "Weigh Balance (upto 100kg) - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 900, qty: 1, qtyUnit: "NOS", amount: 900 },
+  { itemNo: 10, name: "Compression Testing Machine 2000kN - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 5000, qty: 1, qtyUnit: "NOS", amount: 5000 },
+  { itemNo: 11, name: "Stop Watch - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
+  { itemNo: 12, name: "Humidity Chamber - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 950, qty: 1, qtyUnit: "NOS", amount: 950 },
+  { itemNo: 13, name: "Hygrometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 14, name: "Vernier Caliper - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 15, name: "Buoyancy Balance - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 16, name: "Weigh Balance 30kg - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 17, name: "Elongation Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 18, name: "Flakiness Gauge - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 19, name: "Measuring Cylinder - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 6, qtyUnit: "NOS", amount: 2400 },
+  { itemNo: 20, name: "Measuring Tape - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 300, qty: 1, qtyUnit: "NOS", amount: 300 },
+  { itemNo: 21, name: "Pycnometer - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 1, qtyUnit: "NOS", amount: 400 },
+  { itemNo: 22, name: "Hot Air Oven - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 23, name: "Mortar Vibrating Machine - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
+  { itemNo: 24, name: "Water Bath - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 500, qty: 1, qtyUnit: "NOS", amount: 500 },
+  { itemNo: 25, name: "Proctor Mould - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 400, qty: 2, qtyUnit: "NOS", amount: 800 },
+  { itemNo: 26, name: "Mortar Mixer - Calibration", subText: "NABL Certificate (RPM)", hsnSac: "998346", rate: 700, qty: 1, qtyUnit: "NOS", amount: 700 },
 ];
 
 export const defaultArclNablScope = [
@@ -4429,7 +4429,7 @@ export default function CalibrationPageView() {
     appendItemToDocForm(setProformaForm, defaultProforma26Items, (currentItems) => ({
       itemNo: currentItems.length + 1,
       name: "New Calibration Item",
-      subText: "NABL Third party Report",
+      subText: "NABL Certificate",
       hsnSac: "998346",
       qty: 1,
       qtyUnit: "NOS",
@@ -4517,7 +4517,7 @@ export default function CalibrationPageView() {
     appendItemToDocForm(setTaxInvoiceForm, defaultTaxInvoice26Items, (currentItems) => ({
       itemNo: currentItems.length + 1,
       name: "New Calibration Instrument",
-      subText: "NABL Third party Report",
+      subText: "NABL Certificate",
       hsnSac: "998346",
       taxRate: "18%",
       qty: 1,
@@ -4758,7 +4758,7 @@ export default function CalibrationPageView() {
         return {
           itemNo: idx + 1,
           name: `${r?.instrument || "Calibration Instrument"} - Calibration`,
-          subText: `NABL Traceable Report (${subInfo}S/N: ${r?.serialNo || "-"})`,
+          subText: `NABL Certificate (${subInfo}S/N: ${r?.serialNo || "-"})`,
           hsnSac: "998346",
           rate: 1000,
           qty: 1,
@@ -4782,8 +4782,16 @@ export default function CalibrationPageView() {
           : null);
 
       if (existingQData && Array.isArray(existingQData.items) && existingQData.items.length > 0) {
+        const cleanedItems = existingQData.items.map((it) => {
+          let st = it.subText || "";
+          if (/nabl.*third.*report/i.test(st) || /nabl\s*report/i.test(st) || /nabl\s*thirdparty\s*report/i.test(st)) {
+            st = st.replace(/nabl.*third.*report/gi, "NABL Certificate").replace(/nabl\s*report/gi, "NABL Certificate");
+          }
+          return { ...it, subText: st };
+        });
         setQuotationForm({
           ...existingQData,
+          items: cleanedItems,
           billTo: {
             ...existingQData.billTo,
             companyName: existingQData.billTo?.companyName || targetRec.clientCompany || "",
@@ -4813,7 +4821,7 @@ export default function CalibrationPageView() {
             {
               itemNo: 1,
               name: `${targetRec.instrument || "Precision Equipment"} - Calibration`,
-              subText: "NABL Traceable Calibration Report",
+              subText: "NABL Certificate",
               hsnSac: "998346",
               rate: 1500,
               qty: 1,
@@ -4850,7 +4858,7 @@ export default function CalibrationPageView() {
           {
             itemNo: 1,
             name: "Precision Equipment - Calibration",
-            subText: "NABL Traceable Calibration Report",
+            subText: "NABL Certificate",
             hsnSac: "998346",
             rate: 1500,
             qty: 1,
@@ -4883,7 +4891,7 @@ export default function CalibrationPageView() {
     appendItemToDocForm(setQuotationForm, defaultStandard37Items, (currentItems) => ({
       itemNo: currentItems.length + 1,
       name: "New Calibration Instrument",
-      subText: "NABL Third party Report",
+      subText: "NABL Certificate",
       hsnSac: "998346",
       rate: 500,
       qty: 1,
@@ -22302,7 +22310,7 @@ export default function CalibrationPageView() {
                               value={it.subText || ""}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'subText', e.target.value)}
                               className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-purple-500 focus:outline-none"
-                              placeholder="Subtitle (e.g. NABL Third party Report)"
+                              placeholder="Subtitle (e.g. NABL Certificate)"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
@@ -23527,14 +23535,26 @@ export default function CalibrationPageView() {
                               }}
                               suggestions={unifiedEquipmentSuggestions}
                             />
-                            <input
-                              type="text"
-                              style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
-                              value={it.subText || ""}
-                              onChange={(e) => handleQuotationItemChange(idx, 'subText', e.target.value)}
-                              className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
-                              placeholder="Scope Subtitle (e.g. NABL Thirdparty Report)"
-                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
+                                value={it.subText || ""}
+                                onChange={(e) => handleQuotationItemChange(idx, 'subText', e.target.value)}
+                                className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
+                                placeholder="Scope Subtitle (e.g. NABL Certificate)"
+                              />
+                              {it.subText !== "NABL Certificate" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuotationItemChange(idx, 'subText', "NABL Certificate")}
+                                  className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shrink-0 cursor-pointer transition"
+                                  title="Quick set to 'NABL Certificate'"
+                                >
+                                  NABL
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input

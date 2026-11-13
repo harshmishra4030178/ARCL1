@@ -229,7 +229,7 @@ export const saveQuotationItems = (items) => {
       const key = name.toLowerCase();
       itemMap.set(key, {
         name,
-        subText: String(it.subText || "").trim() || "NABL Traceable Report",
+        subText: String(it.subText || "").trim() || "NABL Certificate",
         hsnSac: String(it.hsnSac || "998346").trim(),
         rate: Number(it.rate) || 500,
         savedAt: new Date().toISOString(),
