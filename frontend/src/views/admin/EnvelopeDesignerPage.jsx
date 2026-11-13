@@ -492,6 +492,26 @@ export default function EnvelopeDesignerPage() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57]"
                 />
               </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Footer Courtesy &amp; Thank You Note
+                </label>
+                <input
+                  type="text"
+                  value={config.footerThankYouTitle || ""}
+                  onChange={(e) => handleFieldChange("footerThankYouTitle", e.target.value)}
+                  placeholder="Thank You Title"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57] text-xs mb-1.5"
+                />
+                <input
+                  type="text"
+                  value={config.footerThankYouSubtitle || ""}
+                  onChange={(e) => handleFieldChange("footerThankYouSubtitle", e.target.value)}
+                  placeholder="Contact Support Subtitle"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57] text-xs text-slate-600"
+                />
+              </div>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">

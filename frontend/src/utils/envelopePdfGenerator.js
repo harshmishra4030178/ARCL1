@@ -29,6 +29,8 @@ export const DEFAULT_ENVELOPE_CONFIG = {
     "Spares",
     "Manufacturing",
   ],
+  footerThankYouTitle: "Thank You for Choosing ARCL Instruments! We Greatly Value Your Trust & Association.",
+  footerThankYouSubtitle: "For any new requirements, calibration, servicing, spares, or technical support, please feel free to contact us.",
 };
 
 /**
@@ -422,9 +424,9 @@ export const buildEnvelopePdfDocument = async ({
   // Calibration | Service | Sales | Spares | Manufacturing
   // ==========================================
   const footerBoxX = marginX; // 12 mm
-  const footerBoxY = 103.5; // 103.5 mm
+  const footerBoxY = 100.5; // 100.5 mm
   const footerBoxW = widthMm - marginX * 2; // 256 mm
-  const footerBoxH = 9.4; // 9.4 mm
+  const footerBoxH = 8.8; // 8.8 mm
 
   // Orange framed box with rounded corners
   doc.setDrawColor(245, 130, 32); // #F58220 Image 2 orange
@@ -442,13 +444,13 @@ export const buildEnvelopePdfDocument = async ({
 
   const totalSlots = services.length;
   const slotW = footerBoxW / totalSlots;
-  const textBaselineY = footerBoxY + 6.2;
+  const textBaselineY = footerBoxY + 5.8;
 
   services.forEach((serviceName, idx) => {
     const slotCenterX = footerBoxX + slotW * idx + slotW / 2;
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.2);
+    doc.setFontSize(9.0);
     doc.setTextColor(2, 28, 87); // #021C57 Navy
     doc.text(String(serviceName).trim(), slotCenterX, textBaselineY, { align: "center" });
 
@@ -457,9 +459,34 @@ export const buildEnvelopePdfDocument = async ({
       const dividerX = footerBoxX + slotW * (idx + 1);
       doc.setDrawColor(245, 130, 32);
       doc.setLineWidth(0.55);
-      doc.line(dividerX, footerBoxY + 1.8, dividerX, footerBoxY + footerBoxH - 1.8);
+      doc.line(dividerX, footerBoxY + 1.6, dividerX, footerBoxY + footerBoxH - 1.6);
     }
   });
+
+  // ==========================================
+  // CUSTOMER COURTESY & THANK YOU SECTION (Marked Area)
+  // ==========================================
+  const thankTitle = String(
+    config.footerThankYouTitle || DEFAULT_ENVELOPE_CONFIG.footerThankYouTitle
+  ).trim();
+  const thankSub = String(
+    config.footerThankYouSubtitle || DEFAULT_ENVELOPE_CONFIG.footerThankYouSubtitle
+  ).trim();
+  const centerPageX = widthMm / 2; // 140 mm
+
+  if (thankTitle) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.1);
+    doc.setTextColor(2, 28, 87); // #021C57 Navy
+    doc.text(thankTitle, centerPageX, 113.8, { align: "center" });
+  }
+
+  if (thankSub) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.9);
+    doc.setTextColor(71, 85, 105); // #475569 Slate
+    doc.text(thankSub, centerPageX, 117.4, { align: "center" });
+  }
 
   // Bottom framing bar (Accent Orange + Corporate Navy)
   doc.setFillColor(245, 130, 32);

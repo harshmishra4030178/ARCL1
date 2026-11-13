@@ -431,10 +431,10 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          bottom: "8.5mm",
+          bottom: "14.5mm",
           left: "12mm",
           right: "12mm",
-          height: "9.4mm",
+          height: "8.8mm",
           border: "0.65mm solid #F58220",
           borderRadius: "1.8mm",
           display: "flex",
@@ -453,7 +453,7 @@ export default function EnvelopeSheetPreview({
               style={{
                 flex: 1,
                 textAlign: "center",
-                fontSize: "9.2pt",
+                fontSize: "9.0pt",
                 fontWeight: 800,
                 color: "#021C57",
                 letterSpacing: "0.02em",
@@ -465,7 +465,7 @@ export default function EnvelopeSheetPreview({
               <div
                 style={{
                   width: "0.55mm",
-                  height: "5.8mm",
+                  height: "5.5mm",
                   backgroundColor: "#F58220",
                   flexShrink: 0,
                 }}
@@ -473,6 +473,47 @@ export default function EnvelopeSheetPreview({
             )}
           </React.Fragment>
         ))}
+      </div>
+
+      {/* Thank You & Customer Courtesy Strip (Below Services Box - User Marked Area) */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "4.5mm",
+          left: "12mm",
+          right: "12mm",
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5mm",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "6.9pt",
+            fontWeight: 800,
+            color: "#021C57",
+            letterSpacing: "0.02em",
+            lineHeight: 1.15,
+          }}
+        >
+          {config.footerThankYouTitle ||
+            "Thank You for Choosing ARCL Instruments! We Greatly Value Your Trust & Association."}
+        </div>
+        <div
+          style={{
+            fontSize: "5.8pt",
+            fontWeight: 500,
+            color: "#475569",
+            letterSpacing: "0.01em",
+            lineHeight: 1.15,
+          }}
+        >
+          {config.footerThankYouSubtitle ||
+            "For any new requirements, calibration, servicing, spares, or technical support, please feel free to contact us."}
+        </div>
       </div>
 
       {/* Bottom Corporate Framing Strip */}
