@@ -72,6 +72,15 @@ export default function QuotationClientAutocomplete({
 
   const startDirectVoiceSession = (useLang = null) => {
     if (typeof window === "undefined") return;
+
+    if (!window.isSecureContext && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      toast.error(
+        `🔒 Browser Security Error: Voice typing sirf 'http://localhost:3000' ya HTTPS pe chalti hai. Aap IP address (${window.location.hostname}) pe hain.`,
+        { toastId: "insecure-origin", autoClose: 8000 }
+      );
+      return;
+    }
+
     const SpeechRec =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -98,7 +107,7 @@ export default function QuotationClientAutocomplete({
       directRecRef.current = recognition;
       recognition.lang = activeLang;
       recognition.interimResults = true;
-      recognition.continuous = true; // Continuous listening across silence & pauses
+      recognition.continuous = false; // YouTube single-phrase model: maximum sensitivity & instant VAD
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
@@ -168,7 +177,7 @@ export default function QuotationClientAutocomplete({
 
       recognition.onerror = (event) => {
         const err = event?.error || "unknown";
-        if (err === "no-speech") return; // Continuous mode pause
+        if (err === "no-speech") return; // Single phrase pause, auto-loops seamlessly
         if (err === "aborted") return;
 
         console.warn("Direct voice recognition error:", err);
@@ -178,9 +187,14 @@ export default function QuotationClientAutocomplete({
           setVoiceStatus("idle");
           toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
         } else if (err === "network") {
-          toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "voice-net-retry", autoClose: 2500 });
+          toast.error("❌ Google Speech Server Network Error: Google speech server connect nahi ho pa raha. Internet ya DNS check karein.", {
+            toastId: "voice-net-error",
+            autoClose: 5000,
+          });
         } else if (err === "audio-capture") {
           toast.error("🎙️ Koi microphone nahi mila. Check audio device.", { toastId: "voice-no-mic", autoClose: 4000 });
+        } else {
+          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "voice-err-notice", autoClose: 3000 });
         }
       };
 
@@ -213,6 +227,10 @@ export default function QuotationClientAutocomplete({
       isDirectListeningRef.current = false;
       setIsDirectListening(false);
       setVoiceStatus("idle");
+      toast.error("🎙️ Mic start nahi hua: " + (err.message || "Unknown"), {
+        toastId: "voice-catch-err",
+        autoClose: 4000,
+      });
     }
   };
 
@@ -485,10 +503,10 @@ export default function QuotationClientAutocomplete({
       {/* 1-Tap Quick Fill Client Pills */}
       {allClientsPool.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
-          <span className="text-[9.5px] font-bold text-slate-600 flex items-center gap-1">
-            <FaStar className="text-amber-500 text-[10px]" /> 1-Tap Quick Fill:
+          <span className="text-[10px] font-black text-slate-700 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+            <FaStar className="text-amber-500 text-[11px]" /> 1-Tap Quick Fill:
           </span>
-          {allClientsPool.slice(0, 5).map((c, idx) => (
+          {allClientsPool.slice(0, 8).map((c, idx) => (
             <button
               key={idx}
               type="button"
@@ -498,16 +516,16 @@ export default function QuotationClientAutocomplete({
                 onChange?.(c.companyName);
                 onSelectClient?.(c);
                 setIsOpen(false);
-                toast.success(`✅ Filled: ${c.companyName}`);
+                toast.success(`✅ Filled: ${c.companyName}`, { autoClose: 2000 });
               }}
-              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white hover:bg-blue-50 text-blue-900 border border-blue-200 hover:border-blue-400 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
-              title={`1-Click auto-fill ${c.companyName}`}
+              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white hover:bg-blue-50 text-blue-900 border border-blue-300 hover:border-blue-600 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
+              title={`1-Click auto-fill ${c.companyName} (${c.gstin || "No GST"})`}
             >
               <FaBuilding className="text-blue-600 text-[8.5px] shrink-0" />
-              <span className="max-w-[140px] truncate">
+              <span className="max-w-[150px] truncate">
                 {c.companyName}
               </span>
-              <span className="text-blue-500 font-bold">↵</span>
+              <span className="text-blue-500 font-black">↵</span>
             </button>
           ))}
         </div>

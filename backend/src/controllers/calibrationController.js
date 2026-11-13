@@ -4962,3 +4962,89 @@ export const verifyCalibrationCertificate = async (req, res, next) => {
     next(err);
   }
 };
+
+// ==========================================
+// 41. Transcribe Voice Audio (Gemini AI Fallback)
+// ==========================================
+export const transcribeVoiceAudio = async (req, res, next) => {
+  try {
+    const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+    const { audioBase64, mimeType = "audio/webm", language = "hi-IN" } = req.body || {};
+
+    if (!audioBase64) {
+      return res.status(400).json(new ApiResponse(400, null, "audioBase64 is required"));
+    }
+
+    if (!apiKey) {
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          { transcript: "", fallbackReason: "GEMINI_API_KEY not configured on server" },
+          "AI voice transcription skipped (no API key)"
+        )
+      );
+    }
+
+    const model = process.env.GEMINI_VISION_MODEL || "gemini-2.5-flash";
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const prompt = `You are a real-time voice speech-to-text transcriber for an Indian NABL calibration laboratory software.
+Transcribe the user's spoken audio directly and accurately.
+The speaker may speak in Hindi, Indian English, or mixed Hinglish.
+Common vocabulary includes client company names (e.g. Ahluwalia Contracts, Larsen & Toubro, Tata, Godrej, Shapoorji, RDSS Lab), equipment names (e.g. Compression Testing Machine 2000kN, ACT Machine, Cube Mould, Dial Gauge, Weigh Balance, Hot Air Oven, Rebound Hammer, Sieve), and NABL certificate terms.
+RULES:
+1. Transcribe EXACTLY what the user said verbatim.
+2. Return ONLY the plain transcribed text string.
+3. Do NOT include markdown code blocks, quotes, explanations, or formatting. Just the raw spoken words.`;
+
+    const cleanBase64 = audioBase64.replace(/^data:audio\/[a-z0-9.-]+;base64,/, "");
+
+    const aiRes = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              {
+                inline_data: {
+                  mime_type: mimeType || "audio/webm",
+                  data: cleanBase64,
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 200,
+        },
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text().catch(() => "");
+      console.warn(`Gemini Audio HTTP error ${aiRes.status}:`, errText.slice(0, 150));
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          { transcript: "", error: `Gemini HTTP ${aiRes.status}` },
+          "Audio transcription fallback error"
+        )
+      );
+    }
+
+    const data = await aiRes.json();
+    const transcribedText = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+
+    return res.status(200).json(
+      new ApiResponse(200, { transcript: transcribedText }, "Audio transcribed successfully")
+    );
+  } catch (err) {
+    console.error("Error in transcribeVoiceAudio:", err);
+    return res.status(200).json(
+      new ApiResponse(200, { transcript: "", error: err.message }, "Voice transcription error handled")
+    );
+  }
+};

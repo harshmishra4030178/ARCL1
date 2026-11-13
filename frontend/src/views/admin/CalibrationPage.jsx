@@ -760,6 +760,16 @@ function ScientificCalculators() {
 // ==========================================
 const defaultInitialCalibrationRecords = [];
 
+export const normalizeItemSubText = (subText) => {
+  const str = String(subText || "").trim();
+  if (!str) return "NABL Certificate";
+  if (/thirdparty|third.*report|nabl.*report|nabl\s*third/i.test(str)) {
+    if (/rpm/i.test(str)) return "NABL Certificate (RPM)";
+    return "NABL Certificate";
+  }
+  return str;
+};
+
 export const defaultStandard37Items = [
   { itemNo: 1, name: "Rebound Hammer - Calibration", subText: "Non-NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
   { itemNo: 2, name: "Rebar Scanner - Calibration", subText: "NABL Certificate", hsnSac: "998346", rate: 100, qty: 1, qtyUnit: "NOS", amount: 100 },
@@ -4874,9 +4884,10 @@ export default function CalibrationPageView() {
   };
 
   const handleQuotationItemChange = (index, field, value) => {
+    const resolvedValue = field === 'subText' ? normalizeItemSubText(value) : value;
     setQuotationForm((prev) => {
       const currentItems = (Array.isArray(prev.items) ? prev.items : defaultStandard37Items).map((i) => ({ ...i }));
-      const item = { ...currentItems[index], [field]: value };
+      const item = { ...currentItems[index], [field]: resolvedValue };
       if (field === "rate" || field === "qty") {
         const rate = parseFloat(field === "rate" ? value : item.rate) || 0;
         const qty = parseFloat(field === "qty" ? value : item.qty) || 0;
@@ -5271,7 +5282,10 @@ export default function CalibrationPageView() {
             ...(prev.billTo || {}),
             ...(qd.billTo || {}),
           },
-          items: qd.items && qd.items.length > 0 ? qd.items : (Array.isArray(prev.items) ? prev.items : defaultStandard37Items),
+          items: (qd.items && qd.items.length > 0 ? qd.items : (Array.isArray(prev.items) ? prev.items : defaultStandard37Items)).map((it) => ({
+            ...it,
+            subText: normalizeItemSubText(it.subText),
+          })),
         }));
         if (qRes.value.data.data.recordId) {
           setQuotationRecordId(qRes.value.data.data.recordId);
@@ -23529,7 +23543,7 @@ export default function CalibrationPageView() {
                               onChange={(val) => handleQuotationItemChange(idx, 'name', val)}
                               onSelectItem={(sugg) => {
                                 handleQuotationItemChange(idx, 'name', sugg.name);
-                                if (sugg.subText) handleQuotationItemChange(idx, 'subText', sugg.subText);
+                                handleQuotationItemChange(idx, 'subText', normalizeItemSubText(sugg.subText || 'NABL Certificate'));
                                 if (sugg.rate) handleQuotationItemChange(idx, 'rate', sugg.rate);
                                 if (sugg.hsnSac) handleQuotationItemChange(idx, 'hsnSac', sugg.hsnSac);
                               }}
@@ -23539,7 +23553,7 @@ export default function CalibrationPageView() {
                               <input
                                 type="text"
                                 style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
-                                value={it.subText || ""}
+                                value={normalizeItemSubText(it.subText)}
                                 onChange={(e) => handleQuotationItemChange(idx, 'subText', e.target.value)}
                                 className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
                                 placeholder="Scope Subtitle (e.g. NABL Certificate)"

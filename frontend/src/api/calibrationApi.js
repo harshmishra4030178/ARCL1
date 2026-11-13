@@ -216,3 +216,8 @@ export const syncTemplatesFromDirectoryApi = (directoryPath) =>
 
 export const verifyCalibrationCertificateApi = (params = {}) =>
   API.get("/client/calibration/verify-certificate", { params });
+
+
+// Real-time Voice Audio AI Transcription API
+export const transcribeVoiceAudioApi = (data) =>
+  API.post("/admin/calibration/transcribe-voice", data);

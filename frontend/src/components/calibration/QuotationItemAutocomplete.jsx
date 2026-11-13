@@ -62,6 +62,15 @@ export default function QuotationItemAutocomplete({
 
   const startDirectVoiceSession = (useLang = null) => {
     if (typeof window === "undefined") return;
+
+    if (!window.isSecureContext && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      toast.error(
+        `🔒 Browser Security Error: Voice typing sirf 'http://localhost:3000' ya HTTPS pe chalti hai. Aap IP address (${window.location.hostname}) pe hain.`,
+        { toastId: "insecure-origin-item", autoClose: 8000 }
+      );
+      return;
+    }
+
     const SpeechRec =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -88,7 +97,7 @@ export default function QuotationItemAutocomplete({
       directRecRef.current = recognition;
       recognition.lang = activeLang;
       recognition.interimResults = true;
-      recognition.continuous = true; // Continuous listening across pauses
+      recognition.continuous = false; // YouTube single-phrase model: maximum sensitivity & instant VAD
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
@@ -158,7 +167,7 @@ export default function QuotationItemAutocomplete({
 
       recognition.onerror = (event) => {
         const err = event?.error || "unknown";
-        if (err === "no-speech") return;
+        if (err === "no-speech") return; // Single phrase pause, auto-loops seamlessly
         if (err === "aborted") return;
 
         console.warn("Direct voice item error:", err);
@@ -168,9 +177,14 @@ export default function QuotationItemAutocomplete({
           setVoiceStatus("idle");
           toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
         } else if (err === "network") {
-          toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "item-net-retry", autoClose: 2500 });
+          toast.error("❌ Google Speech Server Network Error: Google speech recognition connect nahi ho pa raha. Internet ya DNS check karein.", {
+            toastId: "item-net-error",
+            autoClose: 5000,
+          });
         } else if (err === "audio-capture") {
           toast.error("🎙️ Koi microphone nahi mila. Check audio device.", { toastId: "item-no-mic", autoClose: 4000 });
+        } else {
+          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "item-err-notice", autoClose: 3000 });
         }
       };
 
@@ -203,6 +217,10 @@ export default function QuotationItemAutocomplete({
       isDirectListeningRef.current = false;
       setIsDirectListening(false);
       setVoiceStatus("idle");
+      toast.error("🎙️ Mic start nahi hua: " + (err.message || "Unknown"), {
+        toastId: "item-catch-err",
+        autoClose: 4000,
+      });
     }
   };
 
@@ -451,9 +469,11 @@ export default function QuotationItemAutocomplete({
 
       {/* 1-Tap Quick Fill Equipment Chips */}
       {allItemsPool.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <span className="text-[9px] font-bold text-slate-500">Quick 1-Tap:</span>
-          {allItemsPool.slice(0, 4).map((it, idx) => (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
+          <span className="text-[10px] font-black text-slate-700 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            <FaTools className="text-emerald-600 text-[10px]" /> 1-Tap Quick Fill:
+          </span>
+          {allItemsPool.slice(0, 8).map((it, idx) => (
             <button
               key={idx}
               type="button"
@@ -463,14 +483,14 @@ export default function QuotationItemAutocomplete({
                 onChange?.(it.name);
                 onSelectItem?.(it);
                 setIsOpen(false);
-                toast.success(`✅ Item: ${it.name}`);
+                toast.success(`✅ Item: ${it.name}`, { autoClose: 2000 });
               }}
-              className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
+              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white hover:bg-emerald-50 text-emerald-900 border border-emerald-300 hover:border-emerald-600 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
               title={`1-Click auto-fill ${it.name}`}
             >
               <FaTools className="text-emerald-600 text-[8.5px] shrink-0" />
-              <span className="max-w-[130px] truncate">{it.name}</span>
-              <span className="text-emerald-600 font-bold">↵</span>
+              <span className="max-w-[140px] truncate">{it.name}</span>
+              <span className="text-emerald-600 font-black">↵</span>
             </button>
           ))}
         </div>

@@ -41,6 +41,7 @@ import {
   listHardwareScanners,
   scanObservationFromHardwareScanner,
   authorizeCalibrationObservation,
+  transcribeVoiceAudio,
 } from "../../controllers/calibrationController.js";
 import {
   getPurchases,
@@ -144,5 +145,8 @@ router.get("/purchases", getPurchases);
 router.post("/purchases", createPurchase);
 router.put("/purchases/:id", updatePurchase);
 router.delete("/purchases/:id", deletePurchase);
+
+// Real-time Voice Audio Transcription Endpoint
+router.post("/transcribe-voice", transcribeVoiceAudio);
 
 export default router;
