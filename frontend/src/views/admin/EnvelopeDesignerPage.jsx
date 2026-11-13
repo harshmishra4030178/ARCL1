@@ -69,8 +69,6 @@ export default function EnvelopeDesignerPage() {
   const handleFieldChange = (field, value) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
-    setConfig((prev) => ({ ...prev, [field]: value }));
-  };
 
   const handleQrFileSelected = (e) => {
     const file = e.target.files?.[0];

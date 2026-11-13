@@ -687,7 +687,9 @@ export const printEnvelopeHtmlDirectly = async ({
             setTimeout(() => {
               try {
                 if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-              } catch {}
+              } catch (cleanupErr) {
+                void cleanupErr;
+              }
             }, 60000);
           }
         }, 150);
