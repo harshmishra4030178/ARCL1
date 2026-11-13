@@ -64,6 +64,14 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Login Access Scope:
+    // 'ANYWHERE'    -> Can log in from home, mobile, field, or any WiFi
+    // 'OFFICE_ONLY' -> Can ONLY log in from Company Office WiFi + within Office GPS Geofence
+    accessScope: {
+      type: String,
+      enum: ["ANYWHERE", "OFFICE_ONLY"],
+      default: "ANYWHERE",
+    },
     lastLogin: {
       type: Date,
       default: null,

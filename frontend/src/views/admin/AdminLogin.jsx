@@ -25,6 +25,28 @@ import {
   FaLockOpen,
 } from "react-icons/fa";
 
+const captureGeoCoordinates = () => {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      resolve({ latitude: null, longitude: null });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+      },
+      (err) => {
+        console.warn("Geolocation lookup note:", err?.message);
+        resolve({ latitude: null, longitude: null });
+      },
+      { timeout: 4500, maximumAge: 30000, enableHighAccuracy: true }
+    );
+  });
+};
+
 const AdminLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,6 +72,17 @@ const AdminLogin = () => {
   const lockoutTimerRef = useRef(null);
   const idleTimerRef = useRef(null);
   const googleCallbackRef = useRef(null);
+
+  // Pre-cache geolocation permission
+  useEffect(() => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => {},
+        () => {},
+        { timeout: 3000, maximumAge: 60000 }
+      );
+    }
+  }, []);
   const redirectPath = location.state?.from?.pathname || "/admin";
 
   useEffect(() => {
@@ -285,12 +318,24 @@ const AdminLogin = () => {
       clearError();
       setAccessDeniedNotice(null);
 
-      await loginWithGoogle({ credential: response.credential });
+      const coords = await captureGeoCoordinates();
+      await loginWithGoogle({
+        credential: response.credential,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
       toast.success("Welcome back, Administrator! 🎉");
       navigate(redirectPath, { replace: true });
     } catch (err) {
       const msg = err.message || "Google Authentication failed";
-      if (msg.includes("standard 'user' role") || msg.includes("Access Denied")) {
+      if (
+        msg.includes("standard 'user' role") ||
+        msg.includes("Access Denied") ||
+        msg.includes("WiFi") ||
+        msg.includes("Office") ||
+        msg.includes("location") ||
+        msg.includes("daayre")
+      ) {
         setAccessDeniedNotice(msg);
       } else {
         toast.error(msg);
@@ -326,9 +371,12 @@ const AdminLogin = () => {
       clearError();
       setAccessDeniedNotice(null);
 
+      const coords = await captureGeoCoordinates();
       await loginWithPassword({
         email: email.trim(),
         password,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
       });
 
       if (privateSession) {
@@ -472,17 +520,43 @@ const AdminLogin = () => {
 
         {/* ACCESS DENIED USER NOTICE */}
         {accessDeniedNotice && (
-          <div className="p-3.5 bg-amber-50/95 border border-amber-200 text-amber-900 rounded-2xl space-y-1 text-xs leading-relaxed animate-fade-in shadow-2xs">
-            <div className="flex items-center gap-2 font-bold text-xs text-amber-800">
-              <FaExclamationTriangle className="text-amber-600 shrink-0" />
-              <span>Standard User Registered</span>
+          <div
+            className={`p-3.5 rounded-2xl space-y-1.5 text-xs leading-relaxed animate-fade-in shadow-2xs ${
+              accessDeniedNotice.includes("WiFi") ||
+              accessDeniedNotice.includes("location") ||
+              accessDeniedNotice.includes("daayre") ||
+              accessDeniedNotice.includes("Office")
+                ? "bg-rose-50/95 border border-rose-300 text-rose-950"
+                : "bg-amber-50/95 border border-amber-200 text-amber-900"
+            }`}
+          >
+            <div className="flex items-center gap-2 font-bold text-xs">
+              {accessDeniedNotice.includes("WiFi") ||
+              accessDeniedNotice.includes("location") ||
+              accessDeniedNotice.includes("daayre") ||
+              accessDeniedNotice.includes("Office") ? (
+                <>
+                  <FaShieldAlt className="text-rose-600 shrink-0 text-sm" />
+                  <span className="text-rose-900 font-extrabold">
+                    🏢 Corporate Office Network & Geofence Policy
+                  </span>
+                </>
+              ) : (
+                <>
+                  <FaExclamationTriangle className="text-amber-600 shrink-0" />
+                  <span className="text-amber-800">Standard User Registered</span>
+                </>
+              )}
             </div>
-            <p className="text-[11px] text-amber-800">
-              Your Google account is registered with the standard <strong>'user'</strong> role.
-            </p>
-            <p className="text-[10px] text-amber-700 italic">
-              🔒 Only authorized Administrators can access this portal.
-            </p>
+            <p className="text-[11px] font-semibold text-rose-900">{accessDeniedNotice}</p>
+            {(accessDeniedNotice.includes("WiFi") ||
+              accessDeniedNotice.includes("location") ||
+              accessDeniedNotice.includes("daayre") ||
+              accessDeniedNotice.includes("Office")) && (
+              <p className="text-[10px] text-slate-600 italic bg-white/70 p-2 rounded-xl border border-rose-200/60">
+                🔒 <strong>Suraksha Niyam:</strong> Yeh account sirf Company ke authorized Office WiFi aur Office location ke andar login ke liye simit hai. Yadi aap remote work par hain, toh Super Administrator se sampark karein taaki aapka account 'Anywhere Access' par set kiya ja sake.
+              </p>
+            )}
           </div>
         )}
 

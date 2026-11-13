@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import { clearAdminUserCache } from "../middlewares/authMiddleware.js";
+import {
+  getCleanClientIp,
+  verifyOfficeSecurityAccess,
+} from "../utils/officeSecurityHelper.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "arcl-super-secret-jwt-key-2026";
 
@@ -90,6 +94,8 @@ export const googleLogin = async (req, res) => {
       name: directName,
       picture: directPicture,
       googleId: directGoogleId,
+      latitude,
+      longitude,
     } = req.body;
 
     let email = directEmail;
@@ -124,8 +130,7 @@ export const googleLogin = async (req, res) => {
     // Find existing user in MongoDB
     let user = await User.findOne({ email });
 
-    const clientIp =
-      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const clientIp = getCleanClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
     // Default permissions setup for superadmin or admin
@@ -142,6 +147,7 @@ export const googleLogin = async (req, res) => {
         googleId: googleId || "",
         role: initialRole,
         permissions: isEnvAdmin || initialRole === "admin" ? defaultFullPermissions : defaultFullPermissions,
+        accessScope: "ANYWHERE",
         isActive: true,
         lastLogin: new Date(),
         lastActiveAt: new Date(),
@@ -212,6 +218,26 @@ export const googleLogin = async (req, res) => {
       });
     }
 
+    // Enforce Company Office Network & Geofence Security Policy
+    // (Superadmin & ANYWHERE users bypass; OFFICE_ONLY users must be on Office WiFi & inside Geofence)
+    const securityCheck = await verifyOfficeSecurityAccess({
+      user,
+      clientIp,
+      latitude,
+      longitude,
+    });
+
+    if (!securityCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        isRegistered: true,
+        isAdmin: false,
+        isOfficeRestricted: true,
+        reason: securityCheck.reason,
+        message: securityCheck.message,
+      });
+    }
+
     clearAdminUserCache(user._id);
 
     // Generate Admin JWT token
@@ -237,6 +263,7 @@ export const googleLogin = async (req, res) => {
         email: user.email,
         picture: user.picture,
         role: user.role,
+        accessScope: user.accessScope || "ANYWHERE",
         permissions: user.permissions || defaultFullPermissions,
       },
     });
@@ -257,7 +284,7 @@ export const googleLogin = async (req, res) => {
  */
 export const loginWithPassword = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, latitude, longitude } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -301,8 +328,7 @@ export const loginWithPassword = async (req, res) => {
 
     // Find or create the super admin user in MongoDB
     let user = await User.findOne({ email: cleanEmail });
-    const clientIp =
-      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const clientIp = getCleanClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
     if (!user) {
@@ -310,6 +336,7 @@ export const loginWithPassword = async (req, res) => {
         name: "Abhinav (Super Admin)",
         email: cleanEmail,
         role: "superadmin",
+        accessScope: "ANYWHERE",
         isActive: true,
         permissions: defaultFullPermissions,
         lastLogin: new Date(),
@@ -327,6 +354,24 @@ export const loginWithPassword = async (req, res) => {
       user.userAgent = userAgent;
       user.markModified("permissions");
       await user.save();
+    }
+
+    // Security check (Superadmin will auto-pass)
+    const securityCheck = await verifyOfficeSecurityAccess({
+      user,
+      clientIp,
+      latitude,
+      longitude,
+    });
+
+    if (!securityCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        isAdmin: false,
+        isOfficeRestricted: true,
+        reason: securityCheck.reason,
+        message: securityCheck.message,
+      });
     }
 
     clearAdminUserCache(user._id);
@@ -354,6 +399,7 @@ export const loginWithPassword = async (req, res) => {
         email: user.email,
         picture: user.picture || "",
         role: user.role,
+        accessScope: user.accessScope || "ANYWHERE",
         permissions: user.permissions || defaultFullPermissions,
       },
     });
@@ -386,6 +432,7 @@ export const getMe = async (req, res) => {
         email: user.email,
         picture: user.picture,
         role: user.role,
+        accessScope: user.accessScope || "ANYWHERE",
         permissions: user.permissions || defaultFullPermissions,
       },
     });
@@ -410,8 +457,7 @@ export const heartbeat = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const clientIp =
-      req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const clientIp = getCleanClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
     await User.findByIdAndUpdate(user._id, {
@@ -470,7 +516,7 @@ export const getActiveAdmins = async (req, res) => {
       role: { $in: ["admin", "superadmin", "developer"] },
       isActive: true,
     })
-      .select("name email picture role lastLogin lastActiveAt currentIp userAgent createdAt")
+      .select("name email picture role accessScope lastLogin lastActiveAt currentIp userAgent createdAt")
       .sort({ lastActiveAt: -1, lastLogin: -1 });
 
     const adminsWithStatus = adminUsers.map((u) => {
@@ -503,6 +549,7 @@ export const getActiveAdmins = async (req, res) => {
         email: u.email,
         picture: u.picture,
         role: u.role,
+        accessScope: u.accessScope || "ANYWHERE",
         lastLogin: u.lastLogin,
         lastActiveAt: lastActive,
         status, // 'online' | 'away' | 'offline'

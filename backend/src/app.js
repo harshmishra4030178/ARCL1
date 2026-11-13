@@ -27,6 +27,7 @@ import adminInventoryRoutes from "./routes/admin/inventoryRoutes.js";
 import adminSalesRoutes from "./routes/admin/salesRoutes.js";
 import adminExpenseRoutes from "./routes/admin/expenseRoutes.js";
 import adminSalaryRoutes from "./routes/admin/salaryRoutes.js";
+import adminOfficeSecurityRoutes from "./routes/admin/officeSecurityRoutes.js";
 import calibrationPaymentRoutes from "./routes/calibrationPaymentRoutes.js";
 
 // ================= CLIENT ROUTES =================
@@ -126,6 +127,7 @@ app.use(`${ADMIN_API}/inquiries`, verifyAdmin, checkModulePermission("inquiries"
 app.use(`${ADMIN_API}/contacts`, verifyAdmin, checkModulePermission("contacts"), adminContactRoutes);
 app.use(`${ADMIN_API}/subscribers`, verifyAdmin, checkModulePermission("subscribers"), adminSubscriberRoutes);
 app.use(`${ADMIN_API}/users`, verifyAdmin, verifyUserManageAccess, adminUserRoutes);
+app.use(`${ADMIN_API}/office-security`, verifyAdmin, verifyUserManageAccess, adminOfficeSecurityRoutes);
 app.use(`${ADMIN_API}/analytics`, verifyAdmin, adminAnalyticsRoutes);
 app.use(`${ADMIN_API}/blogs`, verifyAdmin, checkModulePermission("blogs"), adminBlogRoutes);
 app.use(`${ADMIN_API}/error-logs`, verifyAdmin, adminErrorLogRoutes);

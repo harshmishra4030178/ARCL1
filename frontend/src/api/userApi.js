@@ -4,9 +4,13 @@ import API from "./axios";
 export const getAdminUsersApi = (params = {}) =>
   API.get("/admin/users", { params });
 
-// Update user role ('admin' | 'user')
+// Update user role ('admin' | 'user' | 'developer' | 'superadmin')
 export const updateUserRoleApi = (id, role) =>
   API.patch(`/admin/users/${id}/role`, { role });
+
+// Update user login access scope ('ANYWHERE' | 'OFFICE_ONLY')
+export const updateUserAccessScopeApi = (id, accessScope) =>
+  API.patch(`/admin/users/${id}/access-scope`, { accessScope });
 
 // Toggle user active status
 export const toggleUserStatusApi = (id) =>
@@ -16,7 +20,7 @@ export const toggleUserStatusApi = (id) =>
 export const grantUserAccessApi = (data) =>
   API.post("/admin/users/grant-access", data);
 
-// Update user permissions & role
+// Update user permissions & role & accessScope
 export const updateUserPermissionsApi = (id, data) =>
   API.patch(`/admin/users/${id}/permissions`, data);
 

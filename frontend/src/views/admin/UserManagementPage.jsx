@@ -6,11 +6,18 @@ import { useAuthStore } from "../../store/useAuthStore.js";
 import {
   getAdminUsersApi,
   updateUserRoleApi,
+  updateUserAccessScopeApi,
   toggleUserStatusApi,
   deleteUserApi,
   grantUserAccessApi,
   updateUserPermissionsApi,
 } from "../../api/userApi.js";
+import {
+  getOfficeSecuritySettingsApi,
+  updateOfficeSecuritySettingsApi,
+  whitelistCurrentIpApi,
+  removeIpFromWhitelistApi,
+} from "../../api/officeSecurityApi.js";
 import {
   FaUsers,
   FaUserShield,
@@ -38,6 +45,11 @@ import {
   FaTerminal,
   FaBug,
   FaMoneyCheckAlt,
+  FaWifi,
+  FaMapMarkerAlt,
+  FaGlobe,
+  FaBuilding,
+  FaCompass,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
@@ -341,6 +353,18 @@ const UserManagementPage = () => {
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
+  // Office Security & Login Scope States
+  const [officeSecurity, setOfficeSecurity] = useState(null);
+  const [detectedIp, setDetectedIp] = useState("");
+  const [loadingSecurity, setLoadingSecurity] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [showSecurityCard, setShowSecurityCard] = useState(true);
+  const [manualIpInput, setManualIpInput] = useState("");
+  const [capturingGps, setCapturingGps] = useState(false);
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [grantAccessScope, setGrantAccessScope] = useState("ANYWHERE");
+  const [modalAccessScope, setModalAccessScope] = useState("ANYWHERE");
+
   // Direct Access Grant by Email State
   const [grantEmail, setGrantEmail] = useState("");
   const [grantName, setGrantName] = useState("");
@@ -375,6 +399,7 @@ const UserManagementPage = () => {
   useEffect(() => {
     if (canManageUsers) {
       fetchUsers(false);
+      fetchOfficeSecurity();
 
       // Real-time live polling: updates presence like WhatsApp every 10 seconds
       const pollInterval = setInterval(() => {
@@ -486,6 +511,7 @@ const UserManagementPage = () => {
     try {
       setEditingPermissionsUser(user);
       setModalRole(user.role === "user" ? "admin" : (user.role || "admin"));
+      setModalAccessScope(user.accessScope || "ANYWHERE");
       let userPerms = user.permissions;
       if (typeof userPerms === "string") {
         try {
@@ -554,13 +580,14 @@ const UserManagementPage = () => {
       const res = await updateUserPermissionsApi(editingPermissionsUser._id, {
         permissions: modalPermissions,
         role: modalRole,
+        accessScope: modalAccessScope,
       });
 
       toast.success(res.data?.message || "User permissions saved successfully! 🎉");
       setUsers((prev) =>
         prev.map((u) =>
           u._id === editingPermissionsUser._id
-            ? { ...u, role: modalRole, permissions: modalPermissions }
+            ? { ...u, role: modalRole, permissions: modalPermissions, accessScope: modalAccessScope }
             : u
         )
       );
@@ -647,6 +674,7 @@ const UserManagementPage = () => {
         name: grantName.trim() || undefined,
         role: grantRole,
         permissions: grantPermissions,
+        accessScope: grantAccessScope,
       });
 
       toast.success(
@@ -1597,6 +1625,316 @@ const UserManagementPage = () => {
         />
       </div>
 
+      {/* 2.5 COMPANY OFFICE NETWORK & GEOFENCE SECURITY CONFIGURATION CARD */}
+      <div className="bg-gradient-to-br from-slate-900 via-[#021C57] to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-blue-900/40 relative overflow-hidden">
+        {/* Glow accent */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-blue-800/40">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 text-2xl shadow-inner shrink-0">
+              <FaShieldAlt />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
+                  <span>🏢 Company Office Network &amp; Geofence Security</span>
+                </h2>
+                {officeSecurity?.isEnforceWifi && officeSecurity?.isEnforceLocation ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-black tracking-wide flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    ACTIVE PROTECTION
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold">
+                    CUSTOM PROTECTION
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Restricted staff (Office-Only) ke liye Company Office WiFi &amp; Geofence Premises whitelist niyam
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setShowSecurityCard(!showSecurityCard)}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-950 hover:bg-blue-900 text-xs text-blue-200 border border-blue-800/60 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <FaSlidersH className="text-xs" />
+              <span>{showSecurityCard ? "Hide Settings" : "Configure Rules"}</span>
+            </button>
+          </div>
+        </div>
+
+        {showSecurityCard && (
+          <div className="mt-5 space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              
+              {/* LEFT COLUMN: OFFICE WIFI IP WHITELIST */}
+              <div className="bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-blue-900/30 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <FaWifi className="text-blue-400 text-base" />
+                    <span className="font-bold text-xs uppercase tracking-wider text-slate-200">
+                      1. Authorized Office WiFi Networks
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[11px] text-slate-300">Enforce WiFi:</span>
+                    <input
+                      type="checkbox"
+                      checked={officeSecurity?.isEnforceWifi ?? true}
+                      onChange={(e) =>
+                        setOfficeSecurity((prev) => ({
+                          ...prev,
+                          isEnforceWifi: e.target.checked,
+                        }))
+                      }
+                      className="rounded text-amber-500 focus:ring-amber-400 cursor-pointer w-4 h-4"
+                    />
+                  </label>
+                </div>
+
+                {/* Detected Caller IP Alert & 1-Click Register */}
+                <div className="p-3.5 rounded-xl bg-blue-950/60 border border-blue-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-blue-300 tracking-wider">
+                      Detected Network IP (Aapka Current Network)
+                    </div>
+                    <div className="font-mono text-sm font-extrabold text-white mt-0.5 flex items-center gap-2">
+                      <span>{detectedIp || "Detecting..."}</span>
+                      {officeSecurity?.officeWifiIps?.includes(detectedIp) ? (
+                        <span className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-bold">
+                          ✓ Whitelisted
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 font-bold">
+                          Not Whitelisted
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={
+                      !detectedIp ||
+                      officeSecurity?.officeWifiIps?.includes(detectedIp)
+                    }
+                    onClick={handleWhitelistCurrentIp}
+                    className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                  >
+                    <FaPlus className="text-[10px]" />
+                    <span>Set Current IP as Office WiFi</span>
+                  </button>
+                </div>
+
+                {/* Whitelisted IPs List */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                    Whitelisted Office IP Addresses:
+                  </div>
+                  <div className="flex flex-wrap gap-2 min-h-[40px] p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    {officeSecurity?.officeWifiIps &&
+                    officeSecurity.officeWifiIps.length > 0 ? (
+                      officeSecurity.officeWifiIps.map((ip) => (
+                        <span
+                          key={ip}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-900/40 border border-blue-700/50 text-blue-100 font-mono text-xs"
+                        >
+                          <span>{ip}</span>
+                          {ip !== "127.0.0.1" && ip !== "::1" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIp(ip)}
+                              className="text-rose-400 hover:text-rose-200 cursor-pointer ml-1 p-0.5"
+                              title="Remove this IP from whitelist"
+                            >
+                              <FaTimes className="text-[10px]" />
+                            </button>
+                          )}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500 italic p-1">
+                        No external IPs whitelisted yet.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Manual IP Add form */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualIpInput}
+                    onChange={(e) => setManualIpInput(e.target.value)}
+                    placeholder="Enter Office IP manually (e.g. 103.21.12.34)..."
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddManualIp}
+                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer shrink-0"
+                  >
+                    Add IP
+                  </button>
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: GEOFENCE COORDINATES & RADIUS */}
+              <div className="bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-blue-900/30 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-amber-400 text-base" />
+                    <span className="font-bold text-xs uppercase tracking-wider text-slate-200">
+                      2. Office GPS Geofence &amp; Perimeter
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[11px] text-slate-300">Enforce Geofence:</span>
+                    <input
+                      type="checkbox"
+                      checked={officeSecurity?.isEnforceLocation ?? true}
+                      onChange={(e) =>
+                        setOfficeSecurity((prev) => ({
+                          ...prev,
+                          isEnforceLocation: e.target.checked,
+                        }))
+                      }
+                      className="rounded text-amber-500 focus:ring-amber-400 cursor-pointer w-4 h-4"
+                    />
+                  </label>
+                </div>
+
+                {/* Office Address */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Office / Laboratory Address:
+                  </label>
+                  <input
+                    type="text"
+                    value={officeSecurity?.officeAddress || ""}
+                    onChange={(e) =>
+                      setOfficeSecurity((prev) => ({
+                        ...prev,
+                        officeAddress: e.target.value,
+                      }))
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+                    placeholder="Company laboratory / office address..."
+                  />
+                </div>
+
+                {/* Latitude & Longitude with 1-Click GPS Capture */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                      GPS Coordinates (Lat / Lon):
+                    </label>
+                    <button
+                      type="button"
+                      disabled={capturingGps}
+                      onClick={handleCaptureCurrentGps}
+                      className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      title="Capture your exact current physical GPS coordinates"
+                    >
+                      <FaCompass className={`text-xs ${capturingGps ? "animate-spin" : ""}`} />
+                      <span>{capturingGps ? "Locating..." : "📍 Capture Live GPS"}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Latitude:</span>
+                      <input
+                        type="number"
+                        step="0.000001"
+                        value={officeSecurity?.officeLatitude ?? 19.1553}
+                        onChange={(e) =>
+                          setOfficeSecurity((prev) => ({
+                            ...prev,
+                            officeLatitude: parseFloat(e.target.value),
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Longitude:</span>
+                      <input
+                        type="number"
+                        step="0.000001"
+                        value={officeSecurity?.officeLongitude ?? 72.9982}
+                        onChange={(e) =>
+                          setOfficeSecurity((prev) => ({
+                            ...prev,
+                            officeLongitude: parseFloat(e.target.value),
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Perimeter Radius Slider */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">
+                      Allowed Perimeter Radius:
+                    </span>
+                    <span className="font-mono font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/30">
+                      {officeSecurity?.officeRadiusMeters ?? 150} meters
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="25"
+                    max="500"
+                    step="25"
+                    value={officeSecurity?.officeRadiusMeters ?? 150}
+                    onChange={(e) =>
+                      setOfficeSecurity((prev) => ({
+                        ...prev,
+                        officeRadiusMeters: parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>25m (Lab Room)</span>
+                    <span>150m (Building &amp; Compound)</span>
+                    <span>500m (MIDC Campus)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions & Policy Note */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-800">
+              <div className="text-[11px] text-slate-300 leading-relaxed">
+                💡 <strong>Security Rule:</strong> SuperAdmin hamesha fail-safe resilience ke sath kahin se bhi login kar sakte hain. Staff members jinhe table me <strong>'Office Only'</strong> set kiya gaya hai, wo sirf inhi WiFi networks aur is geofence perimeter ke bheetar hi login kar payenge.
+              </div>
+
+              <button
+                type="button"
+                disabled={savingSecurity}
+                onClick={handleSaveOfficeSecurity}
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2 shrink-0 self-end sm:self-auto"
+              >
+                <FaCheck className="text-xs" />
+                <span>{savingSecurity ? "Saving Security..." : "Save Security Settings"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* 3. SEARCH & FILTER TOOLBAR */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
         {/* Search */}
@@ -1633,6 +1971,16 @@ const UserManagementPage = () => {
             <option value="active">Enabled Only</option>
             <option value="inactive">Suspended Only</option>
           </select>
+
+          <select
+            value={scopeFilter}
+            onChange={(e) => setScopeFilter(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none bg-white text-gray-700 cursor-pointer focus:border-blue-500 font-medium"
+          >
+            <option value="all">All Login Scopes</option>
+            <option value="anywhere">🌍 Anywhere Access</option>
+            <option value="office">🏢 Office Only (WiFi+GPS)</option>
+          </select>
         </div>
       </div>
 
@@ -1656,6 +2004,7 @@ const UserManagementPage = () => {
                   <th className="p-4">User Details</th>
                   <th className="p-4">Live Login Status</th>
                   <th className="p-4">Role Access</th>
+                  <th className="p-4">🏢 Login Scope (WiFi &amp; GPS)</th>
                   <th className="p-4">Granular Permissions</th>
                   <th className="p-4">Account Access</th>
                   <th className="p-4">Activity &amp; Date</th>
@@ -1767,6 +2116,57 @@ const UserManagementPage = () => {
                                 ★
                               </span>
                             )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* LOGIN ACCESS SCOPE (OFFICE ONLY vs ANYWHERE) */}
+                      <td className="p-4">
+                        {isSuperAdmin(user) ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold shadow-2xs"
+                            title="SuperAdmin account has permanent unrestricted Anywhere access"
+                          >
+                            <FaGlobe className="text-amber-600 text-xs" />
+                            <span>🌍 Anywhere</span>
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={updatingId === user._id}
+                              onClick={() =>
+                                handleUpdateAccessScope(
+                                  user._id,
+                                  user.accessScope === "OFFICE_ONLY"
+                                    ? "ANYWHERE"
+                                    : "OFFICE_ONLY"
+                                )
+                              }
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 shadow-2xs ${
+                                user.accessScope === "OFFICE_ONLY"
+                                  ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-300"
+                                  : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                              }`}
+                              title={
+                                user.accessScope === "OFFICE_ONLY"
+                                  ? "Click to switch to Anywhere Access (Home/Mobile/Field allowed)"
+                                  : "Click to restrict to Office WiFi & GPS only"
+                              }
+                            >
+                              {user.accessScope === "OFFICE_ONLY" ? (
+                                <>
+                                  <FaBuilding className="text-indigo-600 text-xs" />
+                                  <span>🏢 Office Only</span>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                </>
+                              ) : (
+                                <>
+                                  <FaGlobe className="text-emerald-600 text-xs" />
+                                  <span>🌍 Anywhere</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         )}
                       </td>
@@ -1929,6 +2329,51 @@ const UserManagementPage = () => {
               >
                 <FaTimes size={16} />
               </button>
+            </div>
+
+            {/* Login Access Scope Selection */}
+            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-2">
+                  <FaBuilding className="text-indigo-600" /> Login Network &amp; Location Scope:
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-indigo-800 border border-indigo-200 shadow-2xs">
+                  {modalAccessScope === "OFFICE_ONLY" ? "🏢 Office Only (Restricted)" : "🌍 Anywhere Access"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setModalAccessScope("ANYWHERE")}
+                  className={`p-3 rounded-xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                    modalAccessScope === "ANYWHERE"
+                      ? "bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-200 text-emerald-950 font-bold"
+                      : "bg-white/60 border-slate-200 text-slate-600 hover:bg-white"
+                  }`}
+                >
+                  <FaGlobe className={modalAccessScope === "ANYWHERE" ? "text-emerald-600 text-base shrink-0" : "text-slate-400 shrink-0"} />
+                  <div>
+                    <div className="font-bold text-xs">🌍 Anywhere Access</div>
+                    <div className="text-[10px] text-slate-500">Ghar, mobile ya kisi bhi network se login ki anumati</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModalAccessScope("OFFICE_ONLY")}
+                  className={`p-3 rounded-xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                    modalAccessScope === "OFFICE_ONLY"
+                      ? "bg-white border-indigo-500 shadow-xs ring-2 ring-indigo-200 text-indigo-950 font-bold"
+                      : "bg-white/60 border-slate-200 text-slate-600 hover:bg-white"
+                  }`}
+                >
+                  <FaBuilding className={modalAccessScope === "OFFICE_ONLY" ? "text-indigo-600 text-base shrink-0" : "text-slate-400 shrink-0"} />
+                  <div>
+                    <div className="font-bold text-xs">🏢 Office Only (Restricted)</div>
+                    <div className="text-[10px] text-slate-500">Kewal Company WiFi aur Office GPS ke andar login hoga</div>
+                  </div>
+                </button>
+              </div>
             </div>
 
             {/* Role Preset Quick Switcher */}

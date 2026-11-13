@@ -10,7 +10,7 @@ import { isSuperAdminUser, clearAdminUserCache } from "../../middlewares/authMid
  * @access  Admin
  */
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const { search, role, status } = req.query;
+  const { search, role, status, accessScope } = req.query;
 
   const filter = {};
 
@@ -25,6 +25,10 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
   if (typeof status !== "undefined" && status !== "all") {
     filter.isActive = status === "active" || status === "true";
+  }
+
+  if (accessScope && accessScope !== "all") {
+    filter.accessScope = accessScope;
   }
 
   const users = await User.find(filter).sort({ createdAt: -1 });
@@ -47,6 +51,7 @@ export const getAllUsers = asyncHandler(async (req, res) => {
     userObj.isOnline = activeStatus === "online";
     userObj.activeStatus = activeStatus;
     userObj.lastActiveAt = lastActive;
+    userObj.accessScope = userObj.accessScope || "ANYWHERE";
     return userObj;
   });
 
@@ -58,6 +63,10 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   const userCount = await User.countDocuments({ role: "user" });
   const activeCount = await User.countDocuments({ isActive: true });
   const onlineCount = enrichedUsers.filter((u) => u.isOnline).length;
+  const officeOnlyCount = await User.countDocuments({ accessScope: "OFFICE_ONLY" });
+  const anywhereCount = await User.countDocuments({
+    $or: [{ accessScope: "ANYWHERE" }, { accessScope: { $exists: false } }],
+  });
 
   return res.status(200).json(
     new ApiResponse(
@@ -70,6 +79,8 @@ export const getAllUsers = asyncHandler(async (req, res) => {
           users: userCount,
           active: activeCount,
           online: onlineCount,
+          officeOnly: officeOnlyCount,
+          anywhere: anywhereCount,
         },
       },
       "Users retrieved successfully."
@@ -121,6 +132,54 @@ export const updateUserRole = asyncHandler(async (req, res) => {
         isActive: user.isActive,
       },
       `User ${user.email} role updated to '${role.toUpperCase()}' successfully.`
+    )
+  );
+});
+
+/**
+ * @desc    Update User Login Access Scope (ANYWHERE vs OFFICE_ONLY)
+ * @route   PATCH /api/v1/admin/users/:id/access-scope
+ * @access  Admin
+ */
+export const updateUserAccessScope = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { accessScope } = req.body;
+
+  if (!["ANYWHERE", "OFFICE_ONLY"].includes(accessScope)) {
+    throw new ApiError(400, "Invalid accessScope. Must be 'ANYWHERE' or 'OFFICE_ONLY'.");
+  }
+
+  const user = await User.findById(id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  // Safety: Prevent locking Super Administrator to OFFICE_ONLY
+  const isSuper = isSuperAdminUser(user);
+  if (isSuper && accessScope === "OFFICE_ONLY") {
+    throw new ApiError(
+      400,
+      "Super Administrator account must retain 'ANYWHERE' access for system fail-safe resilience."
+    );
+  }
+
+  user.accessScope = accessScope;
+  await user.save();
+  clearAdminUserCache(user._id);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        accessScope: user.accessScope,
+      },
+      `User '${user.email}' login restriction updated to '${
+        accessScope === "OFFICE_ONLY" ? "Office Only (WiFi + GPS)" : "Anywhere Access"
+      }'.`
     )
   );
 });
@@ -195,13 +254,13 @@ export const deleteUser = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Update User Permissions & Role
+ * @desc    Update User Permissions & Role & AccessScope
  * @route   PATCH /api/v1/admin/users/:id/permissions
  * @access  Admin
  */
 export const updateUserPermissions = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { permissions, role } = req.body;
+  const { permissions, role, accessScope } = req.body;
 
   const user = await User.findById(id);
   if (!user) {
@@ -220,6 +279,10 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
 
   if (role) {
     user.role = role;
+  }
+
+  if (accessScope && ["ANYWHERE", "OFFICE_ONLY"].includes(accessScope)) {
+    user.accessScope = accessScope;
   }
 
   if (permissions) {
@@ -243,12 +306,18 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Grant User Access / Pre-authorize Admin by Email with Custom Permissions
+ * @desc    Grant User Access / Pre-authorize Admin by Email with Custom Permissions & Access Scope
  * @route   POST /api/v1/admin/users/grant-access
  * @access  Admin
  */
 export const grantUserAccess = asyncHandler(async (req, res) => {
-  const { email, role = "admin", name, permissions } = req.body;
+  const {
+    email,
+    role = "admin",
+    name,
+    permissions,
+    accessScope = "ANYWHERE",
+  } = req.body;
 
   if (!email || !email.trim()) {
     throw new ApiError(400, "Valid email address is required.");
@@ -278,12 +347,16 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
   };
 
   const finalPermissions = permissions ? { ...defaultPermissions, ...permissions } : defaultPermissions;
+  const validAccessScope = ["ANYWHERE", "OFFICE_ONLY"].includes(accessScope)
+    ? accessScope
+    : "ANYWHERE";
 
   let user = await User.findOne({ email: cleanEmail });
 
   if (user) {
     user.role = role;
     user.isActive = true;
+    user.accessScope = validAccessScope;
     if (name && name.trim()) user.name = name.trim();
     if (permissions) {
       user.permissions = finalPermissions;
@@ -296,7 +369,7 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         user,
-        `Access updated: '${cleanEmail}' is now assigned role '${role.toUpperCase()}'.`
+        `Access updated: '${cleanEmail}' is now assigned role '${role.toUpperCase()}' with '${validAccessScope}' login scope.`
       )
     );
   } else {
@@ -311,6 +384,7 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
       email: cleanEmail,
       role,
       permissions: finalPermissions,
+      accessScope: validAccessScope,
       isActive: true,
       lastLogin: null,
     });
@@ -319,7 +393,7 @@ export const grantUserAccess = asyncHandler(async (req, res) => {
       new ApiResponse(
         201,
         user,
-        `New account created & '${role.toUpperCase()}' access granted to '${cleanEmail}'.`
+        `New account created & '${role.toUpperCase()}' access granted to '${cleanEmail}' (${validAccessScope}).`
       )
     );
   }
