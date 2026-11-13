@@ -410,6 +410,137 @@ const UserManagementPage = () => {
     }
   }, [canManageUsers]);
 
+  // ==========================================
+  // OFFICE SECURITY & GEOFENCE HANDLERS
+  // ==========================================
+  const fetchOfficeSecurity = async () => {
+    try {
+      setLoadingSecurity(true);
+      const res = await getOfficeSecuritySettingsApi();
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        setDetectedIp(res.data.data.detectedIp);
+      }
+    } catch (err) {
+      console.error("Failed to load office security config:", err);
+    } finally {
+      setLoadingSecurity(false);
+    }
+  };
+
+  const handleSaveOfficeSecurity = async () => {
+    try {
+      setSavingSecurity(true);
+      const res = await updateOfficeSecuritySettingsApi(officeSecurity);
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        setDetectedIp(res.data.data.detectedIp);
+        toast.success("Office Security & Geofence Settings Saved Successfully! 🏢");
+      }
+    } catch (err) {
+      console.error("Failed to save security settings:", err);
+      toast.error(err.response?.data?.message || "Failed to save security settings");
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handleWhitelistCurrentIp = async () => {
+    try {
+      const res = await whitelistCurrentIpApi();
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        setDetectedIp(res.data.data.detectedIp);
+        toast.success(res.data.message || "Current IP added to whitelist! 📶");
+      }
+    } catch (err) {
+      console.error("Failed to whitelist IP:", err);
+      toast.error(err.response?.data?.message || "Failed to whitelist IP");
+    }
+  };
+
+  const handleRemoveIp = async (ipToRemove) => {
+    try {
+      const res = await removeIpFromWhitelistApi(ipToRemove);
+      if (res.data?.success) {
+        setOfficeSecurity(res.data.data.config);
+        toast.info(`IP ${ipToRemove} removed from whitelist.`);
+      }
+    } catch (err) {
+      console.error("Failed to remove IP:", err);
+      toast.error(err.response?.data?.message || "Failed to remove IP");
+    }
+  };
+
+  const handleAddManualIp = () => {
+    if (!manualIpInput || !manualIpInput.trim()) {
+      toast.warn("Please enter a valid IP address");
+      return;
+    }
+    const cleanIp = manualIpInput.trim();
+    setOfficeSecurity((prev) => {
+      const current = prev?.officeWifiIps || [];
+      if (current.includes(cleanIp)) {
+        toast.info("IP is already in the list");
+        return prev;
+      }
+      return {
+        ...prev,
+        officeWifiIps: [...current, cleanIp],
+      };
+    });
+    setManualIpInput("");
+    toast.success(`IP ${cleanIp} added. Click 'Save Security Settings' to persist.`);
+  };
+
+  const handleCaptureCurrentGps = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
+    setCapturingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lon = parseFloat(pos.coords.longitude.toFixed(6));
+        setOfficeSecurity((prev) => ({
+          ...prev,
+          officeLatitude: lat,
+          officeLongitude: lon,
+        }));
+        setCapturingGps(false);
+        toast.success(`📍 Office GPS Captured: Lat ${lat}, Lon ${lon}!`);
+      },
+      (err) => {
+        setCapturingGps(false);
+        console.warn("GPS error:", err);
+        toast.error("Could not capture GPS location. Please allow location access in browser.");
+      },
+      { enableHighAccuracy: true, timeout: 6000 }
+    );
+  };
+
+  const handleUpdateAccessScope = async (userId, newScope) => {
+    try {
+      setUpdatingId(userId);
+      const res = await updateUserAccessScopeApi(userId, newScope);
+      toast.success(
+        res.data?.message ||
+          `Access scope updated to ${newScope === "OFFICE_ONLY" ? "Office Only (WiFi + GPS)" : "Anywhere Access"}!`
+      );
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === userId ? { ...u, accessScope: newScope } : u
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update access scope:", err);
+      toast.error(err.response?.data?.message || "Failed to update access scope");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const fetchUsers = async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
@@ -449,9 +580,14 @@ const UserManagementPage = () => {
         (statusFilter === "active" && u.isActive) ||
         (statusFilter === "inactive" && !u.isActive);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesScope =
+        scopeFilter === "all" ||
+        (scopeFilter === "office" && u.accessScope === "OFFICE_ONLY") ||
+        (scopeFilter === "anywhere" && u.accessScope !== "OFFICE_ONLY");
+
+      return matchesSearch && matchesRole && matchesStatus && matchesScope;
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, search, roleFilter, statusFilter, scopeFilter]);
 
   // Handle Preset Change in Grant Box
   const handlePresetSelect = (presetKey) => {
