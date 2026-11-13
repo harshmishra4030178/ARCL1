@@ -122,6 +122,33 @@ export const isSuperAdminUser = (user) => {
 };
 
 /**
+ * Check if user is the PRIMARY ROOT Super Administrator (Abhinav / .env owners).
+ * Only the Primary Root Super Administrator cannot be demoted or deleted.
+ */
+export const isPrimarySuperAdminUser = (user) => {
+  if (!user || !user.email) return false;
+
+  const envEmails = ["abhinav@arclinstruments.com", "abhinavtripathi32@gmail.com"];
+  if (process.env.ADMIN_EMAIL) {
+    process.env.ADMIN_EMAIL.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+  if (process.env.SUPER_ADMIN_EMAILS) {
+    process.env.SUPER_ADMIN_EMAILS.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+  if (process.env.ADMIN_EMAILS) {
+    process.env.ADMIN_EMAILS.split(",").forEach((e) => {
+      if (e.trim()) envEmails.push(e.trim().toLowerCase());
+    });
+  }
+
+  return envEmails.includes(user.email?.toLowerCase().trim());
+};
+
+/**
  * Middleware to restrict User & Role Management to Superadmin / Full Access Admin
  */
 export const verifyUserManageAccess = async (req, res, next) => {

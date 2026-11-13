@@ -2,7 +2,7 @@ import User from "../../models/userModel.js";
 import ApiError from "../../utils/ApiError.js";
 import ApiResponse from "../../utils/ApiResponse.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-import { isSuperAdminUser, clearAdminUserCache } from "../../middlewares/authMiddleware.js";
+import { isSuperAdminUser, isPrimarySuperAdminUser, clearAdminUserCache } from "../../middlewares/authMiddleware.js";
 
 /**
  * @desc    Get All Registered Users (Admin)
@@ -107,13 +107,13 @@ export const updateUserRole = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent changing Super Admin role
-  const isSuper = isSuperAdminUser(user);
+  // Safety: Prevent changing Primary Root Super Admin role (Abhinav)
+  const isPrimary = isPrimarySuperAdminUser(user);
 
-  if (isSuper) {
+  if (isPrimary) {
     throw new ApiError(
       400,
-      `Super Administrator (${user.email}) role is permanently locked and cannot be changed.`
+      `Primary Super Administrator (${user.email}) role is permanently locked and cannot be changed.`
     );
   }
 
@@ -155,12 +155,12 @@ export const updateUserAccessScope = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent locking Super Administrator to OFFICE_ONLY
-  const isSuper = isSuperAdminUser(user);
-  if (isSuper && accessScope === "OFFICE_ONLY") {
+  // Safety: Prevent locking Primary Root Super Administrator to OFFICE_ONLY
+  const isPrimary = isPrimarySuperAdminUser(user);
+  if (isPrimary && accessScope === "OFFICE_ONLY") {
     throw new ApiError(
       400,
-      "Super Administrator account must retain 'ANYWHERE' access for system fail-safe resilience."
+      "Primary Super Administrator account must retain 'ANYWHERE' access for system fail-safe resilience."
     );
   }
 
@@ -198,13 +198,13 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent deactivating Super Admin
-  const isSuper = isSuperAdminUser(user);
+  // Safety: Prevent deactivating Primary Root Super Admin
+  const isPrimary = isPrimarySuperAdminUser(user);
 
-  if (isSuper) {
+  if (isPrimary) {
     throw new ApiError(
       400,
-      "Super Administrator account cannot be deactivated or suspended."
+      "Primary Super Administrator account cannot be deactivated or suspended."
     );
   }
 
@@ -235,13 +235,13 @@ export const deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent deleting Super Admin
-  const isSuper = isSuperAdminUser(user);
+  // Safety: Prevent deleting Primary Root Super Admin
+  const isPrimary = isPrimarySuperAdminUser(user);
 
-  if (isSuper) {
+  if (isPrimary) {
     throw new ApiError(
       400,
-      "Super Administrator account is protected and cannot be deleted."
+      "Primary Super Administrator account is protected and cannot be deleted."
     );
   }
 
@@ -267,13 +267,13 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found.");
   }
 
-  // Safety: Prevent modifying Super Admin permissions
-  const isSuper = isSuperAdminUser(user);
+  // Safety: Prevent modifying Primary Root Super Admin permissions
+  const isPrimary = isPrimarySuperAdminUser(user);
 
-  if (isSuper) {
+  if (isPrimary) {
     throw new ApiError(
       400,
-      "Super Administrator permissions are fully enabled and cannot be altered."
+      "Primary Super Administrator permissions are fully enabled and cannot be altered."
     );
   }
 

@@ -329,6 +329,12 @@ const SUPER_ADMIN_EMAILS_LIST = [
   "abhinavtripathi32@gmail.com",
 ];
 
+// Primary Root Super Admin: ONLY Abhinav (@arclinstruments.com / gmail) is permanently locked
+const isPrimarySuperAdmin = (u) => {
+  if (!u || !u.email) return false;
+  return SUPER_ADMIN_EMAILS_LIST.includes(u.email.toLowerCase().trim());
+};
+
 const isSuperAdmin = (u) => {
   if (!u) return false;
   if (u.role === "superadmin") return true;
@@ -2388,7 +2394,7 @@ const UserManagementPage = () => {
 
                       {/* ROLE SELECTOR (INSTANT UPDATE) */}
                       <td className="p-4">
-                        {isSuperAdmin(user) ? (
+                        {isPrimarySuperAdmin(user) ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-800 border border-amber-400/50 text-xs font-black tracking-wide shadow-2xs">
                             <FaCrown className="text-amber-600 text-xs" /> SUPER ADMIN
                           </span>
@@ -2425,7 +2431,7 @@ const UserManagementPage = () => {
 
                       {/* LOGIN ACCESS SCOPE (OFFICE ONLY vs ANYWHERE) */}
                       <td className="p-4">
-                        {isSuperAdmin(user) ? (
+                        {isPrimarySuperAdmin(user) ? (
                           <span
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold shadow-2xs"
                             title="SuperAdmin account has permanent unrestricted Anywhere access"
@@ -2476,7 +2482,7 @@ const UserManagementPage = () => {
 
                       {/* GRANULAR PERMISSIONS MODAL TRIGGER */}
                       <td className="p-4">
-                        {isSuperAdmin(user) ? (
+                        {isPrimarySuperAdmin(user) ? (
                           <button
                             type="button"
                             onClick={() => handleOpenPermissionsModal(user)}
@@ -2526,7 +2532,7 @@ const UserManagementPage = () => {
                           <Toggle
                             checked={user.isActive !== false}
                             onChange={() => handleToggleStatus(user._id)}
-                            disabled={updatingId === user._id || isSuperAdmin(user)}
+                            disabled={updatingId === user._id || isPrimarySuperAdmin(user)}
                           />
                           <span
                             className={`text-xs font-medium ${
@@ -2570,7 +2576,7 @@ const UserManagementPage = () => {
                             <FaSlidersH size={13} />
                           </button>
 
-                          {isSuperAdmin(user) ? (
+                          {isPrimarySuperAdmin(user) ? (
                             <span className="text-[10px] text-slate-400 font-semibold italic px-1">Protected</span>
                           ) : (
                             <button
