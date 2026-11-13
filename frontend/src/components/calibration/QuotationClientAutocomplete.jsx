@@ -39,6 +39,7 @@ export default function QuotationClientAutocomplete({
   const inputRef = useRef(null);
   const listRef = useRef(null);
   const directRecRef = useRef(null);
+  const isDirectListeningRef = useRef(false);
 
   // Load saved clients from localStorage on mount and when modal opens
   useEffect(() => {
@@ -50,7 +51,9 @@ export default function QuotationClientAutocomplete({
     e?.preventDefault?.();
     e?.stopPropagation?.();
 
-    if (isDirectListening) {
+    if (isDirectListeningRef.current) {
+      isDirectListeningRef.current = false;
+      setIsDirectListening(false);
       if (directRecRef.current) {
         try {
           directRecRef.current.onend = null;
@@ -61,7 +64,7 @@ export default function QuotationClientAutocomplete({
         }
         directRecRef.current = null;
       }
-      setIsDirectListening(false);
+      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped", autoClose: 1500 });
       return;
     }
 
@@ -86,9 +89,10 @@ export default function QuotationClientAutocomplete({
       directRecRef.current = recognition;
       recognition.lang = voiceLang || "en-IN";
       recognition.interimResults = true;
-      recognition.continuous = false; // YouTube & Google Search fast single-session streaming
+      recognition.continuous = false; // Fast single-session streaming with auto-restart on pause
 
       recognition.onstart = () => {
+        isDirectListeningRef.current = true;
         setIsDirectListening(true);
         setIsOpen(true);
         toast.info("🎙️ Mic On: Bolna shuru karein...", {
@@ -108,6 +112,7 @@ export default function QuotationClientAutocomplete({
         if (clean) {
           onChange?.(clean);
           setIsOpen(true);
+          toast.success(`🗣️ Suna: "${clean}"`, { toastId: "live-heard", autoClose: 1500 });
 
           const last = event.results[event.results.length - 1];
           if (last?.isFinal) {
@@ -137,23 +142,54 @@ export default function QuotationClientAutocomplete({
       };
 
       recognition.onerror = (event) => {
-        console.warn("Direct voice recognition error:", event.error);
-        setIsDirectListening(false);
-        if (event.error === "not-allowed") {
-          toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.");
+        const err = event?.error || "unknown";
+        if (err === "no-speech") {
+          // Normal pause, keep listening alive
+          return;
+        }
+        if (err === "aborted") return;
+
+        console.warn("Direct voice recognition error:", err);
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          isDirectListeningRef.current = false;
+          setIsDirectListening(false);
+          toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
+        } else if (err === "network") {
+          toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "voice-net-retry", autoClose: 2500 });
+        } else {
+          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "voice-err-notice", autoClose: 3000 });
         }
       };
 
       recognition.onend = () => {
-        setIsDirectListening(false);
-        if (inputRef.current) {
-          inputRef.current.focus();
+        // Auto-restart if user is still dictating so pauses don't abort
+        if (isDirectListeningRef.current) {
+          try {
+            recognition.start();
+          } catch {
+            setTimeout(() => {
+              if (isDirectListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch {
+                  // ignore
+                }
+              }
+            }, 100);
+          }
+        } else {
+          setIsDirectListening(false);
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
         }
       };
 
+      isDirectListeningRef.current = true;
       recognition.start();
     } catch (err) {
       console.error("Direct voice start error:", err);
+      isDirectListeningRef.current = false;
       setIsDirectListening(false);
     }
   };
@@ -416,6 +452,35 @@ export default function QuotationClientAutocomplete({
           </button>
         </div>
       </div>
+
+      {/* 1-Tap Quick Fill Client Pills */}
+      {allClientsPool.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <span className="text-[9px] font-bold text-slate-500">Quick 1-Tap:</span>
+          {allClientsPool.slice(0, 4).map((c, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange?.(c.companyName);
+                onSelectClient?.(c);
+                setIsOpen(false);
+                toast.success(`✅ Filled: ${c.companyName}`);
+              }}
+              className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
+              title={`1-Click auto-fill ${c.companyName}`}
+            >
+              <span>⭐</span>
+              <span className="max-w-[130px] truncate">
+                {c.companyName.split(" ")[0]} {c.companyName.split(" ")[1] || ""}
+              </span>
+              <span className="text-blue-500 font-bold">↵</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Voice Status Pill */}
       {isDirectListening && (

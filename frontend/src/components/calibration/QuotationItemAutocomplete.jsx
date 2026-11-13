@@ -29,6 +29,7 @@ export default function QuotationItemAutocomplete({
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const directRecRef = useRef(null);
+  const isDirectListeningRef = useRef(false);
 
   useEffect(() => {
     setSavedCustomItems(getSavedQuotationItems());
@@ -39,7 +40,9 @@ export default function QuotationItemAutocomplete({
     e?.preventDefault?.();
     e?.stopPropagation?.();
 
-    if (isDirectListening) {
+    if (isDirectListeningRef.current) {
+      isDirectListeningRef.current = false;
+      setIsDirectListening(false);
       if (directRecRef.current) {
         try {
           directRecRef.current.onend = null;
@@ -50,7 +53,7 @@ export default function QuotationItemAutocomplete({
         }
         directRecRef.current = null;
       }
-      setIsDirectListening(false);
+      toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped-item", autoClose: 1500 });
       return;
     }
 
@@ -75,9 +78,10 @@ export default function QuotationItemAutocomplete({
       directRecRef.current = recognition;
       recognition.lang = voiceLang || "en-IN";
       recognition.interimResults = true;
-      recognition.continuous = false; // Fast single-session streaming
+      recognition.continuous = false; // Fast single-session streaming with auto-restart on pause
 
       recognition.onstart = () => {
+        isDirectListeningRef.current = true;
         setIsDirectListening(true);
         setIsOpen(true);
         toast.info("🎙️ Mic On: Bolna shuru karein...", {
@@ -97,6 +101,7 @@ export default function QuotationItemAutocomplete({
         if (clean) {
           onChange?.(clean);
           setIsOpen(true);
+          toast.success(`🗣️ Suna: "${clean}"`, { toastId: "live-heard-item", autoClose: 1500 });
 
           const last = event.results[event.results.length - 1];
           if (last?.isFinal) {
@@ -126,23 +131,50 @@ export default function QuotationItemAutocomplete({
       };
 
       recognition.onerror = (event) => {
-        console.warn("Direct voice item error:", event.error);
-        setIsDirectListening(false);
-        if (event.error === "not-allowed") {
-          toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.");
+        const err = event?.error || "unknown";
+        if (err === "no-speech") return;
+        if (err === "aborted") return;
+
+        console.warn("Direct voice item error:", err);
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          isDirectListeningRef.current = false;
+          setIsDirectListening(false);
+          toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
+        } else if (err === "network") {
+          toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "item-net-retry", autoClose: 2500 });
+        } else {
+          toast.warn(`🎙️ Speech notice: ${err}`, { toastId: "item-err-notice", autoClose: 3000 });
         }
       };
 
       recognition.onend = () => {
-        setIsDirectListening(false);
-        if (inputRef.current) {
-          inputRef.current.focus();
+        if (isDirectListeningRef.current) {
+          try {
+            recognition.start();
+          } catch {
+            setTimeout(() => {
+              if (isDirectListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch {
+                  // ignore
+                }
+              }
+            }, 100);
+          }
+        } else {
+          setIsDirectListening(false);
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
         }
       };
 
+      isDirectListeningRef.current = true;
       recognition.start();
     } catch (err) {
       console.error("Direct voice item start error:", err);
+      isDirectListeningRef.current = false;
       setIsDirectListening(false);
     }
   };
