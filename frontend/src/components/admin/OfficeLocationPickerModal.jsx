@@ -147,13 +147,11 @@ export default function OfficeLocationPickerModal({
   });
   const [radiusMeters, setRadiusMeters] = useState(initialRadius || 150);
 
-  // Address fields
-  const [unitNo, setUnitNo] = useState("Shop No. 6");
-  const [buildingName, setBuildingName] = useState("Siddhivinayak Park CHS");
-  const [areaText, setAreaText] = useState("Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708");
-  const [fullAddress, setFullAddress] = useState(
-    initialAddress || ARCL_AIROLI_LAB.address
-  );
+  // Address fields - start empty by default unless matching Airoli Lab preset
+  const [unitNo, setUnitNo] = useState("");
+  const [buildingName, setBuildingName] = useState("");
+  const [areaText, setAreaText] = useState("");
+  const [fullAddress, setFullAddress] = useState("");
 
   const [mapType, setMapType] = useState("satellite"); // Default to Satellite View so users can see rooftops!
   const [searchQuery, setSearchQuery] = useState("");
@@ -177,19 +175,24 @@ export default function OfficeLocationPickerModal({
       setCoords({ latitude: lat, longitude: lon });
       setRadiusMeters(initialRadius || 150);
 
-      const baseAddress = initialAddress || ARCL_AIROLI_LAB.address;
-      setFullAddress(baseAddress);
+      const isNearAiroli = Math.abs(lat - 19.1553) < 0.01 && Math.abs(lon - 72.9982) < 0.01;
 
-      const parts = baseAddress.split(",");
-      if (parts.length >= 3) {
-        setUnitNo(parts[0].trim());
-        setBuildingName(parts[1].trim());
-        setAreaText(parts.slice(2).join(",").trim());
-      } else if (parts.length === 2) {
-        setBuildingName(parts[0].trim());
-        setAreaText(parts[1].trim());
+      if (isNearAiroli) {
+        setUnitNo("Shop No. 6");
+        setBuildingName("Siddhivinayak Park CHS");
+        setAreaText("Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708");
+        setFullAddress(initialAddress || ARCL_AIROLI_LAB.address);
       } else {
-        setBuildingName(baseAddress);
+        // Location is custom / current user location (e.g. Nilaje, Dombivli, Kalyan)
+        setUnitNo("");
+        setBuildingName("");
+        if (initialAddress && !initialAddress.includes("Siddhivinayak Park")) {
+          setFullAddress(initialAddress);
+          setAreaText(initialAddress);
+        } else {
+          // Immediately reverse-geocode the true coordinates!
+          performReverseGeocode(lat, lon);
+        }
       }
 
       setSearchQuery("");
@@ -209,7 +212,7 @@ export default function OfficeLocationPickerModal({
     };
   }, []);
 
-  // Reverse geocoding helper (updates areaText and immediately updates fullAddress text box!)
+  // Reverse geocoding helper (cleans fake presets and detects REAL street/locality address!)
   const performReverseGeocode = useCallback(
     async (lat, lon) => {
       try {
@@ -222,11 +225,15 @@ export default function OfficeLocationPickerModal({
           const data = await res.json();
           const addr = data?.address || {};
 
-          // Extract road, sector, city, state, pincode
+          // Extract building, road, neighbourhood, suburb, village, city, state, pincode
           const parts = [
+            addr.building || addr.house_name || addr.amenity,
             addr.road,
-            addr.suburb || addr.neighbourhood || addr.city_district,
-            addr.city || addr.town || addr.village,
+            addr.neighbourhood,
+            addr.suburb,
+            addr.village,
+            addr.city || addr.town || addr.city_district,
+            addr.county || addr.state_district,
             addr.state,
             addr.postcode,
           ]
@@ -236,12 +243,28 @@ export default function OfficeLocationPickerModal({
           const newArea = parts.length > 0 ? parts.join(", ") : data.display_name || "";
           setAreaText(newArea);
 
-          // Update full address text box immediately!
-          setFullAddress((prev) => {
-            const currentBld = buildingName.trim();
-            const currentUnit = unitNo.trim();
-            return composeAddress(currentUnit, currentBld, newArea);
-          });
+          const isNearAiroli = Math.abs(lat - 19.1553) < 0.01 && Math.abs(lon - 72.9982) < 0.01;
+
+          // If location is NOT Airoli, clear out default Airoli building & shop no so they never corrupt other cities!
+          let currentBld = buildingName.trim();
+          let currentUnit = unitNo.trim();
+          if (!isNearAiroli && currentBld === "Siddhivinayak Park CHS") {
+            currentBld = "";
+            setBuildingName("");
+          }
+          if (!isNearAiroli && currentUnit === "Shop No. 6") {
+            currentUnit = "";
+            setUnitNo("");
+          }
+
+          // If OSM found a real building name at this location, use it
+          if (!isNearAiroli && !currentBld && (addr.building || addr.house_name || addr.amenity)) {
+            currentBld = addr.building || addr.house_name || addr.amenity;
+            setBuildingName(currentBld);
+          }
+
+          // Update full address text box with true address!
+          setFullAddress(composeAddress(currentUnit, currentBld, newArea));
         }
       } catch (e) {
         console.warn("Reverse geocode warning:", e);
@@ -958,35 +981,59 @@ export default function OfficeLocationPickerModal({
             {/* Top row: Building Name, Shop No, and Radius Slider */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
               
-              {/* Building Name Input - Prominently Highlighted */}
+              {/* Building Name Input - Prominently Highlighted with Clear button */}
               <div className="sm:col-span-6 space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <FaBuilding /> 1. Apni Building / Society Ka Naam:
                   </span>
-                  <span className="text-[10px] text-amber-300/80 font-bold lowercase">(yahan building name likhein)</span>
+                  <span className="text-[10px] text-amber-300/80 font-bold lowercase">(optional - custom building)</span>
                 </label>
-                <input
-                  type="text"
-                  value={buildingName}
-                  onChange={(e) => handleBuildingNameChange(e.target.value)}
-                  placeholder="e.g. Siddhivinayak Park CHS ya Laboratory Name..."
-                  className="w-full bg-slate-900 border-2 border-amber-400 focus:border-amber-300 text-white rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold outline-none shadow-lg placeholder:text-slate-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={buildingName}
+                    onChange={(e) => handleBuildingNameChange(e.target.value)}
+                    placeholder="e.g. Apni building/society ka naam yahan likhein (optional)..."
+                    className="w-full bg-slate-900 border-2 border-amber-400 focus:border-amber-300 text-white rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold outline-none shadow-lg placeholder:text-slate-500 pr-8"
+                  />
+                  {buildingName && (
+                    <button
+                      type="button"
+                      onClick={() => handleBuildingNameChange("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
+                      title="Clear building name"
+                    >
+                      <FaTimes size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Shop / Flat / Unit No */}
+              {/* Shop / Flat / Unit No with Clear button */}
               <div className="sm:col-span-3 space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-300 block">
                   2. Shop / Flat No:
                 </label>
-                <input
-                  type="text"
-                  value={unitNo}
-                  onChange={(e) => handleUnitNoChange(e.target.value)}
-                  placeholder="e.g. Shop No. 6, 1st Floor..."
-                  className="w-full bg-slate-900 border-2 border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium outline-none shadow-inner"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={unitNo}
+                    onChange={(e) => handleUnitNoChange(e.target.value)}
+                    placeholder="e.g. Shop 6, Flat 101 (optional)..."
+                    className="w-full bg-slate-900 border-2 border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium outline-none shadow-inner pr-8"
+                  />
+                  {unitNo && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnitNoChange("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
+                      title="Clear unit no"
+                    >
+                      <FaTimes size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Perimeter Radius */}
@@ -1018,13 +1065,23 @@ export default function OfficeLocationPickerModal({
 
             {/* FULL REGISTERED ADDRESS TEXT BOX (THIS IS WHAT GETS SAVED) */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <label className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <FaCheckCircle className="text-emerald-400" /> 3. Full Registered Office Address (Jo Database Me Save Hoga):
                 </label>
-                <span className="text-[11px] font-mono font-bold text-amber-300 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
-                  📍 Lat: {coords.latitude.toFixed(6)}, Lon: {coords.longitude.toFixed(6)}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => performReverseGeocode(coords.latitude, coords.longitude)}
+                    className="text-[10px] font-bold text-sky-400 hover:text-sky-300 bg-sky-950/80 border border-sky-700/60 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
+                    title="Pin ke exact location ka asli address auto-detect karein"
+                  >
+                    <span>🔄 Re-Detect Address at Pin</span>
+                  </button>
+                  <span className="text-[11px] font-mono font-bold text-amber-300 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
+                    📍 Lat: {coords.latitude.toFixed(6)}, Lon: {coords.longitude.toFixed(6)}
+                  </span>
+                </div>
               </div>
 
               {/* Visible, high-contrast editable textarea */}
