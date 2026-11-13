@@ -20,6 +20,10 @@ export default function QuotationItemAutocomplete({
   placeholder = "e.g. Compression Testing Machine 2000kN - Calibration",
   className = "",
   disabled = false,
+  dataGrid,
+  dataRow,
+  dataCol,
+  onKeyDown,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -359,22 +363,44 @@ export default function QuotationItemAutocomplete({
   };
 
   const handleKeyDown = (e) => {
-    if (!isOpen) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") setIsOpen(true);
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightedIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
-    } else if (e.key === "Enter") {
-      if (highlightedIndex >= 0 && highlightedIndex < filtered.length) {
+    if (isOpen && highlightedIndex >= 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
+        return;
+      }
+      if (e.key === "Enter") {
         e.preventDefault();
         handleSelect(filtered[highlightedIndex]);
+        return;
       }
-    } else if (e.key === "Escape") {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        return;
+      }
+    }
+
+    // Delegate to external table grid navigation handler
+    if (typeof onKeyDown === "function") {
+      onKeyDown(e);
+      if (e.defaultPrevented) {
+        setIsOpen(false);
+        return;
+      }
+    }
+
+    if (!isOpen) {
+      if (e.key === "ArrowDown" && e.altKey) setIsOpen(true);
+      return;
+    }
+
+    if (e.key === "Escape") {
       setIsOpen(false);
       setHighlightedIndex(-1);
     }
@@ -386,12 +412,22 @@ export default function QuotationItemAutocomplete({
         <input
           ref={inputRef}
           type="text"
+          data-grid={dataGrid}
+          data-row={dataRow}
+          data-col={dataCol}
           value={value}
           onChange={(e) => {
             onChange?.(e.target.value);
             setIsOpen(true);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={(e) => {
+            setIsOpen(true);
+            try {
+              e.target.select();
+            } catch {
+              // ignore
+            }
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}

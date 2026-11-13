@@ -154,6 +154,7 @@ import ExactSheetRenderer from "../../components/calibration/ExactSheetRenderer.
 import ObservationInputAssistant from "../../components/calibration/ObservationInputAssistant.jsx";
 import { evaluateTemplateWorkbookResults } from "../../utils/exactFormulaEngine.js";
 import { toast } from "react-toastify";
+import { handleTableGridKeyDown } from "../../utils/tableGridNavigation.js";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { hasModuleAccess, isSuperAdmin } from "../../utils/rbac.js";
 
@@ -14857,6 +14858,9 @@ export default function CalibrationPageView() {
                                     <span className="text-[10px] text-teal-800 font-mono font-bold bg-white px-2 py-0.5 rounded border border-teal-200">
                                       {fillableCols.length} Observation Columns
                                     </span>
+                                    <span className="text-[10px] text-teal-900 font-bold bg-white px-2 py-0.5 rounded border border-teal-300 shadow-2xs hidden sm:inline-flex items-center gap-1">
+                                      ⌨️ Excel Keys: [Enter ↵] Next Row | [↑ ↓ ← →] Daye-Baye Move Karein
+                                    </span>
                                   </div>
                                 </div>
 
@@ -14886,8 +14890,22 @@ export default function CalibrationPageView() {
                                               <td key={col.key || cIdx} className="p-1">
                                                 <input
                                                   type="text"
+                                                  data-grid="observation"
+                                                  data-row={idx}
+                                                  data-col={cIdx}
                                                   value={val}
                                                   onChange={(e) => handleReadingChange(idx, col.key, e.target.value)}
+                                                  onKeyDown={(e) =>
+                                                    handleTableGridKeyDown(e, {
+                                                      grid: "observation",
+                                                      row: idx,
+                                                      col: cIdx,
+                                                      maxRows: obsReadings.length,
+                                                      maxCols: fillableCols.length,
+                                                      onEnterLastRow: handleAddReadingRow,
+                                                    })
+                                                  }
+                                                  onFocus={(e) => e.target.select?.()}
                                                   disabled={isObsLocked}
                                                   placeholder={`Enter ${col.label || ""}`}
                                                   className={`w-full text-center font-mono px-1 py-0.5 border rounded text-xs focus:outline-none focus:border-teal-500 ${
@@ -14937,8 +14955,21 @@ export default function CalibrationPageView() {
                                                   </span>
                                                   <input
                                                     type="text"
+                                                    data-grid="obsRepeatability"
+                                                    data-row={0}
+                                                    data-col={idx}
                                                     value={obsRepeatabilityReadings[idx] || ""}
                                                     onChange={(e) => handleRepeatabilityReadingChange(idx, e.target.value)}
+                                                    onKeyDown={(e) =>
+                                                      handleTableGridKeyDown(e, {
+                                                        grid: "obsRepeatability",
+                                                        row: 0,
+                                                        col: idx,
+                                                        maxRows: 1,
+                                                        maxCols: 5,
+                                                      })
+                                                    }
+                                                    onFocus={(e) => e.target.select?.()}
                                                     disabled={isObsLocked}
                                                     placeholder={`Reading ${idx + 1}`}
                                                     className="w-full px-1.5 py-1 text-xs font-mono font-bold text-center text-slate-900 bg-transparent focus:outline-none"
@@ -22313,16 +22344,44 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r space-y-1">
                             <input
                               type="text"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={0}
                               style={{ backgroundColor: "#ffffff", color: "#0f172a", borderColor: "#e2e8f0" }}
                               value={it.name}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'name', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 0,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-full font-bold border rounded px-1.5 py-0.5 text-[11px] focus:border-purple-500 focus:outline-none"
                             />
                             <input
                               type="text"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={1}
                               style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
                               value={it.subText || ""}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'subText', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 1,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-purple-500 focus:outline-none"
                               placeholder="Subtitle (e.g. NABL Certificate)"
                             />
@@ -22330,36 +22389,92 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="text"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={2}
                               style={{ backgroundColor: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
                               value={it.hsnSac || "998346"}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'hsnSac', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 2,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-16 font-mono text-center text-[10px] border rounded px-1 py-0.5 focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="text"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={3}
                               style={{ backgroundColor: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
                               value={it.taxRate || "18%"}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'taxRate', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 3,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-12 text-center text-[10px] border rounded px-1 py-0.5 focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="number"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={4}
                               style={{ backgroundColor: "#faf5ff", color: "#581c87", borderColor: "#d8b4fe" }}
                               value={it.qty}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'qty', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 4,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-12 font-bold text-center border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-right">
                             <input
                               type="number"
+                              data-grid="taxInvoice"
+                              data-row={idx}
+                              data-col={5}
                               style={{ backgroundColor: "#fffbeb", color: "#b45309", borderColor: "#fde68a" }}
                               value={it.rate}
                               onChange={(e) => handleTaxInvoiceItemChange(idx, 'rate', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "taxInvoice",
+                                  row: idx,
+                                  col: 5,
+                                  maxRows: (taxInvoiceForm.items || defaultTaxInvoice26Items).length,
+                                  maxCols: 6,
+                                  onEnterLastRow: handleAddTaxInvoiceItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-18 font-mono text-right border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
@@ -22960,16 +23075,44 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r space-y-1">
                             <input
                               type="text"
+                              data-grid="proforma"
+                              data-row={idx}
+                              data-col={0}
                               style={{ backgroundColor: "#ffffff", color: "#0f172a", borderColor: "#e2e8f0" }}
                               value={it.name}
                               onChange={(e) => handleProformaItemChange(idx, 'name', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "proforma",
+                                  row: idx,
+                                  col: 0,
+                                  maxRows: (proformaForm.items || defaultProforma26Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddProformaItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-full font-bold border rounded px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:outline-none"
                             />
                             <input
                               type="text"
+                              data-grid="proforma"
+                              data-row={idx}
+                              data-col={1}
                               style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
                               value={it.subText || ""}
                               onChange={(e) => handleProformaItemChange(idx, 'subText', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "proforma",
+                                  row: idx,
+                                  col: 1,
+                                  maxRows: (proformaForm.items || defaultProforma26Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddProformaItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
                               placeholder="Subtitle"
                             />
@@ -22977,27 +23120,69 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="text"
+                              data-grid="proforma"
+                              data-row={idx}
+                              data-col={2}
                               style={{ backgroundColor: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
                               value={it.hsnSac || "998346"}
                               onChange={(e) => handleProformaItemChange(idx, 'hsnSac', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "proforma",
+                                  row: idx,
+                                  col: 2,
+                                  maxRows: (proformaForm.items || defaultProforma26Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddProformaItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-16 font-mono text-center text-[10px] border rounded px-1 py-0.5 focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-right">
                             <input
                               type="number"
+                              data-grid="proforma"
+                              data-row={idx}
+                              data-col={3}
                               style={{ backgroundColor: "#fffbeb", color: "#b45309", borderColor: "#fde68a" }}
                               value={it.rate}
                               onChange={(e) => handleProformaItemChange(idx, 'rate', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "proforma",
+                                  row: idx,
+                                  col: 3,
+                                  maxRows: (proformaForm.items || defaultProforma26Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddProformaItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-20 font-mono text-right border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="number"
+                              data-grid="proforma"
+                              data-row={idx}
+                              data-col={4}
                               style={{ backgroundColor: "#eff6ff", color: "#1e3a8a", borderColor: "#bfdbfe" }}
                               value={it.qty}
                               onChange={(e) => handleProformaItemChange(idx, 'qty', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "proforma",
+                                  row: idx,
+                                  col: 4,
+                                  maxRows: (proformaForm.items || defaultProforma26Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddProformaItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-12 font-bold text-center border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
@@ -23496,6 +23681,9 @@ export default function CalibrationPageView() {
                     <span className="text-xs font-bold text-blue-900">
                       Standard Items: {((quotationForm.items || defaultStandard37Items).length)} Instruments
                     </span>
+                    <span className="text-[10px] font-bold text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-300 shadow-2xs hidden sm:inline-flex items-center gap-1">
+                      ⌨️ Excel Keys: [Enter ↵] Next Row | [↑ ↓ ← →] Daye-Baye Move Karein
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -23539,8 +23727,21 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center font-bold text-gray-800">{it.itemNo || idx + 1}</td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r space-y-1">
                             <QuotationItemAutocomplete
+                              dataGrid="quotation"
+                              dataRow={idx}
+                              dataCol={0}
                               value={it.name}
                               onChange={(val) => handleQuotationItemChange(idx, 'name', val)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "quotation",
+                                  row: idx,
+                                  col: 0,
+                                  maxRows: (quotationForm.items || defaultStandard37Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddQuotationItem,
+                                })
+                              }
                               onSelectItem={(sugg) => {
                                 handleQuotationItemChange(idx, 'name', sugg.name);
                                 handleQuotationItemChange(idx, 'subText', normalizeItemSubText(sugg.subText || 'NABL Certificate'));
@@ -23552,9 +23753,23 @@ export default function CalibrationPageView() {
                             <div className="flex items-center gap-1">
                               <input
                                 type="text"
+                                data-grid="quotation"
+                                data-row={idx}
+                                data-col={1}
                                 style={{ backgroundColor: "#ffffff", color: "#475569", borderColor: "#e2e8f0" }}
                                 value={normalizeItemSubText(it.subText)}
                                 onChange={(e) => handleQuotationItemChange(idx, 'subText', e.target.value)}
+                                onKeyDown={(e) =>
+                                  handleTableGridKeyDown(e, {
+                                    grid: "quotation",
+                                    row: idx,
+                                    col: 1,
+                                    maxRows: (quotationForm.items || defaultStandard37Items).length,
+                                    maxCols: 5,
+                                    onEnterLastRow: handleAddQuotationItem,
+                                  })
+                                }
+                                onFocus={(e) => e.target.select?.()}
                                 className="w-full text-[10px] border rounded px-1.5 py-0.5 focus:border-blue-500 focus:outline-none"
                                 placeholder="Scope Subtitle (e.g. NABL Certificate)"
                               />
@@ -23573,27 +23788,69 @@ export default function CalibrationPageView() {
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="text"
+                              data-grid="quotation"
+                              data-row={idx}
+                              data-col={2}
                               style={{ backgroundColor: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
                               value={it.hsnSac || "998346"}
                               onChange={(e) => handleQuotationItemChange(idx, 'hsnSac', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "quotation",
+                                  row: idx,
+                                  col: 2,
+                                  maxRows: (quotationForm.items || defaultStandard37Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddQuotationItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-16 font-mono text-center text-[10px] border rounded px-1 py-0.5 focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-center">
                             <input
                               type="number"
+                              data-grid="quotation"
+                              data-row={idx}
+                              data-col={3}
                               style={{ backgroundColor: "#eff6ff", color: "#1e3a8a", borderColor: "#bfdbfe" }}
                               value={it.qty}
                               onChange={(e) => handleQuotationItemChange(idx, 'qty', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "quotation",
+                                  row: idx,
+                                  col: 3,
+                                  maxRows: (quotationForm.items || defaultStandard37Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddQuotationItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-12 font-bold text-center border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
                           <td style={{ borderColor: "#cbd5e1" }} className="p-1 border-r text-right">
                             <input
                               type="number"
+                              data-grid="quotation"
+                              data-row={idx}
+                              data-col={4}
                               style={{ backgroundColor: "#fffbeb", color: "#b45309", borderColor: "#fde68a" }}
                               value={it.rate}
                               onChange={(e) => handleQuotationItemChange(idx, 'rate', e.target.value)}
+                              onKeyDown={(e) =>
+                                handleTableGridKeyDown(e, {
+                                  grid: "quotation",
+                                  row: idx,
+                                  col: 4,
+                                  maxRows: (quotationForm.items || defaultStandard37Items).length,
+                                  maxCols: 5,
+                                  onEnterLastRow: handleAddQuotationItem,
+                                })
+                              }
+                              onFocus={(e) => e.target.select?.()}
                               className="w-20 font-mono text-right border rounded px-1 py-0.5 text-xs focus:outline-none"
                             />
                           </td>
