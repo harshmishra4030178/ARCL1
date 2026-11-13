@@ -68,12 +68,18 @@ export default function QuotationItemAutocomplete({
     onChange?.(clean);
 
     const cleanLower = clean.toLowerCase();
-    const match = allItemsPool.find(
-      (it) =>
-        it.name.toLowerCase() === cleanLower ||
-        it.name.toLowerCase().includes(cleanLower) ||
-        cleanLower.includes(it.name.toLowerCase())
-    );
+    const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
+    const match = allItemsPool.find((it) => {
+      const itLower = it.name.toLowerCase();
+      if (
+        itLower === cleanLower ||
+        itLower.includes(cleanLower) ||
+        cleanLower.includes(itLower)
+      ) {
+        return true;
+      }
+      return cleanWords.some((w) => w.length >= 4 && itLower.includes(w));
+    });
     if (match) {
       onSelectItem?.(match);
       setIsOpen(false);

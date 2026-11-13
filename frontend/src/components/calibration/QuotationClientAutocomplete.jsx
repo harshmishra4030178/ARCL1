@@ -81,12 +81,18 @@ export default function QuotationClientAutocomplete({
 
     // Check if the spoken text matches an existing client
     const cleanLower = clean.toLowerCase();
-    const match = allClientsPool.find(
-      (c) =>
-        c.companyName.toLowerCase() === cleanLower ||
-        c.companyName.toLowerCase().includes(cleanLower) ||
-        cleanLower.includes(c.companyName.toLowerCase())
-    );
+    const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
+    const match = allClientsPool.find((c) => {
+      const compLower = c.companyName.toLowerCase();
+      if (
+        compLower === cleanLower ||
+        compLower.includes(cleanLower) ||
+        cleanLower.includes(compLower)
+      ) {
+        return true;
+      }
+      return cleanWords.some((w) => w.length >= 3 && compLower.includes(w));
+    });
     if (match) {
       onSelectClient?.(match);
       setIsOpen(false);
