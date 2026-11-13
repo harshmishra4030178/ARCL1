@@ -99,7 +99,7 @@ export default function GoogleVoiceModal({
         recognitionRef.current = recognition;
         recognition.lang = useLang;
         recognition.interimResults = true;
-        recognition.continuous = true;
+        recognition.continuous = false; // Fast, reliable YouTube/Google Search single-session streaming
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {

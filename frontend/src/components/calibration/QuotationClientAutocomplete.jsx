@@ -34,14 +34,129 @@ export default function QuotationClientAutocomplete({
   const [savedClients, setSavedClients] = useState([]);
   const [voiceLang, setVoiceLang] = useState("en-IN");
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isDirectListening, setIsDirectListening] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  const directRecRef = useRef(null);
 
   // Load saved clients from localStorage on mount and when modal opens
   useEffect(() => {
     setSavedClients(getSavedQuotationClients());
   }, []);
+
+  // Direct Inline Voice Dictation (Google Search & YouTube Model)
+  const toggleDirectVoice = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    if (isDirectListening) {
+      if (directRecRef.current) {
+        try {
+          directRecRef.current.onend = null;
+          directRecRef.current.onerror = null;
+          directRecRef.current.stop();
+        } catch {
+          // ignore
+        }
+        directRecRef.current = null;
+      }
+      setIsDirectListening(false);
+      return;
+    }
+
+    const SpeechRec =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRec) {
+      toast.warn("🎙️ Voice typing Google Chrome ya Microsoft Edge me chalti hai.");
+      return;
+    }
+
+    try {
+      if (directRecRef.current) {
+        try {
+          directRecRef.current.abort();
+        } catch {
+          // ignore
+        }
+      }
+
+      const recognition = new SpeechRec();
+      directRecRef.current = recognition;
+      recognition.lang = voiceLang || "en-IN";
+      recognition.interimResults = true;
+      recognition.continuous = false; // YouTube & Google Search fast single-session streaming
+
+      recognition.onstart = () => {
+        setIsDirectListening(true);
+        setIsOpen(true);
+        toast.info("🎙️ Mic On: Bolna shuru karein...", {
+          toastId: "voice-live-direct",
+          autoClose: 2000,
+        });
+      };
+
+      recognition.onresult = (event) => {
+        if (!event || !event.results) return;
+
+        const liveText = Array.from(event.results)
+          .map((r) => (r && r[0] ? r[0].transcript : ""))
+          .join("");
+
+        const clean = liveText.trim().replace(/[.,!?;]+$/, "");
+        if (clean) {
+          onChange?.(clean);
+          setIsOpen(true);
+
+          const last = event.results[event.results.length - 1];
+          if (last?.isFinal) {
+            const cleanLower = clean.toLowerCase();
+            const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
+            const match = allClientsPool.find((c) => {
+              const compLower = c.companyName.toLowerCase();
+              if (
+                compLower === cleanLower ||
+                compLower.includes(cleanLower) ||
+                cleanLower.includes(compLower)
+              ) {
+                return true;
+              }
+              return cleanWords.some((w) => w.length >= 3 && compLower.includes(w));
+            });
+            if (match) {
+              onSelectClient?.(match);
+              setIsOpen(false);
+              toast.success(`✅ Selected: ${match.companyName}`, {
+                toastId: "client-match",
+                autoClose: 2500,
+              });
+            }
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Direct voice recognition error:", event.error);
+        setIsDirectListening(false);
+        if (event.error === "not-allowed") {
+          toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.");
+        }
+      };
+
+      recognition.onend = () => {
+        setIsDirectListening(false);
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error("Direct voice start error:", err);
+      setIsDirectListening(false);
+    }
+  };
 
   // Voice Input Hook
   const voice = useVoiceInput({
@@ -241,12 +356,12 @@ export default function QuotationClientAutocomplete({
           required={required}
           placeholder={placeholder}
           className={`w-full pr-24 pl-3 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition ${
-            voice.isListening ? "ring-2 ring-rose-400 border-rose-500" : ""
+            isDirectListening ? "ring-2 ring-rose-400 border-rose-500" : ""
           } ${className}`}
           style={{
             backgroundColor: "#eff6ff",
             color: "#1e3a8a",
-            borderColor: voice.isListening ? "#ef4444" : isOpen ? "#3b82f6" : "#bfdbfe",
+            borderColor: isDirectListening ? "#ef4444" : isOpen ? "#3b82f6" : "#bfdbfe",
           }}
         />
 
@@ -274,9 +389,6 @@ export default function QuotationClientAutocomplete({
               e.stopPropagation();
               const next = voiceLang === "en-IN" ? "hi-IN" : "en-IN";
               setVoiceLang(next);
-              if (voice.isListening) {
-                voice.startListening({ lang: next, continuous: true });
-              }
             }}
             className="px-1 py-0.5 rounded text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
             title="Switch voice language: English (en-IN) / Hindi (hi-IN)"
@@ -284,17 +396,21 @@ export default function QuotationClientAutocomplete({
             {voiceLang === "hi-IN" ? "🇮🇳 HI" : "🇮🇳 EN"}
           </button>
 
-          {/* Google / YouTube Voice Microphone Button */}
+          {/* Direct Voice Speech-to-Text Button (YouTube & Google Search Model) */}
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsVoiceModalOpen(true);
-            }}
+            onClick={toggleDirectVoice}
             disabled={disabled}
-            className="p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs active:scale-95"
-            title="Google / YouTube Style Voice Dictation (Speak to type)"
+            className={`p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95 ${
+              isDirectListening
+                ? "bg-rose-600 text-white animate-pulse ring-2 ring-rose-300"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+            }`}
+            title={
+              isDirectListening
+                ? "Listening... Tap to stop"
+                : "Speak to type directly (YouTube/Google Model)"
+            }
           >
             <FaMicrophone className="text-xs" />
           </button>
@@ -302,15 +418,12 @@ export default function QuotationClientAutocomplete({
       </div>
 
       {/* Voice Status Pill */}
-      {voice.isListening && (
+      {isDirectListening && (
         <div className="absolute z-30 left-0 -top-7 px-2.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full shadow-md flex items-center gap-1.5 animate-pulse max-w-full truncate">
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
-          <span className="shrink-0">🎙️ Listening ({voiceLang === "hi-IN" ? "Hindi" : "English"}): Bolna shuru karein...</span>
-          {voice.transcript && (
-            <span className="bg-rose-700 px-1.5 py-0.2 rounded text-[9px] text-yellow-200 font-mono truncate max-w-[180px]">
-              "{voice.transcript}"
-            </span>
-          )}
+          <span className="shrink-0">
+            🎙️ Listening ({voiceLang === "hi-IN" ? "Hindi" : "English"}): Bolna shuru karein...
+          </span>
         </div>
       )}
 
