@@ -13,6 +13,7 @@ import {
   FaStar,
 } from "react-icons/fa";
 import useVoiceInput from "../../hooks/useVoiceInput.js";
+import GoogleVoiceModal from "../common/GoogleVoiceModal.jsx";
 import {
   getSavedQuotationClients,
   deleteSavedQuotationClient,
@@ -32,6 +33,7 @@ export default function QuotationClientAutocomplete({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [savedClients, setSavedClients] = useState([]);
   const [voiceLang, setVoiceLang] = useState("en-IN");
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
@@ -71,6 +73,27 @@ export default function QuotationClientAutocomplete({
       }
     },
   });
+
+  const handleVoiceModalApply = (spokenText) => {
+    if (!spokenText) return;
+    const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
+    onChange?.(clean);
+
+    // Check if the spoken text matches an existing client
+    const cleanLower = clean.toLowerCase();
+    const match = allClientsPool.find(
+      (c) =>
+        c.companyName.toLowerCase() === cleanLower ||
+        c.companyName.toLowerCase().includes(cleanLower) ||
+        cleanLower.includes(c.companyName.toLowerCase())
+    );
+    if (match) {
+      onSelectClient?.(match);
+      setIsOpen(false);
+    } else {
+      setIsOpen(true);
+    }
+  };
 
   // Combine savedClients + recordsClients + seed into a unified pool without duplicates
   const allClientsPool = useMemo(() => {
@@ -255,35 +278,19 @@ export default function QuotationClientAutocomplete({
             {voiceLang === "hi-IN" ? "🇮🇳 HI" : "🇮🇳 EN"}
           </button>
 
-          {/* Voice Microphone Button */}
+          {/* Google / YouTube Voice Microphone Button */}
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (voice.isListening) {
-                voice.stopListening();
-              } else {
-                voice.startListening({ lang: voiceLang, continuous: true });
-              }
+              setIsVoiceModalOpen(true);
             }}
             disabled={disabled}
-            className={`p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
-              voice.isListening
-                ? "bg-rose-600 text-white animate-pulse shadow-md"
-                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
-            }`}
-            title={
-              voice.isListening
-                ? "Listening... Click to stop"
-                : "Speak to fill Client Company Name (Voice Dictation)"
-            }
+            className="p-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs active:scale-95"
+            title="Google / YouTube Style Voice Dictation (Speak to type)"
           >
-            {voice.isListening ? (
-              <FaMicrophone className="text-xs" />
-            ) : (
-              <FaMicrophone className="text-xs" />
-            )}
+            <FaMicrophone className="text-xs" />
           </button>
         </div>
       </div>
@@ -373,6 +380,18 @@ export default function QuotationClientAutocomplete({
           })}
         </div>
       )}
+
+      {/* Google / YouTube Style Voice Dictation Modal */}
+      <GoogleVoiceModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        onApply={handleVoiceModalApply}
+        title="Google / YouTube Voice Dictation"
+        fieldName="Client Company Name"
+        initialText={value}
+        placeholder="Bolna shuru karein (e.g. Ahluwalia Contracts, Larsen & Toubro)..."
+        defaultLang={voiceLang}
+      />
     </div>
   );
 }

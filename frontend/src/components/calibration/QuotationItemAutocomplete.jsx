@@ -8,6 +8,7 @@ import {
   FaTag,
 } from "react-icons/fa";
 import useVoiceInput from "../../hooks/useVoiceInput.js";
+import GoogleVoiceModal from "../common/GoogleVoiceModal.jsx";
 import { getSavedQuotationItems } from "../../utils/quotationStorage.js";
 
 export default function QuotationItemAutocomplete({
@@ -23,6 +24,7 @@ export default function QuotationItemAutocomplete({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [savedCustomItems, setSavedCustomItems] = useState([]);
   const [voiceLang, setVoiceLang] = useState("en-IN");
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -59,6 +61,26 @@ export default function QuotationItemAutocomplete({
       }
     },
   });
+
+  const handleVoiceModalApply = (spokenText) => {
+    if (!spokenText) return;
+    const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
+    onChange?.(clean);
+
+    const cleanLower = clean.toLowerCase();
+    const match = allItemsPool.find(
+      (it) =>
+        it.name.toLowerCase() === cleanLower ||
+        it.name.toLowerCase().includes(cleanLower) ||
+        cleanLower.includes(it.name.toLowerCase())
+    );
+    if (match) {
+      onSelectItem?.(match);
+      setIsOpen(false);
+    } else {
+      setIsOpen(true);
+    }
+  };
 
   // Combine suggestions pool
   const allItemsPool = useMemo(() => {
@@ -220,25 +242,17 @@ export default function QuotationItemAutocomplete({
             {voiceLang === "hi-IN" ? "HI" : "EN"}
           </button>
 
-          {/* Voice Mic Button */}
+          {/* Google / YouTube Voice Mic Button */}
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (voice.isListening) {
-                voice.stopListening();
-              } else {
-                voice.startListening({ lang: voiceLang, continuous: true });
-              }
+              setIsVoiceModalOpen(true);
             }}
             disabled={disabled}
-            className={`p-1 rounded text-[10px] font-bold transition flex items-center justify-center cursor-pointer ${
-              voice.isListening
-                ? "bg-rose-600 text-white animate-pulse shadow-xs"
-                : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-            }`}
-            title={voice.isListening ? "Listening... Speak item name" : "Speak to fill item name"}
+            className="p-1 rounded text-[10px] font-bold transition flex items-center justify-center cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs active:scale-95"
+            title="Google / YouTube Style Voice Typing (Speak to type)"
           >
             <FaMicrophone className="text-[10px]" />
           </button>
@@ -304,6 +318,18 @@ export default function QuotationItemAutocomplete({
           })}
         </div>
       )}
+
+      {/* Google / YouTube Style Voice Dictation Modal */}
+      <GoogleVoiceModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        onApply={handleVoiceModalApply}
+        title="Google / YouTube Voice Dictation"
+        fieldName="Equipment / Item Name"
+        initialText={value}
+        placeholder="Bolna shuru karein (e.g. Compression Testing Machine 2000kN, Digital Micrometer)..."
+        defaultLang={voiceLang}
+      />
     </div>
   );
 }
