@@ -511,57 +511,123 @@ const UserManagementPage = () => {
   };
 
   const handleCaptureCurrentGps = async () => {
+    if (typeof window === "undefined" || !navigator?.geolocation) {
+      toast.error("Aapke browser me Geolocation support uplabdh nahi hai.");
+      return;
+    }
+
     setCapturingGps(true);
 
-    const tryBrowserGeo = (highAccuracy, timeoutMs) => {
-      return new Promise((resolve, reject) => {
-        if (typeof window === "undefined" || !navigator?.geolocation) {
-          return reject(new Error("Browser does not support geolocation"));
+    // Check permission state if supported
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const permStatus = await navigator.permissions.query({ name: "geolocation" });
+        if (permStatus.state === "denied") {
+          toast.error(
+            "Location Permission Blocked hai! Browser URL bar me 🔒 icon par click karke Location 'Allow' karein."
+          );
+          setCapturingGps(false);
+          return;
         }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(pos),
-          (err) => reject(err),
-          { enableHighAccuracy: highAccuracy, timeout: timeoutMs, maximumAge: 60000 }
-        );
+      } catch (e) {
+        // Permission query not supported or failed, continue to getCurrentPosition
+      }
+    }
+
+    // Inform user to allow location if browser shows prompt
+    const noticeToastId = toast.info(
+      "📍 Live location fetch ki ja rahi hai... Kripya browser popup me 'Allow' karein.",
+      { autoClose: 8000 }
+    );
+
+    const getPosition = (options) => {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
       });
     };
 
     try {
-      // Step 1: Try fast network/WiFi triangulation first (works on desktop/laptops without GPS hardware)
-      let pos;
+      let position = null;
+
+      // Primary Attempt: High Accuracy GPS (15 seconds timeout to allow user to click 'Allow')
       try {
-        pos = await tryBrowserGeo(false, 3500);
-      } catch (err1) {
-        // Step 2: Try high accuracy (for mobile or GPS-enabled devices)
-        pos = await tryBrowserGeo(true, 4500);
+        position = await getPosition({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0, // Always get live fresh location, no cached data!
+        });
+      } catch (primaryErr) {
+        console.warn("High-accuracy GPS attempt note:", primaryErr);
+        // If user explicitly denied, don't retry, re-throw
+        if (primaryErr?.code === 1) {
+          throw primaryErr;
+        }
+        // Secondary Attempt: Standard / WiFi network triangulation (12 seconds)
+        position = await getPosition({
+          enableHighAccuracy: false,
+          timeout: 12000,
+          maximumAge: 0,
+        });
       }
 
-      const lat = parseFloat(pos.coords.latitude.toFixed(6));
-      const lon = parseFloat(pos.coords.longitude.toFixed(6));
-      setOfficeSecurity((prev) => ({
-        configKey: "DEFAULT_OFFICE_SECURITY",
-        officeWifiIps: ["127.0.0.1", "::1"],
-        isEnforceWifi: true,
-        isEnforceLocation: true,
-        officeRadiusMeters: 150,
-        ...prev,
-        officeLatitude: lat,
-        officeLongitude: lon,
-      }));
-      setCapturingGps(false);
-      toast.success(`📍 Live Location Captured: Lat ${lat}, Lon ${lon}! Click 'Save Security Settings' to persist.`);
-      return;
-    } catch (browserErr) {
-      console.warn("Browser GPS unavailable, checking fallback...", browserErr);
+      if (position && position.coords) {
+        const lat = parseFloat(position.coords.latitude.toFixed(6));
+        const lon = parseFloat(position.coords.longitude.toFixed(6));
+        const accuracy = Math.round(position.coords.accuracy || 0);
 
-      // Step 3: Fallback to IP-based Geolocation in browser
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.latitude && data.longitude) {
-            const lat = parseFloat(Number(data.latitude).toFixed(6));
-            const lon = parseFloat(Number(data.longitude).toFixed(6));
+        setOfficeSecurity((prev) => ({
+          configKey: "DEFAULT_OFFICE_SECURITY",
+          officeWifiIps: ["127.0.0.1", "::1"],
+          isEnforceWifi: true,
+          isEnforceLocation: true,
+          officeRadiusMeters: 150,
+          ...prev,
+          officeLatitude: lat,
+          officeLongitude: lon,
+        }));
+
+        setCapturingGps(false);
+        toast.dismiss(noticeToastId);
+        toast.success(
+          `🎯 Aapki Live Current Location Capture Ho Gayi!\nLat: ${lat}, Lon: ${lon} (Accuracy: ~${accuracy}m)\nSave Security Settings par click karein!`
+        );
+
+        // Optional: Try reverse geocoding to suggest local address
+        try {
+          const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+          );
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            if (geoData?.display_name) {
+              setOfficeSecurity((prev) => ({
+                ...prev,
+                officeAddress: geoData.display_name,
+              }));
+            }
+          }
+        } catch (e) {}
+
+        return;
+      }
+    } catch (err) {
+      setCapturingGps(false);
+      toast.dismiss(noticeToastId);
+      console.error("Live GPS capture error:", err);
+
+      if (err?.code === 1) {
+        // PERMISSION_DENIED
+        toast.error(
+          "Location permission Deny kar di gayi hai! URL bar me 🔒 icon par click karke Location ko 'Allow' karein aur dubara click karein."
+        );
+      } else if (err?.code === 2) {
+        // POSITION_UNAVAILABLE - Try IP-based location of this device
+        try {
+          toast.info("Device GPS sensor unavailable. Network IP se live coordinates detect kiye ja rahe hain...");
+          const ipRes = await fetch("https://ipwho.is/").then((r) => r.json());
+          if (ipRes && ipRes.success && ipRes.latitude && ipRes.longitude) {
+            const lat = parseFloat(Number(ipRes.latitude).toFixed(6));
+            const lon = parseFloat(Number(ipRes.longitude).toFixed(6));
             setOfficeSecurity((prev) => ({
               configKey: "DEFAULT_OFFICE_SECURITY",
               officeWifiIps: ["127.0.0.1", "::1"],
@@ -571,38 +637,27 @@ const UserManagementPage = () => {
               ...prev,
               officeLatitude: lat,
               officeLongitude: lon,
+              officeAddress: `${ipRes.city || ""}, ${ipRes.region || ""}, ${ipRes.country || ""}`.trim(),
             }));
-            setCapturingGps(false);
-            toast.success(`📍 Network Location Detected: Lat ${lat}, Lon ${lon} (${data.city || "Mumbai"})!`);
+            toast.success(
+              `📍 Network Live Location Detected: Lat ${lat}, Lon ${lon} (${ipRes.city || "Current Location"})! Click Save to persist.`
+            );
             return;
           }
+        } catch (ipErr) {
+          console.warn("IP fallback failed:", ipErr);
         }
-      } catch (ipErr) {
-        console.warn("IP geolocation fallback note:", ipErr);
+        toast.error("Location detect nahi ho saki. Kripya device location service on karein ya coordinates manually enter karein.");
+      } else if (err?.code === 3) {
+        // TIMEOUT
+        toast.error("Location request timeout ho gaya. Kripya dubara click karein aur popup aane par 'Allow' karein.");
+      } else {
+        toast.error(err.message || "Live location capture karne me samasya aayi. Kripya dubara try karein.");
       }
-
-      // Step 4: If blocked by browser permissions, auto-fill ARCL Airoli Lab coordinates so user is never stuck
-      setCapturingGps(false);
-      setOfficeSecurity((prev) => ({
-        configKey: "DEFAULT_OFFICE_SECURITY",
-        officeWifiIps: ["127.0.0.1", "::1"],
-        isEnforceWifi: true,
-        isEnforceLocation: true,
-        officeRadiusMeters: 150,
-        ...prev,
-        officeLatitude: 19.1553,
-        officeLongitude: 72.9982,
-        officeAddress:
-          "Shop No. 6, Siddhivinayak Park CHS, Sector - 8A, Airoli, Navi Mumbai, Maharashtra - 400708",
-      }));
-
-      toast.info(
-        "Browser me location blocked hone par ARCL Airoli Lab coordinates (19.1553, 72.9982) auto-fill kar diye gaye hain! Click 'Save Security Settings' to persist."
-      );
     }
   };
 
-  const handleUpdateAccessScope = async (userId, newScope) => {
+    const handleUpdateAccessScope = async (userId, newScope) => {
     try {
       setUpdatingId(userId);
       const res = await updateUserAccessScopeApi(userId, newScope);
