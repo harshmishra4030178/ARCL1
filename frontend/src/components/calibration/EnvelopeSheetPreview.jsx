@@ -55,22 +55,24 @@ export default function EnvelopeSheetPreview({
         }}
       />
 
-      {/* Top Company Header (Matching User Image 1) */}
+      {/* Top Company Header (Matching User Request) */}
       <div
         style={{
           position: "absolute",
           top: "4.8mm",
           left: "12mm",
           right: "12mm",
-          height: "20.2mm",
+          height: "21.5mm",
           display: "flex",
           alignItems: "center",
           gap: "4.5mm",
+          zIndex: 2,
         }}
       >
         <div
           style={{
-            height: "18.2mm",
+            height: "20.8mm",
+            width: "29mm",
             padding: "1.2mm 2.2mm",
             backgroundColor: "#ffffff",
             borderRadius: "2.2mm",
@@ -80,6 +82,7 @@ export default function EnvelopeSheetPreview({
             justifyContent: "center",
             boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
             flexShrink: 0,
+            boxSizing: "border-box",
           }}
         >
           <img
@@ -89,9 +92,9 @@ export default function EnvelopeSheetPreview({
             }}
             alt="ARCL Instruments Logo"
             style={{
-              height: "15.5mm",
+              height: "17.5mm",
               width: "auto",
-              maxWidth: "29mm",
+              maxWidth: "26mm",
               objectFit: "contain",
             }}
           />
@@ -99,11 +102,11 @@ export default function EnvelopeSheetPreview({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
-              fontSize: "21.5pt",
+              fontSize: "20.5pt",
               fontWeight: 900,
               color: "#021C57",
               letterSpacing: "0.015em",
-              lineHeight: 1.15,
+              lineHeight: 1.12,
             }}
           >
             {config.headerCompanyName || "ARCL INSTRUMENTS PRIVATE LIMITED"}
@@ -111,12 +114,12 @@ export default function EnvelopeSheetPreview({
           {config.showHeaderSubtitle !== false && (
             <div
               style={{
-                fontSize: "10.2pt",
+                fontSize: "9.8pt",
                 fontWeight: 800,
                 color: "#047857",
-                marginTop: "0.8mm",
+                marginTop: "0.6mm",
                 letterSpacing: "0.012em",
-                lineHeight: 1.2,
+                lineHeight: 1.15,
               }}
             >
               {config.headerSubtitle ||
@@ -125,16 +128,54 @@ export default function EnvelopeSheetPreview({
           )}
           <div
             style={{
-              fontSize: "9.4pt",
+              fontSize: "8.6pt",
               fontWeight: 500,
               color: "#334155",
-              marginTop: "0.8mm",
-              letterSpacing: "0.008em",
-              lineHeight: 1.2,
+              marginTop: "0.6mm",
+              letterSpacing: "0.006em",
+              lineHeight: 1.15,
             }}
           >
             {config.headerAddress ||
               "Shop No. 6, Siddhivinayak Park CHS, Sector 8A, Airoli, Navi Mumbai - 400708, Maharashtra • GSTIN: 27AATCA7874C1ZB"}
+          </div>
+          {/* Header Contact Row with Phone, Mail and Web Icons */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2.4mm",
+              marginTop: "0.8mm",
+              fontSize: "8.0pt",
+              lineHeight: 1.15,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#021C57", fontWeight: 700 }}>
+              <img
+                src="/assets/cert_assets/icon_phone.png"
+                alt="Phone"
+                style={{ width: "2.8mm", height: "2.8mm", objectFit: "contain" }}
+              />
+              <span>{config.phone || "+91 81696 95728"}</span>
+            </div>
+            <span style={{ color: "#F58220", fontWeight: 700 }}>|</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#021C57", fontWeight: 700 }}>
+              <img
+                src="/assets/cert_assets/icon_mail.png"
+                alt="Email"
+                style={{ width: "2.8mm", height: "2.8mm", objectFit: "contain" }}
+              />
+              <span>{config.email || config.emailPrimary || "info@arclinstruments.com"}</span>
+            </div>
+            <span style={{ color: "#F58220", fontWeight: 700 }}>|</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#1D4ED8", fontWeight: 700 }}>
+              <img
+                src="/assets/cert_assets/icon_web.png"
+                alt="Website"
+                style={{ width: "2.8mm", height: "2.8mm", objectFit: "contain" }}
+              />
+              <span>{config.website || "https://arclinstruments.com/"}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -143,7 +184,7 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "25.5mm",
+          top: "26.8mm",
           left: "12mm",
           right: "12mm",
           height: "0.45mm",
@@ -153,7 +194,7 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "26.3mm",
+          top: "27.6mm",
           left: "12mm",
           right: "12mm",
           height: "0.35mm",
@@ -161,101 +202,47 @@ export default function EnvelopeSheetPreview({
         }}
       />
 
-      {/* LEFT COLUMN: FROM SECTION */}
+      {/* Background Watermark (ARCL Logo Faint Centered Behind Recipient Area) */}
       <div
         style={{
           position: "absolute",
-          top: "30.0mm",
-          left: "12mm",
-          width: "97mm",
-          height: "70mm",
+          top: "27mm",
+          left: "71mm",
+          width: "138mm",
+          height: "79mm",
           display: "flex",
-          gap: "2.8mm",
-          outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          zIndex: 1,
         }}
       >
-        <div
+        <img
+          src="/assets/cert_assets/arcl_watermark.png"
+          alt="ARCL Watermark"
           style={{
-            width: "1.4mm",
-            height: "66mm",
-            backgroundColor: "#021C57",
-            flexShrink: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
           }}
         />
-        <div style={{ flex: 1, fontSize: "8.0pt", color: "#1E293B", lineHeight: 1.35 }}>
-          <div
-            style={{
-              fontSize: "7.5pt",
-              fontWeight: 800,
-              color: "#1D4ED8",
-              letterSpacing: "0.1em",
-              marginBottom: "1.2mm",
-            }}
-          >
-            FROM
-          </div>
-          <div
-            style={{
-              fontSize: "10.8pt",
-              fontWeight: 800,
-              color: "#021C57",
-              marginBottom: "2.0mm",
-            }}
-          >
-            {config.fromCompanyName}
-          </div>
-
-          <div style={{ marginBottom: "2.2mm" }}>
-            <div style={{ fontWeight: 700, color: "#021C57", fontSize: "7.8pt" }}>
-              Address:
-            </div>
-            <div style={{ color: "#1E293B", marginTop: "0.4mm" }}>{config.address}</div>
-          </div>
-
-          <div style={{ marginBottom: "1.8mm" }}>
-            <span style={{ fontWeight: 700, color: "#021C57" }}>Phone: </span>
-            <span>{config.phone}</span>
-          </div>
-
-          <div style={{ marginBottom: "1.8mm" }}>
-            <div style={{ fontWeight: 700, color: "#021C57" }}>Email:</div>
-            {config.emailPrimary && <div>{config.emailPrimary}</div>}
-            {config.emailSecondary && <div>{config.emailSecondary}</div>}
-          </div>
-
-          <div>
-            <span style={{ fontWeight: 700, color: "#021C57" }}>Website: </span>
-            <span style={{ color: "#1D4ED8", fontWeight: 600 }}>{config.website}</span>
-          </div>
-        </div>
       </div>
 
-      {/* Vertical Divider Between FROM and TO */}
+      {/* CENTER/LEFT ZONE: TO SECTION (ONLY SECTION IN BODY - FROM REMOVED) */}
       <div
         style={{
           position: "absolute",
-          top: "30.0mm",
-          left: "113mm",
-          width: "0.35mm",
-          height: "69mm",
-          backgroundColor: "#CBD5E1",
-        }}
-      />
-
-      {/* CENTER COLUMN: TO SECTION */}
-      <div
-        style={{
-          position: "absolute",
-          top: "30.0mm",
-          left: "120mm",
-          width: "108mm",
-          height: "69mm",
+          top: "32.5mm",
+          left: "18mm",
+          width: "205mm",
+          height: "65mm",
           outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
+          zIndex: 2,
         }}
       >
         <div
           style={{
-            fontSize: "8pt",
+            fontSize: "10pt",
             fontWeight: 800,
             color: "#1D4ED8",
             letterSpacing: "0.1em",
@@ -270,10 +257,10 @@ export default function EnvelopeSheetPreview({
             {recCompany && (
               <div
                 style={{
-                  fontSize: "11pt",
+                  fontSize: "13pt",
                   fontWeight: 800,
                   color: "#021C57",
-                  marginBottom: "1.6mm",
+                  marginBottom: "1.8mm",
                 }}
               >
                 {recCompany}
@@ -282,10 +269,10 @@ export default function EnvelopeSheetPreview({
             {recContact && recContact.toLowerCase() !== recCompany.toLowerCase() && (
               <div
                 style={{
-                  fontSize: "8.8pt",
+                  fontSize: "10pt",
                   fontWeight: 700,
                   color: "#334155",
-                  marginBottom: "1.4mm",
+                  marginBottom: "1.6mm",
                 }}
               >
                 Attn: {recContact}
@@ -294,17 +281,18 @@ export default function EnvelopeSheetPreview({
             {recAddress && (
               <div
                 style={{
-                  fontSize: "9.2pt",
+                  fontSize: "10.2pt",
                   color: "#1E293B",
-                  marginBottom: "2.2mm",
+                  marginBottom: "2.4mm",
                   whiteSpace: "pre-line",
+                  lineHeight: 1.4,
                 }}
               >
                 {recAddress}
               </div>
             )}
             {recPhone && (
-              <div style={{ fontSize: "8.8pt" }}>
+              <div style={{ fontSize: "9.8pt" }}>
                 <span style={{ fontWeight: 700, color: "#021C57" }}>Phone: </span>
                 <span>{recPhone}</span>
               </div>
@@ -446,7 +434,7 @@ export default function EnvelopeSheetPreview({
       >
         {(Array.isArray(config.footerServices) && config.footerServices.length > 0
           ? config.footerServices
-          : ["Calibration", "Service", "Sales", "Spares", "Manufacturing"]
+          : ["Calibration", "Manufacturing", "Sales", "Service", "Spares"]
         ).map((svc, idx, arr) => (
           <React.Fragment key={svc}>
             <div

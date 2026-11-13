@@ -370,11 +370,11 @@ export default function EnvelopeDesignerPage() {
             )}
           </div>
 
-          {/* Editable Header & FROM Section */}
+          {/* Editable Header & Contact Details */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <h3 className="text-sm font-black text-[#021C57]">
-                Top Branding &amp; FROM Details
+                Top Header &amp; Contact Details
               </h3>
               <button
                 type="button"
@@ -400,7 +400,7 @@ export default function EnvelopeDesignerPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700">Header Subtitle</label>
+                  <label className="font-bold text-slate-700">Header Subtitle (NABL CC-4313)</label>
                   <label className="inline-flex items-center gap-1 text-[11px] text-slate-600 cursor-pointer">
                     <input
                       type="checkbox"
@@ -422,7 +422,7 @@ export default function EnvelopeDesignerPage() {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Header Address &amp; GSTIN (Image 1 Standard)
+                  Header Address &amp; GSTIN
                 </label>
                 <input
                   type="text"
@@ -433,27 +433,7 @@ export default function EnvelopeDesignerPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">FROM Name</label>
-                <input
-                  type="text"
-                  value={config.fromCompanyName}
-                  onChange={(e) => handleFieldChange("fromCompanyName", e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57] font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Address</label>
-                <textarea
-                  rows={3}
-                  value={config.address}
-                  onChange={(e) => handleFieldChange("address", e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Phone</label>
+                <label className="block font-bold text-slate-700 mb-1">Phone Number (with Phone Icon)</label>
                 <input
                   type="text"
                   value={config.phone}
@@ -462,29 +442,21 @@ export default function EnvelopeDesignerPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Email 1</label>
-                  <input
-                    type="email"
-                    value={config.emailPrimary}
-                    onChange={(e) => handleFieldChange("emailPrimary", e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57]"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Email 2</label>
-                  <input
-                    type="email"
-                    value={config.emailSecondary}
-                    onChange={(e) => handleFieldChange("emailSecondary", e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57]"
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Email ID (with Mail Icon)</label>
+                <input
+                  type="email"
+                  value={config.email || config.emailPrimary || ""}
+                  onChange={(e) => {
+                    handleFieldChange("email", e.target.value);
+                    handleFieldChange("emailPrimary", e.target.value);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#021C57]"
+                />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Website</label>
+                <label className="block font-bold text-slate-700 mb-1">Website URL (with Web Icon)</label>
                 <input
                   type="text"
                   value={config.website}
@@ -514,8 +486,13 @@ export default function EnvelopeDesignerPage() {
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
-              <strong>TO Section:</strong> Kept completely blank (108 × 83 mm clear writing area, zero placeholder text) for handwritten recipient Name, Address, PIN code &amp; Phone number.
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
+              <div>
+                <strong>TO Section Only:</strong> FROM section completely removed; all company contact details are now in the top header with phone, email, and web icons.
+              </div>
+              <div>
+                <strong>Background Watermark:</strong> Subtle ARCL logo watermark is automatically rendered in the background behind the recipient writing area.
+              </div>
             </div>
           </div>
         </div>
