@@ -59,10 +59,10 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "5.2mm",
+          top: "4.8mm",
           left: "12mm",
           right: "12mm",
-          height: "19.2mm",
+          height: "20.2mm",
           display: "flex",
           alignItems: "center",
           gap: "4.5mm",
@@ -70,7 +70,7 @@ export default function EnvelopeSheetPreview({
       >
         <div
           style={{
-            height: "16.8mm",
+            height: "18.2mm",
             padding: "1.2mm 2.2mm",
             backgroundColor: "#ffffff",
             borderRadius: "2.2mm",
@@ -89,9 +89,9 @@ export default function EnvelopeSheetPreview({
             }}
             alt="ARCL Instruments Logo"
             style={{
-              height: "14.5mm",
+              height: "15.5mm",
               width: "auto",
-              maxWidth: "28mm",
+              maxWidth: "29mm",
               objectFit: "contain",
             }}
           />
@@ -99,10 +99,10 @@ export default function EnvelopeSheetPreview({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
-              fontSize: "13.8pt",
+              fontSize: "21.5pt",
               fontWeight: 900,
               color: "#021C57",
-              letterSpacing: "0.02em",
+              letterSpacing: "0.015em",
               lineHeight: 1.15,
             }}
           >
@@ -111,11 +111,11 @@ export default function EnvelopeSheetPreview({
           {config.showHeaderSubtitle !== false && (
             <div
               style={{
-                fontSize: "8.3pt",
+                fontSize: "10.2pt",
                 fontWeight: 800,
                 color: "#047857",
-                marginTop: "1.0mm",
-                letterSpacing: "0.015em",
+                marginTop: "0.8mm",
+                letterSpacing: "0.012em",
                 lineHeight: 1.2,
               }}
             >
@@ -125,11 +125,11 @@ export default function EnvelopeSheetPreview({
           )}
           <div
             style={{
-              fontSize: "7.1pt",
+              fontSize: "9.4pt",
               fontWeight: 500,
-              color: "#475569",
+              color: "#334155",
               marginTop: "0.8mm",
-              letterSpacing: "0.01em",
+              letterSpacing: "0.008em",
               lineHeight: 1.2,
             }}
           >
@@ -143,7 +143,7 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "24.5mm",
+          top: "25.5mm",
           left: "12mm",
           right: "12mm",
           height: "0.45mm",
@@ -153,7 +153,7 @@ export default function EnvelopeSheetPreview({
       <div
         style={{
           position: "absolute",
-          top: "25.3mm",
+          top: "26.3mm",
           left: "12mm",
           right: "12mm",
           height: "0.35mm",

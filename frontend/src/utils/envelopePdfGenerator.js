@@ -149,16 +149,16 @@ export const buildEnvelopePdfDocument = async ({
 
   // Header Logo + 3-Line Company Header (Matching User Image 1)
   const marginX = 12;
-  const headerBottomY = 24.5;
+  const headerBottomY = 25.5;
   let logoImg = await loadImageDetails(fallbackLogoSrc || logoSrc);
   if (!logoImg && logoSrc) {
     logoImg = await loadImageDetails(logoSrc);
   }
 
   const logoCardX = marginX;
-  const logoCardY = 5.2;
-  const logoCardW = 28;
-  const logoCardH = 16.8;
+  const logoCardY = 4.8;
+  const logoCardW = 29;
+  const logoCardH = 18.2;
 
   // Logo Card with subtle rounded border (matching Image 1 badge)
   doc.setDrawColor(203, 213, 225);
@@ -186,26 +186,26 @@ export const buildEnvelopePdfDocument = async ({
   const headerSub = String(config.headerSubtitle || DEFAULT_ENVELOPE_CONFIG.headerSubtitle).trim();
   const headerAddr = String(config.headerAddress || DEFAULT_ENVELOPE_CONFIG.headerAddress).trim();
 
-  // Line 1: Full Company Name (Bold Navy #021C57)
+  // Line 1: Full Company Name - Enlarged across header (Bold Navy #021C57)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13.8);
+  doc.setFontSize(21.5);
   doc.setTextColor(2, 28, 87);
-  doc.text(headerName, textStartX, 10.5);
+  doc.text(headerName, textStartX, 11.0);
 
   // Line 2: NABL Accreditation Laboratory & Standard (Bold Emerald Green #047857)
   if (config.showHeaderSubtitle !== false && headerSub) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.3);
+    doc.setFontSize(10.2);
     doc.setTextColor(4, 120, 87);
-    doc.text(headerSub, textStartX, 15.2);
+    doc.text(headerSub, textStartX, 16.5);
   }
 
-  // Line 3: Official Address & GSTIN (Slate #475569)
+  // Line 3: Official Address & GSTIN - Enlarged font size as requested (Slate #334155)
   if (headerAddr) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.1);
-    doc.setTextColor(71, 85, 105);
-    doc.text(headerAddr, textStartX, 19.5);
+    doc.setFontSize(9.4);
+    doc.setTextColor(51, 65, 85);
+    doc.text(headerAddr, textStartX, 21.8);
   }
 
   // Clean horizontal header divider rules (Navy + Accent Orange)
