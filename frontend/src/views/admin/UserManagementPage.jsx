@@ -56,6 +56,7 @@ import { toast } from "react-toastify";
 import StatCard from "../../components/admin/common/StatCard.jsx";
 import SkeletonLoader from "../../components/admin/common/SkeletonLoader.jsx";
 import Toggle from "../../components/admin/common/Toggle.jsx";
+import OfficeLocationPickerModal from "../../components/admin/OfficeLocationPickerModal.jsx";
 
 const formatWhatsAppLastSeen = (dateStr) => {
   if (!dateStr) return "Never logged in";
@@ -368,6 +369,8 @@ const UserManagementPage = () => {
   const [showSecurityCard, setShowSecurityCard] = useState(true);
   const [manualIpInput, setManualIpInput] = useState("");
   const [capturingGps, setCapturingGps] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [autoLocateGps, setAutoLocateGps] = useState(false);
   const [scopeFilter, setScopeFilter] = useState("all");
   const [grantAccessScope, setGrantAccessScope] = useState("ANYWHERE");
   const [modalAccessScope, setModalAccessScope] = useState("ANYWHERE");
@@ -516,151 +519,31 @@ const UserManagementPage = () => {
     toast.success("🏢 ARCL Lab Airoli Coordinates Applied (19.1553, 72.9982)! Click 'Save Security Settings' to persist.");
   };
 
-  const handleCaptureCurrentGps = async () => {
-    if (typeof window === "undefined" || !navigator?.geolocation) {
-      toast.error("Aapke browser me Geolocation support uplabdh nahi hai.");
-      return;
-    }
+  const handleCaptureCurrentGps = () => {
+    setAutoLocateGps(true);
+    setShowLocationModal(true);
+  };
 
-    setCapturingGps(true);
+  const handleOpenLocationMapModal = () => {
+    setAutoLocateGps(false);
+    setShowLocationModal(true);
+  };
 
-    // Check permission state if supported
-    if (navigator.permissions && navigator.permissions.query) {
-      try {
-        const permStatus = await navigator.permissions.query({ name: "geolocation" });
-        if (permStatus.state === "denied") {
-          toast.error(
-            "Location Permission Blocked hai! Browser URL bar me 🔒 icon par click karke Location 'Allow' karein."
-          );
-          setCapturingGps(false);
-          return;
-        }
-      } catch (e) {
-        // Permission query not supported or failed, continue to getCurrentPosition
-      }
-    }
-
-    // Inform user to allow location if browser shows prompt
-    const noticeToastId = toast.info(
-      "📍 Live location fetch ki ja rahi hai... Kripya browser popup me 'Allow' karein.",
-      { autoClose: 8000 }
+  const handleConfirmOfficeLocation = ({ latitude, longitude, radiusMeters, address }) => {
+    setOfficeSecurity((prev) => ({
+      configKey: "DEFAULT_OFFICE_SECURITY",
+      officeWifiIps: ["127.0.0.1", "::1"],
+      isEnforceWifi: true,
+      isEnforceLocation: true,
+      ...prev,
+      officeLatitude: latitude,
+      officeLongitude: longitude,
+      officeRadiusMeters: radiusMeters || prev?.officeRadiusMeters || 150,
+      officeAddress: address || prev?.officeAddress || "",
+    }));
+    toast.success(
+      `🏢 Office Location Updated:\n${address}\n(Lat: ${latitude}, Lon: ${longitude})\nClick 'Save Security Settings' to persist! 💾`
     );
-
-    const getPosition = (options) => {
-      return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, options);
-      });
-    };
-
-    try {
-      let position = null;
-
-      // Primary Attempt: High Accuracy GPS (15 seconds timeout to allow user to click 'Allow')
-      try {
-        position = await getPosition({
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0, // Always get live fresh location, no cached data!
-        });
-      } catch (primaryErr) {
-        console.warn("High-accuracy GPS attempt note:", primaryErr);
-        // If user explicitly denied, don't retry, re-throw
-        if (primaryErr?.code === 1) {
-          throw primaryErr;
-        }
-        // Secondary Attempt: Standard / WiFi network triangulation (12 seconds)
-        position = await getPosition({
-          enableHighAccuracy: false,
-          timeout: 12000,
-          maximumAge: 0,
-        });
-      }
-
-      if (position && position.coords) {
-        const lat = parseFloat(position.coords.latitude.toFixed(6));
-        const lon = parseFloat(position.coords.longitude.toFixed(6));
-        const accuracy = Math.round(position.coords.accuracy || 0);
-
-        setOfficeSecurity((prev) => ({
-          configKey: "DEFAULT_OFFICE_SECURITY",
-          officeWifiIps: ["127.0.0.1", "::1"],
-          isEnforceWifi: true,
-          isEnforceLocation: true,
-          officeRadiusMeters: 150,
-          ...prev,
-          officeLatitude: lat,
-          officeLongitude: lon,
-        }));
-
-        setCapturingGps(false);
-        toast.dismiss(noticeToastId);
-        toast.success(
-          `🎯 Aapki Live Current Location Capture Ho Gayi!\nLat: ${lat}, Lon: ${lon} (Accuracy: ~${accuracy}m)\nSave Security Settings par click karein!`
-        );
-
-        // Optional: Try reverse geocoding to suggest local address
-        try {
-          const geoRes = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
-          );
-          if (geoRes.ok) {
-            const geoData = await geoRes.json();
-            if (geoData?.display_name) {
-              setOfficeSecurity((prev) => ({
-                ...prev,
-                officeAddress: geoData.display_name,
-              }));
-            }
-          }
-        } catch (e) {}
-
-        return;
-      }
-    } catch (err) {
-      setCapturingGps(false);
-      toast.dismiss(noticeToastId);
-      console.error("Live GPS capture error:", err);
-
-      if (err?.code === 1) {
-        // PERMISSION_DENIED
-        toast.error(
-          "Location permission Deny kar di gayi hai! URL bar me 🔒 icon par click karke Location ko 'Allow' karein aur dubara click karein."
-        );
-      } else if (err?.code === 2) {
-        // POSITION_UNAVAILABLE - Try IP-based location of this device
-        try {
-          toast.info("Device GPS sensor unavailable. Network IP se live coordinates detect kiye ja rahe hain...");
-          const ipRes = await fetch("https://ipwho.is/").then((r) => r.json());
-          if (ipRes && ipRes.success && ipRes.latitude && ipRes.longitude) {
-            const lat = parseFloat(Number(ipRes.latitude).toFixed(6));
-            const lon = parseFloat(Number(ipRes.longitude).toFixed(6));
-            setOfficeSecurity((prev) => ({
-              configKey: "DEFAULT_OFFICE_SECURITY",
-              officeWifiIps: ["127.0.0.1", "::1"],
-              isEnforceWifi: true,
-              isEnforceLocation: true,
-              officeRadiusMeters: 150,
-              ...prev,
-              officeLatitude: lat,
-              officeLongitude: lon,
-              officeAddress: `${ipRes.city || ""}, ${ipRes.region || ""}, ${ipRes.country || ""}`.trim(),
-            }));
-            toast.success(
-              `📍 Network Live Location Detected: Lat ${lat}, Lon ${lon} (${ipRes.city || "Current Location"})! Click Save to persist.`
-            );
-            return;
-          }
-        } catch (ipErr) {
-          console.warn("IP fallback failed:", ipErr);
-        }
-        toast.error("Location detect nahi ho saki. Kripya device location service on karein ya coordinates manually enter karein.");
-      } else if (err?.code === 3) {
-        // TIMEOUT
-        toast.error("Location request timeout ho gaya. Kripya dubara click karein aur popup aane par 'Allow' karein.");
-      } else {
-        toast.error(err.message || "Live location capture karne me samasya aayi. Kripya dubara try karein.");
-      }
-    }
   };
 
     const handleUpdateAccessScope = async (userId, newScope) => {
@@ -2129,13 +2012,22 @@ const UserManagementPage = () => {
 
                       <button
                         type="button"
-                        disabled={capturingGps}
                         onClick={handleCaptureCurrentGps}
-                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
-                        title="Auto-capture current location"
+                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        title="Acquire Live GPS Satellite Location on interactive Map (Blinkit / Zepto style)"
                       >
-                        <FaCompass className={`text-xs ${capturingGps ? "animate-spin" : ""}`} />
-                        <span>{capturingGps ? "Locating..." : "📍 Capture Live GPS"}</span>
+                        <FaCompass className="text-xs" />
+                        <span>📍 Capture Live GPS</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenLocationMapModal}
+                        className="text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-950/60 hover:bg-sky-900/60 border border-sky-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        title="Search building, pick location or drag pin on Map"
+                      >
+                        <FaMapMarkerAlt className="text-[10px]" />
+                        <span>🗺️ Pick / View on Map</span>
                       </button>
 
                       {officeSecurity?.officeLatitude && officeSecurity?.officeLongitude && (
@@ -2146,8 +2038,8 @@ const UserManagementPage = () => {
                           className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-700/50 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
                           title="Open coordinates in Google Maps"
                         >
-                          <FaMapMarkerAlt className="text-[10px]" />
-                          <span>Maps ↗</span>
+                          <FaGlobe className="text-[10px]" />
+                          <span>Google Maps ↗</span>
                         </a>
                       )}
                     </div>
@@ -2187,7 +2079,7 @@ const UserManagementPage = () => {
                   </div>
 
                   <p className="text-[10px] text-slate-400 italic">
-                    💡 <strong>Tip:</strong> Aap <strong>'Capture Live GPS'</strong> daba sakte hain, ya seedhe <strong>'🏢 Set ARCL Airoli Lab'</strong> par click karke laboratory ke official coordinates set kar sakte hain.
+                    💡 <strong>Blinkit &amp; Zepto Style:</strong> <strong>'Capture Live GPS'</strong> ya <strong>'🗺️ Pick / View on Map'</strong> par click karein. Aap building search kar sakte hain, live GPS se satellite lock le sakte hain, ya red pin ko seedhe laboratory building roof par drag kar sakte hain.
                   </p>
                 </div>
 
@@ -3393,6 +3285,17 @@ const UserManagementPage = () => {
           </div>
         </div>
       )}
+      {/* 6. BLINKIT / ZEPTO STYLE INTERACTIVE MAP & LIVE GPS PICKER MODAL */}
+      <OfficeLocationPickerModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        initialLatitude={officeSecurity?.officeLatitude ?? 19.1553}
+        initialLongitude={officeSecurity?.officeLongitude ?? 72.9982}
+        initialRadius={officeSecurity?.officeRadiusMeters ?? 150}
+        initialAddress={officeSecurity?.officeAddress || ""}
+        onConfirmLocation={handleConfirmOfficeLocation}
+        autoLocateOnOpen={autoLocateGps}
+      />
     </div>
   );
 };

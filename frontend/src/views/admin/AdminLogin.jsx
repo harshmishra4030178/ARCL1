@@ -36,16 +36,18 @@ const captureGeoCoordinates = () => {
         navigator.geolocation.getCurrentPosition(
           (p) => res(p),
           (e) => rej(e),
-          { enableHighAccuracy: highAcc, timeout: to, maximumAge: 60000 }
+          { enableHighAccuracy: highAcc, timeout: to, maximumAge: 0 }
         );
       });
 
     try {
       let pos;
       try {
-        pos = await tryGet(false, 3000);
+        // High accuracy satellite GPS lookup first (fresh fix, no cache)
+        pos = await tryGet(true, 5000);
       } catch {
-        pos = await tryGet(true, 4000);
+        // Fallback to standard network/WiFi triangulation
+        pos = await tryGet(false, 3000);
       }
       return resolve({
         latitude: pos.coords.latitude,
@@ -55,8 +57,8 @@ const captureGeoCoordinates = () => {
       console.warn("Browser GPS lookup note:", err?.message);
       // Fallback to IP location
       try {
-        const ipData = await fetch("https://ipapi.co/json/").then((r) => r.json());
-        if (ipData && ipData.latitude && ipData.longitude) {
+        const ipData = await fetch("https://ipwho.is/").then((r) => r.json());
+        if (ipData && ipData.success && ipData.latitude && ipData.longitude) {
           return resolve({
             latitude: Number(ipData.latitude),
             longitude: Number(ipData.longitude),
@@ -94,13 +96,13 @@ const AdminLogin = () => {
   const idleTimerRef = useRef(null);
   const googleCallbackRef = useRef(null);
 
-  // Pre-cache geolocation permission
+  // Pre-cache geolocation permission with high accuracy
   useEffect(() => {
     if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         () => {},
         () => {},
-        { timeout: 3000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     }
   }, []);
