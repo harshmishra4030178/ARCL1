@@ -13,7 +13,6 @@ import {
   ENVELOPE_PRESETS,
   downloadEnvelopePdf,
   generateCustomerEnvelopeQrPng,
-  getEnvelopePdfBlobUrl,
   printEnvelopeHtmlDirectly,
 } from "../../utils/envelopePdfGenerator.js";
 import {
