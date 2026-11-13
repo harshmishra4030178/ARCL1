@@ -45,10 +45,14 @@ export default function GoogleVoiceModal({
 
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
+  const sessionPrefixRef = useRef("");
+  const lastRecognizedRef = useRef("");
 
   // Sync initial text when modal opens
   useEffect(() => {
     if (isOpen) {
+      sessionPrefixRef.current = "";
+      lastRecognizedRef.current = "";
       setTranscript(initialText || "");
       setIsFinalized(false);
       setLastError("");
@@ -156,8 +160,10 @@ export default function GoogleVoiceModal({
             }
           }
 
-          const cleaned = fullLive.replace(/[.,!?;]+$/, "").trim();
+          const prefix = sessionPrefixRef.current ? sessionPrefixRef.current + " " : "";
+          const cleaned = (prefix + fullLive).replace(/[.,!?;]+$/, "").trim();
           if (cleaned) {
+            lastRecognizedRef.current = cleaned;
             setTranscript(cleaned);
             setSoundDetected(true);
             setSpeechDetected(true);
@@ -203,6 +209,9 @@ export default function GoogleVoiceModal({
         };
 
         recognition.onend = () => {
+          if (lastRecognizedRef.current) {
+            sessionPrefixRef.current = lastRecognizedRef.current;
+          }
           if (isListeningRef.current) {
             // Create a FRESH instance on restart to prevent InvalidStateError
             setTimeout(() => {
@@ -240,6 +249,8 @@ export default function GoogleVoiceModal({
   };
 
   const handleRestart = () => {
+    sessionPrefixRef.current = "";
+    lastRecognizedRef.current = "";
     setTranscript("");
     setIsFinalized(false);
     startVoiceSession(lang);

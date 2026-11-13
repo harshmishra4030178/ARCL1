@@ -27,10 +27,13 @@ export default function QuotationItemAutocomplete({
   const [voiceLang, setVoiceLang] = useState("en-IN");
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isDirectListening, setIsDirectListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("idle");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const directRecRef = useRef(null);
   const isDirectListeningRef = useRef(false);
+  const sessionPrefixRef = useRef("");
+  const lastRecognizedRef = useRef("");
 
   useEffect(() => {
     setSavedCustomItems(getSavedQuotationItems());
@@ -39,9 +42,13 @@ export default function QuotationItemAutocomplete({
   const stopDirectVoiceSession = () => {
     isDirectListeningRef.current = false;
     setIsDirectListening(false);
+    setVoiceStatus("idle");
     if (directRecRef.current) {
       try {
         directRecRef.current.onstart = null;
+        directRecRef.current.onaudiostart = null;
+        directRecRef.current.onsoundstart = null;
+        directRecRef.current.onspeechstart = null;
         directRecRef.current.onresult = null;
         directRecRef.current.onerror = null;
         directRecRef.current.onend = null;
@@ -53,7 +60,7 @@ export default function QuotationItemAutocomplete({
     }
   };
 
-  const startDirectVoiceSession = () => {
+  const startDirectVoiceSession = (useLang = null) => {
     if (typeof window === "undefined") return;
     const SpeechRec =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -63,12 +70,23 @@ export default function QuotationItemAutocomplete({
       return;
     }
 
-    stopDirectVoiceSession();
+    const activeLang = useLang || voiceLang || "en-IN";
+
+    // Clean up existing session cleanly
+    if (directRecRef.current) {
+      try {
+        directRecRef.current.onend = null;
+        directRecRef.current.abort();
+      } catch {
+        // ignore
+      }
+      directRecRef.current = null;
+    }
 
     try {
       const recognition = new SpeechRec();
       directRecRef.current = recognition;
-      recognition.lang = voiceLang || "en-IN";
+      recognition.lang = activeLang;
       recognition.interimResults = true;
       recognition.continuous = true; // Continuous listening across pauses
       recognition.maxAlternatives = 1;
@@ -76,59 +94,64 @@ export default function QuotationItemAutocomplete({
       recognition.onstart = () => {
         isDirectListeningRef.current = true;
         setIsDirectListening(true);
+        setVoiceStatus("capturing");
         setIsOpen(true);
-        toast.info("🎙️ Mic On: Bolna shuru karein...", {
-          toastId: "voice-item-direct",
-          autoClose: 2000,
-        });
+        toast.info(
+          activeLang.startsWith("hi")
+            ? "🎙️ Mic On: बोलें, उपकरण का नाम तुरंत टाइप होगा..."
+            : "🎙️ Mic On: Speak now, words will type directly...",
+          { toastId: "voice-item-direct", autoClose: 2000 }
+        );
+      };
+
+      recognition.onaudiostart = () => {
+        setVoiceStatus("capturing");
+      };
+
+      recognition.onsoundstart = () => {
+        setVoiceStatus("sound");
+      };
+
+      recognition.onspeechstart = () => {
+        setVoiceStatus("speech");
       };
 
       recognition.onresult = (event) => {
         if (!event || !event.results) return;
+        setVoiceStatus("speech");
 
-        let liveText = "";
-        let hasFinal = false;
+        let liveSessionText = "";
 
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
           if (res && res[0]) {
             const chunk = (res[0].transcript || "").trim();
             if (chunk) {
-              liveText += (liveText ? " " : "") + chunk;
-            }
-            if (res.isFinal) {
-              hasFinal = true;
+              liveSessionText += (liveSessionText ? " " : "") + chunk;
             }
           }
         }
 
-        const clean = liveText.trim().replace(/[.,!?;]+$/, "");
+        const prefix = sessionPrefixRef.current ? sessionPrefixRef.current + " " : "";
+        const clean = (prefix + liveSessionText).trim().replace(/[.,!?;]+$/, "");
+
         if (clean) {
+          lastRecognizedRef.current = clean;
+          // PURE 100% UNRESTRICTED TYPING: Whatever the user says is typed directly!
           onChange?.(clean);
           setIsOpen(true);
 
-          if (hasFinal) {
-            const cleanLower = clean.toLowerCase();
-            const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
-            const match = allItemsPool.find((it) => {
-              const itLower = (it.name || "").toLowerCase();
-              if (
-                itLower === cleanLower ||
-                itLower.includes(cleanLower) ||
-                cleanLower.includes(itLower)
-              ) {
-                return true;
-              }
-              return cleanWords.some((w) => w.length >= 4 && itLower.includes(w));
+          // Only auto-fill rate/details if it is an exact full match to an equipment name
+          const cleanLower = clean.toLowerCase();
+          const exactMatch = allItemsPool.find(
+            (it) => (it.name || "").toLowerCase() === cleanLower
+          );
+          if (exactMatch) {
+            onSelectItem?.(exactMatch);
+            toast.success(`✅ Matched: ${exactMatch.name}`, {
+              toastId: "item-match",
+              autoClose: 2000,
             });
-            if (match) {
-              onSelectItem?.(match);
-              setIsOpen(false);
-              toast.success(`✅ Item selected: ${match.name}`, {
-                toastId: "item-match",
-                autoClose: 2500,
-              });
-            }
           }
         }
       };
@@ -142,22 +165,31 @@ export default function QuotationItemAutocomplete({
         if (err === "not-allowed" || err === "service-not-allowed") {
           isDirectListeningRef.current = false;
           setIsDirectListening(false);
+          setVoiceStatus("idle");
           toast.error("🎙️ Mic blocked! Browser URL bar ke paas 🔒 Lock icon se allow karein.", { autoClose: 7000 });
         } else if (err === "network") {
           toast.warn("🎙️ Network notice: Google speech servers reconnecting...", { toastId: "item-net-retry", autoClose: 2500 });
+        } else if (err === "audio-capture") {
+          toast.error("🎙️ Koi microphone nahi mila. Check audio device.", { toastId: "item-no-mic", autoClose: 4000 });
         }
       };
 
       recognition.onend = () => {
+        // Save current text into sessionPrefix so restarts don't erase previous words
+        if (lastRecognizedRef.current) {
+          sessionPrefixRef.current = lastRecognizedRef.current;
+        }
+
         // Auto-restart with a FRESH INSTANCE so Chrome doesn't throw InvalidStateError
         if (isDirectListeningRef.current) {
           setTimeout(() => {
             if (isDirectListeningRef.current) {
-              startDirectVoiceSession();
+              startDirectVoiceSession(activeLang);
             }
           }, 150);
         } else {
           setIsDirectListening(false);
+          setVoiceStatus("idle");
           if (inputRef.current) {
             inputRef.current.focus();
           }
@@ -170,6 +202,7 @@ export default function QuotationItemAutocomplete({
       console.error("Direct voice item start error:", err);
       isDirectListeningRef.current = false;
       setIsDirectListening(false);
+      setVoiceStatus("idle");
     }
   };
 
@@ -182,7 +215,31 @@ export default function QuotationItemAutocomplete({
       stopDirectVoiceSession();
       toast.info("🎙️ Mic stopped.", { toastId: "voice-stopped-item", autoClose: 1500 });
     } else {
-      startDirectVoiceSession();
+      sessionPrefixRef.current = "";
+      lastRecognizedRef.current = "";
+      startDirectVoiceSession(voiceLang);
+    }
+  };
+
+  const handleToggleLang = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    const next = voiceLang === "en-IN" ? "hi-IN" : "en-IN";
+    setVoiceLang(next);
+    toast.info(
+      next === "hi-IN"
+        ? "🇮🇳 Voice set to हिन्दी (Hindi)"
+        : "🌐 Voice set to English (India)",
+      { toastId: "voice-item-lang", autoClose: 1500 }
+    );
+    if (isDirectListeningRef.current) {
+      if (lastRecognizedRef.current) {
+        sessionPrefixRef.current = lastRecognizedRef.current;
+      }
+      stopDirectVoiceSession();
+      setTimeout(() => {
+        startDirectVoiceSession(next);
+      }, 100);
     }
   };
 
@@ -191,21 +248,13 @@ export default function QuotationItemAutocomplete({
     const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
     onChange?.(clean);
 
+    // Only auto-fill if exact match
     const cleanLower = clean.toLowerCase();
-    const cleanWords = cleanLower.split(/\s+/).filter(Boolean);
-    const match = allItemsPool.find((it) => {
-      const itLower = it.name.toLowerCase();
-      if (
-        itLower === cleanLower ||
-        itLower.includes(cleanLower) ||
-        cleanLower.includes(itLower)
-      ) {
-        return true;
-      }
-      return cleanWords.some((w) => w.length >= 4 && itLower.includes(w));
-    });
-    if (match) {
-      onSelectItem?.(match);
+    const exactMatch = allItemsPool.find(
+      (it) => (it.name || "").toLowerCase() === cleanLower
+    );
+    if (exactMatch) {
+      onSelectItem?.(exactMatch);
       setIsOpen(false);
     } else {
       setIsOpen(true);
@@ -357,16 +406,11 @@ export default function QuotationItemAutocomplete({
           {/* Voice Language Toggle */}
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const next = voiceLang === "en-IN" ? "hi-IN" : "en-IN";
-              setVoiceLang(next);
-            }}
-            className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+            onClick={handleToggleLang}
+            className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer border border-slate-300"
             title="Switch voice language: English (en-IN) / Hindi (hi-IN)"
           >
-            {voiceLang === "hi-IN" ? "HI" : "EN"}
+            {voiceLang === "hi-IN" ? "🇮🇳 हिन्दी" : "🌐 EN"}
           </button>
 
           {/* Direct Speech-to-Text Button (YouTube & Google Search Model) */}
@@ -434,11 +478,23 @@ export default function QuotationItemAutocomplete({
 
       {/* Voice Status Pill */}
       {isDirectListening && (
-        <div className="absolute z-30 left-0 -top-6 px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded shadow-md animate-pulse flex items-center gap-1 max-w-full truncate">
+        <div className="absolute z-30 left-0 -top-6 px-2.5 py-0.5 bg-rose-600 text-white text-[9.5px] font-bold rounded-full shadow-md flex items-center gap-1.5 animate-pulse max-w-full">
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
           <span className="shrink-0">
-            🎙️ Listening ({voiceLang === "hi-IN" ? "Hindi" : "English"}): Bolna shuru karein...
+            {voiceStatus === "speech"
+              ? "🗣️ Bolte rahein, type ho raha hai..."
+              : voiceStatus === "sound"
+              ? "🔊 Aawaz detect ho rahi hai..."
+              : `🎙️ Mic On (${voiceLang === "hi-IN" ? "हिन्दी" : "English"}): Bolna shuru karein...`}
           </span>
+          <button
+            type="button"
+            onClick={handleToggleLang}
+            className="ml-1 px-1.5 py-0.2 bg-white/20 hover:bg-white/30 rounded text-[8.5px] font-bold cursor-pointer"
+            title="Switch Language"
+          >
+            {voiceLang === "hi-IN" ? "EN" : "हिन्दी"}
+          </button>
         </div>
       )}
 
