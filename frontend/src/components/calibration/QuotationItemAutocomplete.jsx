@@ -22,6 +22,7 @@ export default function QuotationItemAutocomplete({
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [savedCustomItems, setSavedCustomItems] = useState([]);
+  const [voiceLang, setVoiceLang] = useState("en-IN");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -31,7 +32,9 @@ export default function QuotationItemAutocomplete({
 
   // Voice Input Hook
   const voice = useVoiceInput({
-    lang: "en-IN",
+    lang: voiceLang,
+    continuous: true,
+    interimResults: true,
     onResult: (spokenText) => {
       if (!spokenText) return;
       const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
@@ -173,11 +176,13 @@ export default function QuotationItemAutocomplete({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full pr-14 pl-2 py-1 text-[11px] font-bold border rounded focus:outline-none focus:border-blue-500 transition ${className}`}
+          className={`w-full pr-20 pl-2 py-1 text-[11px] font-bold border rounded focus:outline-none focus:border-blue-500 transition ${
+            voice.isListening ? "ring-2 ring-rose-400 border-rose-500" : ""
+          } ${className}`}
           style={{
             backgroundColor: "#ffffff",
             color: "#0f172a",
-            borderColor: isOpen ? "#3b82f6" : "#e2e8f0",
+            borderColor: voice.isListening ? "#ef4444" : isOpen ? "#3b82f6" : "#e2e8f0",
           }}
         />
 
@@ -197,14 +202,34 @@ export default function QuotationItemAutocomplete({
             </button>
           )}
 
+          {/* Voice Language Toggle */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const next = voiceLang === "en-IN" ? "hi-IN" : "en-IN";
+              setVoiceLang(next);
+              if (voice.isListening) {
+                voice.startListening({ lang: next, continuous: true });
+              }
+            }}
+            className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+            title="Switch voice language: English (en-IN) / Hindi (hi-IN)"
+          >
+            {voiceLang === "hi-IN" ? "HI" : "EN"}
+          </button>
+
           {/* Voice Mic Button */}
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               if (voice.isListening) {
                 voice.stopListening();
               } else {
-                voice.startListening();
+                voice.startListening({ lang: voiceLang, continuous: true });
               }
             }}
             disabled={disabled}
@@ -222,8 +247,14 @@ export default function QuotationItemAutocomplete({
 
       {/* Voice Status Pill */}
       {voice.isListening && (
-        <div className="absolute z-30 left-0 -top-6 px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded shadow-md animate-pulse">
-          Listening... Speak instrument name
+        <div className="absolute z-30 left-0 -top-6 px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded shadow-md animate-pulse flex items-center gap-1 max-w-full truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+          <span className="shrink-0">🎙️ Listening ({voiceLang === "hi-IN" ? "Hindi" : "English"})...</span>
+          {voice.transcript && (
+            <span className="bg-rose-700 px-1 rounded text-[8.5px] text-yellow-200 font-mono truncate max-w-[140px]">
+              "{voice.transcript}"
+            </span>
+          )}
         </div>
       )}
 

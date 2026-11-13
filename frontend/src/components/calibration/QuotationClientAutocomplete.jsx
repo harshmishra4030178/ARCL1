@@ -31,6 +31,7 @@ export default function QuotationClientAutocomplete({
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [savedClients, setSavedClients] = useState([]);
+  const [voiceLang, setVoiceLang] = useState("en-IN");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
@@ -42,7 +43,9 @@ export default function QuotationClientAutocomplete({
 
   // Voice Input Hook
   const voice = useVoiceInput({
-    lang: "en-IN",
+    lang: voiceLang,
+    continuous: true,
+    interimResults: true,
     onResult: (spokenText) => {
       if (!spokenText) return;
       const clean = spokenText.trim().replace(/[.,!?;]+$/, "");
@@ -208,11 +211,13 @@ export default function QuotationClientAutocomplete({
           disabled={disabled}
           required={required}
           placeholder={placeholder}
-          className={`w-full pr-16 pl-3 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition ${className}`}
+          className={`w-full pr-24 pl-3 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition ${
+            voice.isListening ? "ring-2 ring-rose-400 border-rose-500" : ""
+          } ${className}`}
           style={{
             backgroundColor: "#eff6ff",
             color: "#1e3a8a",
-            borderColor: isOpen ? "#3b82f6" : "#bfdbfe",
+            borderColor: voice.isListening ? "#ef4444" : isOpen ? "#3b82f6" : "#bfdbfe",
           }}
         />
 
@@ -232,14 +237,34 @@ export default function QuotationClientAutocomplete({
             </button>
           )}
 
+          {/* Voice Language Toggle */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const next = voiceLang === "en-IN" ? "hi-IN" : "en-IN";
+              setVoiceLang(next);
+              if (voice.isListening) {
+                voice.startListening({ lang: next, continuous: true });
+              }
+            }}
+            className="px-1 py-0.5 rounded text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+            title="Switch voice language: English (en-IN) / Hindi (hi-IN)"
+          >
+            {voiceLang === "hi-IN" ? "🇮🇳 HI" : "🇮🇳 EN"}
+          </button>
+
           {/* Voice Microphone Button */}
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               if (voice.isListening) {
                 voice.stopListening();
               } else {
-                voice.startListening();
+                voice.startListening({ lang: voiceLang, continuous: true });
               }
             }}
             disabled={disabled}
@@ -251,7 +276,7 @@ export default function QuotationClientAutocomplete({
             title={
               voice.isListening
                 ? "Listening... Click to stop"
-                : "Speak to fill Client Company Name (Voice Typing)"
+                : "Speak to fill Client Company Name (Voice Dictation)"
             }
           >
             {voice.isListening ? (
@@ -265,9 +290,14 @@ export default function QuotationClientAutocomplete({
 
       {/* Voice Status Pill */}
       {voice.isListening && (
-        <div className="absolute z-30 left-0 -top-7 px-2.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full shadow-md flex items-center gap-1 animate-pulse">
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-          Listening... Speak Client Company Name
+        <div className="absolute z-30 left-0 -top-7 px-2.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full shadow-md flex items-center gap-1.5 animate-pulse max-w-full truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+          <span className="shrink-0">🎙️ Listening ({voiceLang === "hi-IN" ? "Hindi" : "English"}): Bolna shuru karein...</span>
+          {voice.transcript && (
+            <span className="bg-rose-700 px-1.5 py-0.2 rounded text-[9px] text-yellow-200 font-mono truncate max-w-[180px]">
+              "{voice.transcript}"
+            </span>
+          )}
         </div>
       )}
 

@@ -1,15 +1,32 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { toast } from "react-toastify";
+
+// Module-level pointer to guarantee ONLY one SpeechRecognition instance is active on the page at any time
+let globalSpeechRecognition = null;
+
+const abortGlobalRecognition = () => {
+  if (globalSpeechRecognition) {
+    try {
+      globalSpeechRecognition.onend = null;
+      globalSpeechRecognition.onerror = null;
+      globalSpeechRecognition.abort();
+    } catch {
+      // ignore
+    }
+    globalSpeechRecognition = null;
+  }
+};
 
 /**
- * useVoiceInput - Custom hook for Web Speech Recognition API.
- * Uses stable callback refs and auto-restart when continuous listening is active
- * so Chrome/Edge pauses don't silently drop hands-free dictation.
+ * useVoiceInput - Bulletproof Web Speech Recognition Hook
+ * Supports real-time hands-free speech-to-text with auto-restart on pauses,
+ * full transcript accumulation, singleton recognition protection, and clear user toasts.
  */
 export default function useVoiceInput({
   lang = "en-IN",
-  continuous = false,
+  continuous = true,
   interimResults = true,
   onResult,
   onFinal,
@@ -50,185 +67,293 @@ export default function useVoiceInput({
   const stopListening = useCallback(() => {
     wantListeningRef.current = false;
     clearRestartTimer();
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
         recognitionRef.current.stop();
       } catch {
         // ignore
       }
       recognitionRef.current = null;
     }
+
+    if (globalSpeechRecognition) {
+      abortGlobalRecognition();
+    }
+
     setIsListening(false);
+    setStatusText("");
   }, []);
 
-  const launchRecognition = useCallback((customOptions = {}) => {
-    if (typeof window === "undefined") return false;
-    const SpeechRec =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+  const launchRecognition = useCallback(
+    (customOptions = {}) => {
+      if (typeof window === "undefined") return false;
+      const SpeechRec =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRec) {
-      wantListeningRef.current = false;
-      setIsSupported(false);
-      const msg =
-        "Voice input is not supported in this browser. Please use Google Chrome or Microsoft Edge.";
-      setStatusText(msg);
-      onErrorRef.current?.(new Error(msg));
-      return false;
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.abort();
-      } catch {
-        // ignore
+      if (!SpeechRec) {
+        wantListeningRef.current = false;
+        setIsSupported(false);
+        const msg =
+          "Voice input is supported in Google Chrome & Microsoft Edge. Please use Chrome or Edge browser.";
+        setStatusText(msg);
+        toast.warn("🎙️ Voice input Chrome ya Edge browser me chalta hai.", {
+          toastId: "voice-unsupported",
+          autoClose: 5000,
+        });
+        onErrorRef.current?.(new Error(msg));
+        return false;
       }
-    }
 
-    const useLang = customOptions.lang || activeConfigRef.current.lang || lang;
-    const useContinuous =
-      customOptions.continuous !== undefined
-        ? customOptions.continuous
-        : activeConfigRef.current.continuous;
-    const useInterim =
-      customOptions.interimResults !== undefined
-        ? customOptions.interimResults
-        : activeConfigRef.current.interimResults;
+      // Insecure context check (e.g. accessed via raw IP address without HTTPS)
+      if (
+        typeof window.isSecureContext === "boolean" &&
+        !window.isSecureContext &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
+        toast.warn(
+          "⚠️ Browser ne insecure IP connection ki wajah se mic disable kiya hai. Localhost ya HTTPS use karein.",
+          { toastId: "voice-insecure", autoClose: 6000 }
+        );
+      }
 
-    activeConfigRef.current = {
-      lang: useLang,
-      continuous: useContinuous,
-      interimResults: useInterim,
-      onResult: customOptions.onResult,
-      onFinal: customOptions.onFinal,
-      onError: customOptions.onError,
-    };
+      // Abort any existing recognition instance across the entire page
+      abortGlobalRecognition();
 
-    try {
-      const recognition = new SpeechRec();
-      recognition.lang = useLang;
-      recognition.continuous = useContinuous;
-      recognition.interimResults = useInterim;
-      recognition.maxAlternatives = 3;
+      const useLang = customOptions.lang || activeConfigRef.current.lang || lang;
+      const useContinuous =
+        customOptions.continuous !== undefined
+          ? customOptions.continuous
+          : activeConfigRef.current.continuous !== undefined
+          ? activeConfigRef.current.continuous
+          : continuous;
+      const useInterim =
+        customOptions.interimResults !== undefined
+          ? customOptions.interimResults
+          : activeConfigRef.current.interimResults !== undefined
+          ? activeConfigRef.current.interimResults
+          : interimResults;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setStatusText("🎙️ Listening... Speak numbers or commands clearly");
+      activeConfigRef.current = {
+        lang: useLang,
+        continuous: useContinuous,
+        interimResults: useInterim,
+        onResult: customOptions.onResult,
+        onFinal: customOptions.onFinal,
+        onError: customOptions.onError,
       };
 
-      recognition.onresult = (event) => {
-        let finalStr = "";
-        let interimStr = "";
+      try {
+        const recognition = new SpeechRec();
+        recognition.lang = useLang;
+        recognition.continuous = useContinuous;
+        recognition.interimResults = useInterim;
+        recognition.maxAlternatives = 3;
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const item = event.results[i];
-          const textChunk = item?.[0]?.transcript || "";
-          if (item.isFinal) {
-            finalStr += (finalStr ? " " : "") + textChunk;
-          } else {
-            interimStr += (interimStr ? " " : "") + textChunk;
-          }
-        }
-
-        const currentText = (finalStr || interimStr || "").trim();
-        const cleanedText = currentText.replace(/[.,?!]+$/, "").trim();
-
-        setTranscript(cleanedText);
-        if (cleanedText) {
-          setStatusText(
-            finalStr ? `✅ Heard: "${cleanedText}"` : `🎙️ Hearing: "${cleanedText}"...`
-          );
-        }
-
-        const resultHandler = customOptions.onResult || onResultRef.current;
-        if (resultHandler && cleanedText) {
-          resultHandler(cleanedText, {
-            isFinal: Boolean(finalStr),
-            rawTranscript: currentText,
+        recognition.onstart = () => {
+          setIsListening(true);
+          const langLabel = useLang.startsWith("hi") ? "Hindi" : "English";
+          const msg = `🎙️ Mic On (${langLabel}): Bolna shuru karein...`;
+          setStatusText(msg);
+          toast.info(msg, {
+            toastId: "voice-active-notice",
+            autoClose: 2200,
           });
-        }
+        };
 
-        const cleanFinal = finalStr.replace(/[.,?!]+$/, "").trim();
-        if (cleanFinal) {
-          const finalHandler = customOptions.onFinal || onFinalRef.current;
-          if (finalHandler) {
-            finalHandler(cleanFinal);
-          }
-        }
-      };
+        recognition.onresult = (event) => {
+          if (!event || !event.results) return;
 
-      recognition.onerror = (event) => {
-        const errCode = event?.error || "unknown";
-        if (errCode === "aborted") return;
+          // Full transcript accumulation from index 0 so words are NEVER dropped or sliced off
+          let fullAccumulated = "";
+          let hasFinalChunk = false;
 
-        // Chrome emits "no-speech" during natural pauses; keep mic alive in continuous mode
-        if (errCode === "no-speech" && wantListeningRef.current && useContinuous) {
-          setStatusText("🎙️ Still listening... Speak whenever ready");
-          return;
-        }
-
-        let errMessage = "";
-        let fatal = false;
-        if (errCode === "not-allowed" || errCode === "service-not-allowed") {
-          fatal = true;
-          errMessage =
-            "Microphone permission denied. Please allow mic access in browser site settings.";
-        } else if (errCode === "audio-capture") {
-          fatal = true;
-          errMessage = "No microphone detected. Check your audio input device.";
-        } else if (errCode === "network") {
-          errMessage = "Speech recognition network error — retrying...";
-        } else {
-          errMessage = `Speech notice: ${errCode}`;
-        }
-
-        setStatusText(errMessage);
-        if (fatal) {
-          wantListeningRef.current = false;
-          setIsListening(false);
-          const errorHandler = customOptions.onError || onErrorRef.current;
-          errorHandler?.(event);
-        }
-      };
-
-      recognition.onend = () => {
-        if (wantListeningRef.current && useContinuous) {
-          clearRestartTimer();
-          restartTimerRef.current = setTimeout(() => {
-            if (wantListeningRef.current) {
-              launchRecognition(activeConfigRef.current);
+          for (let i = 0; i < event.results.length; i++) {
+            const res = event.results[i];
+            if (res && res[0]) {
+              const chunk = (res[0].transcript || "").trim();
+              if (chunk) {
+                fullAccumulated += (fullAccumulated ? " " : "") + chunk;
+              }
+              if (res.isFinal) {
+                hasFinalChunk = true;
+              }
             }
-          }, 150);
-          return;
-        }
-        setIsListening(false);
-        setTimeout(() => {
-          setStatusText((prev) =>
-            prev.startsWith("🎙️") ? "" : prev
-          );
-        }, 2000);
-      };
+          }
 
-      recognitionRef.current = recognition;
-      recognition.start();
-      return true;
-    } catch (err) {
-      console.error("Failed to start voice recognition:", err);
-      wantListeningRef.current = false;
-      setIsListening(false);
-      setStatusText("Could not start microphone. Try refreshing or checking mic permission.");
-      onErrorRef.current?.(err);
-      return false;
-    }
-  }, [lang]);
+          const cleanedText = fullAccumulated.trim().replace(/[.,!?;]+$/, "");
+          if (!cleanedText) return;
+
+          setTranscript(cleanedText);
+          setStatusText(
+            hasFinalChunk
+              ? `✅ Suna: "${cleanedText}"`
+              : `🎙️ Sun rahe hain: "${cleanedText}"...`
+          );
+
+          // Deliver live text to the caller
+          const resultHandler = customOptions.onResult || onResultRef.current;
+          if (resultHandler) {
+            resultHandler(cleanedText, {
+              isFinal: hasFinalChunk,
+              rawTranscript: fullAccumulated,
+            });
+          }
+
+          if (hasFinalChunk) {
+            const finalHandler = customOptions.onFinal || onFinalRef.current;
+            if (finalHandler) {
+              finalHandler(cleanedText);
+            }
+          }
+        };
+
+        recognition.onerror = (event) => {
+          const errCode = event?.error || "unknown";
+          if (errCode === "aborted") return;
+
+          // Chrome emits "no-speech" during natural pauses. Keep listening alive!
+          if (errCode === "no-speech") {
+            if (wantListeningRef.current) {
+              setStatusText("🎙️ Listening... Bolna shuru karein");
+              return;
+            }
+          }
+
+          let errMessage = "";
+          let fatal = false;
+
+          if (errCode === "not-allowed" || errCode === "service-not-allowed") {
+            fatal = true;
+            errMessage =
+              "Microphone permission blocked! Browser URL bar ke paas 🔒 Lock icon pe click karke Mic Allow karein.";
+            toast.error(
+              "🎙️ Microphone Blocked! Browser URL bar ke paas 🔒 Lock icon pe click karke 'Microphone: Allow' karein.",
+              { toastId: "voice-blocked", autoClose: 7000 }
+            );
+          } else if (errCode === "audio-capture") {
+            fatal = true;
+            errMessage = "Koi microphone detect nahi hua. Check your audio device.";
+            toast.error("🎙️ Koi microphone nahi mila! Kripya mic check karein.", {
+              toastId: "voice-no-mic",
+              autoClose: 5000,
+            });
+          } else if (errCode === "network") {
+            errMessage = "Speech network connection error. Reconnecting...";
+            toast.warn("🎙️ Speech recognition network hiccup. Dobara bol sakte hain.", {
+              toastId: "voice-network-warn",
+              autoClose: 3000,
+            });
+          } else {
+            errMessage = `Speech notice: ${errCode}`;
+          }
+
+          setStatusText(errMessage);
+
+          if (fatal) {
+            wantListeningRef.current = false;
+            setIsListening(false);
+            if (globalSpeechRecognition === recognition) {
+              globalSpeechRecognition = null;
+            }
+            const errorHandler = customOptions.onError || onErrorRef.current;
+            errorHandler?.(event);
+          }
+        };
+
+        recognition.onend = () => {
+          if (globalSpeechRecognition === recognition) {
+            globalSpeechRecognition = null;
+          }
+
+          // In continuous mode or if user is still dictating, auto-restart so natural pauses don't abort
+          if (wantListeningRef.current) {
+            clearRestartTimer();
+            restartTimerRef.current = setTimeout(() => {
+              if (wantListeningRef.current) {
+                launchRecognition(activeConfigRef.current);
+              }
+            }, 120);
+            return;
+          }
+
+          setIsListening(false);
+          setTimeout(() => {
+            setStatusText((prev) => (prev.startsWith("🎙️") ? "" : prev));
+          }, 2000);
+        };
+
+        globalSpeechRecognition = recognition;
+        recognitionRef.current = recognition;
+        recognition.start();
+        return true;
+      } catch (err) {
+        console.error("Failed to start voice recognition:", err);
+        wantListeningRef.current = false;
+        setIsListening(false);
+        abortGlobalRecognition();
+        setStatusText("Could not start microphone.");
+        toast.error("🎙️ Mic start nahi ho saka. Page refresh karke check karein.", {
+          toastId: "voice-start-fail",
+          autoClose: 4000,
+        });
+        onErrorRef.current?.(err);
+        return false;
+      }
+    },
+    [lang, continuous, interimResults]
+  );
 
   const startListening = useCallback(
-    (customOptions = {}) => {
+    async (customOptions = {}) => {
+      // Pre-flight microphone permission check via getUserMedia
+      if (
+        typeof window !== "undefined" &&
+        navigator?.mediaDevices?.getUserMedia
+      ) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          // Immediately stop media stream tracks so SpeechRecognition has direct exclusive device access
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (permErr) {
+          console.warn("Microphone getUserMedia pre-check error:", permErr);
+          if (
+            permErr.name === "NotAllowedError" ||
+            permErr.name === "PermissionDeniedError"
+          ) {
+            toast.error(
+              "🎙️ Microphone Blocked! Browser URL bar ke paas 🔒 Lock icon pe click karke 'Microphone: Allow' karein.",
+              { toastId: "voice-blocked-perm", autoClose: 7000 }
+            );
+            setIsListening(false);
+            wantListeningRef.current = false;
+            return false;
+          } else if (
+            permErr.name === "NotFoundError" ||
+            permErr.name === "DevicesNotFoundError"
+          ) {
+            toast.error(
+              "🎙️ Koi microphone nahi mila! Kripya apna mic connect karein.",
+              { toastId: "voice-not-found", autoClose: 5000 }
+            );
+            setIsListening(false);
+            wantListeningRef.current = false;
+            return false;
+          }
+        }
+      }
+
       activeConfigRef.current = {
         lang: customOptions.lang || lang,
         continuous:
-          customOptions.continuous !== undefined ? customOptions.continuous : continuous,
+          customOptions.continuous !== undefined
+            ? customOptions.continuous
+            : continuous,
         interimResults:
           customOptions.interimResults !== undefined
             ? customOptions.interimResults
@@ -244,7 +369,6 @@ export default function useVoiceInput({
     (customOptions = {}) => {
       if (isListening || wantListeningRef.current) {
         stopListening();
-        setStatusText("");
       } else {
         startListening(customOptions);
       }
@@ -259,10 +383,14 @@ export default function useVoiceInput({
       if (recognitionRef.current) {
         try {
           recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
           recognitionRef.current.abort();
         } catch {
           // ignore
         }
+      }
+      if (globalSpeechRecognition === recognitionRef.current) {
+        globalSpeechRecognition = null;
       }
     };
   }, []);
