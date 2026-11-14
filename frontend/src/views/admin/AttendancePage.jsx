@@ -33,6 +33,7 @@ import {
   FaTimes,
   FaEdit,
   FaBuilding,
+  FaKey,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -86,6 +87,7 @@ export default function AttendancePage() {
   const [loadingToday, setLoadingToday] = useState(true);
   const [punching, setPunching] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [pinInput, setPinInput] = useState("");
 
   // My history state
   const [myHistory, setMyHistory] = useState([]);
@@ -350,6 +352,51 @@ export default function AttendancePage() {
     }
   };
 
+  // Handle Punch In / Punch Out with Office PIN Code (1435)
+  const handlePunchWithPin = async (type = "in") => {
+    if (pinInput.trim() !== "1435") {
+      toast.error("❌ Galat Code! Kripya sahi attendance code (1435) enter karein.");
+      return;
+    }
+
+    try {
+      setPunching(true);
+      toast.info(`🔢 Code 1435 verify ho raha hai... (${type === "in" ? "Punch In" : "Punch Out"})`, {
+        autoClose: 2000,
+      });
+
+      // Capture GPS Coordinates
+      const coords = await captureDeviceGps();
+
+      const payload = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        authMethod: "PIN_CODE",
+        pinCode: pinInput.trim(),
+        deviceInfo: navigator.userAgent || "Office PIN Punch",
+        biometricVerified: false,
+      };
+
+      const res = type === "in"
+        ? await punchInBiometricApi(payload)
+        : await punchOutBiometricApi(payload);
+
+      if (res.data?.success) {
+        toast.success(res.data.message || `Code 1435: ${type === "in" ? "Punch-In" : "Punch-Out"} Safal! 🎉`);
+        setPinInput("");
+        await fetchTodayState();
+        fetchMyHistory();
+        if (activeTab === "roster") fetchStaffRoster();
+      }
+    } catch (err) {
+      console.error(`PIN ${type} error:`, err);
+      const msg = err.response?.data?.message || err.message || `Punch ${type} failed`;
+      toast.error(msg, { autoClose: 6000 });
+    } finally {
+      setPunching(false);
+    }
+  };
+
   // Manual Attendance Correction Submit (Harsh Mishra Exclusive)
   const handleManualSubmit = async (e) => {
     e.preventDefault();
@@ -521,85 +568,178 @@ export default function AttendancePage() {
               </p>
             </div>
 
-            {/* THE BIG FINGERPRINT SCANNER BUTTON */}
-            <div className="flex flex-col items-center justify-center py-4">
-              <div className="relative">
-                {/* Glowing Outer Ring */}
-                <div
-                  className={`absolute -inset-4 rounded-full opacity-75 blur-xl transition duration-500 ${
-                    isPunchedOut
-                      ? "bg-slate-700"
-                      : isPunchedIn
-                      ? "bg-indigo-600 animate-pulse"
-                      : "bg-linear-to-r from-amber-500 to-emerald-500 animate-pulse"
-                  }`}
-                ></div>
-
-                {/* Main Interactive Button */}
-                <button
-                  type="button"
-                  disabled={punching || isPunchedOut}
-                  onClick={isPunchedIn ? handlePunchOut : handlePunchIn}
-                  className={`relative w-44 h-44 sm:w-52 sm:h-52 rounded-full flex flex-col items-center justify-center p-6 border-4 shadow-2xl transition-all duration-300 cursor-pointer active:scale-95 disabled:cursor-not-allowed ${
-                    isPunchedOut
-                      ? "bg-slate-900 border-slate-700 text-slate-400 opacity-80"
-                      : isPunchedIn
-                      ? "bg-linear-to-br from-indigo-900 via-indigo-950 to-slate-950 border-indigo-400 text-white hover:border-indigo-300"
-                      : "bg-linear-to-br from-amber-500 via-amber-600 to-emerald-600 border-amber-300 text-slate-950 hover:brightness-110"
-                  }`}
-                >
-                  <FaFingerprint
-                    className={`text-5xl sm:text-6xl mb-2 transition duration-300 ${
-                      punching ? "animate-bounce" : ""
+            {/* DUAL PUNCH OPTIONS: FINGERPRINT SENSOR & OFFICE PIN CODE (1435) */}
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-14 py-6">
+              
+              {/* OPTION 1: THE BIG FINGERPRINT SCANNER BUTTON */}
+              <div className="flex flex-col items-center">
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <FaFingerprint /> Option 1: Mobile Fingerprint
+                </span>
+                
+                <div className="relative">
+                  {/* Glowing Outer Ring */}
+                  <div
+                    className={`absolute -inset-4 rounded-full opacity-75 blur-xl transition duration-500 ${
+                      isPunchedOut
+                        ? "bg-slate-700"
+                        : isPunchedIn
+                        ? "bg-indigo-600 animate-pulse"
+                        : "bg-linear-to-r from-amber-500 to-emerald-500 animate-pulse"
                     }`}
-                  />
-                  
-                  <span className="text-sm sm:text-base font-black uppercase tracking-tight text-center leading-tight">
-                    {punching
-                      ? "Verifying Finger..."
-                      : isPunchedOut
-                      ? "Day Completed"
-                      : isPunchedIn
-                      ? "Punch Out (Sham)"
-                      : "Punch In (Subah)"}
-                  </span>
+                  ></div>
 
-                  <span className="text-[10px] opacity-80 mt-1 font-semibold">
-                    {isPunchedOut
-                      ? "Shubh Ratri!"
-                      : isPunchedIn
-                      ? "Scan to Clock Out"
-                      : "Touch Mobile Sensor"}
-                  </span>
-                </button>
-              </div>
-
-              {/* Status Notice below button */}
-              <div className="mt-6 text-xs max-w-md mx-auto text-slate-300 font-medium">
-                {isPunchedOut ? (
-                  <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 flex items-center justify-center gap-2">
-                    <FaCheckCircle className="text-emerald-400 shrink-0 text-base" />
-                    <span>
-                      Aaj ki attendance complete ho chuki hai! Kul samay:{" "}
-                      <strong>{todayData?.record?.workDurationFormatted}</strong>
+                  {/* Main Interactive Button */}
+                  <button
+                    type="button"
+                    disabled={punching || isPunchedOut}
+                    onClick={isPunchedIn ? handlePunchOut : handlePunchIn}
+                    className={`relative w-44 h-44 sm:w-52 sm:h-52 rounded-full flex flex-col items-center justify-center p-6 border-4 shadow-2xl transition-all duration-300 cursor-pointer active:scale-95 disabled:cursor-not-allowed ${
+                      isPunchedOut
+                        ? "bg-slate-900 border-slate-700 text-slate-400 opacity-80"
+                        : isPunchedIn
+                        ? "bg-linear-to-br from-indigo-900 via-indigo-950 to-slate-950 border-indigo-400 text-white hover:border-indigo-300"
+                        : "bg-linear-to-br from-amber-500 via-amber-600 to-emerald-600 border-amber-300 text-slate-950 hover:brightness-110"
+                    }`}
+                  >
+                    <FaFingerprint
+                      className={`text-5xl sm:text-6xl mb-2 transition duration-300 ${
+                        punching ? "animate-bounce" : ""
+                      }`}
+                    />
+                    
+                    <span className="text-sm sm:text-base font-black uppercase tracking-tight text-center leading-tight">
+                      {punching
+                        ? "Verifying Finger..."
+                        : isPunchedOut
+                        ? "Day Completed"
+                        : isPunchedIn
+                        ? "Punch Out (Sham)"
+                        : "Punch In (Subah)"}
                     </span>
-                  </div>
-                ) : isPunchedIn ? (
-                  <div className="p-3 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 text-indigo-200 space-y-1">
-                    <div className="flex items-center justify-center gap-2 font-bold text-indigo-100">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                      <span>Active Work Session in Progress</span>
-                    </div>
-                    <div className="text-[11px] text-indigo-300">
-                      Punch-In hua tha: <strong>{todayData?.record?.punchIn?.formattedTime}</strong> par. Sham ko jane se pehle button dabakar Punch-Out zaroor karein.
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-400">
-                    💡 Office aate hi apna mobile fingerprint sensor touch karke Punch-In karein. Phone ka WiFi aur Location enable hona chahiye.
-                  </p>
-                )}
+
+                    <span className="text-[10px] opacity-80 mt-1 font-semibold">
+                      {isPunchedOut
+                        ? "Shubh Ratri!"
+                        : isPunchedIn
+                        ? "Scan to Clock Out"
+                        : "Touch Mobile Sensor"}
+                    </span>
+                  </button>
+                </div>
               </div>
+
+              {/* OR DIVIDER */}
+              <div className="flex items-center gap-3 text-slate-500 font-bold text-xs uppercase tracking-wider md:flex-col">
+                <div className="h-px w-16 bg-slate-800 md:w-px md:h-16"></div>
+                <span className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-[10px] text-amber-300 font-black shadow-inner">
+                  YA PHIR (OR)
+                </span>
+                <div className="h-px w-16 bg-slate-800 md:w-px md:h-16"></div>
+              </div>
+
+              {/* OPTION 2: OFFICE CODE 1435 PUNCH CARD */}
+              <div className="flex flex-col items-center w-full max-w-[280px]">
+                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <FaKey /> Option 2: Office PIN Code
+                </span>
+
+                <div className="w-full bg-slate-900/95 border-2 border-slate-700/80 hover:border-amber-500/60 rounded-3xl p-5 shadow-2xl flex flex-col items-center text-center transition duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-amber-500/20 to-emerald-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner">
+                    <FaKey />
+                  </div>
+
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">
+                    {isPunchedOut ? "Day Completed" : isPunchedIn ? "Punch Out via Code" : "Punch In via Code"}
+                  </h3>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5">
+                    Attendance Code <strong className="text-amber-400 font-mono">1435</strong> daalein
+                  </p>
+
+                  {!isPunchedOut ? (
+                    <div className="w-full mt-3 space-y-2.5">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={pinInput}
+                          onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && pinInput.length === 4) {
+                              handlePunchWithPin(isPunchedIn ? "out" : "in");
+                            }
+                          }}
+                          placeholder="Code: 1435"
+                          className="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-2 px-3 bg-slate-950 border-2 border-slate-700 focus:border-amber-400 rounded-xl text-amber-300 placeholder:text-slate-600 outline-none transition shadow-inner"
+                        />
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 px-1">
+                          <span>Code:</span>
+                          <button
+                            type="button"
+                            onClick={() => setPinInput("1435")}
+                            className="text-amber-400 hover:underline font-mono font-bold cursor-pointer"
+                            title="Click to auto-fill 1435"
+                          >
+                            Fill 1435
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={punching || pinInput.length !== 4}
+                        onClick={() => handlePunchWithPin(isPunchedIn ? "out" : "in")}
+                        className={`w-full py-2.5 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer flex items-center justify-center gap-2 ${
+                          pinInput.length === 4
+                            ? "bg-linear-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 shadow-amber-500/20 hover:scale-[1.02]"
+                            : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                        }`}
+                      >
+                        <FaKey className="text-xs" />
+                        <span>
+                          {punching
+                            ? "Verifying..."
+                            : isPunchedIn
+                            ? "Punch Out (1435)"
+                            : "Punch In (1435)"}
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+                      ✓ Punch Complete
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Status Notice below button */}
+            <div className="mt-2 text-xs max-w-lg mx-auto text-slate-300 font-medium">
+              {isPunchedOut ? (
+                <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 flex items-center justify-center gap-2">
+                  <FaCheckCircle className="text-emerald-400 shrink-0 text-base" />
+                  <span>
+                    Aaj ki attendance complete ho chuki hai! Kul samay:{" "}
+                    <strong>{todayData?.record?.workDurationFormatted}</strong>
+                  </span>
+                </div>
+              ) : isPunchedIn ? (
+                <div className="p-3 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 text-indigo-200 space-y-1">
+                  <div className="flex items-center justify-center gap-2 font-bold text-indigo-100">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Active Work Session in Progress</span>
+                  </div>
+                  <div className="text-[11px] text-indigo-300">
+                    Punch-In hua tha: <strong>{todayData?.record?.punchIn?.formattedTime}</strong> par. Sham ko jane se pehle fingerprint sensor ya Code 1435 se Punch-Out zaroor karein.
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-400">
+                  💡 Office aate hi apna mobile fingerprint sensor touch karein ya Code <strong className="text-amber-400 font-mono">1435</strong> enter karke Punch-In karein.
+                </p>
+              )}
             </div>
 
             {/* TODAY PUNCH DETAILS TIMELINE */}

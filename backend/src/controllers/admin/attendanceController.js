@@ -144,8 +144,16 @@ export const punchInBiometric = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Authentication required to mark attendance.");
   }
 
-  const { latitude, longitude, authMethod, deviceInfo, biometricVerified } =
+  const { latitude, longitude, authMethod, deviceInfo, biometricVerified, pinCode } =
     req.body;
+
+  // Validate Code 1435 if punching via PIN code
+  const isPinPunch = authMethod === "PIN_CODE" || authMethod === "PIN_CODE_1435" || Boolean(pinCode);
+  if (isPinPunch) {
+    if (String(pinCode || "").trim() !== "1435") {
+      throw new ApiError(400, "Galat Attendance PIN Code! Kripya sahi code (1435) enter karein.");
+    }
+  }
 
   // Validate Office WiFi + GPS (for OFFICE_ONLY staff)
   const sec = await validateAttendanceSecurity({
@@ -205,9 +213,11 @@ export const punchInBiometric = asyncHandler(async (req, res) => {
   const punchInData = {
     time: now,
     formattedTime: timeFormatted,
-    authMethod: authMethod || (biometricVerified ? "FINGERPRINT_BIOMETRIC" : "OFFICE_VERIFIED"),
+    authMethod: isPinPunch
+      ? "PIN_CODE_1435"
+      : authMethod || (biometricVerified ? "FINGERPRINT_BIOMETRIC" : "OFFICE_VERIFIED"),
     clientIp: sec.clientIp,
-    deviceInfo: deviceInfo || req.headers["user-agent"] || "Mobile Device",
+    deviceInfo: deviceInfo || req.headers["user-agent"] || (isPinPunch ? "Office PIN 1435" : "Mobile Device"),
     latitude: latitude ? Number(latitude) : null,
     longitude: longitude ? Number(longitude) : null,
     isWifiVerified: sec.isWifiVerified,
@@ -239,7 +249,7 @@ export const punchInBiometric = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       { record },
-      `🎉 Fingerprint Verified! Attendance Punch-In Safalta-purvak Darj Hui (${timeFormatted})${
+      `🎉 ${isPinPunch ? "Code 1435 Verified" : "Fingerprint Verified"}! Attendance Punch-In Safalta-purvak Darj Hui (${timeFormatted})${
         isLate ? " [Late Mark]" : ""
       }.`
     )
@@ -257,8 +267,16 @@ export const punchOutBiometric = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Authentication required to mark punch out.");
   }
 
-  const { latitude, longitude, authMethod, deviceInfo, biometricVerified } =
+  const { latitude, longitude, authMethod, deviceInfo, biometricVerified, pinCode } =
     req.body;
+
+  // Validate Code 1435 if punching via PIN code
+  const isPinPunch = authMethod === "PIN_CODE" || authMethod === "PIN_CODE_1435" || Boolean(pinCode);
+  if (isPinPunch) {
+    if (String(pinCode || "").trim() !== "1435") {
+      throw new ApiError(400, "Galat Attendance PIN Code! Kripya sahi code (1435) enter karein.");
+    }
+  }
 
   const sec = await validateAttendanceSecurity({
     user,
@@ -293,9 +311,11 @@ export const punchOutBiometric = asyncHandler(async (req, res) => {
   const punchOutData = {
     time: now,
     formattedTime: timeFormatted,
-    authMethod: authMethod || (biometricVerified ? "FINGERPRINT_BIOMETRIC" : "OFFICE_VERIFIED"),
+    authMethod: isPinPunch
+      ? "PIN_CODE_1435"
+      : authMethod || (biometricVerified ? "FINGERPRINT_BIOMETRIC" : "OFFICE_VERIFIED"),
     clientIp: sec.clientIp,
-    deviceInfo: deviceInfo || req.headers["user-agent"] || "Mobile Device",
+    deviceInfo: deviceInfo || req.headers["user-agent"] || (isPinPunch ? "Office PIN 1435" : "Mobile Device"),
     latitude: latitude ? Number(latitude) : null,
     longitude: longitude ? Number(longitude) : null,
     isWifiVerified: sec.isWifiVerified,
@@ -334,7 +354,7 @@ export const punchOutBiometric = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       { record },
-      `👋 Punch-Out Safal! Aaj aapne kul ${hrs} ghante ${mins} minute kaam kiya (${timeFormatted}). Shubh Ratri!`
+      `👋 ${isPinPunch ? "Code 1435 Verified! " : ""}Punch-Out Safal! Aaj aapne kul ${hrs} ghante ${mins} minute kaam kiya (${timeFormatted}). Shubh Ratri!`
     )
   );
 });
