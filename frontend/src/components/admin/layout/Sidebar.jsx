@@ -21,6 +21,7 @@ import {
   FaReceipt,
   FaMoneyCheckAlt,
   FaEnvelopeOpenText,
+  FaFingerprint,
 } from "react-icons/fa";
 import { RiAdminFill } from "react-icons/ri";
 
@@ -36,6 +37,7 @@ const allMenuItems = [
   { name: "Envelope Designer", path: "/admin/envelope", icon: <FaEnvelopeOpenText /> },
   { name: "Company Expenses", path: "/admin/expenses", icon: <FaReceipt />, module: "expenses" },
   { name: "Salary & Payroll", path: "/admin/salary", icon: <FaMoneyCheckAlt />, module: "salary" },
+  { name: "Staff Attendance", path: "/admin/attendance", icon: <FaFingerprint /> },
   { name: "Blog Articles", path: "/admin/blogs", icon: <FaBookOpen />, module: "blogs" },
   { name: "Users & Roles", path: "/admin/users", icon: <FaUsers />, module: "users", action: "manage" },
   { name: "Inquiries", path: "/admin/inquiry", icon: <FaEnvelope />, module: "inquiries" },
@@ -76,7 +78,7 @@ const Sidebar = () => {
           <NavLink
             key={item.name}
             to={item.path}
-            end={item.path === "/admin" || item.path === "/admin/calibration" || item.path === "/admin/inventory" || item.path === "/admin/sales" || item.path === "/admin/expenses" || item.path === "/admin/salary"}
+            end={item.path === "/admin" || item.path === "/admin/calibration" || item.path === "/admin/inventory" || item.path === "/admin/sales" || item.path === "/admin/expenses" || item.path === "/admin/salary" || item.path === "/admin/attendance"}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
               ${

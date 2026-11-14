@@ -28,6 +28,7 @@ import adminSalesRoutes from "./routes/admin/salesRoutes.js";
 import adminExpenseRoutes from "./routes/admin/expenseRoutes.js";
 import adminSalaryRoutes from "./routes/admin/salaryRoutes.js";
 import adminOfficeSecurityRoutes from "./routes/admin/officeSecurityRoutes.js";
+import adminAttendanceRoutes from "./routes/admin/attendanceRoutes.js";
 import calibrationPaymentRoutes from "./routes/calibrationPaymentRoutes.js";
 
 // ================= CLIENT ROUTES =================
@@ -147,6 +148,8 @@ app.use(`${API_VERSION}/expenses`, verifyExpenseAccess, adminExpenseRoutes);
 app.use(`${ADMIN_API}/salary`, verifyAdmin, adminSalaryRoutes);
 app.use(`${CLIENT_API}/salary`, adminSalaryRoutes);
 app.use(`${API_VERSION}/salary`, adminSalaryRoutes);
+app.use(`${ADMIN_API}/attendance`, adminAttendanceRoutes);
+app.use(`${API_VERSION}/attendance`, adminAttendanceRoutes);
 
 // Client APIs (Public Storefront)
 app.use(`${CLIENT_API}/categories`, clientCategoryRoutes);
