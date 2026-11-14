@@ -98,6 +98,7 @@ export const DEFAULT_ENVELOPE_CONFIG = {
   ],
   footerThankYouTitle: "Thank You for Choosing ARCL Instruments! We Greatly Value Your Trust & Association.",
   footerThankYouSubtitle: "For any new requirements, calibration, servicing, spares, or technical support, please feel free to contact us.",
+  backgroundTheme: "amber_emerald_vibrant", // 'amber_emerald_vibrant' | 'amber_emerald_soft' | 'classic_white'
 };
 
 /**
@@ -224,9 +225,52 @@ export const buildEnvelopePdfDocument = async ({
     putOnlyUsedFonts: true,
   });
 
-  // White background across full canvas
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, widthMm, heightMm, "F");
+  // Background Rendering: Amber-Emerald Gradient, Soft Pastel, or Classic White
+  const theme = config.backgroundTheme || "amber_emerald_vibrant";
+
+  if (theme === "amber_emerald_vibrant") {
+    // Smooth Amber-Lime-Emerald vector gradient (from user button colors: #F59E0B to #10B981)
+    for (let x = 0; x < widthMm; x += 0.5) {
+      const t = x / widthMm;
+      let r, g, b;
+      if (t < 0.45) {
+        const t2 = t / 0.45;
+        r = Math.round(245 + (132 - 245) * t2);
+        g = Math.round(158 + (204 - 158) * t2);
+        b = Math.round(11 + (22 - 11) * t2);
+      } else {
+        const t2 = (t - 0.45) / 0.55;
+        r = Math.round(132 + (16 - 132) * t2);
+        g = Math.round(204 + (185 - 204) * t2);
+        b = Math.round(22 + (129 - 22) * t2);
+      }
+      doc.setFillColor(r, g, b);
+      doc.rect(x, 0, 0.6, heightMm, "F");
+    }
+  } else if (theme === "amber_emerald_soft") {
+    // Soft Pastel Ink-Saver gradient
+    for (let x = 0; x < widthMm; x += 0.5) {
+      const t = x / widthMm;
+      let r, g, b;
+      if (t < 0.5) {
+        const t2 = t * 2;
+        r = Math.round(254 + (236 - 254) * t2);
+        g = Math.round(243 + (252 - 243) * t2);
+        b = Math.round(199 + (203 - 199) * t2);
+      } else {
+        const t2 = (t - 0.5) * 2;
+        r = Math.round(236 + (209 - 236) * t2);
+        g = Math.round(252 + (250 - 252) * t2);
+        b = Math.round(203 + (229 - 203) * t2);
+      }
+      doc.setFillColor(r, g, b);
+      doc.rect(x, 0, 0.6, heightMm, "F");
+    }
+  } else {
+    // White background across full canvas
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, widthMm, heightMm, "F");
+  }
 
   // Load branding assets concurrently
   const [logoImg, watermarkImg, phIconImg, mailIconImg, webIconImg] = await Promise.all([
@@ -241,8 +285,8 @@ export const buildEnvelopePdfDocument = async ({
     loadImageDetails(iconWebSrc),
   ]);
 
-  // 1. FAINT BACKGROUND WATERMARK (Centered behind TO writing area)
-  if (watermarkImg?.dataUrl) {
+  // 1. FAINT BACKGROUND WATERMARK (Centered behind TO writing area - on classic white envelopes)
+  if (theme === "classic_white" && watermarkImg?.dataUrl) {
     const wmW = Math.min(138, widthMm * 0.52);
     const wmH = wmW * (79 / 138);
     const wmX = (widthMm - wmW) / 2;
@@ -265,13 +309,24 @@ export const buildEnvelopePdfDocument = async ({
   const logoCardW = Math.min(29, 29 * scaleRatio);
   const logoCardH = Math.min(20.8, 20.8 * scaleRatio);
 
-  // Logo Card with subtle rounded border (matching Image 1 badge)
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.35);
-  if (typeof doc.roundedRect === "function") {
-    doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.0, 2.0, "S");
+  // Logo Card with subtle rounded border (filled white for gradient themes)
+  if (theme !== "classic_white") {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.35);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.0, 2.0, "FD");
+    } else {
+      doc.rect(logoCardX, logoCardY, logoCardW, logoCardH, "FD");
+    }
   } else {
-    doc.rect(logoCardX, logoCardY, logoCardW, logoCardH, "S");
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.35);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 2.0, 2.0, "S");
+    } else {
+      doc.rect(logoCardX, logoCardY, logoCardW, logoCardH, "S");
+    }
   }
 
   if (logoImg?.dataUrl) {
@@ -379,6 +434,7 @@ export const buildEnvelopePdfDocument = async ({
 
   // Body layout coordinates (mm)
   const bodyTopY = headerBottomY + 5.5;
+  const bodyCardH = Math.max(48, heightMm - bodyTopY - 17);
 
   // ==========================================
   // RIGHT ZONE: QR CODE AREA
@@ -386,18 +442,46 @@ export const buildEnvelopePdfDocument = async ({
   const qrX = widthMm - marginX - qrSizeMm;
   const qrY = Math.max(headerBottomY + 6, (heightMm - qrSizeMm) / 2 - 4);
 
+  // If gradient theme, draw white card for QR area to ensure scanner readability
+  if (theme !== "classic_white") {
+    const qrCardX = qrX - 4;
+    const qrCardW = qrSizeMm + 8;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(255, 255, 255);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(qrCardX, bodyTopY, qrCardW, bodyCardH, 3.0, 3.0, "FD");
+    } else {
+      doc.rect(qrCardX, bodyTopY, qrCardW, bodyCardH, "FD");
+    }
+  }
+
   // ==========================================
   // CENTER/LEFT ZONE: TO SECTION (ONLY SECTION IN BODY - FROM REMOVED)
   // Kept completely blank for handwritten address when no recipient is passed
   // ==========================================
   const toX = 18;
-  const toMaxW = Math.max(70, qrX - toX - 10);
-  let toY = bodyTopY + 3.0;
+  const toMaxW = Math.max(70, qrX - toX - 14);
+
+  // If gradient theme, draw white card for TO recipient section
+  if (theme !== "classic_white") {
+    const toCardX = toX - 4;
+    const toCardW = toMaxW + 8;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(255, 255, 255);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(toCardX, bodyTopY, toCardW, bodyCardH, 3.0, 3.0, "FD");
+    } else {
+      doc.rect(toCardX, bodyTopY, toCardW, bodyCardH, "FD");
+    }
+  }
+
+  const textLeftX = theme !== "classic_white" ? toX + 2 : toX;
+  let toY = bodyTopY + (theme !== "classic_white" ? 6.5 : 3.0);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
   doc.setTextColor(29, 78, 216);
-  doc.text("TO", toX, toY);
+  doc.text("TO", textLeftX, toY);
 
   const recCompany = String(recipient?.companyName || "").trim();
   const recContact = String(recipient?.contactPerson || "").trim();
@@ -411,14 +495,14 @@ export const buildEnvelopePdfDocument = async ({
       doc.setFontSize(Math.max(10.5, 13.0 * scaleRatio));
       doc.setTextColor(2, 28, 87);
       const compLines = doc.splitTextToSize(recCompany, toMaxW);
-      doc.text(compLines, toX, toY, { lineHeightFactor: 1.25 });
+      doc.text(compLines, textLeftX, toY, { lineHeightFactor: 1.25 });
       toY += compLines.length * 5.6 + 2.0;
     }
     if (recContact && recContact.toLowerCase() !== recCompany.toLowerCase()) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
       doc.setTextColor(51, 65, 85);
-      doc.text(`Attn: ${recContact}`, toX, toY);
+      doc.text(`Attn: ${recContact}`, textLeftX, toY);
       toY += 5.5;
     }
     if (recAddress) {
@@ -426,17 +510,17 @@ export const buildEnvelopePdfDocument = async ({
       doc.setFontSize(Math.max(8.5, 10.2 * scaleRatio));
       doc.setTextColor(30, 41, 59);
       const recAddrLines = doc.splitTextToSize(recAddress, toMaxW);
-      doc.text(recAddrLines, toX, toY, { lineHeightFactor: 1.4 });
+      doc.text(recAddrLines, textLeftX, toY, { lineHeightFactor: 1.4 });
       toY += recAddrLines.length * 4.8 + 3.0;
     }
     if (recPhone) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(Math.max(8.0, 9.8 * scaleRatio));
       doc.setTextColor(2, 28, 87);
-      doc.text("Phone:", toX, toY);
+      doc.text("Phone:", textLeftX, toY);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(30, 41, 59);
-      doc.text(recPhone, toX + 15, toY);
+      doc.text(recPhone, textLeftX + 15, toY);
     }
   }
 
@@ -512,10 +596,19 @@ export const buildEnvelopePdfDocument = async ({
 
   doc.setDrawColor(245, 130, 32);
   doc.setLineWidth(0.65);
-  if (typeof doc.roundedRect === "function") {
-    doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "S");
+  if (theme !== "classic_white") {
+    doc.setFillColor(255, 255, 255);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "FD");
+    } else {
+      doc.rect(marginX, footerY, footerW, footerH, "FD");
+    }
   } else {
-    doc.rect(marginX, footerY, footerW, footerH, "S");
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "S");
+    } else {
+      doc.rect(marginX, footerY, footerW, footerH, "S");
+    }
   }
 
   const slotW = footerW / footerServices.length;

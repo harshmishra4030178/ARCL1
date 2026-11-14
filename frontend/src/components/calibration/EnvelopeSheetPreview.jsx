@@ -40,6 +40,14 @@ export default function EnvelopeSheetPreview({
   const recPhone = String(recipient?.phone || "").trim();
   const hasRecipient = Boolean(recCompany || recContact || recAddress || recPhone);
 
+  const bgTheme = config?.backgroundTheme || "amber_emerald_vibrant";
+  const bgStyle =
+    bgTheme === "classic_white"
+      ? "#ffffff"
+      : bgTheme === "amber_emerald_soft"
+      ? "linear-gradient(135deg, #fef3c7 0%, #ecfccb 45%, #d1fae5 100%)"
+      : "linear-gradient(135deg, #f59e0b 0%, #84cc16 45%, #10b981 100%)";
+
   return (
     <div
       id={elementId}
@@ -48,7 +56,7 @@ export default function EnvelopeSheetPreview({
         height: `${actualH}mm`,
         transform: `scale(${scale})`,
         transformOrigin: "top left",
-        backgroundColor: "#ffffff",
+        background: bgStyle,
         position: "relative",
         overflow: "hidden",
         fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
@@ -234,31 +242,33 @@ export default function EnvelopeSheetPreview({
         }}
       />
 
-      {/* Background Watermark (ARCL Logo Faint Centered Behind Recipient Area) */}
-      <div
-        style={{
-          position: "absolute",
-          top: `${wmY}mm`,
-          left: `${wmX}mm`,
-          width: `${wmW}mm`,
-          height: `${wmH}mm`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      >
-        <img
-          src="/assets/cert_assets/arcl_watermark.png"
-          alt="ARCL Watermark"
+      {/* Background Watermark (ARCL Logo Faint Centered Behind Recipient Area - on classic white envelopes) */}
+      {bgTheme === "classic_white" && (
+        <div
           style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
+            position: "absolute",
+            top: `${wmY}mm`,
+            left: `${wmX}mm`,
+            width: `${wmW}mm`,
+            height: `${wmH}mm`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 1,
           }}
-        />
-      </div>
+        >
+          <img
+            src="/assets/cert_assets/arcl_watermark.png"
+            alt="ARCL Watermark"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+            }}
+          />
+        </div>
+      )}
 
       {/* CENTER/LEFT ZONE: TO SECTION (ONLY SECTION IN BODY - FROM REMOVED) */}
       <div
@@ -269,6 +279,11 @@ export default function EnvelopeSheetPreview({
           width: `${toMaxW}mm`,
           height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
           outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
+          backgroundColor: bgTheme !== "classic_white" ? "#ffffff" : "transparent",
+          borderRadius: bgTheme !== "classic_white" ? "3.0mm" : 0,
+          padding: bgTheme !== "classic_white" ? "3.2mm 4.5mm" : 0,
+          boxShadow: bgTheme !== "classic_white" ? "0 4px 14px rgba(0,0,0,0.06)" : "none",
+          boxSizing: "border-box",
           zIndex: 2,
         }}
       >
@@ -334,6 +349,22 @@ export default function EnvelopeSheetPreview({
       </div>
 
       {/* RIGHT COLUMN: DEDICATED QR CODE AREA */}
+      {bgTheme !== "classic_white" && (
+        <div
+          style={{
+            position: "absolute",
+            top: `${headerBottomY + 5.5}mm`,
+            left: `${qrX - 4.0}mm`,
+            width: `${qrSizeMm + 8.0}mm`,
+            height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
+            backgroundColor: "#ffffff",
+            borderRadius: "3.0mm",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+            zIndex: 1,
+          }}
+        />
+      )}
+
       {showRulerGuides && (
         <div
           className="arcl-no-print"

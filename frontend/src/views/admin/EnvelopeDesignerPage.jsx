@@ -6,6 +6,7 @@ import {
   FaDownload,
   FaEnvelopeOpenText,
   FaImage,
+  FaPalette,
   FaPrint,
   FaQrcode,
   FaRedo,
@@ -334,8 +335,85 @@ export default function EnvelopeDesignerPage() {
           </div>
         </div>
 
-        {/* Right Control Panel: Size Selector + QR Upload + Editable Details */}
+        {/* Right Control Panel: Theme Selector + Size Selector + QR Upload + Editable Details */}
         <div className="arcl-no-print xl:col-span-4 space-y-4">
+          {/* Envelope Background Theme Selector Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-[#021C57] flex items-center gap-2">
+                <FaPalette className="text-amber-500" /> Background Color Theme
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                Custom Styling
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                {
+                  id: "amber_emerald_vibrant",
+                  title: "Amber → Emerald Gradient",
+                  subtitle: "Vibrant gradient matching Punch-In button",
+                  gradientPreview: "linear-gradient(90deg, #F59E0B 0%, #84CC16 45%, #10B981 100%)",
+                  badge: "Requested Style",
+                  badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+                },
+                {
+                  id: "amber_emerald_soft",
+                  title: "Soft Pastel Gradient",
+                  subtitle: "Ink-saver light pastel tint for office printing",
+                  gradientPreview: "linear-gradient(90deg, #FEF3C7 0%, #ECFCCB 45%, #D1FAE5 100%)",
+                  badge: "Ink Saver",
+                  badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
+                },
+                {
+                  id: "classic_white",
+                  title: "Classic Pure White",
+                  subtitle: "Traditional envelope with faint logo watermark",
+                  gradientPreview: "#ffffff",
+                  badge: "Standard",
+                  badgeClass: "bg-slate-100 text-slate-800 border-slate-300",
+                },
+              ].map((themeOpt) => {
+                const isSelected = (config.backgroundTheme || "amber_emerald_vibrant") === themeOpt.id;
+                return (
+                  <button
+                    key={themeOpt.id}
+                    type="button"
+                    onClick={() => handleFieldChange("backgroundTheme", themeOpt.id)}
+                    className={`w-full text-left p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
+                      isSelected
+                        ? "border-[#021C57] bg-blue-50/40 ring-2 ring-blue-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div
+                      style={{ background: themeOpt.gradientPreview }}
+                      className="w-12 h-10 rounded-lg border border-slate-300 shadow-sm shrink-0 flex items-center justify-center"
+                    >
+                      {isSelected && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-white shadow-md ring-2 ring-[#021C57]" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={`text-xs font-black ${isSelected ? "text-[#021C57]" : "text-slate-800"}`}>
+                          {themeOpt.title}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${themeOpt.badgeClass}`}>
+                          {themeOpt.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {themeOpt.subtitle}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Envelope Size & Presets Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center justify-between">
