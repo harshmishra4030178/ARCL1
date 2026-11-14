@@ -140,11 +140,19 @@ export const getOrCreateOfficeSecurityConfig = async () => {
 
 /**
  * Validate login restrictions for a given user.
- * "DONO CHEEJ MILE TBHI LOGIN HO: ADRES AUR IP"
- * - Both Office WiFi IP AND Registered Office GPS Location must strictly match.
- * - If either fails, access is rejected with a specific explanation.
- * - SuperAdmin is verified if enforceOnSuperAdmin is true OR if scope is OFFICE_ONLY.
- * - Anywhere scope grants explicit remote work bypass.
+ * 
+ * CORE RULES:
+ * 1. If user has accessScope === 'ANYWHERE' (or is SuperAdmin not set to OFFICE_ONLY, or default user):
+ *    -> ALLOW LOGIN IMMEDIATELY! (Full remote/home/field access without WiFi or GPS blocks).
+ * 
+ * 2. If user has accessScope === 'OFFICE_ONLY':
+ *    -> STRICT TWO-FACTOR OFFICE VERIFICATION ("Dono cheej mile tbhi login ho"):
+ *       Condition 1: Must be connected to Authorized Office WiFi IP.
+ *       Condition 2: Must be physically inside Registered Office Geofence (Address).
+ *       Both conditions must pass. If either fails, block login with clear error.
+ * 
+ * 3. If office security toggles are turned OFF (isEnforceWifi === false && isEnforceLocation === false):
+ *    -> ALLOW LOGIN.
  */
 export const verifyOfficeSecurityAccess = async ({
   user,
@@ -160,30 +168,23 @@ export const verifyOfficeSecurityAccess = async ({
   }
 
   const isSuperAdmin = user?.role === "superadmin";
-  const userAccessScope =
-    user?.accessScope || (config.enforceTarget === "ALL_USERS" ? "OFFICE_ONLY" : "ANYWHERE");
+  const rawScope = String(user?.accessScope || "").trim().toUpperCase();
 
-  // Check bypass permissions:
-  // 1. If user is SuperAdmin and enforceOnSuperAdmin is disabled AND not set to OFFICE_ONLY:
-  if (isSuperAdmin && !config.enforceOnSuperAdmin && user?.accessScope !== "OFFICE_ONLY") {
-    return { allowed: true, reason: "SUPERADMIN_BYPASS" };
-  }
+  // Only users who are explicitly designated as 'OFFICE_ONLY' are restricted to office premises
+  const isOfficeOnly = rawScope === "OFFICE_ONLY";
 
-  // 2. If user explicitly has ANYWHERE scope (e.g. granted remote work):
-  if (user?.accessScope === "ANYWHERE" && (!isSuperAdmin || !config.enforceOnSuperAdmin)) {
-    return { allowed: true, reason: "ANYWHERE_ACCESS" };
-  }
-
-  // 3. If policy is selective (OFFICE_ONLY_USERS only) and user is NOT set to OFFICE_ONLY:
-  if (
-    config.enforceTarget === "OFFICE_ONLY_USERS" &&
-    userAccessScope !== "OFFICE_ONLY" &&
-    !isSuperAdmin
-  ) {
-    return { allowed: true, reason: "NOT_RESTRICTED" };
+  // RULE 1: ANYWHERE ACCESS SCOPE (OR SUPER ADMIN DEFAULT)
+  // Users with Anywhere scope can log in from home, mobile, field, or any WiFi without restrictions!
+  if (!isOfficeOnly) {
+    return {
+      allowed: true,
+      reason: isSuperAdmin ? "SUPERADMIN_ANYWHERE" : "ANYWHERE_ACCESS",
+      message: "Unrestricted Anywhere Access: Can log in from any network and location.",
+    };
   }
 
   // ============================================================
+  // RULE 2: OFFICE_ONLY ACCESS SCOPE
   // STRICT VALIDATION: "DONO CHEEJ MILE TBHI LOGIN HO"
   // 1) WiFi IP Check
   // 2) GPS Coordinates & Registered Office Geofence Check
@@ -247,7 +248,7 @@ export const verifyOfficeSecurityAccess = async ({
         `🚫 Access Denied: Office WiFi aur Office Address (GPS) dono match nahi huye!\n` +
         `• WiFi Check: ${wifiDetail}\n` +
         `• Location Check: ${locationDetail}\n` +
-        `Suraksha niyam: Login ke liye dono cheezein (Office WiFi + Office Geofence) ek sath match hona anivarya hai.`,
+        `Suraksha niyam: Office-Only accounts ke liye dono cheezein (Office WiFi + Office Geofence) ek sath match hona anivarya hai.`,
     };
   }
 

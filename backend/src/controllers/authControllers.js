@@ -168,6 +168,10 @@ export const googleLogin = async (req, res) => {
         user.markModified("permissions");
       }
 
+      if (!user.accessScope) {
+        user.accessScope = "ANYWHERE";
+      }
+
       if (name) user.name = name;
       if (picture) user.picture = picture;
       if (googleId) user.googleId = googleId;
@@ -347,6 +351,9 @@ export const loginWithPassword = async (req, res) => {
     } else {
       user.role = "superadmin";
       user.isActive = true;
+      if (!user.accessScope) {
+        user.accessScope = "ANYWHERE";
+      }
       user.permissions = defaultFullPermissions;
       user.lastLogin = new Date();
       user.lastActiveAt = new Date();
