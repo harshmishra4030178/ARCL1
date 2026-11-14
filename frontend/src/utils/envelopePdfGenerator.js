@@ -98,7 +98,39 @@ export const DEFAULT_ENVELOPE_CONFIG = {
   ],
   footerThankYouTitle: "Thank You for Choosing ARCL Instruments! We Greatly Value Your Trust & Association.",
   footerThankYouSubtitle: "For any new requirements, calibration, servicing, spares, or technical support, please feel free to contact us.",
-  backgroundTheme: "amber_emerald_vibrant", // 'amber_emerald_vibrant' | 'amber_emerald_soft' | 'classic_white'
+  backgroundTheme: "classic_white", // 'classic_white' (Original) | 'amber_emerald_vibrant' | 'amber_emerald_soft' | 'custom'
+  customBgMode: "gradient", // 'gradient' | 'solid'
+  customColorStart: "#F59E0B",
+  customColorEnd: "#10B981",
+  customColorSolid: "#FFFFFF",
+};
+
+/**
+ * Parses 3 or 6 hex digits into RGB object for jsPDF fill rendering
+ */
+export const hexToRgb = (hex, fallback = { r: 255, g: 255, b: 255 }) => {
+  if (!hex || typeof hex !== "string") return fallback;
+  let c = hex.replace("#", "").trim();
+  if (c.length === 3) {
+    c = c.split("").map((ch) => ch + ch).join("");
+  }
+  if (c.length !== 6) return fallback;
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return fallback;
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+};
+
+/**
+ * Computes perceived luminance (0 - 255) of a hex color
+ */
+export const getHexLuminance = (hex, fallback = 255) => {
+  const rgb = hexToRgb(hex, null);
+  if (!rgb) return fallback;
+  return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
 };
 
 /**
@@ -225,8 +257,13 @@ export const buildEnvelopePdfDocument = async ({
     putOnlyUsedFonts: true,
   });
 
-  // Background Rendering: Amber-Emerald Gradient, Soft Pastel, or Classic White
-  const theme = config.backgroundTheme || "amber_emerald_vibrant";
+  // Background Rendering: Amber-Emerald Gradient, Soft Pastel, Custom, or Classic White
+  const theme = config.backgroundTheme || "classic_white";
+  const isThemeWhite =
+    theme === "classic_white" ||
+    (theme === "custom" &&
+      config.customBgMode === "solid" &&
+      String(config.customColorSolid || "").trim().toLowerCase() === "#ffffff");
 
   if (theme === "amber_emerald_vibrant") {
     // Smooth Amber-Lime-Emerald vector gradient (from user button colors: #F59E0B to #10B981)
@@ -266,8 +303,26 @@ export const buildEnvelopePdfDocument = async ({
       doc.setFillColor(r, g, b);
       doc.rect(x, 0, 0.6, heightMm, "F");
     }
+  } else if (theme === "custom") {
+    const isSolid = config.customBgMode === "solid";
+    if (isSolid) {
+      const rgb = hexToRgb(config.customColorSolid || "#FFFFFF");
+      doc.setFillColor(rgb.r, rgb.g, rgb.b);
+      doc.rect(0, 0, widthMm, heightMm, "F");
+    } else {
+      const startRgb = hexToRgb(config.customColorStart || "#F59E0B");
+      const endRgb = hexToRgb(config.customColorEnd || "#10B981");
+      for (let x = 0; x < widthMm; x += 0.5) {
+        const t = x / widthMm;
+        const r = Math.round(startRgb.r + (endRgb.r - startRgb.r) * t);
+        const g = Math.round(startRgb.g + (endRgb.g - startRgb.g) * t);
+        const b = Math.round(startRgb.b + (endRgb.b - startRgb.b) * t);
+        doc.setFillColor(r, g, b);
+        doc.rect(x, 0, 0.6, heightMm, "F");
+      }
+    }
   } else {
-    // White background across full canvas
+    // Classic white background across full canvas
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, widthMm, heightMm, "F");
   }
@@ -286,7 +341,7 @@ export const buildEnvelopePdfDocument = async ({
   ]);
 
   // 1. FAINT BACKGROUND WATERMARK (Centered behind TO writing area - on classic white envelopes)
-  if (theme === "classic_white" && watermarkImg?.dataUrl) {
+  if (isThemeWhite && watermarkImg?.dataUrl) {
     const wmW = Math.min(138, widthMm * 0.52);
     const wmH = wmW * (79 / 138);
     const wmX = (widthMm - wmW) / 2;
@@ -304,13 +359,41 @@ export const buildEnvelopePdfDocument = async ({
   const marginX = Math.min(12, widthMm * 0.05);
   const headerBottomY = Math.min(27.5, heightMm * 0.23);
 
+  // Perceived background luminance to ensure high contrast text on both dark & light backgrounds
+  let headerLum = 255;
+  let footerLum = 255;
+  if (theme === "amber_emerald_vibrant") {
+    headerLum = 167;
+    footerLum = 150;
+  } else if (theme === "amber_emerald_soft") {
+    headerLum = 243;
+    footerLum = 235;
+  } else if (theme === "custom") {
+    if (config.customBgMode === "solid") {
+      const lum = getHexLuminance(config.customColorSolid || "#FFFFFF");
+      headerLum = lum;
+      footerLum = lum;
+    } else {
+      headerLum = getHexLuminance(config.customColorStart || "#F59E0B");
+      const startRgb = hexToRgb(config.customColorStart || "#F59E0B");
+      const endRgb = hexToRgb(config.customColorEnd || "#10B981");
+      const midR = (startRgb.r + endRgb.r) / 2;
+      const midG = (startRgb.g + endRgb.g) / 2;
+      const midB = (startRgb.b + endRgb.b) / 2;
+      footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    }
+  }
+
+  const isDarkHeader = headerLum < 140;
+  const isDarkFooter = footerLum < 140;
+
   const logoCardX = marginX;
   const logoCardY = 4.8;
   const logoCardW = Math.min(29, 29 * scaleRatio);
   const logoCardH = Math.min(20.8, 20.8 * scaleRatio);
 
-  // Logo Card with subtle rounded border (filled white for gradient themes)
-  if (theme !== "classic_white") {
+  // Logo Card with subtle rounded border (filled white for gradient / custom themes)
+  if (!isThemeWhite) {
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.35);
@@ -349,22 +432,34 @@ export const buildEnvelopePdfDocument = async ({
   // Line 1: Full Company Name - Scaled proportionately
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.round(20.5 * scaleRatio * 10) / 10);
-  doc.setTextColor(2, 28, 87);
+  if (isDarkHeader) {
+    doc.setTextColor(255, 255, 255);
+  } else {
+    doc.setTextColor(2, 28, 87);
+  }
   doc.text(headerName, textStartX, 10.2);
 
-  // Line 2: NABL Accreditation Laboratory & Standard (Bold Emerald Green #047857)
+  // Line 2: NABL Accreditation Laboratory & Standard (Bold Emerald Green #047857 or Light Mint #6EE7B7)
   if (config.showHeaderSubtitle !== false && headerSub) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(Math.round(9.8 * scaleRatio * 10) / 10);
-    doc.setTextColor(4, 120, 87);
+    if (isDarkHeader) {
+      doc.setTextColor(110, 231, 183);
+    } else {
+      doc.setTextColor(4, 120, 87);
+    }
     doc.text(headerSub, textStartX, 14.8);
   }
 
-  // Line 3: Official Address & GSTIN - Scaled font size (Slate #334155)
+  // Line 3: Official Address & GSTIN - Scaled font size (Slate #334155 or Light Slate #E2E8F0)
   if (headerAddr) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(Math.round(8.6 * scaleRatio * 10) / 10);
-    doc.setTextColor(51, 65, 85);
+    if (isDarkHeader) {
+      doc.setTextColor(226, 232, 240);
+    } else {
+      doc.setTextColor(51, 65, 85);
+    }
     doc.text(headerAddr, textStartX, 19.0);
   }
 
@@ -384,7 +479,7 @@ export const buildEnvelopePdfDocument = async ({
     }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(contactFontSize);
-    doc.setTextColor(2, 28, 87);
+    doc.setTextColor(isDarkHeader ? 255 : 2, isDarkHeader ? 255 : 28, isDarkHeader ? 255 : 87);
     doc.text(phoneVal, curContactX, line4Y);
     curContactX += doc.getTextWidth(phoneVal) + 4.0;
   }
@@ -402,7 +497,7 @@ export const buildEnvelopePdfDocument = async ({
     }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(contactFontSize);
-    doc.setTextColor(2, 28, 87);
+    doc.setTextColor(isDarkHeader ? 255 : 2, isDarkHeader ? 255 : 28, isDarkHeader ? 255 : 87);
     doc.text(emailVal, curContactX, line4Y);
     curContactX += doc.getTextWidth(emailVal) + 4.0;
   }
@@ -420,12 +515,16 @@ export const buildEnvelopePdfDocument = async ({
     }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(contactFontSize);
-    doc.setTextColor(29, 78, 216);
+    if (isDarkHeader) {
+      doc.setTextColor(147, 197, 253);
+    } else {
+      doc.setTextColor(29, 78, 216);
+    }
     doc.text(websiteVal, curContactX, line4Y);
   }
 
-  // Clean horizontal header divider rules (Navy + Accent Orange)
-  doc.setDrawColor(2, 28, 87);
+  // Clean horizontal header divider rules
+  doc.setDrawColor(isDarkHeader ? 255 : 2, isDarkHeader ? 255 : 28, isDarkHeader ? 255 : 87);
   doc.setLineWidth(0.45);
   doc.line(marginX, headerBottomY, widthMm - marginX, headerBottomY);
   doc.setDrawColor(245, 130, 32);
@@ -442,8 +541,8 @@ export const buildEnvelopePdfDocument = async ({
   const qrX = widthMm - marginX - qrSizeMm;
   const qrY = Math.max(headerBottomY + 6, (heightMm - qrSizeMm) / 2 - 4);
 
-  // If gradient theme, draw white card for QR area to ensure scanner readability
-  if (theme !== "classic_white") {
+  // If gradient or custom non-white theme, draw white card for QR area to ensure scanner readability
+  if (!isThemeWhite) {
     const qrCardX = qrX - 4;
     const qrCardW = qrSizeMm + 8;
     doc.setFillColor(255, 255, 255);
@@ -462,8 +561,8 @@ export const buildEnvelopePdfDocument = async ({
   const toX = 18;
   const toMaxW = Math.max(70, qrX - toX - 14);
 
-  // If gradient theme, draw white card for TO recipient section
-  if (theme !== "classic_white") {
+  // If gradient or custom non-white theme, draw white card for TO recipient section
+  if (!isThemeWhite) {
     const toCardX = toX - 4;
     const toCardW = toMaxW + 8;
     doc.setFillColor(255, 255, 255);
@@ -475,8 +574,8 @@ export const buildEnvelopePdfDocument = async ({
     }
   }
 
-  const textLeftX = theme !== "classic_white" ? toX + 2 : toX;
-  let toY = bodyTopY + (theme !== "classic_white" ? 6.5 : 3.0);
+  const textLeftX = !isThemeWhite ? toX + 2 : toX;
+  let toY = bodyTopY + (!isThemeWhite ? 6.5 : 3.0);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
@@ -596,7 +695,7 @@ export const buildEnvelopePdfDocument = async ({
 
   doc.setDrawColor(245, 130, 32);
   doc.setLineWidth(0.65);
-  if (theme !== "classic_white") {
+  if (!isThemeWhite) {
     doc.setFillColor(255, 255, 255);
     if (typeof doc.roundedRect === "function") {
       doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "FD");
@@ -643,14 +742,14 @@ export const buildEnvelopePdfDocument = async ({
   if (thankTitle) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(Math.max(5.2, 6.6 * scaleRatio));
-    doc.setTextColor(2, 28, 87);
+    doc.setTextColor(isDarkFooter ? 255 : 2, isDarkFooter ? 255 : 28, isDarkFooter ? 255 : 87);
     doc.text(thankTitle, centerPageX, thankY1, { align: "center" });
   }
 
   if (thankSub) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(Math.max(4.5, 5.5 * scaleRatio));
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(isDarkFooter ? 226 : 71, isDarkFooter ? 232 : 85, isDarkFooter ? 240 : 105);
     doc.text(thankSub, centerPageX, thankY2, { align: "center" });
   }
 

@@ -1,7 +1,11 @@
 "use client";
 
 import React from "react";
-import { DEFAULT_ENVELOPE_CONFIG } from "../../utils/envelopePdfGenerator.js";
+import {
+  DEFAULT_ENVELOPE_CONFIG,
+  getHexLuminance,
+  hexToRgb,
+} from "../../utils/envelopePdfGenerator.js";
 
 export default function EnvelopeSheetPreview({
   config = DEFAULT_ENVELOPE_CONFIG,
@@ -40,13 +44,56 @@ export default function EnvelopeSheetPreview({
   const recPhone = String(recipient?.phone || "").trim();
   const hasRecipient = Boolean(recCompany || recContact || recAddress || recPhone);
 
-  const bgTheme = config?.backgroundTheme || "amber_emerald_vibrant";
-  const bgStyle =
-    bgTheme === "classic_white"
-      ? "#ffffff"
-      : bgTheme === "amber_emerald_soft"
-      ? "linear-gradient(135deg, #fef3c7 0%, #ecfccb 45%, #d1fae5 100%)"
-      : "linear-gradient(135deg, #f59e0b 0%, #84cc16 45%, #10b981 100%)";
+  const bgTheme = config?.backgroundTheme || "classic_white";
+  const isThemeWhite =
+    bgTheme === "classic_white" ||
+    (bgTheme === "custom" &&
+      config?.customBgMode === "solid" &&
+      String(config?.customColorSolid || "").trim().toLowerCase() === "#ffffff");
+
+  let bgStyle = "#ffffff";
+  if (bgTheme === "classic_white") {
+    bgStyle = "#ffffff";
+  } else if (bgTheme === "amber_emerald_vibrant") {
+    bgStyle = "linear-gradient(135deg, #f59e0b 0%, #84cc16 45%, #10b981 100%)";
+  } else if (bgTheme === "amber_emerald_soft") {
+    bgStyle = "linear-gradient(135deg, #fef3c7 0%, #ecfccb 45%, #d1fae5 100%)";
+  } else if (bgTheme === "custom") {
+    if (config?.customBgMode === "solid") {
+      bgStyle = config?.customColorSolid || "#ffffff";
+    } else {
+      const start = config?.customColorStart || "#F59E0B";
+      const end = config?.customColorEnd || "#10B981";
+      bgStyle = `linear-gradient(135deg, ${start} 0%, ${end} 100%)`;
+    }
+  }
+
+  let headerLum = 255;
+  let footerLum = 255;
+  if (bgTheme === "amber_emerald_vibrant") {
+    headerLum = 167;
+    footerLum = 150;
+  } else if (bgTheme === "amber_emerald_soft") {
+    headerLum = 243;
+    footerLum = 235;
+  } else if (bgTheme === "custom") {
+    if (config?.customBgMode === "solid") {
+      const lum = getHexLuminance(config?.customColorSolid || "#FFFFFF");
+      headerLum = lum;
+      footerLum = lum;
+    } else {
+      headerLum = getHexLuminance(config?.customColorStart || "#F59E0B");
+      const startRgb = hexToRgb(config?.customColorStart || "#F59E0B");
+      const endRgb = hexToRgb(config?.customColorEnd || "#10B981");
+      const midR = (startRgb.r + endRgb.r) / 2;
+      const midG = (startRgb.g + endRgb.g) / 2;
+      const midB = (startRgb.b + endRgb.b) / 2;
+      footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    }
+  }
+
+  const isDarkHeader = headerLum < 140;
+  const isDarkFooter = footerLum < 140;
 
   return (
     <div
@@ -135,7 +182,7 @@ export default function EnvelopeSheetPreview({
             style={{
               fontSize: `${Math.max(14, 20.5 * scaleRatio)}pt`,
               fontWeight: 900,
-              color: "#021C57",
+              color: isDarkHeader ? "#FFFFFF" : "#021C57",
               letterSpacing: "0.015em",
               lineHeight: 1.12,
               whiteSpace: "nowrap",
@@ -150,7 +197,7 @@ export default function EnvelopeSheetPreview({
               style={{
                 fontSize: `${Math.max(7.5, 9.8 * scaleRatio)}pt`,
                 fontWeight: 800,
-                color: "#047857",
+                color: isDarkHeader ? "#6EE7B7" : "#047857",
                 marginTop: "0.6mm",
                 letterSpacing: "0.012em",
                 lineHeight: 1.15,
@@ -167,7 +214,7 @@ export default function EnvelopeSheetPreview({
             style={{
               fontSize: `${Math.max(6.8, 8.6 * scaleRatio)}pt`,
               fontWeight: 500,
-              color: "#334155",
+              color: isDarkHeader ? "#E2E8F0" : "#334155",
               marginTop: "0.6mm",
               letterSpacing: "0.006em",
               lineHeight: 1.15,
@@ -190,7 +237,7 @@ export default function EnvelopeSheetPreview({
               lineHeight: 1.15,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#021C57", fontWeight: 700 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: isDarkHeader ? "#FFFFFF" : "#021C57", fontWeight: 700 }}>
               <img
                 src="/assets/cert_assets/icon_phone.png"
                 alt="Phone"
@@ -199,7 +246,7 @@ export default function EnvelopeSheetPreview({
               <span>{config.phone || "+91 81696 95728"}</span>
             </div>
             <span style={{ color: "#F58220", fontWeight: 700 }}>|</span>
-            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#021C57", fontWeight: 700 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: isDarkHeader ? "#FFFFFF" : "#021C57", fontWeight: 700 }}>
               <img
                 src="/assets/cert_assets/icon_mail.png"
                 alt="Email"
@@ -208,7 +255,7 @@ export default function EnvelopeSheetPreview({
               <span>{config.email || config.emailPrimary || "info@arclinstruments.com"}</span>
             </div>
             <span style={{ color: "#F58220", fontWeight: 700 }}>|</span>
-            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: "#1D4ED8", fontWeight: 700 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2mm", color: isDarkHeader ? "#93C5FD" : "#1D4ED8", fontWeight: 700 }}>
               <img
                 src="/assets/cert_assets/icon_web.png"
                 alt="Website"
@@ -228,7 +275,7 @@ export default function EnvelopeSheetPreview({
           left: `${marginX}mm`,
           right: `${marginX}mm`,
           height: "0.45mm",
-          backgroundColor: "#021C57",
+          backgroundColor: isDarkHeader ? "rgba(255, 255, 255, 0.7)" : "#021C57",
         }}
       />
       <div
@@ -243,7 +290,7 @@ export default function EnvelopeSheetPreview({
       />
 
       {/* Background Watermark (ARCL Logo Faint Centered Behind Recipient Area - on classic white envelopes) */}
-      {bgTheme === "classic_white" && (
+      {isThemeWhite && (
         <div
           style={{
             position: "absolute",
@@ -279,10 +326,10 @@ export default function EnvelopeSheetPreview({
           width: `${toMaxW}mm`,
           height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
           outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
-          backgroundColor: bgTheme !== "classic_white" ? "#ffffff" : "transparent",
-          borderRadius: bgTheme !== "classic_white" ? "3.0mm" : 0,
-          padding: bgTheme !== "classic_white" ? "3.2mm 4.5mm" : 0,
-          boxShadow: bgTheme !== "classic_white" ? "0 4px 14px rgba(0,0,0,0.06)" : "none",
+          backgroundColor: !isThemeWhite ? "#ffffff" : "transparent",
+          borderRadius: !isThemeWhite ? "3.0mm" : 0,
+          padding: !isThemeWhite ? "3.2mm 4.5mm" : 0,
+          boxShadow: !isThemeWhite ? "0 4px 14px rgba(0,0,0,0.06)" : "none",
           boxSizing: "border-box",
           zIndex: 2,
         }}
@@ -349,7 +396,7 @@ export default function EnvelopeSheetPreview({
       </div>
 
       {/* RIGHT COLUMN: DEDICATED QR CODE AREA */}
-      {bgTheme !== "classic_white" && (
+      {!isThemeWhite && (
         <div
           style={{
             position: "absolute",
@@ -549,7 +596,7 @@ export default function EnvelopeSheetPreview({
           style={{
             fontSize: `${Math.max(5.5, 6.9 * scaleRatio)}pt`,
             fontWeight: 800,
-            color: "#021C57",
+            color: isDarkFooter ? "#FFFFFF" : "#021C57",
             letterSpacing: "0.02em",
             lineHeight: 1.15,
           }}
@@ -561,7 +608,7 @@ export default function EnvelopeSheetPreview({
           style={{
             fontSize: `${Math.max(4.6, 5.8 * scaleRatio)}pt`,
             fontWeight: 500,
-            color: "#475569",
+            color: isDarkFooter ? "#E2E8F0" : "#475569",
             letterSpacing: "0.01em",
             lineHeight: 1.15,
           }}

@@ -344,38 +344,49 @@ export default function EnvelopeDesignerPage() {
                 <FaPalette className="text-amber-500" /> Background Color Theme
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                Custom Styling
+                Aapke Hisab Se
               </span>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {[
+                {
+                  id: "classic_white",
+                  title: "Classic Pure White (Pehle Wala)",
+                  subtitle: "Original standard design with faint ARCL logo watermark",
+                  gradientPreview: "#ffffff",
+                  badge: "Pehle Wala / Standard",
+                  badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
+                },
                 {
                   id: "amber_emerald_vibrant",
                   title: "Amber → Emerald Gradient",
-                  subtitle: "Vibrant gradient matching Punch-In button",
+                  subtitle: "Vibrant button gradient (#F59E0B → #10B981)",
                   gradientPreview: "linear-gradient(90deg, #F59E0B 0%, #84CC16 45%, #10B981 100%)",
-                  badge: "Requested Style",
+                  badge: "Punch-In Style",
                   badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
                 },
                 {
                   id: "amber_emerald_soft",
                   title: "Soft Pastel Gradient",
-                  subtitle: "Ink-saver light pastel tint for office printing",
+                  subtitle: "Light ink-saver pastel tint for office printing",
                   gradientPreview: "linear-gradient(90deg, #FEF3C7 0%, #ECFCCB 45%, #D1FAE5 100%)",
                   badge: "Ink Saver",
                   badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
                 },
                 {
-                  id: "classic_white",
-                  title: "Classic Pure White",
-                  subtitle: "Traditional envelope with faint logo watermark",
-                  gradientPreview: "#ffffff",
-                  badge: "Standard",
-                  badgeClass: "bg-slate-100 text-slate-800 border-slate-300",
+                  id: "custom",
+                  title: "Custom (Apne Hisab Se Color / Gradient)",
+                  subtitle: "Pick any 2-color gradient or solid single color",
+                  gradientPreview:
+                    config.customBgMode === "solid"
+                      ? config.customColorSolid || "#FFFFFF"
+                      : `linear-gradient(90deg, ${config.customColorStart || "#F59E0B"} 0%, ${config.customColorEnd || "#10B981"} 100%)`,
+                  badge: "Full Control",
+                  badgeClass: "bg-purple-100 text-purple-800 border-purple-300",
                 },
               ].map((themeOpt) => {
-                const isSelected = (config.backgroundTheme || "amber_emerald_vibrant") === themeOpt.id;
+                const isSelected = (config.backgroundTheme || "classic_white") === themeOpt.id;
                 return (
                   <button
                     key={themeOpt.id}
@@ -383,7 +394,7 @@ export default function EnvelopeDesignerPage() {
                     onClick={() => handleFieldChange("backgroundTheme", themeOpt.id)}
                     className={`w-full text-left p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
                       isSelected
-                        ? "border-[#021C57] bg-blue-50/40 ring-2 ring-blue-500/20"
+                        ? "border-[#021C57] bg-blue-50/50 ring-2 ring-blue-500/20"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
@@ -412,6 +423,170 @@ export default function EnvelopeDesignerPage() {
                 );
               })}
             </div>
+
+            {/* Sub-panel when 'custom' theme is selected */}
+            {(config.backgroundTheme || "classic_white") === "custom" && (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3 mt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Custom Color Type</label>
+                  <div className="inline-flex rounded-lg p-0.5 bg-slate-200 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange("customBgMode", "gradient")}
+                      className={`px-2.5 py-1 rounded-md transition ${
+                        config.customBgMode !== "solid"
+                          ? "bg-white text-[#021C57] shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      2-Color Gradient
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange("customBgMode", "solid")}
+                      className={`px-2.5 py-1 rounded-md transition ${
+                        config.customBgMode === "solid"
+                          ? "bg-white text-[#021C57] shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Solid Color
+                    </button>
+                  </div>
+                </div>
+
+                {config.customBgMode !== "solid" ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Start Color
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={config.customColorStart || "#F59E0B"}
+                            onChange={(e) => handleFieldChange("customColorStart", e.target.value)}
+                            className="w-8 h-8 rounded-lg cursor-pointer border border-slate-300 p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={config.customColorStart || "#F59E0B"}
+                            onChange={(e) => handleFieldChange("customColorStart", e.target.value)}
+                            className="w-full px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-300 uppercase"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          End Color
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={config.customColorEnd || "#10B981"}
+                            onChange={(e) => handleFieldChange("customColorEnd", e.target.value)}
+                            className="w-8 h-8 rounded-lg cursor-pointer border border-slate-300 p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={config.customColorEnd || "#10B981"}
+                            onChange={(e) => handleFieldChange("customColorEnd", e.target.value)}
+                            className="w-full px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-300 uppercase"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Quick Gradient Presets:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: "Punch-In", start: "#F59E0B", end: "#10B981" },
+                          { label: "Navy-Sky", start: "#021C57", end: "#38BDF8" },
+                          { label: "Royal-Purple", start: "#4C1D95", end: "#A78BFA" },
+                          { label: "Sunset-Fire", start: "#BE123C", end: "#FB923C" },
+                          { label: "Forest-Mint", start: "#064E3B", end: "#34D399" },
+                          { label: "Slate-Steel", start: "#334155", end: "#94A3B8" },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              handleFieldChange("customColorStart", preset.start);
+                              handleFieldChange("customColorEnd", preset.end);
+                            }}
+                            className="px-2 py-1 rounded-md text-[10px] font-bold border border-slate-200 bg-white hover:border-slate-400 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <span
+                              style={{
+                                background: `linear-gradient(90deg, ${preset.start}, ${preset.end})`,
+                              }}
+                              className="w-3 h-3 rounded-full border border-slate-300 inline-block"
+                            />
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Solid Background Color
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={config.customColorSolid || "#FFFFFF"}
+                          onChange={(e) => handleFieldChange("customColorSolid", e.target.value)}
+                          className="w-9 h-9 rounded-lg cursor-pointer border border-slate-300 p-0.5 bg-white"
+                        />
+                        <input
+                          type="text"
+                          value={config.customColorSolid || "#FFFFFF"}
+                          onChange={(e) => handleFieldChange("customColorSolid", e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 uppercase"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Quick Solid Presets:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: "White", color: "#FFFFFF" },
+                          { label: "Ivory", color: "#FFFBEB" },
+                          { label: "Ice Blue", color: "#F0F9FF" },
+                          { label: "Soft Mint", color: "#ECFDF5" },
+                          { label: "Slate", color: "#F1F5F9" },
+                          { label: "Deep Navy", color: "#021C57" },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => handleFieldChange("customColorSolid", preset.color)}
+                            className="px-2 py-1 rounded-md text-[10px] font-bold border border-slate-200 bg-white hover:border-slate-400 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <span
+                              style={{ background: preset.color }}
+                              className="w-3 h-3 rounded-full border border-slate-300 inline-block"
+                            />
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Envelope Size & Presets Card */}
