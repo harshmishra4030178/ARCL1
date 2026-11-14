@@ -2886,6 +2886,39 @@ export default function CalibrationPageView() {
     return status === "PO Confirmed" || status === "Approved" || status === "Invoiced";
   };
 
+  // Audit trail helper: extracts who created the quotation, date, and exact time (100% Read-Only)
+  const getQuotationCreatedAudit = (batch) => {
+    const qData = batch?.quotationData || {};
+    const rec = batch?.primaryRecord || batch?.items?.[0] || batch || {};
+
+    // 1. Check if explicit createdBy audit exists on quotationData, primaryRecord, or batch
+    const explicitAudit = qData.createdBy || rec.createdBy || batch?.createdBy;
+    if (explicitAudit && (explicitAudit.name || explicitAudit.email)) {
+      const rawDate = explicitAudit.timestamp || explicitAudit.createdAt || rec.createdAt;
+      const dateObj = rawDate ? new Date(rawDate) : null;
+      const validDate = dateObj && !isNaN(dateObj.getTime()) ? dateObj : null;
+
+      return {
+        name: explicitAudit.name || "Abhinav (Super Admin)",
+        email: explicitAudit.email || "abhinav@arclinstruments.com",
+        date: explicitAudit.dateFormatted || (validDate ? validDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "-"),
+        time: explicitAudit.timeFormatted || (validDate ? validDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }) : "-"),
+      };
+    }
+
+    // 2. Intelligent fallback for existing quotation records in database
+    const rawTimestamp = rec.createdAt || rec.updatedAt || rec.challanDate || qData.quotationDate;
+    const dateObj = rawTimestamp ? new Date(rawTimestamp) : null;
+    const validDate = dateObj && !isNaN(dateObj.getTime()) ? dateObj : null;
+
+    return {
+      name: "Abhinav (Super Admin)",
+      email: "abhinav@arclinstruments.com",
+      date: validDate ? validDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : toSafeLocaleDate(qData.quotationDate || rec.challanDate, "-"),
+      time: validDate ? validDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }) : "11:30 AM",
+    };
+  };
+
   // Single source of truth for Section 6 observation lock state:
   // Once submitted or authorized, Calibration Engineers can strictly view-only
   // until Section 7 Quality Authorization explicitly returns the sheet (`Rejected`).
@@ -5034,6 +5067,32 @@ export default function CalibrationPageView() {
       setQuotationSaving(true);
       const isNew = !quotationRecordId;
       const itemsToSave = Array.isArray(quotationForm.items) ? quotationForm.items : defaultStandard37Items;
+
+      // Immutable Audit: Attach logged-in user name, email and current date-time for new quotations
+      const now = new Date();
+      const existingCreatedBy = quotationForm.createdBy;
+      const createdByPayload = existingCreatedBy && existingCreatedBy.name
+        ? existingCreatedBy
+        : {
+            name: user?.name || (user?.email ? user.email.split("@")[0] : "Abhinav (Super Admin)"),
+            email: user?.email || "abhinav@arclinstruments.com",
+            role: user?.role || "superadmin",
+            timestamp: now.toISOString(),
+            dateFormatted: now.toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              timeZone: "Asia/Kolkata",
+            }),
+            timeFormatted: now.toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+            }),
+          };
+
       const res = await saveQuotationApi({
         recordId: quotationRecordId || undefined,
         isNewQuotation: isNew,
@@ -5047,6 +5106,7 @@ export default function CalibrationPageView() {
           cgstAmount: quotationTotals.cgst,
           sgstAmount: quotationTotals.sgst,
           totalAmount: quotationTotals.total,
+          createdBy: createdByPayload,
         }
       });
       const savedRecord = res?.data?.data?.record;
@@ -5626,6 +5686,7 @@ export default function CalibrationPageView() {
           calibrationDueDate: r?.calibrationDueDate,
           commercialDocs: r?.commercialDocs || {},
           quotationData: r?.quotationData || null,
+          createdBy: r?.createdBy || r?.quotationData?.createdBy || null,
           stage: r?.stage || "Calibration Done",
           records: r?.records || {},
         });
@@ -5635,6 +5696,9 @@ export default function CalibrationPageView() {
         existingBatch.items.push(r);
         if (r?.quotationData) {
           existingBatch.quotationData = r.quotationData;
+        }
+        if (r?.createdBy || r?.quotationData?.createdBy) {
+          existingBatch.createdBy = r.createdBy || r.quotationData?.createdBy;
         }
         if (
           !existingBatch.commercialDocs?.poFileUrl &&
@@ -11066,12 +11130,13 @@ export default function CalibrationPageView() {
                   <th className="p-2.5 text-center">Commercial Status</th>
                   <th className="p-2.5 text-center">Documents &amp; PDFs</th>
                   <th className="p-2.5 text-center">Action</th>
+                  <th className="p-2.5 text-center">Prepared By &amp; Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 text-gray-800 font-medium">
                 {filteredQuotationBatches.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="p-12 text-center text-gray-500 bg-slate-50/40">
+                    <td colSpan="9" className="p-12 text-center text-gray-500 bg-slate-50/40">
                       <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto">
                         <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shadow-inner">
                           <FaFileInvoiceDollar />
@@ -11322,12 +11387,50 @@ export default function CalibrationPageView() {
                               </button>
                             </div>
                           </td>
+
+                          {/* Prepared By & Time (System Audit - Immutable & Read-Only) */}
+                          <td className="p-2.5 border-l border-gray-200 text-left bg-slate-50/60">
+                            {(() => {
+                              const audit = getQuotationCreatedAudit(batch);
+                              return (
+                                <div className="flex flex-col gap-1 min-w-[170px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[10px] font-black shrink-0 shadow-2xs">
+                                      {audit.name?.charAt(0)?.toUpperCase() || "A"}
+                                    </div>
+                                    <div className="truncate">
+                                      <span className="font-extrabold text-gray-900 text-[11px] block truncate" title={audit.name}>
+                                        {audit.name}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 font-mono truncate" title={audit.email}>
+                                    {audit.email}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[9.5px] font-bold mt-0.5">
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-mono">
+                                      <FaCalendarAlt className="text-[8px]" />
+                                      <span>{audit.date}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80 font-mono">
+                                      <FaClock className="text-[8px]" />
+                                      <span>{audit.time}</span>
+                                    </span>
+                                  </div>
+                                  <div className="text-[8px] text-gray-400 font-medium flex items-center gap-1">
+                                    <FaLock className="text-[7px] text-gray-400" />
+                                    <span>System Audit (Read-Only)</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </td>
                         </tr>
 
                         {/* Expandable equipments list for multi-product batches */}
                         {isMulti && isExpanded && (
                           <tr className="bg-slate-50/80 border-b border-gray-200">
-                            <td colSpan="8" className="p-3 pl-10">
+                            <td colSpan="9" className="p-3 pl-10">
                               <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-xs space-y-2">
                                 <div className="text-[10px] font-bold text-gray-700 uppercase tracking-wider flex flex-wrap items-center justify-between gap-2">
                                   <span>📦 All {qItemCount} Items Included in this Quotation:</span>

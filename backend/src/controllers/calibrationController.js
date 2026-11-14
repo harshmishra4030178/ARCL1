@@ -2359,6 +2359,12 @@ export const saveQuotationData = async (req, res, next) => {
       .trim();
     const createdRecords = [];
 
+    // Audit Creator Details (Immutable - cannot be modified once set)
+    const currentUser = req.user || req.admin;
+    const authorName = currentUser?.name || quotationData?.createdBy?.name || "Abhinav (Super Admin)";
+    const authorEmail = currentUser?.email || quotationData?.createdBy?.email || "abhinav@arclinstruments.com";
+    const authorRole = currentUser?.role || quotationData?.createdBy?.role || "superadmin";
+
     // CREATE BRAND NEW CalibrationRecord when creating a new quotation
     if (isCreateNew || !record) {
       const uniqueTs = Date.now().toString();
@@ -2367,10 +2373,34 @@ export const saveQuotationData = async (req, res, next) => {
       const newDc = rawDc && rawDc !== "-" ? rawDc : `DC-${new Date().getFullYear()}-${uniqueTs.slice(-5)}`;
       const newSerial = `ARCL-QTN-${uniqueTs.slice(-6)}-${randSuffix}`;
 
+      const now = new Date();
+      const auditCreatedBy = quotationData?.createdBy && quotationData.createdBy.name
+        ? quotationData.createdBy
+        : {
+            name: authorName,
+            email: authorEmail,
+            role: authorRole,
+            timestamp: now,
+            dateFormatted: now.toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              timeZone: "Asia/Kolkata",
+            }),
+            timeFormatted: now.toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+            }),
+          };
+
       const finalQuotationData = {
         ...(quotationData || {}),
         dcNo: newDc,
         quotationNo: quotationData?.quotationNo || `ARCL/QTN/26-27/${uniqueTs.slice(-4)}`,
+        createdBy: auditCreatedBy,
       };
 
       record = new CalibrationRecord({
@@ -2399,6 +2429,7 @@ export const saveQuotationData = async (req, res, next) => {
           grantedBy: "",
           notes: "",
         },
+        createdBy: auditCreatedBy,
         quotationData: finalQuotationData,
       });
 
@@ -2437,6 +2468,7 @@ export const saveQuotationData = async (req, res, next) => {
               grantedBy: "",
               notes: "",
             },
+            createdBy: auditCreatedBy,
             quotationData: finalQuotationData,
           });
           await newSibling.save();
@@ -2455,6 +2487,36 @@ export const saveQuotationData = async (req, res, next) => {
       }
 
       const prevQNo = record.quotationData?.quotationNo;
+
+      // IMMUTABLE AUDIT TRAIL: Existing createdBy is permanently locked and cannot be edited!
+      const existingCreatedBy = record.quotationData?.createdBy || record.createdBy;
+      if (existingCreatedBy) {
+        quotationData.createdBy = existingCreatedBy;
+      } else {
+        const origTime = record.createdAt || record.challanDate || new Date();
+        const dObj = new Date(origTime);
+        quotationData.createdBy = {
+          name: authorName,
+          email: authorEmail,
+          role: authorRole,
+          timestamp: origTime,
+          dateFormatted: dObj.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            timeZone: "Asia/Kolkata",
+          }),
+          timeFormatted: dObj.toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+          }),
+        };
+      }
+
+      record.createdBy = quotationData.createdBy;
       record.quotationData = quotationData;
       if (quotationData?.billTo?.companyName) record.clientCompany = quotationData.billTo.companyName;
       if (quotationData?.billTo?.email) record.clientEmail = quotationData.billTo.email;
@@ -2484,6 +2546,7 @@ export const saveQuotationData = async (req, res, next) => {
 
         for (let i = 0; i < siblingRecords.length; i++) {
           const sib = siblingRecords[i];
+          sib.createdBy = quotationData.createdBy;
           sib.quotationData = quotationData;
           if (quotationData?.billTo?.companyName) sib.clientCompany = quotationData.billTo.companyName;
           const itemIdx = i + 1;
@@ -2517,6 +2580,8 @@ export const saveQuotationData = async (req, res, next) => {
               calibrationDate: record.calibrationDate || new Date(),
               calibrationDueDate: record.calibrationDueDate || new Date(Date.now() + 365 * 86400000),
               stage: record.stage || "Instrument Received",
+              createdBy: quotationData.createdBy,
+              quotationData,
               commercialDocs: {
                 quotationStatus: record.commercialDocs?.quotationStatus || "Draft",
                 poRaised: record.commercialDocs?.poRaised || "",
