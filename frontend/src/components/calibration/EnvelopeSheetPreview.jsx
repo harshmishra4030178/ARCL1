@@ -73,14 +73,17 @@ export default function EnvelopeSheetPreview({
   }
 
   let headerLum = 255;
+  let bodyLum = 255;
   let footerLum = 255;
   if (bgTheme === "amber_emerald_vibrant") {
     headerLum = 167;
+    bodyLum = 155;
     footerLum = 150;
   } else if (bgTheme === "custom") {
     if (config?.customBgMode === "solid") {
       const lum = getHexLuminance(config?.customColorSolid || "#FFFFFF");
       headerLum = lum;
+      bodyLum = lum;
       footerLum = lum;
     } else {
       headerLum = getHexLuminance(config?.customColorStart || "#F59E0B");
@@ -89,7 +92,8 @@ export default function EnvelopeSheetPreview({
       const midR = (startRgb.r + endRgb.r) / 2;
       const midG = (startRgb.g + endRgb.g) / 2;
       const midB = (startRgb.b + endRgb.b) / 2;
-      footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+      bodyLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+      footerLum = bodyLum;
     }
   } else if (themeObj?.startColor && themeObj?.endColor) {
     headerLum = getHexLuminance(themeObj.startColor);
@@ -98,11 +102,13 @@ export default function EnvelopeSheetPreview({
     const midR = (startRgb.r + endRgb.r) / 2;
     const midG = (startRgb.g + endRgb.g) / 2;
     const midB = (startRgb.b + endRgb.b) / 2;
-    footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    bodyLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    footerLum = bodyLum;
   }
 
-  const isDarkHeader = headerLum < 140;
-  const isDarkFooter = footerLum < 140;
+  const isDarkHeader = !isThemeWhite && (headerLum < 195 || bgTheme === "amber_emerald_vibrant");
+  const isDarkBody = !isThemeWhite && (bodyLum < 195 || bgTheme === "amber_emerald_vibrant");
+  const isDarkFooter = !isThemeWhite && (footerLum < 195 || bgTheme === "amber_emerald_vibrant");
 
   return (
     <div
@@ -335,10 +341,10 @@ export default function EnvelopeSheetPreview({
           width: `${toMaxW}mm`,
           height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
           outline: showRulerGuides ? "0.3mm dashed #60a5fa" : "none",
-          backgroundColor: !isThemeWhite ? "#ffffff" : "transparent",
-          borderRadius: !isThemeWhite ? "3.0mm" : 0,
-          padding: !isThemeWhite ? "3.2mm 4.5mm" : 0,
-          boxShadow: !isThemeWhite ? "0 4px 14px rgba(0,0,0,0.06)" : "none",
+          backgroundColor: "transparent",
+          borderRadius: 0,
+          padding: 0,
+          boxShadow: "none",
           boxSizing: "border-box",
           zIndex: 2,
         }}
@@ -346,24 +352,27 @@ export default function EnvelopeSheetPreview({
         <div
           style={{
             fontSize: `${Math.max(8.5, 10.0 * scaleRatio)}pt`,
-            fontWeight: 800,
-            color: "#1D4ED8",
+            fontWeight: 900,
+            color: isDarkBody ? "#FDE047" : "#1D4ED8",
             letterSpacing: "0.1em",
             marginBottom: hasRecipient ? "2.4mm" : 0,
+            textShadow: isDarkBody ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
           }}
         >
           TO
         </div>
 
         {hasRecipient && (
-          <div style={{ color: "#1E293B", lineHeight: 1.4 }}>
+          <div style={{ color: isDarkBody ? "#FFFFFF" : "#1E293B", lineHeight: 1.4 }}>
             {recCompany && (
               <div
                 style={{
                   fontSize: `${Math.max(10.5, 13.0 * scaleRatio)}pt`,
-                  fontWeight: 800,
-                  color: "#021C57",
+                  fontWeight: 900,
+                  color: isDarkBody ? "#FFFFFF" : "#021C57",
                   marginBottom: "1.8mm",
+                  letterSpacing: "0.01em",
+                  textShadow: isDarkBody ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
                 }}
               >
                 {recCompany}
@@ -374,7 +383,7 @@ export default function EnvelopeSheetPreview({
                 style={{
                   fontSize: `${Math.max(8.5, 10.0 * scaleRatio)}pt`,
                   fontWeight: 700,
-                  color: "#334155",
+                  color: isDarkBody ? "#FEF3C7" : "#334155",
                   marginBottom: "1.6mm",
                 }}
               >
@@ -385,10 +394,11 @@ export default function EnvelopeSheetPreview({
               <div
                 style={{
                   fontSize: `${Math.max(8.5, 10.2 * scaleRatio)}pt`,
-                  color: "#1E293B",
+                  color: isDarkBody ? "#F8FAFC" : "#1E293B",
                   marginBottom: "2.4mm",
                   whiteSpace: "pre-line",
                   lineHeight: 1.4,
+                  fontWeight: isDarkBody ? 500 : 400,
                 }}
               >
                 {recAddress}
@@ -396,8 +406,8 @@ export default function EnvelopeSheetPreview({
             )}
             {recPhone && (
               <div style={{ fontSize: `${Math.max(8.0, 9.8 * scaleRatio)}pt` }}>
-                <span style={{ fontWeight: 700, color: "#021C57" }}>Phone: </span>
-                <span>{recPhone}</span>
+                <span style={{ fontWeight: 700, color: isDarkBody ? "#FDE047" : "#021C57" }}>Phone: </span>
+                <span style={{ color: isDarkBody ? "#FFFFFF" : "#1E293B", fontWeight: 600 }}>{recPhone}</span>
               </div>
             )}
           </div>
@@ -405,22 +415,6 @@ export default function EnvelopeSheetPreview({
       </div>
 
       {/* RIGHT COLUMN: DEDICATED QR CODE AREA */}
-      {!isThemeWhite && (
-        <div
-          style={{
-            position: "absolute",
-            top: `${headerBottomY + 5.5}mm`,
-            left: `${qrX - 4.0}mm`,
-            width: `${qrSizeMm + 8.0}mm`,
-            height: `${actualH - headerBottomY - footerBottomMm - 10}mm`,
-            backgroundColor: "#ffffff",
-            borderRadius: "3.0mm",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-            zIndex: 1,
-          }}
-        />
-      )}
-
       {showRulerGuides && (
         <div
           className="arcl-no-print"
@@ -431,7 +425,7 @@ export default function EnvelopeSheetPreview({
             width: `${qrSizeMm}mm`,
             textAlign: "center",
             fontSize: "6.5pt",
-            color: "#64748B",
+            color: isDarkBody ? "#E2E8F0" : "#64748B",
             fontFamily: "monospace",
           }}
         >
@@ -449,8 +443,11 @@ export default function EnvelopeSheetPreview({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#ffffff",
-          border: qrImage?.dataUrl ? "none" : "0.35mm dotted #94A3B8",
+          backgroundColor: qrImage?.dataUrl ? "#ffffff" : isDarkBody ? "rgba(255, 255, 255, 0.08)" : "#ffffff",
+          borderRadius: qrImage?.dataUrl ? "2.0mm" : 0,
+          border: qrImage?.dataUrl ? "none" : isDarkBody ? "0.35mm dotted rgba(255, 255, 255, 0.75)" : "0.35mm dotted #94A3B8",
+          padding: qrImage?.dataUrl ? "1.2mm" : 0,
+          boxShadow: qrImage?.dataUrl ? "0 2px 8px rgba(0,0,0,0.18)" : "none",
           boxSizing: "border-box",
           zIndex: 2,
         }}
@@ -489,11 +486,12 @@ export default function EnvelopeSheetPreview({
         <div
           style={{
             fontSize: `${Math.max(5.8, 7.2 * scaleRatio)}pt`,
-            fontWeight: 800,
-            color: "#021C57",
+            fontWeight: 900,
+            color: isDarkBody ? "#FFFFFF" : "#021C57",
             letterSpacing: "0.05em",
             textTransform: "uppercase",
             lineHeight: 1.15,
+            textShadow: isDarkBody ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
           }}
         >
           SCAN TO VERIFY
@@ -501,8 +499,8 @@ export default function EnvelopeSheetPreview({
         <div
           style={{
             fontSize: `${Math.max(5.0, 6.2 * scaleRatio)}pt`,
-            fontWeight: 700,
-            color: "#1D4ED8",
+            fontWeight: 800,
+            color: isDarkBody ? "#93C5FD" : "#1D4ED8",
             letterSpacing: "0.03em",
             textTransform: "uppercase",
             marginTop: "0.4mm",
@@ -515,7 +513,7 @@ export default function EnvelopeSheetPreview({
           style={{
             fontSize: `${Math.max(4.5, 5.2 * scaleRatio)}pt`,
             fontWeight: 600,
-            color: "#475569",
+            color: isDarkBody ? "#E2E8F0" : "#475569",
             marginTop: "0.5mm",
             letterSpacing: "0.02em",
             lineHeight: 1.15,
@@ -527,7 +525,7 @@ export default function EnvelopeSheetPreview({
           style={{
             fontSize: `${Math.max(4.0, 4.8 * scaleRatio)}pt`,
             fontWeight: 500,
-            color: "#64748B",
+            color: isDarkBody ? "#CBD5E1" : "#64748B",
             marginTop: "0.3mm",
             lineHeight: 1.15,
           }}
@@ -549,7 +547,7 @@ export default function EnvelopeSheetPreview({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          backgroundColor: "#ffffff",
+          backgroundColor: "transparent",
           boxSizing: "border-box",
           zIndex: 2,
         }}
@@ -565,8 +563,9 @@ export default function EnvelopeSheetPreview({
                 textAlign: "center",
                 fontSize: `${Math.max(6.8, 9.0 * scaleRatio)}pt`,
                 fontWeight: 800,
-                color: "#021C57",
+                color: isDarkFooter ? "#FFFFFF" : "#021C57",
                 letterSpacing: "0.02em",
+                textShadow: isDarkFooter ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
               }}
             >
               {svc}

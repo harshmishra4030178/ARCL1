@@ -579,14 +579,17 @@ export const buildEnvelopePdfDocument = async ({
 
   // Perceived background luminance to ensure high contrast text on both dark & light backgrounds
   let headerLum = 255;
+  let bodyLum = 255;
   let footerLum = 255;
   if (theme === "amber_emerald_vibrant") {
     headerLum = 167;
+    bodyLum = 155;
     footerLum = 150;
   } else if (theme === "custom") {
     if (config.customBgMode === "solid") {
       const lum = getHexLuminance(config.customColorSolid || "#FFFFFF");
       headerLum = lum;
+      bodyLum = lum;
       footerLum = lum;
     } else {
       headerLum = getHexLuminance(config.customColorStart || "#F59E0B");
@@ -595,7 +598,8 @@ export const buildEnvelopePdfDocument = async ({
       const midR = (startRgb.r + endRgb.r) / 2;
       const midG = (startRgb.g + endRgb.g) / 2;
       const midB = (startRgb.b + endRgb.b) / 2;
-      footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+      bodyLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+      footerLum = bodyLum;
     }
   } else if (themeObj?.startColor && themeObj?.endColor) {
     headerLum = getHexLuminance(themeObj.startColor);
@@ -604,11 +608,13 @@ export const buildEnvelopePdfDocument = async ({
     const midR = (startRgb.r + endRgb.r) / 2;
     const midG = (startRgb.g + endRgb.g) / 2;
     const midB = (startRgb.b + endRgb.b) / 2;
-    footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    bodyLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
+    footerLum = bodyLum;
   }
 
-  const isDarkHeader = headerLum < 140;
-  const isDarkFooter = footerLum < 140;
+  const isDarkHeader = !isThemeWhite && (headerLum < 195 || theme === "amber_emerald_vibrant");
+  const isDarkBody = !isThemeWhite && (bodyLum < 195 || theme === "amber_emerald_vibrant");
+  const isDarkFooter = !isThemeWhite && (footerLum < 195 || theme === "amber_emerald_vibrant");
 
   const logoCardX = marginX;
   const logoCardY = 4.8;
@@ -764,19 +770,6 @@ export const buildEnvelopePdfDocument = async ({
   const qrX = widthMm - marginX - qrSizeMm;
   const qrY = Math.max(headerBottomY + 6, (heightMm - qrSizeMm) / 2 - 4);
 
-  // If gradient or custom non-white theme, draw white card for QR area to ensure scanner readability
-  if (!isThemeWhite) {
-    const qrCardX = qrX - 4;
-    const qrCardW = qrSizeMm + 8;
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(255, 255, 255);
-    if (typeof doc.roundedRect === "function") {
-      doc.roundedRect(qrCardX, bodyTopY, qrCardW, bodyCardH, 3.0, 3.0, "FD");
-    } else {
-      doc.rect(qrCardX, bodyTopY, qrCardW, bodyCardH, "FD");
-    }
-  }
-
   // ==========================================
   // CENTER/LEFT ZONE: TO SECTION (ONLY SECTION IN BODY - FROM REMOVED)
   // Kept completely blank for handwritten address when no recipient is passed
@@ -784,25 +777,16 @@ export const buildEnvelopePdfDocument = async ({
   const toX = 18;
   const toMaxW = Math.max(70, qrX - toX - 14);
 
-  // If gradient or custom non-white theme, draw white card for TO recipient section
-  if (!isThemeWhite) {
-    const toCardX = toX - 4;
-    const toCardW = toMaxW + 8;
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(255, 255, 255);
-    if (typeof doc.roundedRect === "function") {
-      doc.roundedRect(toCardX, bodyTopY, toCardW, bodyCardH, 3.0, 3.0, "FD");
-    } else {
-      doc.rect(toCardX, bodyTopY, toCardW, bodyCardH, "FD");
-    }
-  }
-
-  const textLeftX = !isThemeWhite ? toX + 2 : toX;
-  let toY = bodyTopY + (!isThemeWhite ? 6.5 : 3.0);
+  const textLeftX = toX;
+  let toY = bodyTopY + 3.0;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
-  doc.setTextColor(29, 78, 216);
+  if (isDarkBody) {
+    doc.setTextColor(253, 224, 71); // Bright Gold #FDE047
+  } else {
+    doc.setTextColor(29, 78, 216);
+  }
   doc.text("TO", textLeftX, toY);
 
   const recCompany = String(recipient?.companyName || "").trim();
@@ -815,7 +799,11 @@ export const buildEnvelopePdfDocument = async ({
     if (recCompany) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(Math.max(10.5, 13.0 * scaleRatio));
-      doc.setTextColor(2, 28, 87);
+      if (isDarkBody) {
+        doc.setTextColor(255, 255, 255); // Pure Crisp White
+      } else {
+        doc.setTextColor(2, 28, 87);
+      }
       const compLines = doc.splitTextToSize(recCompany, toMaxW);
       doc.text(compLines, textLeftX, toY, { lineHeightFactor: 1.25 });
       toY += compLines.length * 5.6 + 2.0;
@@ -823,14 +811,22 @@ export const buildEnvelopePdfDocument = async ({
     if (recContact && recContact.toLowerCase() !== recCompany.toLowerCase()) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(Math.max(8.5, 10.0 * scaleRatio));
-      doc.setTextColor(51, 65, 85);
+      if (isDarkBody) {
+        doc.setTextColor(254, 243, 199); // Light Warm Cream #FEF3C7
+      } else {
+        doc.setTextColor(51, 65, 85);
+      }
       doc.text(`Attn: ${recContact}`, textLeftX, toY);
       toY += 5.5;
     }
     if (recAddress) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(Math.max(8.5, 10.2 * scaleRatio));
-      doc.setTextColor(30, 41, 59);
+      if (isDarkBody) {
+        doc.setTextColor(248, 250, 252); // Light Slate #F8FAFC
+      } else {
+        doc.setTextColor(30, 41, 59);
+      }
       const recAddrLines = doc.splitTextToSize(recAddress, toMaxW);
       doc.text(recAddrLines, textLeftX, toY, { lineHeightFactor: 1.4 });
       toY += recAddrLines.length * 4.8 + 3.0;
@@ -838,23 +834,37 @@ export const buildEnvelopePdfDocument = async ({
     if (recPhone) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(Math.max(8.0, 9.8 * scaleRatio));
-      doc.setTextColor(2, 28, 87);
-      doc.text("Phone:", textLeftX, toY);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(30, 41, 59);
-      doc.text(recPhone, textLeftX + 15, toY);
+      if (isDarkBody) {
+        doc.setTextColor(253, 224, 71);
+        doc.text("Phone:", textLeftX, toY);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        doc.text(recPhone, textLeftX + 15, toY);
+      } else {
+        doc.setTextColor(2, 28, 87);
+        doc.text("Phone:", textLeftX, toY);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 41, 59);
+        doc.text(recPhone, textLeftX + 15, toY);
+      }
     }
   }
 
   // Draw QR Image / Box
   if (qrImage?.dataUrl) {
+    doc.setFillColor(255, 255, 255);
+    if (typeof doc.roundedRect === "function") {
+      doc.roundedRect(qrX, qrY, qrSizeMm, qrSizeMm, 1.5, 1.5, "F");
+    } else {
+      doc.rect(qrX, qrY, qrSizeMm, qrSizeMm, "F");
+    }
     const qrFit = computeAspectFitBox(
       qrImage.width,
       qrImage.height,
-      qrX,
-      qrY,
-      qrSizeMm,
-      qrSizeMm
+      qrX + 0.8,
+      qrY + 0.8,
+      qrSizeMm - 1.6,
+      qrSizeMm - 1.6
     );
     doc.addImage(
       qrImage.dataUrl,
@@ -867,7 +877,11 @@ export const buildEnvelopePdfDocument = async ({
       "NONE"
     );
   } else {
-    doc.setDrawColor(148, 163, 184);
+    if (isDarkBody) {
+      doc.setDrawColor(255, 255, 255);
+    } else {
+      doc.setDrawColor(148, 163, 184);
+    }
     doc.setLineWidth(0.35);
     if (typeof doc.setLineDashPattern === "function") {
       doc.setLineDashPattern([1.2, 1.2], 0);
@@ -884,24 +898,40 @@ export const buildEnvelopePdfDocument = async ({
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(6.0, 7.5 * scaleRatio));
-  doc.setTextColor(2, 28, 87);
+  if (isDarkBody) {
+    doc.setTextColor(255, 255, 255);
+  } else {
+    doc.setTextColor(2, 28, 87);
+  }
   doc.text("SCAN TO VERIFY", qrCenterX, curQrTextY, { align: "center" });
 
   curQrTextY += 3.2;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(5.2, 6.3 * scaleRatio));
-  doc.setTextColor(29, 78, 216);
+  if (isDarkBody) {
+    doc.setTextColor(147, 197, 253);
+  } else {
+    doc.setTextColor(29, 78, 216);
+  }
   doc.text("CALIBRATION CERTIFICATES", qrCenterX, curQrTextY, { align: "center" });
 
   curQrTextY += 2.8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(Math.max(4.6, 5.4 * scaleRatio));
-  doc.setTextColor(71, 85, 105);
+  if (isDarkBody) {
+    doc.setTextColor(226, 232, 240);
+  } else {
+    doc.setTextColor(71, 85, 105);
+  }
   doc.text("NABL CC-4313  \u2022  ISO/IEC 17025", qrCenterX, curQrTextY, { align: "center" });
 
   curQrTextY += 2.5;
   doc.setFontSize(Math.max(4.2, 4.8 * scaleRatio));
-  doc.setTextColor(100, 116, 139);
+  if (isDarkBody) {
+    doc.setTextColor(203, 213, 225);
+  } else {
+    doc.setTextColor(100, 116, 139);
+  }
   doc.text("ARCL Instruments Pvt. Ltd.", qrCenterX, curQrTextY, { align: "center" });
 
   // ==========================================
@@ -918,25 +948,20 @@ export const buildEnvelopePdfDocument = async ({
 
   doc.setDrawColor(245, 130, 32);
   doc.setLineWidth(0.65);
-  if (!isThemeWhite) {
-    doc.setFillColor(255, 255, 255);
-    if (typeof doc.roundedRect === "function") {
-      doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "FD");
-    } else {
-      doc.rect(marginX, footerY, footerW, footerH, "FD");
-    }
+  if (typeof doc.roundedRect === "function") {
+    doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "S");
   } else {
-    if (typeof doc.roundedRect === "function") {
-      doc.roundedRect(marginX, footerY, footerW, footerH, 1.8, 1.8, "S");
-    } else {
-      doc.rect(marginX, footerY, footerW, footerH, "S");
-    }
+    doc.rect(marginX, footerY, footerW, footerH, "S");
   }
 
   const slotW = footerW / footerServices.length;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(Math.max(6.8, 8.8 * scaleRatio));
-  doc.setTextColor(2, 28, 87);
+  if (isDarkFooter) {
+    doc.setTextColor(255, 255, 255);
+  } else {
+    doc.setTextColor(2, 28, 87);
+  }
 
   footerServices.forEach((svc, i) => {
     const slotCenterX = marginX + i * slotW + slotW / 2;
