@@ -16,6 +16,7 @@ import {
   FaUpload,
 } from "react-icons/fa";
 import {
+  BACKGROUND_THEMES,
   DEFAULT_ENVELOPE_CONFIG,
   ENVELOPE_PRESETS,
   ENVELOPE_SPECS,
@@ -35,6 +36,7 @@ export default function EnvelopeDesignerPage() {
   const [showRulerGuides, setShowRulerGuides] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(0.85);
+  const [themeCategory, setThemeCategory] = useState("all");
 
   const fileInputRef = useRef(null);
   const previewContainerRef = useRef(null);
@@ -344,63 +346,66 @@ export default function EnvelopeDesignerPage() {
                 <FaPalette className="text-amber-500" /> Background Color Theme
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                Aapke Hisab Se
+                {BACKGROUND_THEMES.length} Presets Available
               </span>
             </div>
 
-            <div className="space-y-2">
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap gap-1 border-b border-slate-100 pb-2.5">
               {[
-                {
-                  id: "classic_white",
-                  title: "Classic Pure White (Pehle Wala)",
-                  subtitle: "Original standard design with faint ARCL logo watermark",
-                  gradientPreview: "#ffffff",
-                  badge: "Pehle Wala / Standard",
-                  badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
-                },
-                {
-                  id: "amber_emerald_vibrant",
-                  title: "Amber → Emerald Gradient",
-                  subtitle: "Vibrant button gradient (#F59E0B → #10B981)",
-                  gradientPreview: "linear-gradient(90deg, #F59E0B 0%, #84CC16 45%, #10B981 100%)",
-                  badge: "Punch-In Style",
-                  badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
-                },
-                {
-                  id: "amber_emerald_soft",
-                  title: "Soft Pastel Gradient",
-                  subtitle: "Light ink-saver pastel tint for office printing",
-                  gradientPreview: "linear-gradient(90deg, #FEF3C7 0%, #ECFCCB 45%, #D1FAE5 100%)",
-                  badge: "Ink Saver",
-                  badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
-                },
-                {
-                  id: "custom",
-                  title: "Custom (Apne Hisab Se Color / Gradient)",
-                  subtitle: "Pick any 2-color gradient or solid single color",
-                  gradientPreview:
-                    config.customBgMode === "solid"
-                      ? config.customColorSolid || "#FFFFFF"
-                      : `linear-gradient(90deg, ${config.customColorStart || "#F59E0B"} 0%, ${config.customColorEnd || "#10B981"} 100%)`,
-                  badge: "Full Control",
-                  badgeClass: "bg-purple-100 text-purple-800 border-purple-300",
-                },
-              ].map((themeOpt) => {
+                { id: "all", label: "All Colors" },
+                { id: "standard", label: "Pehle Wala" },
+                { id: "vibrant", label: "🌟 Vibrant" },
+                { id: "executive", label: "🏢 Executive" },
+                { id: "ink_saver", label: "🌿 Ink Saver" },
+                { id: "custom", label: "🎨 Custom" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setThemeCategory(cat.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    themeCategory === cat.id
+                      ? "bg-[#021C57] text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Preset Themes List */}
+            <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1.5 scrollbar-thin">
+              {BACKGROUND_THEMES.filter(
+                (t) =>
+                  themeCategory === "all" ||
+                  t.category === themeCategory ||
+                  (themeCategory === "custom" && t.id === "custom")
+              ).map((themeOpt) => {
                 const isSelected = (config.backgroundTheme || "classic_white") === themeOpt.id;
+                const previewBg =
+                  themeOpt.id === "custom"
+                    ? config.customBgMode === "solid"
+                      ? config.customColorSolid || "#FFFFFF"
+                      : `linear-gradient(90deg, ${config.customColorStart || "#F59E0B"} 0%, ${config.customColorEnd || "#10B981"} 100%)`
+                    : themeOpt.gradientCss ||
+                      `linear-gradient(90deg, ${themeOpt.startColor} 0%, ${themeOpt.endColor} 100%)`;
+
                 return (
                   <button
                     key={themeOpt.id}
                     type="button"
                     onClick={() => handleFieldChange("backgroundTheme", themeOpt.id)}
-                    className={`w-full text-left p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
+                    className={`w-full text-left p-2.5 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
                       isSelected
-                        ? "border-[#021C57] bg-blue-50/50 ring-2 ring-blue-500/20"
+                        ? "border-[#021C57] bg-blue-50/50 ring-2 ring-blue-500/20 shadow-xs"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
                     <div
-                      style={{ background: themeOpt.gradientPreview }}
-                      className="w-12 h-10 rounded-lg border border-slate-300 shadow-sm shrink-0 flex items-center justify-center"
+                      style={{ background: previewBg }}
+                      className="w-11 h-9 rounded-lg border border-slate-300 shadow-sm shrink-0 flex items-center justify-center"
                     >
                       {isSelected && (
                         <div className="w-2.5 h-2.5 rounded-full bg-white shadow-md ring-2 ring-[#021C57]" />
@@ -408,10 +413,10 @@ export default function EnvelopeDesignerPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className={`text-xs font-black ${isSelected ? "text-[#021C57]" : "text-slate-800"}`}>
+                        <span className={`text-xs font-black truncate ${isSelected ? "text-[#021C57]" : "text-slate-800"}`}>
                           {themeOpt.title}
                         </span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${themeOpt.badgeClass}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${themeOpt.badgeClass}`}>
                           {themeOpt.badge}
                         </span>
                       </div>

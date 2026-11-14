@@ -2,6 +2,7 @@
 
 import React from "react";
 import {
+  BACKGROUND_THEMES,
   DEFAULT_ENVELOPE_CONFIG,
   getHexLuminance,
   hexToRgb,
@@ -45,6 +46,7 @@ export default function EnvelopeSheetPreview({
   const hasRecipient = Boolean(recCompany || recContact || recAddress || recPhone);
 
   const bgTheme = config?.backgroundTheme || "classic_white";
+  const themeObj = BACKGROUND_THEMES.find((t) => t.id === bgTheme) || null;
   const isThemeWhite =
     bgTheme === "classic_white" ||
     (bgTheme === "custom" &&
@@ -56,8 +58,6 @@ export default function EnvelopeSheetPreview({
     bgStyle = "#ffffff";
   } else if (bgTheme === "amber_emerald_vibrant") {
     bgStyle = "linear-gradient(135deg, #f59e0b 0%, #84cc16 45%, #10b981 100%)";
-  } else if (bgTheme === "amber_emerald_soft") {
-    bgStyle = "linear-gradient(135deg, #fef3c7 0%, #ecfccb 45%, #d1fae5 100%)";
   } else if (bgTheme === "custom") {
     if (config?.customBgMode === "solid") {
       bgStyle = config?.customColorSolid || "#ffffff";
@@ -66,6 +66,10 @@ export default function EnvelopeSheetPreview({
       const end = config?.customColorEnd || "#10B981";
       bgStyle = `linear-gradient(135deg, ${start} 0%, ${end} 100%)`;
     }
+  } else if (themeObj?.gradientCss) {
+    bgStyle = themeObj.gradientCss;
+  } else if (themeObj?.startColor && themeObj?.endColor) {
+    bgStyle = `linear-gradient(135deg, ${themeObj.startColor} 0%, ${themeObj.endColor} 100%)`;
   }
 
   let headerLum = 255;
@@ -73,9 +77,6 @@ export default function EnvelopeSheetPreview({
   if (bgTheme === "amber_emerald_vibrant") {
     headerLum = 167;
     footerLum = 150;
-  } else if (bgTheme === "amber_emerald_soft") {
-    headerLum = 243;
-    footerLum = 235;
   } else if (bgTheme === "custom") {
     if (config?.customBgMode === "solid") {
       const lum = getHexLuminance(config?.customColorSolid || "#FFFFFF");
@@ -90,6 +91,14 @@ export default function EnvelopeSheetPreview({
       const midB = (startRgb.b + endRgb.b) / 2;
       footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
     }
+  } else if (themeObj?.startColor && themeObj?.endColor) {
+    headerLum = getHexLuminance(themeObj.startColor);
+    const startRgb = hexToRgb(themeObj.startColor);
+    const endRgb = hexToRgb(themeObj.endColor);
+    const midR = (startRgb.r + endRgb.r) / 2;
+    const midG = (startRgb.g + endRgb.g) / 2;
+    const midB = (startRgb.b + endRgb.b) / 2;
+    footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
   }
 
   const isDarkHeader = headerLum < 140;

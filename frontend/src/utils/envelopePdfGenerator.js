@@ -134,6 +134,161 @@ export const getHexLuminance = (hex, fallback = 255) => {
 };
 
 /**
+ * Curated Preset Themes for Envelope Backgrounds (Classic White, Button Style, Pastels, and Executive Gradients)
+ */
+export const BACKGROUND_THEMES = [
+  {
+    id: "classic_white",
+    category: "standard",
+    title: "Classic Pure White (Pehle Wala)",
+    subtitle: "Original standard design with faint ARCL logo watermark",
+    type: "white",
+    gradientCss: "#ffffff",
+    badge: "Pehle Wala / Standard",
+    badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
+  },
+  {
+    id: "amber_emerald_vibrant",
+    category: "vibrant",
+    title: "Amber → Emerald Gradient",
+    subtitle: "Vibrant button gradient (#F59E0B → #10B981)",
+    type: "gradient_multi",
+    gradientCss: "linear-gradient(90deg, #F59E0B 0%, #84CC16 45%, #10B981 100%)",
+    badge: "Punch-In Style",
+    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  },
+  {
+    id: "amber_emerald_soft",
+    category: "ink_saver",
+    title: "Soft Pastel Amber-Emerald",
+    subtitle: "Light ink-saver pastel tint for office printing",
+    type: "gradient",
+    startColor: "#FEF3C7",
+    endColor: "#D1FAE5",
+    gradientCss: "linear-gradient(90deg, #FEF3C7 0%, #ECFCCB 45%, #D1FAE5 100%)",
+    badge: "Ink Saver",
+    badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
+  },
+  {
+    id: "executive_navy_cyan",
+    category: "executive",
+    title: "Executive Royal Navy → Sky Cyan",
+    subtitle: "ARCL signature corporate navy & sky cyan",
+    type: "gradient",
+    startColor: "#021C57",
+    endColor: "#0284C7",
+    gradientCss: "linear-gradient(90deg, #021C57 0%, #0284C7 100%)",
+    badge: "Corporate Elite",
+    badgeClass: "bg-sky-100 text-sky-800 border-sky-300",
+  },
+  {
+    id: "nabl_emerald_mint",
+    category: "executive",
+    title: "NABL Laboratory Emerald → Mint",
+    subtitle: "Deep calibration lab green & precision mint",
+    type: "gradient",
+    startColor: "#064E3B",
+    endColor: "#10B981",
+    gradientCss: "linear-gradient(90deg, #064E3B 0%, #10B981 100%)",
+    badge: "Lab Special",
+    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  },
+  {
+    id: "imperial_purple_violet",
+    category: "vibrant",
+    title: "Imperial Royal Purple → Violet",
+    subtitle: "Prestigious deep violet luxury presentation",
+    type: "gradient",
+    startColor: "#4C1D95",
+    endColor: "#8B5CF6",
+    gradientCss: "linear-gradient(90deg, #4C1D95 0%, #8B5CF6 100%)",
+    badge: "Royal Luxury",
+    badgeClass: "bg-purple-100 text-purple-800 border-purple-300",
+  },
+  {
+    id: "sunset_crimson_coral",
+    category: "vibrant",
+    title: "Sunset Crimson → Vibrant Coral",
+    subtitle: "Warm energetic gradient from crimson to coral",
+    type: "gradient",
+    startColor: "#9F1239",
+    endColor: "#FB923C",
+    gradientCss: "linear-gradient(90deg, #9F1239 0%, #FB923C 100%)",
+    badge: "Warm Vibrant",
+    badgeClass: "bg-rose-100 text-rose-800 border-rose-300",
+  },
+  {
+    id: "champagne_gold_bronze",
+    category: "executive",
+    title: "Champagne Gold → Metallic Bronze",
+    subtitle: "Prestigious warm gold & bronze executive theme",
+    type: "gradient",
+    startColor: "#78350F",
+    endColor: "#F59E0B",
+    gradientCss: "linear-gradient(90deg, #78350F 0%, #F59E0B 100%)",
+    badge: "Gold Edition",
+    badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
+  },
+  {
+    id: "ocean_teal_marine",
+    category: "executive",
+    title: "Deep Ocean Teal → Marine Cyan",
+    subtitle: "Fresh modern scientific calibration teal",
+    type: "gradient",
+    startColor: "#0F766E",
+    endColor: "#06B6D4",
+    gradientCss: "linear-gradient(90deg, #0F766E 0%, #06B6D4 100%)",
+    badge: "Tech Modern",
+    badgeClass: "bg-teal-100 text-teal-800 border-teal-300",
+  },
+  {
+    id: "charcoal_slate_silver",
+    category: "executive",
+    title: "Charcoal Slate → Platinum Silver",
+    subtitle: "High-contrast sleek monochrome corporate look",
+    type: "gradient",
+    startColor: "#1E293B",
+    endColor: "#64748B",
+    gradientCss: "linear-gradient(90deg, #1E293B 0%, #64748B 100%)",
+    badge: "Sleek Carbon",
+    badgeClass: "bg-slate-200 text-slate-800 border-slate-400",
+  },
+  {
+    id: "pastel_glacier_sky",
+    category: "ink_saver",
+    title: "Glacier Ice → Sky Mist (Ink Saver)",
+    subtitle: "Ultra-light cooling pastel for economical office printing",
+    type: "gradient",
+    startColor: "#E0F2FE",
+    endColor: "#E0E7FF",
+    gradientCss: "linear-gradient(90deg, #E0F2FE 0%, #E0E7FF 100%)",
+    badge: "Ink Saver",
+    badgeClass: "bg-sky-100 text-sky-800 border-sky-300",
+  },
+  {
+    id: "pastel_rose_peach",
+    category: "ink_saver",
+    title: "Soft Rose → Peach Blossom (Ink Saver)",
+    subtitle: "Gentle warm tint keeping printer ink usage minimal",
+    type: "gradient",
+    startColor: "#FFE4E6",
+    endColor: "#FFEDD5",
+    gradientCss: "linear-gradient(90deg, #FFE4E6 0%, #FFEDD5 100%)",
+    badge: "Ink Saver",
+    badgeClass: "bg-pink-100 text-pink-800 border-pink-300",
+  },
+  {
+    id: "custom",
+    category: "custom",
+    title: "Custom (Apne Hisab Se Color / Gradient)",
+    subtitle: "Pick any 2-color gradient or solid single color",
+    type: "custom",
+    badge: "Full Control",
+    badgeClass: "bg-purple-100 text-purple-800 border-purple-300",
+  },
+];
+
+/**
  * Computes proportional width/height and centered x/y offset to fit an image
  * strictly inside a bounding box without stretching, distorting, or cropping.
  */
@@ -259,6 +414,7 @@ export const buildEnvelopePdfDocument = async ({
 
   // Background Rendering: Amber-Emerald Gradient, Soft Pastel, Custom, or Classic White
   const theme = config.backgroundTheme || "classic_white";
+  const themeObj = BACKGROUND_THEMES.find((t) => t.id === theme) || null;
   const isThemeWhite =
     theme === "classic_white" ||
     (theme === "custom" &&
@@ -321,6 +477,18 @@ export const buildEnvelopePdfDocument = async ({
         doc.rect(x, 0, 0.6, heightMm, "F");
       }
     }
+  } else if (themeObj?.startColor && themeObj?.endColor) {
+    // 2-stop linear gradient for any preset in BACKGROUND_THEMES
+    const startRgb = hexToRgb(themeObj.startColor);
+    const endRgb = hexToRgb(themeObj.endColor);
+    for (let x = 0; x < widthMm; x += 0.5) {
+      const t = x / widthMm;
+      const r = Math.round(startRgb.r + (endRgb.r - startRgb.r) * t);
+      const g = Math.round(startRgb.g + (endRgb.g - startRgb.g) * t);
+      const b = Math.round(startRgb.b + (endRgb.b - startRgb.b) * t);
+      doc.setFillColor(r, g, b);
+      doc.rect(x, 0, 0.6, heightMm, "F");
+    }
   } else {
     // Classic white background across full canvas
     doc.setFillColor(255, 255, 255);
@@ -365,9 +533,6 @@ export const buildEnvelopePdfDocument = async ({
   if (theme === "amber_emerald_vibrant") {
     headerLum = 167;
     footerLum = 150;
-  } else if (theme === "amber_emerald_soft") {
-    headerLum = 243;
-    footerLum = 235;
   } else if (theme === "custom") {
     if (config.customBgMode === "solid") {
       const lum = getHexLuminance(config.customColorSolid || "#FFFFFF");
@@ -382,6 +547,14 @@ export const buildEnvelopePdfDocument = async ({
       const midB = (startRgb.b + endRgb.b) / 2;
       footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
     }
+  } else if (themeObj?.startColor && themeObj?.endColor) {
+    headerLum = getHexLuminance(themeObj.startColor);
+    const startRgb = hexToRgb(themeObj.startColor);
+    const endRgb = hexToRgb(themeObj.endColor);
+    const midR = (startRgb.r + endRgb.r) / 2;
+    const midG = (startRgb.g + endRgb.g) / 2;
+    const midB = (startRgb.b + endRgb.b) / 2;
+    footerLum = 0.299 * midR + 0.587 * midG + 0.114 * midB;
   }
 
   const isDarkHeader = headerLum < 140;
