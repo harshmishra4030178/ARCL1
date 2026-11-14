@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import CustomEquipment from "../models/CustomEquipment.js";
+import EnvelopeConfig from "../models/EnvelopeConfig.js";
 import mongoose from "mongoose";
 import { generateDocumentPdf } from "../utils/pdfService.js";
 import { sendCalibrationDueEmail, sendCertificateDeliveryEmail, sendSpecificDocumentEmail } from "../utils/emailService.js";
@@ -5110,6 +5111,96 @@ RULES:
     console.error("Error in transcribeVoiceAudio:", err);
     return res.status(200).json(
       new ApiResponse(200, { transcript: "", error: err.message }, "Voice transcription error handled")
+    );
+  }
+};
+
+/**
+ * GET /api/v1/admin/calibration/envelope-config
+ * Fetch the active corporate envelope configuration (used by SRF envelopes & Envelope Designer)
+ */
+export const getEnvelopeConfigHandler = async (req, res, next) => {
+  try {
+    let config = await EnvelopeConfig.findOne({ configKey: "DEFAULT_ARCL_ENVELOPE" });
+    if (!config) {
+      config = await EnvelopeConfig.create({ configKey: "DEFAULT_ARCL_ENVELOPE" });
+    }
+    return res.status(200).json(
+      new ApiResponse(200, config, "Envelope configuration retrieved successfully")
+    );
+  } catch (err) {
+    console.error("Error in getEnvelopeConfigHandler:", err);
+    return res.status(500).json(
+      new ApiResponse(500, null, "Failed to retrieve envelope configuration")
+    );
+  }
+};
+
+/**
+ * POST /api/v1/admin/calibration/envelope-config
+ * Save updated envelope configuration from Envelope Designer (immediately applies to SRF Customer Envelopes)
+ */
+export const saveEnvelopeConfigHandler = async (req, res, next) => {
+  try {
+    const payload = req.body || {};
+    const updatedBy = req.user?._id || null;
+    const updatedByEmail = req.user?.email || "";
+    const updatedByName = req.user?.name || "";
+
+    const allowedFields = [
+      "backgroundTheme",
+      "customBgMode",
+      "customColorStart",
+      "customColorEnd",
+      "customColorSolid",
+      "selectedPresetId",
+      "widthMm",
+      "heightMm",
+      "headerCompanyName",
+      "headerSubtitle",
+      "showHeaderSubtitle",
+      "headerAddress",
+      "phone",
+      "email",
+      "emailPrimary",
+      "emailSecondary",
+      "website",
+      "fromCompanyName",
+      "address",
+      "footerServices",
+      "footerThankYouTitle",
+      "footerThankYouSubtitle",
+    ];
+
+    const updateData = {
+      updatedBy,
+      updatedByEmail,
+      updatedByName,
+    };
+
+    allowedFields.forEach((field) => {
+      if (payload[field] !== undefined) {
+        updateData[field] = payload[field];
+      }
+    });
+
+    const updatedConfig = await EnvelopeConfig.findOneAndUpdate(
+      { configKey: "DEFAULT_ARCL_ENVELOPE" },
+      { $set: updateData },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        updatedConfig,
+        "Envelope design saved successfully! Ab se sabhi SRF customer envelopes me yahi design use hoga."
+      )
+    );
+  } catch (err) {
+    console.error("Error in saveEnvelopeConfigHandler:", err);
+    return res.status(500).json(
+      new ApiResponse(500, null, "Failed to save envelope configuration")
     );
   }
 };

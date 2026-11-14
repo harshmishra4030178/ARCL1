@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import {
+  FaCheckCircle,
   FaDownload,
   FaEnvelopeOpenText,
   FaImage,
@@ -11,6 +12,7 @@ import {
   FaQrcode,
   FaRedo,
   FaRulerCombined,
+  FaSave,
   FaSyncAlt,
   FaTrashAlt,
   FaUpload,
@@ -21,20 +23,30 @@ import {
   ENVELOPE_PRESETS,
   ENVELOPE_SPECS,
   downloadEnvelopePdf,
+  getStoredEnvelopeConfig,
   printEnvelopeHtmlDirectly,
+  setStoredEnvelopeConfig,
 } from "../../utils/envelopePdfGenerator.js";
+import {
+  getEnvelopeConfigApi,
+  saveEnvelopeConfigApi,
+} from "../../api/calibrationApi.js";
 import EnvelopeSheetPreview from "../../components/calibration/EnvelopeSheetPreview.jsx";
 
 const MM_TO_PX = 96 / 25.4;
 
 export default function EnvelopeDesignerPage() {
-  const [config, setConfig] = useState({ ...DEFAULT_ENVELOPE_CONFIG });
-  const [selectedPresetId, setSelectedPresetId] = useState("custom_arcl");
-  const [widthMm, setWidthMm] = useState(280);
-  const [heightMm, setHeightMm] = useState(124);
+  const initialSaved = getStoredEnvelopeConfig();
+  const [config, setConfig] = useState(initialSaved);
+  const [selectedPresetId, setSelectedPresetId] = useState(initialSaved.selectedPresetId || "custom_arcl");
+  const [widthMm, setWidthMm] = useState(initialSaved.widthMm || 280);
+  const [heightMm, setHeightMm] = useState(initialSaved.heightMm || 124);
   const [qrImage, setQrImage] = useState(null); // { dataUrl, width, height, fileName, fileSizeKb }
   const [showRulerGuides, setShowRulerGuides] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState(null);
   const [previewScale, setPreviewScale] = useState(0.85);
   const [themeCategory, setThemeCategory] = useState("all");
 
@@ -43,6 +55,40 @@ export default function EnvelopeDesignerPage() {
 
   const envelopeWidthPx = useMemo(() => widthMm * MM_TO_PX, [widthMm]);
   const envelopeHeightPx = useMemo(() => heightMm * MM_TO_PX, [heightMm]);
+
+  // Load saved corporate envelope configuration from backend database on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSavedEnvelopeConfig = async () => {
+      try {
+        setIsLoadingConfig(true);
+        const res = await getEnvelopeConfigApi();
+        const data = res?.data?.data || res?.data;
+        if (data && isMounted) {
+          const merged = { ...DEFAULT_ENVELOPE_CONFIG, ...data };
+          setConfig(merged);
+          if (data.selectedPresetId) setSelectedPresetId(data.selectedPresetId);
+          if (data.widthMm) setWidthMm(Number(data.widthMm));
+          if (data.heightMm) setHeightMm(Number(data.heightMm));
+          setStoredEnvelopeConfig({
+            ...merged,
+            selectedPresetId: data.selectedPresetId || "custom_arcl",
+            widthMm: data.widthMm || 280,
+            heightMm: data.heightMm || 124,
+          });
+          if (data.updatedAt) setLastSavedTime(new Date(data.updatedAt));
+        }
+      } catch (err) {
+        console.warn("Could not fetch remote envelope config, using cached local config:", err);
+      } finally {
+        if (isMounted) setIsLoadingConfig(false);
+      }
+    };
+    fetchSavedEnvelopeConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const el = previewContainerRef.current;
@@ -121,6 +167,39 @@ export default function EnvelopeDesignerPage() {
     setQrImage(null);
     setShowRulerGuides(false);
     toast.success("Envelope design reset to official ARCL defaults.");
+  };
+
+  const handleSaveDesign = async () => {
+    try {
+      setIsSaving(true);
+      const fullPayload = {
+        ...config,
+        selectedPresetId,
+        widthMm,
+        heightMm,
+      };
+
+      // 1. Instantly store in local cache and dispatch event for immediate reactivity
+      setStoredEnvelopeConfig(fullPayload);
+
+      // 2. Persist to MongoDB database via backend API
+      const res = await saveEnvelopeConfigApi(fullPayload);
+      const savedData = res?.data?.data || res?.data;
+      if (savedData?.updatedAt) {
+        setLastSavedTime(new Date(savedData.updatedAt));
+      } else {
+        setLastSavedTime(new Date());
+      }
+      toast.success(
+        "Envelope design successfully saved! SRF Customer Envelope me yahi design automatically apply ho gaya hai.",
+        { autoClose: 3500 }
+      );
+    } catch (err) {
+      console.error("Failed to save envelope configuration:", err);
+      toast.error("Failed to save design to server, but cached locally.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -234,6 +313,16 @@ export default function EnvelopeDesignerPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
+            onClick={handleSaveDesign}
+            disabled={isSaving}
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-black shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-60 ring-2 ring-emerald-400/40"
+            title="Save this design as the company-wide default for SRF customer envelopes"
+          >
+            <FaSave /> {isSaving ? "Saving..." : "Save for SRF"}
+          </button>
+
+          <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg transition flex items-center gap-2 cursor-pointer"
           >
@@ -274,6 +363,31 @@ export default function EnvelopeDesignerPage() {
             className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer"
           >
             <FaRedo /> Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Sync Status Banner */}
+      <div className="arcl-no-print bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5 text-xs text-emerald-950 font-medium">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <span>
+            <strong className="font-bold text-emerald-900">SRF Envelope Sync Active:</strong> Jo bhi background theme, custom color ya size aap yahan select karke <strong className="text-emerald-800">"Save for SRF"</strong> karenge, wo Calibration Portal ke sabhi SRF Customer Envelopes me automatically lag jayega!
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {lastSavedTime && (
+            <span className="text-[11px] font-mono text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300">
+              Saved: {lastSavedTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveDesign}
+            disabled={isSaving}
+            className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+          >
+            <FaSave /> {isSaving ? "Saving..." : "Save Design"}
           </button>
         </div>
       </div>

@@ -105,6 +105,56 @@ export const DEFAULT_ENVELOPE_CONFIG = {
   customColorSolid: "#FFFFFF",
 };
 
+export const ENVELOPE_STORAGE_KEY = "arcl_saved_envelope_config";
+
+/**
+ * Retrieve saved envelope configuration from localStorage cache with robust fallback to DEFAULT_ENVELOPE_CONFIG
+ */
+export const getStoredEnvelopeConfig = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...DEFAULT_ENVELOPE_CONFIG, widthMm: 280, heightMm: 124, selectedPresetId: "custom_arcl" };
+  }
+  try {
+    const raw = window.localStorage.getItem(ENVELOPE_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_ENVELOPE_CONFIG, widthMm: 280, heightMm: 124, selectedPresetId: "custom_arcl" };
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return {
+        ...DEFAULT_ENVELOPE_CONFIG,
+        widthMm: 280,
+        heightMm: 124,
+        selectedPresetId: "custom_arcl",
+        ...parsed,
+      };
+    }
+  } catch (err) {
+    console.warn("Failed to parse cached envelope config:", err);
+  }
+  return { ...DEFAULT_ENVELOPE_CONFIG, widthMm: 280, heightMm: 124, selectedPresetId: "custom_arcl" };
+};
+
+/**
+ * Store envelope configuration into localStorage and broadcast change event
+ */
+export const setStoredEnvelopeConfig = (config) => {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const merged = {
+      ...DEFAULT_ENVELOPE_CONFIG,
+      widthMm: 280,
+      heightMm: 124,
+      selectedPresetId: "custom_arcl",
+      ...config,
+    };
+    window.localStorage.setItem(ENVELOPE_STORAGE_KEY, JSON.stringify(merged));
+    window.dispatchEvent(new CustomEvent("arcl_envelope_config_updated", { detail: merged }));
+  } catch (err) {
+    console.warn("Failed to cache envelope config:", err);
+  }
+};
+
 /**
  * Parses 3 or 6 hex digits into RGB object for jsPDF fill rendering
  */

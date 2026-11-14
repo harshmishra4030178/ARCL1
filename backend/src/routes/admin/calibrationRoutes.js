@@ -42,6 +42,8 @@ import {
   scanObservationFromHardwareScanner,
   authorizeCalibrationObservation,
   transcribeVoiceAudio,
+  getEnvelopeConfigHandler,
+  saveEnvelopeConfigHandler,
 } from "../../controllers/calibrationController.js";
 import {
   getPurchases,
@@ -148,5 +150,9 @@ router.delete("/purchases/:id", deletePurchase);
 
 // Real-time Voice Audio Transcription Endpoint
 router.post("/transcribe-voice", transcribeVoiceAudio);
+
+// Envelope Configuration (Persistence across Envelope Designer & SRF Customer Envelopes)
+router.get("/envelope-config", checkModulePermission("calibration"), getEnvelopeConfigHandler);
+router.post("/envelope-config", checkModulePermission("calibration", "edit"), saveEnvelopeConfigHandler);
 
 export default router;

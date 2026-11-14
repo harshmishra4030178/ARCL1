@@ -9,11 +9,14 @@ import OfficialNablCertificate from "../../components/calibration/OfficialNablCe
 import EnvelopeSheetPreview from "../../components/calibration/EnvelopeSheetPreview.jsx";
 import { buildCustomerQrVerifyUrl, computeCustomerQrSignature, normalizeCustomerKey } from "../../utils/customerQr.js";
 import {
+  BACKGROUND_THEMES,
   DEFAULT_ENVELOPE_CONFIG,
   ENVELOPE_PRESETS,
   downloadEnvelopePdf,
   generateCustomerEnvelopeQrPng,
+  getStoredEnvelopeConfig,
   printEnvelopeHtmlDirectly,
+  setStoredEnvelopeConfig,
 } from "../../utils/envelopePdfGenerator.js";
 import {
   FaCertificate,
@@ -137,6 +140,7 @@ import {
   convertCloudinaryPdfToFormApi,
   verifyGstApi,
   syncTemplatesFromDirectoryApi,
+  getEnvelopeConfigApi,
 } from "../../api/calibrationApi.js";
 import { getProducts } from "../../api/productApi.js";
 import { getEquipmentTypes } from "../../api/equipmentTypeApi.js";
@@ -1527,8 +1531,39 @@ export default function CalibrationPageView() {
   const [customerQrModal, setCustomerQrModal] = useState(null);
   const [customerEnvelopeModal, setCustomerEnvelopeModal] = useState(null);
   const [isExportingCustomerEnvelope, setIsExportingCustomerEnvelope] = useState(false);
+  const [savedEnvelopeConfig, setSavedEnvelopeConfig] = useState(() => getStoredEnvelopeConfig());
   const customerEnvelopeQrInputRef = useRef(null);
   const obsAssistantSectionRef = useRef(null);
+
+  // Keep saved corporate envelope configuration synced with database and Envelope Designer
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSavedEnvelopeConfig = async () => {
+      try {
+        const res = await getEnvelopeConfigApi();
+        const data = res?.data?.data || res?.data;
+        if (data && isMounted) {
+          const merged = { ...DEFAULT_ENVELOPE_CONFIG, ...data };
+          setSavedEnvelopeConfig(merged);
+          setStoredEnvelopeConfig(merged);
+        }
+      } catch (e) {
+        // Fallback to local cache gracefully
+      }
+    };
+    fetchSavedEnvelopeConfig();
+
+    const handleConfigSync = (evt) => {
+      if (evt?.detail && isMounted) {
+        setSavedEnvelopeConfig(evt.detail);
+      }
+    };
+    window.addEventListener("arcl_envelope_config_updated", handleConfigSync);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("arcl_envelope_config_updated", handleConfigSync);
+    };
+  }, []);
 
   // Auto direct-print handler when triggered from table row
   useEffect(() => {
@@ -9992,11 +10027,12 @@ export default function CalibrationPageView() {
     try {
       setIsExportingCustomerEnvelope(true);
       const envData = await resolveCustomerEnvelopePayload(target);
+      const activeConfig = savedEnvelopeConfig || getStoredEnvelopeConfig();
       setCustomerEnvelopeModal({
         ...envData,
-        widthMm: 280,
-        heightMm: 124,
-        presetId: "custom_arcl",
+        widthMm: activeConfig.widthMm || 280,
+        heightMm: activeConfig.heightMm || 124,
+        presetId: activeConfig.selectedPresetId || "custom_arcl",
         autoDirectPrint: true,
       });
       toast.info("Opening Direct Print dialog...", { autoClose: 1400 });
@@ -10011,11 +10047,12 @@ export default function CalibrationPageView() {
   const handleOpenCustomerEnvelopeModal = async (target) => {
     try {
       const envData = await resolveCustomerEnvelopePayload(target);
+      const activeConfig = savedEnvelopeConfig || getStoredEnvelopeConfig();
       setCustomerEnvelopeModal({
         ...envData,
-        widthMm: 280,
-        heightMm: 124,
-        presetId: "custom_arcl",
+        widthMm: activeConfig.widthMm || 280,
+        heightMm: activeConfig.heightMm || 124,
+        presetId: activeConfig.selectedPresetId || "custom_arcl",
         autoDirectPrint: false,
       });
     } catch {
@@ -27718,6 +27755,25 @@ export default function CalibrationPageView() {
                       </option>
                     ))}
                   </select>
+
+                  {/* Active Theme Badge synced with Envelope Designer */}
+                  {(() => {
+                    const activeCfg = savedEnvelopeConfig || DEFAULT_ENVELOPE_CONFIG;
+                    const activeTheme =
+                      BACKGROUND_THEMES.find((t) => t.id === activeCfg.backgroundTheme) || {
+                        title:
+                          activeCfg.backgroundTheme === "custom"
+                            ? "Custom Design"
+                            : "Classic White (Pehle Wala)",
+                      };
+                    return (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Theme: <strong>{activeTheme.title}</strong></span>
+                        <span className="text-slate-400 font-normal ml-0.5">(From Envelope Designer)</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -27786,7 +27842,7 @@ export default function CalibrationPageView() {
                   }}
                 >
                   <EnvelopeSheetPreview
-                    config={DEFAULT_ENVELOPE_CONFIG}
+                    config={savedEnvelopeConfig || DEFAULT_ENVELOPE_CONFIG}
                     recipient={customerEnvelopeModal.recipient}
                     qrImage={customerEnvelopeModal.qrImage}
                     widthMm={customerEnvelopeModal.widthMm || 280}
@@ -27936,7 +27992,7 @@ export default function CalibrationPageView() {
                       const safeName = customerEnvelopeModal.clientCompany.replace(/[^a-zA-Z0-9]+/g, "_");
                       await downloadEnvelopePdf(
                         {
-                          config: DEFAULT_ENVELOPE_CONFIG,
+                          config: savedEnvelopeConfig || DEFAULT_ENVELOPE_CONFIG,
                           recipient: customerEnvelopeModal.recipient,
                           qrImage: customerEnvelopeModal.qrImage,
                           widthMm: w,

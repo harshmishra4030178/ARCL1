@@ -221,3 +221,12 @@ export const verifyCalibrationCertificateApi = (params = {}) =>
 // Real-time Voice Audio AI Transcription API
 export const transcribeVoiceAudioApi = (data) =>
   API.post("/admin/calibration/transcribe-voice", data);
+
+// =========================
+// CORPORATE ENVELOPE CONFIGURATION APIS
+// =========================
+export const getEnvelopeConfigApi = () =>
+  API.get("/admin/calibration/envelope-config");
+
+export const saveEnvelopeConfigApi = (data) =>
+  API.post("/admin/calibration/envelope-config", data);
