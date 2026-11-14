@@ -29,23 +29,63 @@ export default function AdminLayout({ children }) {
     }
   }, [mounted, isLoginPage, checkingAuth, isAuthenticated, router]);
 
-  // Live Heartbeat telemetry: keep admin presence active in real time (20s)
+  // Live Heartbeat telemetry & continuous Office WiFi protection
   useEffect(() => {
     if (!isAuthenticated || isLoginPage) return;
 
-    // Send immediate heartbeat
-    sendHeartbeatApi().catch(() => {});
+    const rawScope = String(user?.accessScope || "").trim().toUpperCase();
+    const isOfficeOnly = rawScope === "OFFICE_ONLY";
 
-    // Ping every 20 seconds for tight real-time presence
-    const heartbeatInterval = setInterval(() => {
-      sendHeartbeatApi().catch(() => {});
-    }, 20000);
+    const pingCheck = () => {
+      sendHeartbeatApi().catch((err) => {
+        if (err.response?.data?.isWifiRevoked) {
+          try {
+            localStorage.removeItem("arcl_admin_token");
+            localStorage.removeItem("arcl_admin_user");
+            sessionStorage.setItem(
+              "arcl_wifi_logout_notice",
+              err.response?.data?.message ||
+                "Company Office WiFi disconnect ho gaya hai! Suraksha niyam ke anusaar session band kar diya gaya hai."
+            );
+          } catch (e) {}
+          window.location.href = "/admin/login?reason=wifi_disconnected";
+        }
+      });
+    };
+
+    // Immediate heartbeat
+    pingCheck();
+
+    // Ping every 10 seconds for Office-Only users (tight security), 20s for general presence
+    const intervalMs = isOfficeOnly ? 10000 : 20000;
+    const heartbeatInterval = setInterval(pingCheck, intervalMs);
 
     // Send heartbeat when user returns to tab
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        sendHeartbeatApi().catch(() => {});
+        pingCheck();
       }
+    };
+
+    // If device network disconnects (turns off WiFi / ethernet):
+    const handleOffline = () => {
+      if (isOfficeOnly) {
+        try {
+          localStorage.removeItem("arcl_admin_token");
+          localStorage.removeItem("arcl_admin_user");
+          sessionStorage.setItem(
+            "arcl_wifi_logout_notice",
+            "Aapka device network se disconnect ho gaya hai! Company Office WiFi chhootne par suraksha niyam ke anusaar session turant band kar diya gaya hai."
+          );
+        } catch (e) {}
+        window.location.href = "/admin/login?reason=wifi_disconnected";
+      }
+    };
+
+    // If device connects to a new network (e.g. mobile hotspot / different WiFi):
+    // Ping immediately to verify if the new IP is authorized!
+    const handleOnline = () => {
+      pingCheck();
     };
 
     // Immediately notify server when tab is closed or navigated away
@@ -55,17 +95,21 @@ export default function AdminLayout({ children }) {
       } catch (e) {}
     };
 
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageLeave);
     window.addEventListener("beforeunload", handlePageLeave);
 
     return () => {
       clearInterval(heartbeatInterval);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageLeave);
       window.removeEventListener("beforeunload", handlePageLeave);
     };
-  }, [isAuthenticated, isLoginPage]);
+  }, [isAuthenticated, isLoginPage, user]);
 
   const hasAccess = useMemo(() => {
     if (!user) return false;

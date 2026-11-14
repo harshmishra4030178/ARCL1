@@ -96,6 +96,20 @@ const AdminLogin = () => {
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     }
+
+    // Check for real-time WiFi disconnect auto-logout notice
+    try {
+      const wifiNotice = sessionStorage.getItem("arcl_wifi_logout_notice");
+      const searchStr = typeof window !== "undefined" ? window.location.search : "";
+      const params = new URLSearchParams(searchStr);
+      if (wifiNotice || params.get("reason") === "wifi_disconnected") {
+        setAccessDeniedNotice(
+          wifiNotice ||
+            "🚫 Security Alert: Company Office WiFi disconnect ho gaya hai! Suraksha niyam ke anusaar aapka session turant band kar diya gaya hai. Kripya Company Office WiFi se connect karke punah login karein."
+        );
+        sessionStorage.removeItem("arcl_wifi_logout_notice");
+      }
+    } catch (e) {}
   }, []);
   const redirectPath = location.state?.from?.pathname || "/admin";
 

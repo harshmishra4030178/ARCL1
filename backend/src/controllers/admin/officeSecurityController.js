@@ -4,6 +4,7 @@ import asyncHandler from "../../utils/asyncHandler.js";
 import {
   getOrCreateOfficeSecurityConfig,
   getCleanClientIp,
+  clearOfficeSecurityConfigCache,
 } from "../../utils/officeSecurityHelper.js";
 
 /**
@@ -96,6 +97,7 @@ export const updateOfficeSecuritySettings = asyncHandler(async (req, res) => {
   }
 
   await config.save();
+  clearOfficeSecurityConfigCache();
 
   return res.status(200).json(
     new ApiResponse(
@@ -124,6 +126,7 @@ export const whitelistCurrentIp = asyncHandler(async (req, res) => {
     config.officeWifiIps.push(detectedIp);
     if (req.user?._id) config.updatedBy = req.user._id;
     await config.save();
+    clearOfficeSecurityConfigCache();
   }
 
   return res.status(200).json(
@@ -156,6 +159,7 @@ export const removeIpFromWhitelist = asyncHandler(async (req, res) => {
 
   if (req.user?._id) config.updatedBy = req.user._id;
   await config.save();
+  clearOfficeSecurityConfigCache();
 
   return res.status(200).json(
     new ApiResponse(

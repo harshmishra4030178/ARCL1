@@ -1,5 +1,10 @@
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
+import {
+  getCleanClientIp,
+  isIpInWhitelist,
+  getOrCreateOfficeSecurityConfig,
+} from "../utils/officeSecurityHelper.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "arcl-super-secret-jwt-key-2026";
 
@@ -63,6 +68,30 @@ export const verifyAdmin = async (req, res, next) => {
         success: false,
         message: "Forbidden: You do not have admin permissions.",
       });
+    }
+
+    // ============================================================
+    // CONTINUOUS ACTIVE SESSION OFFICE WIFI GUARD:
+    // If staff is designated as 'OFFICE_ONLY', they MUST stay connected
+    // to the Company Office WiFi. If disconnected -> Immediately terminate session!
+    // ============================================================
+    const rawScope = String(user.accessScope || "").trim().toUpperCase();
+    if (rawScope === "OFFICE_ONLY") {
+      const config = await getOrCreateOfficeSecurityConfig();
+      if (config.isEnforceWifi) {
+        const clientIp = getCleanClientIp(req);
+        const isWifiOk = isIpInWhitelist(clientIp, config.officeWifiIps);
+        if (!isWifiOk) {
+          return res.status(403).json({
+            success: false,
+            isWifiRevoked: true,
+            reason: "WIFI_DISCONNECTED",
+            clientIp,
+            message:
+              "🚫 Security Alert: Company Office WiFi disconnect ho gaya hai! Suraksha niyam ke anusaar aapka session turant band kar diya gaya hai. Kripya Company WiFi se connect karke punah login karein.",
+          });
+        }
+      }
     }
 
     req.user = user;
@@ -267,6 +296,24 @@ export const verifyExpenseAccess = async (req, res, next) => {
           if (decoded && decoded.id) {
             const user = await User.findById(decoded.id).lean();
             if (user && user.isActive) {
+              const rawScope = String(user.accessScope || "").trim().toUpperCase();
+              if (rawScope === "OFFICE_ONLY") {
+                const config = await getOrCreateOfficeSecurityConfig();
+                if (config.isEnforceWifi) {
+                  const clientIp = getCleanClientIp(req);
+                  const isWifiOk = isIpInWhitelist(clientIp, config.officeWifiIps);
+                  if (!isWifiOk) {
+                    return res.status(403).json({
+                      success: false,
+                      isWifiRevoked: true,
+                      reason: "WIFI_DISCONNECTED",
+                      clientIp,
+                      message:
+                        "🚫 Security Alert: Company Office WiFi disconnect ho gaya hai! Suraksha niyam ke anusaar aapka session turant band kar diya gaya hai.",
+                    });
+                  }
+                }
+              }
               req.user = user;
             }
           }

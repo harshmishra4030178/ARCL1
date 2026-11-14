@@ -97,10 +97,24 @@ export const isIpInWhitelist = (clientIp, allowedIps = []) => {
   });
 };
 
+let cachedConfig = null;
+let cacheExpiry = 0;
+
+export const clearOfficeSecurityConfigCache = () => {
+  cachedConfig = null;
+  cacheExpiry = 0;
+};
+
 /**
  * Ensure office security configuration document exists in MongoDB
+ * (Cached 15s in memory for ultra-fast, zero-overhead active session validation)
  */
 export const getOrCreateOfficeSecurityConfig = async () => {
+  const now = Date.now();
+  if (cachedConfig && cacheExpiry > now) {
+    return cachedConfig;
+  }
+
   let config = await OfficeSecurityConfig.findOne({
     configKey: "DEFAULT_OFFICE_SECURITY",
   });
@@ -119,22 +133,10 @@ export const getOrCreateOfficeSecurityConfig = async () => {
       enforceTarget: "ALL_USERS",
       enforceOnSuperAdmin: true,
     });
-  } else {
-    // Migration: ensure new fields are populated if missing
-    let needsSave = false;
-    if (config.enforceTarget === undefined || config.enforceTarget === null) {
-      config.enforceTarget = "ALL_USERS";
-      needsSave = true;
-    }
-    if (config.enforceOnSuperAdmin === undefined || config.enforceOnSuperAdmin === null) {
-      config.enforceOnSuperAdmin = true;
-      needsSave = true;
-    }
-    if (needsSave) {
-      await config.save();
-    }
   }
 
+  cachedConfig = config;
+  cacheExpiry = now + 15000; // 15 seconds cache
   return config;
 };
 

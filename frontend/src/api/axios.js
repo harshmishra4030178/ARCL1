@@ -85,6 +85,28 @@ API.interceptors.response.use(
     const url = error.config?.url || "";
     const isErrorLogEndpoint = url.includes("/client/error-logs") || url.includes("/admin/error-logs");
 
+    // Immediate Auto-Logout on Office WiFi Revocation
+    if (
+      typeof window !== "undefined" &&
+      (error.response?.data?.isWifiRevoked === true ||
+        error.response?.data?.reason === "WIFI_DISCONNECTED")
+    ) {
+      try {
+        localStorage.removeItem("arcl_admin_token");
+        localStorage.removeItem("arcl_admin_user");
+        sessionStorage.setItem(
+          "arcl_wifi_logout_notice",
+          error.response?.data?.message ||
+            "🚫 Security Alert: Company Office WiFi disconnect ho gaya hai! Suraksha niyam ke anusaar aapka session turant band kar diya gaya hai. Kripya Company WiFi se connect karke punah login karein."
+        );
+      } catch (e) {}
+
+      if (window.location.pathname !== "/admin/login") {
+        window.location.href = "/admin/login?reason=wifi_disconnected";
+      }
+      return Promise.reject(error);
+    }
+
     if (typeof window !== "undefined" && error.response?.status === 401) {
       const isAuthRoute = url.includes("/auth/");
       const isAdminRoute = window.location.pathname.startsWith("/admin");

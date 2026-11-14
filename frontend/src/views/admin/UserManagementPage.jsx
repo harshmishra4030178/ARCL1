@@ -1876,6 +1876,9 @@ const UserManagementPage = () => {
                   <div>
                     • <strong className="text-emerald-300">🌍 Anywhere Access Users:</strong> Jinhe table me <strong>'Anywhere'</strong> set kiya gaya hai, wo bina kisi WiFi ya Location check ke ghar, mobile ya field se aasaani se login kar sakte hain.
                   </div>
+                  <div className="pt-1 border-t border-slate-700/60 text-amber-200">
+                    ⚡ <strong className="text-amber-400">Real-Time Auto-Logout:</strong> Agar koi 'Office Only' staff login hone ke baad Company Office WiFi se disconnect hota hai (jaise mobile hotspot ya kisi doosre network par switch karta hai), toh uska session <strong>turant band (auto-logout)</strong> ho jayega.
+                  </div>
                 </div>
               </div>
             </div>
