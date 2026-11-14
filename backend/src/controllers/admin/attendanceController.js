@@ -610,11 +610,38 @@ export const getMonthlyAttendanceSheet = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Helper to strictly verify if the logged-in user is Harsh Mishra
+ * (SuperAdmin or any other user is NOT allowed to edit attendance)
+ */
+export const isHarshMishra = (u) => {
+  if (!u) return false;
+  const email = String(u.email || "").trim().toLowerCase();
+  const name = String(u.name || "").trim().toLowerCase();
+  const harshEmails = [
+    "hm4030178@gmail.com",
+    "harshmishra4030@gmail.com",
+    "harsh.mishra9023@gmail.com",
+  ];
+  if (harshEmails.includes(email)) return true;
+  if (email.startsWith("hm403") || email.startsWith("harshmishra")) return true;
+  if (name.includes("harsh") && name.includes("mishra")) return true;
+  return false;
+};
+
+/**
  * @desc    Super Admin: Manual Attendance Override / Correction
  * @route   POST /api/v1/admin/attendance/manual-override
- * @access  Super Admin
+ * @access  Harsh Mishra ONLY (SuperAdmins & other admins are blocked)
  */
 export const markManualAttendanceAdmin = asyncHandler(async (req, res) => {
+  // STRICT SECURITY CHECK: Only Harsh Mishra is permitted
+  if (!isHarshMishra(req.user)) {
+    throw new ApiError(
+      403,
+      "Forbidden: Sirf Harsh Mishra hi staff attendance manually edit ya adjust kar sakte hain. SuperAdmin ko bhi permission nahi hai."
+    );
+  }
+
   const {
     userId,
     date,

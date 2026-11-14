@@ -61,6 +61,22 @@ export default function AttendancePage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === "superadmin" || user?.role === "admin";
 
+  // Strictly ONLY Harsh Mishra can edit or adjust staff attendance (SuperAdmin is blocked)
+  const isHarshUser = useMemo(() => {
+    if (!user) return false;
+    const email = String(user.email || "").trim().toLowerCase();
+    const name = String(user.name || "").trim().toLowerCase();
+    const harshEmails = [
+      "hm4030178@gmail.com",
+      "harshmishra4030@gmail.com",
+      "harsh.mishra9023@gmail.com",
+    ];
+    if (harshEmails.includes(email)) return true;
+    if (email.startsWith("hm403") || email.startsWith("harshmishra")) return true;
+    if (name.includes("harsh") && name.includes("mishra")) return true;
+    return false;
+  }, [user]);
+
   const [activeTab, setActiveTab] = useState("punch"); // 'punch' | 'roster' | 'monthly'
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
@@ -334,9 +350,13 @@ export default function AttendancePage() {
     }
   };
 
-  // Manual Attendance Correction Submit (Super Admin)
+  // Manual Attendance Correction Submit (Harsh Mishra Exclusive)
   const handleManualSubmit = async (e) => {
     e.preventDefault();
+    if (!isHarshUser) {
+      toast.error("Access Denied: Sirf Harsh Mishra hi attendance edit kar sakte hain.");
+      return;
+    }
     if (!manualForm.userId || !manualForm.date) {
       toast.error("User and Date are required.");
       return;
@@ -869,19 +889,19 @@ export default function AttendancePage() {
                     <th className="p-3.5">Punch-In (Subah)</th>
                     <th className="p-3.5">Punch-Out (Sham)</th>
                     <th className="p-3.5">Work Duration</th>
-                    <th className="p-3.5">Action</th>
+                    {isHarshUser && <th className="p-3.5 text-right">Edit</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-medium">
                   {loadingRoster ? (
                     <tr>
-                      <td colSpan="7" className="p-6 text-center text-slate-500 italic">
+                      <td colSpan={isHarshUser ? "7" : "6"} className="p-6 text-center text-slate-500 italic">
                         Live staff presence load ho rahi hai...
                       </td>
                     </tr>
                   ) : rosterData?.roster?.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="p-6 text-center text-slate-500 italic">
+                      <td colSpan={isHarshUser ? "7" : "6"} className="p-6 text-center text-slate-500 italic">
                         Koi staff user nahi mila.
                       </td>
                     </tr>
@@ -960,26 +980,29 @@ export default function AttendancePage() {
                           )}
                         </td>
 
-                        <td className="p-3.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setManualForm({
-                                userId: item.user?._id,
-                                date: rosterData?.date || getTodayDateStringIndia(),
-                                status: item.status || "PRESENT",
-                                punchInTimeStr: item.attendance?.punchIn?.formattedTime || "09:30",
-                                punchOutTimeStr: item.attendance?.punchOut?.formattedTime || "18:30",
-                                remarks: item.attendance?.remarks || "Admin Adjustment",
-                              });
-                              setShowManualModal(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition cursor-pointer text-xs"
-                            title="Manual Edit / Adjust Attendance"
-                          >
-                            <FaEdit />
-                          </button>
-                        </td>
+                        {isHarshUser && (
+                          <td className="p-3.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualForm({
+                                  userId: item.user?._id,
+                                  date: rosterData?.date || getTodayDateStringIndia(),
+                                  status: item.status || "PRESENT",
+                                  punchInTimeStr: item.attendance?.punchIn?.formattedTime || "09:30",
+                                  punchOutTimeStr: item.attendance?.punchOut?.formattedTime || "18:30",
+                                  remarks: item.attendance?.remarks || "Harsh Mishra Adjustment",
+                                });
+                                setShowManualModal(true);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer text-xs inline-flex items-center gap-1 font-bold shadow-xs"
+                              title="Harsh Mishra Only: Edit / Adjust Attendance"
+                            >
+                              <FaEdit className="text-[11px]" />
+                              <span>Edit</span>
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
@@ -1146,15 +1169,15 @@ export default function AttendancePage() {
       )}
 
       {/* ============================================================== */}
-      {/* SUPER ADMIN MANUAL ADJUSTMENT MODAL                            */}
+      {/* HARSH MISHRA ONLY MANUAL ADJUSTMENT MODAL                      */}
       {/* ============================================================== */}
-      {showManualModal && (
+      {showManualModal && isHarshUser && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-5 animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl space-y-5 animate-fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <FaEdit className="text-amber-400" />
-                <span>Manual Attendance Adjustment</span>
+                <span>Harsh Mishra Exclusive — Attendance Edit</span>
               </h3>
               <button
                 type="button"
